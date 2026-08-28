@@ -2,24 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { ConfirmModal } from "../components/dialogs";
+import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
+import { formatMmDd, formatYmd } from "../lib/dates";
+import Recurring from "./Recurring";
 import type { BirthdayView, ConfigError, UpcomingEvent } from "../types";
 
-type SubTab = "scheduled" | "birthdays";
-
-// "0830" -> "08-30" while typing, so the hyphen never has to be typed
-export function formatMmDd(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 4);
-  return digits.length > 2 ? `${digits.slice(0, 2)}-${digits.slice(2)}` : digits;
-}
-
-// "20260830" -> "2026-08-30": typing digits fills the segments, the
-// hyphens appear on their own after the year and the month
-export function formatYmd(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
-}
+type SubTab = "scheduled" | "birthdays" | "recurring";
 
 export default function Upcoming() {
   const { runEngine, refresh } = useAppStore();
@@ -66,7 +54,7 @@ export default function Upcoming() {
   return (
     <div className="mx-auto flex h-full max-w-2xl flex-col gap-4 p-6">
       <div className="flex gap-1 border-b border-line">
-        {(["scheduled", "birthdays"] as const).map((t) => (
+        {(["scheduled", "birthdays", "recurring"] as const).map((t) => (
           <button
             key={t}
             className={`px-4 py-2 text-sm font-medium capitalize ${
@@ -92,11 +80,13 @@ export default function Upcoming() {
         </div>
       )}
 
-      {tab === "scheduled" ? (
+      {tab === "scheduled" && (
         <ScheduledTab events={events} onWrite={afterWrite} />
-      ) : (
+      )}
+      {tab === "birthdays" && (
         <BirthdaysTab birthdays={birthdays} onWrite={afterWrite} />
       )}
+      {tab === "recurring" && <Recurring />}
     </div>
   );
 }
@@ -475,41 +465,5 @@ function BirthdayEditRow({
       />
       <EditFormButtons onCancel={onCancel} />
     </form>
-  );
-}
-
-export function DeleteRowButton({
-  onDelete,
-}: {
-  onDelete: (e: React.MouseEvent) => void;
-}) {
-  return (
-    <button
-      className="hidden shrink-0 rounded px-1.5 text-xs text-content-muted hover:text-danger group-hover:block"
-      title="Delete"
-      onClick={onDelete}
-    >
-      &#215;
-    </button>
-  );
-}
-
-export function EditFormButtons({ onCancel }: { onCancel: () => void }) {
-  return (
-    <span className="flex shrink-0 gap-1">
-      <button
-        type="submit"
-        className="btn-primary px-3 py-1 text-xs"
-      >
-        Save
-      </button>
-      <button
-        type="button"
-        className="rounded-md border border-line px-3 py-1 text-xs text-content-muted hover:text-content"
-        onClick={onCancel}
-      >
-        Cancel
-      </button>
-    </span>
   );
 }

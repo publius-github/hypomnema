@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
-import { DeleteRowButton, EditFormButtons } from "./Upcoming";
+import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
 import { ConfirmModal } from "../components/dialogs";
 import type { ConfigError, RecurringRule } from "../types";
 
@@ -73,8 +73,7 @@ export default function Recurring() {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-2xl flex-col gap-4 p-6">
-      <h1 className="text-xl font-semibold">Recurring tasks</h1>
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <p className="text-sm text-content-muted">
         Rules from recurring.yml. Each firing of the schedule creates the
         listed items as tasks; a &#123;List&#125; prefix places an item

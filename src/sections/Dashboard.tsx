@@ -27,6 +27,9 @@ export default function Dashboard() {
   if (!config) return null;
 
   const dates = gridDates(today, config.grid_columns);
+  // fresh vault: nothing exists yet, so the automation features are
+  // invisible - point at them once
+  const freshVault = tasks.length === 0 && lists.length === 0;
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
   const editingTask = tasks.find((t) => t.id === editingTaskId) ?? null;
 
@@ -56,6 +59,40 @@ export default function Dashboard() {
         {dashboard?.focus && (
           <div className="text-center text-sm font-medium italic text-accent">
             {dashboard.focus}
+          </div>
+        )}
+        {freshVault && (
+          <div className="mx-auto flex w-full max-w-xl flex-col gap-2 rounded-lg border border-line bg-surface-alt p-4 text-sm">
+            <span className="font-semibold">Getting started</span>
+            <span className="text-content-muted">
+              Click &quot;+ Add task&quot; in any day column, or type a
+              title as {"{List name}"} task text to file it into a list.
+            </span>
+            <span className="text-content-muted">
+              Recurring rules, one-off dates and birthdays generate tasks
+              automatically - set them up in{" "}
+              <button
+                className="text-accent hover:underline"
+                onClick={() => useAppStore.getState().setSection("upcoming")}
+              >
+                Upcoming
+              </button>
+              . The journal and the Markdown notes live in{" "}
+              <button
+                className="text-accent hover:underline"
+                onClick={() => useAppStore.getState().setSection("journal")}
+              >
+                Journal
+              </button>{" "}
+              and{" "}
+              <button
+                className="text-accent hover:underline"
+                onClick={() => useAppStore.getState().setSection("kb")}
+              >
+                Notes
+              </button>
+              .
+            </span>
           </div>
         )}
         <div

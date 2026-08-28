@@ -1,7 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
 import { useAppStore } from "../store";
-import { compareTasks, nextStatus } from "../lib/tasks";
+import { addDaysISO, compareTasks, nextStatus } from "../lib/tasks";
 import type { Task } from "../types";
 
 const STATUS_BUTTON: Record<Task["status"], string> = {
@@ -30,6 +30,20 @@ export default function TaskCard({
     .filter((t) => t.parent_task_id === task.id)
     .sort(compareTasks);
   const done = task.status === "done";
+
+  // postpone = move one day forward with the postponed mark, counted
+  // from the task's own day (or today for a stale date)
+  const postpone = () => {
+    const today = useAppStore.getState().today;
+    const base =
+      task.scheduled_date && task.scheduled_date > today
+        ? task.scheduled_date
+        : today;
+    void updateTask(task.id, {
+      scheduled_date: addDaysISO(base, 1),
+      status: "postponed",
+    });
+  };
 
   return (
     <div
@@ -115,6 +129,31 @@ export default function TaskCard({
             )}
           </div>
         </div>
+        {!overlay && !done && task.scheduled_date && (
+          <button
+            className="mt-0.5 hidden shrink-0 text-content-muted hover:text-warn group-hover:block"
+            title="Postpone to the next day"
+            onClick={(e) => {
+              e.stopPropagation();
+              postpone();
+            }}
+          >
+            <svg
+              viewBox="0 0 16 16"
+              className="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M2 8h9" />
+              <path d="M8 4.5 11.5 8 8 11.5" />
+              <path d="M14 3.5v9" />
+            </svg>
+          </button>
+        )}
       </div>
       {expanded && subtasks.length > 0 && (
         <div className="flex flex-col gap-1 border-t border-line px-2 py-1.5 pl-7">

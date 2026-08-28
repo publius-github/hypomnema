@@ -33,7 +33,6 @@ export type TaskStatus = Task["status"];
 export type Section =
   | "dashboard"
   | "upcoming"
-  | "recurring"
   | "calendar"
   | "journal"
   | "kb"

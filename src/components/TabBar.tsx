@@ -8,7 +8,6 @@ import AboutModal from "./AboutModal";
 const TABS: { id: Section; label: string; icon: IconName }[] = [
   { id: "dashboard", label: "Dashboard", icon: "grid" },
   { id: "upcoming", label: "Upcoming", icon: "clock" },
-  { id: "recurring", label: "Recurring", icon: "repeat" },
   { id: "calendar", label: "Calendar", icon: "calendar" },
   { id: "journal", label: "Journal", icon: "pencil" },
   { id: "kb", label: "Notes", icon: "notes" },

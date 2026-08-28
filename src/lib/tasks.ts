@@ -1,9 +1,12 @@
 import type { List, ScheduleBlock, Task, TaskStatus } from "../types";
 
+// The checkbox toggles between open and done only - a double-click on
+// a done task must not accidentally postpone it. Postponing is its own
+// action (the arrow button / the modal).
 export const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
   todo: "done",
-  done: "postponed",
-  postponed: "todo",
+  done: "todo",
+  postponed: "done",
 };
 
 export function nextStatus(status: TaskStatus): TaskStatus {

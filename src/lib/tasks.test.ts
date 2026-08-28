@@ -41,10 +41,10 @@ function list(overrides: Partial<List>): List {
 }
 
 describe("nextStatus", () => {
-  it("cycles todo -> done -> postponed -> todo", () => {
+  it("toggles open and done; a postponed task completes on click", () => {
     expect(nextStatus("todo")).toBe("done");
-    expect(nextStatus("done")).toBe("postponed");
-    expect(nextStatus("postponed")).toBe("todo");
+    expect(nextStatus("done")).toBe("todo");
+    expect(nextStatus("postponed")).toBe("done");
   });
 });
 
