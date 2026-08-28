@@ -70,6 +70,7 @@ export interface EngineOutcome {
   generated: number;
   carried_over: number;
   pruned: number;
+  removed: number;
   errors: ConfigError[];
 }
 

@@ -1,4 +1,5 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
 import type { DoneDisplay, Theme } from "../types";
@@ -40,7 +41,7 @@ export default function Settings() {
             void updateConfig({ grid_columns: Number(e.target.value) })
           }
         >
-          {[5, 7, 10].map((n) => (
+          {[3, 5, 7, 10].map((n) => (
             <option key={n} value={n}>
               {n}
             </option>
@@ -138,7 +139,43 @@ export default function Settings() {
           Open in Knowledge Base
         </button>
       </section>
+
+      <DebugSection />
     </div>
+  );
+}
+
+function DebugSection() {
+  const [status, setStatus] = useState<string | null>(null);
+
+  const deleteDone = async () => {
+    if (!confirm("Delete every task marked done? This cannot be undone.")) {
+      return;
+    }
+    try {
+      const deleted = await invoke<number>("tasks_delete_done");
+      setStatus(`Deleted ${deleted} done task(s)`);
+      await useAppStore.getState().refresh();
+    } catch (e) {
+      useAppStore.setState({ error: String(e) });
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-2 border-t border-line pt-4">
+      <span className="text-sm font-medium">Debug</span>
+      <div className="flex items-center gap-2">
+        <button
+          className="w-fit rounded-md border border-red-500/50 px-3 py-1 text-xs text-red-500 hover:bg-red-500/10"
+          onClick={() => void deleteDone()}
+        >
+          Delete all done tasks
+        </button>
+        {status && (
+          <span className="text-xs text-content-muted">{status}</span>
+        )}
+      </div>
+    </section>
   );
 }
 

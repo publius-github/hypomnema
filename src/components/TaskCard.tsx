@@ -4,10 +4,10 @@ import { useAppStore } from "../store";
 import { compareTasks, nextStatus } from "../lib/tasks";
 import type { Task } from "../types";
 
-const STATUS_GLYPH: Record<Task["status"], string> = {
-  todo: "",
-  done: "✓",
-  postponed: "→",
+const STATUS_BUTTON: Record<Task["status"], string> = {
+  todo: "border-content-muted text-content-muted",
+  done: "border-accent bg-accent text-white",
+  postponed: "border-amber-500 bg-amber-500 text-white",
 };
 
 export default function TaskCard({
@@ -48,18 +48,29 @@ export default function TaskCard({
           />
         )}
         <button
-          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
-            done
-              ? "border-accent bg-accent text-white"
-              : "border-content-muted text-content-muted"
-          }`}
+          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${STATUS_BUTTON[task.status]}`}
           title={`Status: ${task.status}`}
           onClick={(e) => {
             e.stopPropagation();
             void updateTask(task.id, { status: nextStatus(task.status) });
           }}
         >
-          {STATUS_GLYPH[task.status]}
+          {done && "✓"}
+          {task.status === "postponed" && (
+            <svg
+              viewBox="0 0 12 12"
+              className="h-3 w-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M1.5 6h8" />
+              <path d="M6.5 3l3 3-3 3" />
+            </svg>
+          )}
         </button>
         <div
           className="min-w-0 flex-1 cursor-pointer"
@@ -79,7 +90,11 @@ export default function TaskCard({
                 overdue
               </span>
             )}
-            {task.status === "postponed" && <span>postponed</span>}
+            {task.status === "postponed" && (
+              <span className="rounded bg-amber-500/15 px-1 font-medium text-amber-500">
+                postponed
+              </span>
+            )}
             {subtasks.length > 0 && (
               <button
                 className="hover:text-content"

@@ -22,6 +22,7 @@ pub struct EngineOutcome {
     pub generated: usize,
     pub carried_over: usize,
     pub pruned: usize,
+    pub removed: usize,
     pub errors: Vec<ConfigError>,
 }
 
@@ -273,6 +274,37 @@ fn run_recurring(
                 }
             }
         }
+    }
+
+    // Reconcile with the config: a rule or item removed from
+    // recurring.yml takes its not-yet-reached instances with it.
+    // Today's and past instances (incl. overdue carry-overs) stay,
+    // and a broken file never reaches this point, so the last valid
+    // state is preserved.
+    let active: std::collections::HashSet<String> = file
+        .tasks
+        .iter()
+        .flat_map(|rule| {
+            rule.items
+                .iter()
+                .map(|item| fnv1a64(&format!("{}|{}|{}", rule.schedule, rule.description, item)))
+        })
+        .collect();
+    let today_str = today.format("%Y-%m-%d").to_string();
+    let existing: Vec<String> = {
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT rule_key FROM tasks
+             WHERE origin = 'recurring' AND rule_key IS NOT NULL AND scheduled_date > ?1",
+        )?;
+        let keys = stmt.query_map([&today_str], |row| row.get(0))?;
+        keys.collect::<std::result::Result<_, _>>()?
+    };
+    for key in existing.iter().filter(|key| !active.contains(*key)) {
+        outcome.removed += conn.execute(
+            "DELETE FROM tasks
+             WHERE origin = 'recurring' AND rule_key = ?1 AND scheduled_date > ?2",
+            (key, &today_str),
+        )?;
     }
     Ok(())
 }
@@ -965,6 +997,50 @@ mod tests {
         let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(outcome.errors.len(), 1);
         assert!(outcome.generated > 0);
+    }
+
+    #[test]
+    fn removed_rule_takes_future_instances_but_keeps_today() {
+        let (conn, dir) = setup("reconcile");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"a\"\n      - \"b\"\n",
+        )
+        .unwrap();
+        let now = at("2026-08-28", "12:00:00");
+        let cfg = config(1, 7, 0);
+        run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(count_tasks(&conn), 14);
+
+        // drop item 'b': its future instances go, today's stays
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"a\"\n",
+        )
+        .unwrap();
+        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(outcome.removed, 6);
+        let b_left: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks WHERE title = 'b'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(b_left, 1);
+        let b_date: String = conn
+            .query_row(
+                "SELECT scheduled_date FROM tasks WHERE title = 'b'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(b_date, "2026-08-28");
+
+        // a broken file must not wipe anything
+        let before = count_tasks(&conn);
+        fs::write(dir.join("recurring.yml"), "tasks: [\n").unwrap();
+        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(outcome.removed, 0);
+        assert_eq!(count_tasks(&conn), before);
     }
 
     #[test]

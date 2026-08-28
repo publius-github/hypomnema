@@ -180,6 +180,11 @@ fn task_delete(state: State<AppState>, id: i64) -> Result<()> {
 }
 
 #[tauri::command]
+fn tasks_delete_done(state: State<AppState>) -> Result<usize> {
+    with_conn(&state, tasks::tasks_delete_done)
+}
+
+#[tauri::command]
 fn engine_run(state: State<AppState>) -> Result<engine::EngineOutcome> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
@@ -461,6 +466,7 @@ pub fn run() {
             task_create,
             task_update,
             task_delete,
+            tasks_delete_done,
             engine_run,
             upcoming_events,
             journal_open,

@@ -274,6 +274,12 @@ pub fn task_delete(conn: &Connection, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Debug helper (Settings): wipes every task marked done; subtasks of
+/// deleted parents cascade.
+pub fn tasks_delete_done(conn: &Connection) -> Result<usize> {
+    Ok(conn.execute("DELETE FROM tasks WHERE status = 'done'", [])?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
