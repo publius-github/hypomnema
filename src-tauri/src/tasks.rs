@@ -407,10 +407,19 @@ pub fn task_restore(conn: &Connection, id: i64) -> Result<()> {
     Ok(())
 }
 
-/// Debug helper (Settings): wipes every task marked done; subtasks of
-/// deleted parents cascade.
+/// Maintenance helper (Settings): removes every task marked done, with
+/// subtasks of done parents. Soft delete, like task_delete: hard-deleting
+/// a generated task would erase the tombstone that stops the engine from
+/// regenerating a still-current period as a fresh todo.
 pub fn tasks_delete_done(conn: &Connection) -> Result<usize> {
-    Ok(conn.execute("DELETE FROM tasks WHERE status = 'done'", [])?)
+    Ok(conn.execute(
+        "UPDATE tasks SET archived_at = ?1
+         WHERE archived_at IS NULL
+           AND (status = 'done'
+                OR parent_task_id IN (SELECT id FROM tasks
+                                      WHERE status = 'done' AND archived_at IS NULL))",
+        [Utc::now().to_rfc3339()],
+    )?)
 }
 
 #[cfg(test)]

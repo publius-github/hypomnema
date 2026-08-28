@@ -118,6 +118,40 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
     Ok(true)
 }
 
+/// A rule_runs row whose task vanished without a trace blocks its period
+/// forever, leaving silent holes in the grid (dedup cleanups and older
+/// app versions hard-deleted task rows while the ledger survived). For a
+/// today-or-future period the ledger row is dropped so the task can be
+/// regenerated - unless evidence says the absence is deliberate: an
+/// archived tombstone of the same (rule_key, period_key) means the user
+/// deleted the instance, and any recurring task with the same title and
+/// date (live or archived, e.g. a copy completed under the rule's
+/// previous identity) means the period is already represented.
+fn repair_orphaned_period(conn: &Connection, task: &GeneratedTask) -> Result<bool> {
+    let has_row: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM tasks WHERE rule_key = ?1 AND period_key = ?2)",
+        (&task.rule_key, &task.period_key),
+        |row| row.get(0),
+    )?;
+    if has_row {
+        return Ok(false);
+    }
+    let has_twin: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM tasks
+                       WHERE origin = 'recurring' AND title = ?1 AND scheduled_date = ?2)",
+        (&task.title, &task.scheduled_date),
+        |row| row.get(0),
+    )?;
+    if has_twin {
+        return Ok(false);
+    }
+    conn.execute(
+        "DELETE FROM rule_runs WHERE rule_key = ?1 AND period_key = ?2",
+        (&task.rule_key, &task.period_key),
+    )?;
+    Ok(true)
+}
+
 fn run_recurring(
     conn: &Connection,
     dir: &Path,
@@ -287,7 +321,11 @@ fn run_recurring(
                     time: None,
                     origin: "recurring",
                 };
-                if insert_generated(conn, &generated, now)? {
+                let inserted = insert_generated(conn, &generated, now)?
+                    || (firing.date_naive() >= today
+                        && repair_orphaned_period(conn, &generated)?
+                        && insert_generated(conn, &generated, now)?);
+                if inserted {
                     outcome.generated += 1;
                 }
             }
@@ -556,9 +594,18 @@ pub fn run(
     outcome.carried_over = carry_over(conn, today)?;
     outcome.pruned = prune(conn, config.retention_days, now)?;
     // Soft-deleted tasks past their undo window are purged for good.
+    // Generated tasks are the exception: their archived row doubles as a
+    // tombstone telling repair_orphaned_period "the user deleted this
+    // instance, do not regenerate it", so it must outlive the period -
+    // it is kept until its scheduled date has passed.
     conn.execute(
-        "DELETE FROM tasks WHERE archived_at IS NOT NULL AND archived_at < ?1",
-        [(now.with_timezone(&Utc) - Duration::days(1)).to_rfc3339()],
+        "DELETE FROM tasks
+         WHERE archived_at IS NOT NULL AND archived_at < ?1
+           AND (rule_key IS NULL OR scheduled_date IS NULL OR scheduled_date < ?2)",
+        (
+            (now.with_timezone(&Utc) - Duration::days(1)).to_rfc3339(),
+            today.format("%Y-%m-%d").to_string(),
+        ),
     )?;
     // Recurring ledger rows older than the catch-up window can never
     // influence generation again; drop them so rule_runs stays bounded.
@@ -898,11 +945,136 @@ mod tests {
         let cfg = config(1, 7, 0);
 
         run(&conn, &dir, &cfg, now).unwrap();
-        conn.execute("DELETE FROM tasks", []).unwrap();
+        let ids: Vec<i64> = {
+            let mut stmt = conn.prepare("SELECT id FROM tasks").unwrap();
+            let rows = stmt.query_map([], |r| r.get(0)).unwrap();
+            rows.collect::<std::result::Result<_, _>>().unwrap()
+        };
+        for id in ids {
+            crate::tasks::task_delete(&conn, id).unwrap();
+        }
 
+        // tombstones (archived rows) keep every deleted instance dead,
+        // even after the purge pass, as long as its date is current
         let outcome = run(&conn, &dir, &cfg, now).unwrap();
         assert_eq!(outcome.generated, 0);
-        assert_eq!(count_tasks(&conn), 0);
+        let live: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE archived_at IS NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(live, 0);
+
+        // simulate the undo window passing: generated tombstones with a
+        // current date survive the purge and still block regeneration
+        conn.execute(
+            "UPDATE tasks SET archived_at = '2026-08-20T00:00:00+00:00'",
+            [],
+        )
+        .unwrap();
+        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(outcome.generated, 0);
+        let tombstones: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(tombstones, 7);
+
+        // once a tombstone's date is in the past it purges for good
+        let later = at("2026-09-05", "12:00:00");
+        run(&conn, &dir, &cfg, later).unwrap();
+        let old_tombstones: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks
+                 WHERE archived_at IS NOT NULL AND scheduled_date < '2026-09-05'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(old_tombstones, 0);
+    }
+
+    #[test]
+    fn orphaned_ledger_rows_regenerate_current_periods() {
+        let (conn, dir) = setup("orphaned-ledger");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"{Home} water\"\n",
+        )
+        .unwrap();
+        let cfg = config(3, 7, 0);
+        run(&conn, &dir, &cfg, at("2026-08-25", "12:00:00")).unwrap();
+
+        // older versions could hard-delete task rows while their
+        // rule_runs rows survived (dedup cleanups, clear-done): the
+        // period looked "generated" forever and the grid stayed empty
+        conn.execute("DELETE FROM tasks", []).unwrap();
+        let outcome = run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
+
+        // every day from today to the horizon is repaired; periods
+        // already in the past stay gone
+        assert_eq!(outcome.generated, 7);
+        for day in 28..=31 {
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM tasks WHERE scheduled_date = ?1",
+                    [format!("2026-08-{day}")],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 1, "missing task on 2026-08-{day}");
+        }
+        let past: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE scheduled_date < '2026-08-28'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(past, 0);
+
+        // a completed copy under another identity still counts as
+        // "period represented": no todo resurrects next to it
+        conn.execute(
+            "UPDATE tasks SET rule_key = 'old-identity', status = 'done'
+             WHERE scheduled_date = '2026-08-28'",
+            [],
+        )
+        .unwrap();
+        let again = run(&conn, &dir, &cfg, at("2026-08-28", "13:00:00")).unwrap();
+        assert_eq!(again.generated, 0);
+    }
+
+    #[test]
+    fn clear_done_does_not_resurrect_todays_tasks() {
+        let (conn, dir) = setup("clear-done");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"daily\"\n",
+        )
+        .unwrap();
+        let cfg = config(1, 7, 0);
+        let now = at("2026-08-28", "12:00:00");
+        run(&conn, &dir, &cfg, now).unwrap();
+        conn.execute(
+            "UPDATE tasks SET status = 'done' WHERE scheduled_date = '2026-08-28'",
+            [],
+        )
+        .unwrap();
+
+        assert_eq!(crate::tasks::tasks_delete_done(&conn).unwrap(), 1);
+        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(outcome.generated, 0);
+        let today_live: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks
+                 WHERE scheduled_date = '2026-08-28' AND archived_at IS NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(today_live, 0);
     }
 
     #[test]
