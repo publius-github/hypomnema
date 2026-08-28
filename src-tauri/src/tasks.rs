@@ -86,6 +86,22 @@ mod double_option {
     }
 }
 
+/// The whole date model relies on lexicographic ordering of zero-padded
+/// YYYY-MM-DD strings (carry-over, snapshot windows, search order); a
+/// malformed date stored verbatim would silently fall out of every
+/// window and vanish from the grid. Validate and normalize on the way in.
+fn normalize_date(date: &str) -> Result<String> {
+    chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map(|d| d.format("%Y-%m-%d").to_string())
+        .map_err(|_| Error::State(format!("invalid date '{date}', expected YYYY-MM-DD")))
+}
+
+fn normalize_time(time: &str) -> Result<String> {
+    chrono::NaiveTime::parse_from_str(time, "%H:%M")
+        .map(|t| t.format("%H:%M").to_string())
+        .map_err(|_| Error::State(format!("invalid time '{time}', expected HH:MM")))
+}
+
 fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
     Ok(Task {
         id: row.get("id")?,
@@ -252,11 +268,17 @@ pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
             title = rest;
         }
     }
+    let scheduled_date = new
+        .scheduled_date
+        .as_deref()
+        .map(normalize_date)
+        .transpose()?;
+    let time = new.time.as_deref().map(normalize_time).transpose()?;
     let next: i64 = conn.query_row(
         "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tasks
          WHERE COALESCE(scheduled_date, '') = COALESCE(?1, '')
            AND COALESCE(list_id, -1) = COALESCE(?2, -1)",
-        (&new.scheduled_date, list_id),
+        (&scheduled_date, list_id),
         |row| row.get(0),
     )?;
     conn.execute(
@@ -267,8 +289,8 @@ pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
             &title,
             &new.description_md,
             list_id,
-            &new.scheduled_date,
-            &new.time,
+            &scheduled_date,
+            &time,
             &new.color,
             next,
             new.parent_task_id,
@@ -320,12 +342,14 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
         conn.execute("UPDATE tasks SET list_id = ?1 WHERE id = ?2", (list_id, id))?;
     }
     if let Some(date) = &patch.scheduled_date {
+        let date = date.as_deref().map(normalize_date).transpose()?;
         conn.execute(
             "UPDATE tasks SET scheduled_date = ?1 WHERE id = ?2",
             (date, id),
         )?;
     }
     if let Some(time) = &patch.time {
+        let time = time.as_deref().map(normalize_time).transpose()?;
         conn.execute("UPDATE tasks SET time = ?1 WHERE id = ?2", (time, id))?;
     }
     if let Some(color) = &patch.color {
@@ -572,6 +596,56 @@ mod tests {
         .unwrap();
         assert_eq!(moved.list_id, Some(list.id));
         assert_eq!(moved.scheduled_date, None);
+    }
+
+    #[test]
+    fn malformed_dates_and_times_are_rejected_or_normalized() {
+        let conn = conn();
+        assert!(task_create(
+            &conn,
+            &NewTask {
+                title: "bad".into(),
+                scheduled_date: Some("28/08/2026".into()),
+                ..Default::default()
+            },
+        )
+        .is_err());
+
+        // non-padded input would break lexicographic window filtering
+        let task = task_create(
+            &conn,
+            &NewTask {
+                title: "pad".into(),
+                scheduled_date: Some("2026-8-5".into()),
+                time: Some("9:30".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(task.scheduled_date.as_deref(), Some("2026-08-05"));
+        assert_eq!(task.time.as_deref(), Some("09:30"));
+
+        assert!(task_update(
+            &conn,
+            task.id,
+            &TaskPatch {
+                scheduled_date: Some(Some("soon".into())),
+                ..Default::default()
+            },
+        )
+        .is_err());
+        let patched = task_update(
+            &conn,
+            task.id,
+            &TaskPatch {
+                scheduled_date: Some(Some("2026-9-1".into())),
+                time: Some(None),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(patched.scheduled_date.as_deref(), Some("2026-09-01"));
+        assert_eq!(patched.time, None);
     }
 
     #[test]

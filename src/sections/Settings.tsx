@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
@@ -66,30 +66,18 @@ export default function Settings() {
       </Field>
 
       <Field label="Retention of done one-off tasks, days (0 = keep forever)">
-        <input
-          className="input"
-          type="number"
-          min={0}
+        <NumberInput
           value={config.retention_days}
-          onChange={(e) =>
-            void updateConfig({
-              retention_days: Math.max(0, Number(e.target.value) || 0),
-            })
-          }
+          min={0}
+          onCommit={(n) => void updateConfig({ retention_days: n })}
         />
       </Field>
 
       <Field label="Recurring catch-up window, days">
-        <input
-          className="input"
-          type="number"
-          min={1}
+        <NumberInput
           value={config.catchup_days}
-          onChange={(e) =>
-            void updateConfig({
-              catchup_days: Math.max(1, Number(e.target.value) || 1),
-            })
-          }
+          min={1}
+          onCommit={(n) => void updateConfig({ catchup_days: n })}
         />
       </Field>
 
@@ -162,6 +150,58 @@ export default function Settings() {
 
       <DebugSection />
     </div>
+  );
+}
+
+/**
+ * Commits on blur/Enter only. Retention drives a hard, non-undoable
+ * prune on the Rust side, and the config watcher applies a saved value
+ * within half a second - committing per keystroke would prune against
+ * the "3" of a half-typed "30".
+ */
+function NumberInput({
+  value,
+  min,
+  onCommit,
+}: {
+  value: number;
+  min: number;
+  onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+  const cancelled = useRef(false);
+
+  const commit = () => {
+    setEditing(false);
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
+    const n = Math.max(min, Number(draft) || 0);
+    if (n !== value) onCommit(n);
+  };
+
+  return (
+    <input
+      className="input"
+      type="number"
+      min={min}
+      value={editing ? draft : String(value)}
+      onFocus={() => {
+        setDraft(String(value));
+        setEditing(true);
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          cancelled.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+    />
   );
 }
 

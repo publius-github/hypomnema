@@ -68,11 +68,12 @@ pub struct BirthdayEntry {
     pub year: Option<i32>,
 }
 
-/// "MM-DD" -> (month, day), validated to calendar ranges.
+/// "MM-DD" -> (month, day), validated against a real calendar (a leap
+/// year, so 02-29 passes but 02-30 or 04-31 do not).
 pub(crate) fn parse_mmdd(date: &str) -> Option<(u32, u32)> {
     let (m, d) = date.split_once('-')?;
     let (m, d) = (m.parse().ok()?, d.parse().ok()?);
-    ((1..=12).contains(&m) && (1..=31).contains(&d)).then_some((m, d))
+    NaiveDate::from_ymd_opt(2024, m, d).map(|_| (m, d))
 }
 
 pub(crate) fn load_yaml<T: serde::de::DeserializeOwned + Default>(
@@ -524,6 +525,10 @@ mod tests {
             .len(),
             1
         );
+        // impossible calendar days fail; 02-29 stays valid (leap years)
+        assert_eq!(parse_mmdd("02-30"), None);
+        assert_eq!(parse_mmdd("04-31"), None);
+        assert_eq!(parse_mmdd("02-29"), Some((2, 29)));
         assert!(validate_config_content("day-schedule.yml", "blocks: []\n").is_empty());
     }
 }

@@ -126,6 +126,28 @@ fn run_recurring(
     now: DateTime<Local>,
     outcome: &mut EngineOutcome,
 ) -> Result<()> {
+    // Editors often save truncate-then-write, and sync clients can make
+    // the file vanish for a moment; reconciling against a momentarily
+    // empty/missing recurring.yml would wipe every future recurring task
+    // and the rule_seen ledger. A file that is missing or holds only
+    // comments/whitespace is treated as a transient state: generate
+    // nothing, reconcile nothing. An explicit `tasks: []` still counts
+    // as intentionally empty and reconciles.
+    let path = dir.join("recurring.yml");
+    match std::fs::read_to_string(&path) {
+        Ok(raw) => {
+            let effectively_empty = raw.lines().all(|line| {
+                let trimmed = line.trim();
+                trimmed.is_empty() || trimmed.starts_with('#')
+            });
+            if effectively_empty {
+                return Ok(());
+            }
+        }
+        Err(_) if !path.exists() => return Ok(()),
+        // exists but unreadable: fall through, load_yaml reports it
+        Err(_) => {}
+    }
     let Some(file) = load_yaml::<RecurringFile>(dir, "recurring.yml", &mut outcome.errors) else {
         return Ok(());
     };
@@ -182,7 +204,22 @@ fn run_recurring(
                     cursor = firing;
                     firings.push(firing);
                 }
-                _ => break,
+                Ok(_) => break,
+                // An enumeration error is not "no more occurrences": say
+                // so, or the rule silently under-generates.
+                Err(e) => {
+                    outcome.errors.push(ConfigError {
+                        file: "recurring.yml".into(),
+                        line: None,
+                        message: format!(
+                            "rule {} ('{}'): cron '{}' enumeration failed: {e}",
+                            index + 1,
+                            rule.description,
+                            rule.schedule
+                        ),
+                    });
+                    break;
+                }
             }
         }
         if overflow {
@@ -692,6 +729,36 @@ mod tests {
             })
             .unwrap();
         assert_eq!(overdue, 0);
+    }
+
+    #[test]
+    fn momentarily_empty_or_missing_file_does_not_reconcile() {
+        let (conn, dir) = setup("truncated");
+        let rule_yaml = "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"water\"\n";
+        fs::write(dir.join("recurring.yml"), rule_yaml).unwrap();
+        let cfg = config(3, 3, 0);
+        let now = at("2026-08-25", "12:00:00");
+        run(&conn, &dir, &cfg, now).unwrap();
+        let before = count_tasks(&conn);
+
+        // truncate-then-write save caught mid-flight: nothing removed
+        fs::write(dir.join("recurring.yml"), "").unwrap();
+        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(outcome.removed, 0);
+        assert_eq!(count_tasks(&conn), before);
+
+        // comments-only (the fresh-vault sample) and a missing file are
+        // equally transient
+        fs::write(dir.join("recurring.yml"), "# rules go here\n").unwrap();
+        assert_eq!(run(&conn, &dir, &cfg, now).unwrap().removed, 0);
+        fs::remove_file(dir.join("recurring.yml")).unwrap();
+        assert_eq!(run(&conn, &dir, &cfg, now).unwrap().removed, 0);
+        assert_eq!(count_tasks(&conn), before);
+
+        // an explicit empty list is intentional and still reconciles
+        fs::write(dir.join("recurring.yml"), "tasks: []\n").unwrap();
+        let explicit = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(explicit.removed, 2);
     }
 
     #[test]

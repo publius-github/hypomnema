@@ -161,7 +161,9 @@ pub fn write(root: &Path, rel: &str, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, content)?;
+    // Notes are primary user data: a crash mid-autosave must not
+    // truncate the file, same guarantee the YAML configs already have.
+    crate::vault::write_atomic(&path, content)?;
     Ok(())
 }
 

@@ -97,6 +97,7 @@ impl Vault {
     }
 
     pub fn save_config(&mut self, config: AppConfig) -> Result<()> {
+        let config = config.sanitized();
         config.save(&self.root.join("config").join("app.yml"))?;
         db::mirror_settings(&self.conn, &config)?;
         self.config = config;
@@ -120,6 +121,7 @@ impl Vault {
             .and_then(|raw| serde_yaml::from_str::<AppConfig>(&raw).map_err(|e| e.to_string()));
         match parsed {
             Ok(config) => {
+                let config = config.sanitized();
                 db::mirror_settings(&self.conn, &config)?;
                 self.config = config;
                 self.config_error = None;

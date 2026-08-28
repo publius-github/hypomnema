@@ -51,8 +51,8 @@ impl AppConfig {
             return (config, error);
         }
         match fs::read_to_string(path) {
-            Ok(raw) => match serde_yaml::from_str(&raw) {
-                Ok(config) => (config, None),
+            Ok(raw) => match serde_yaml::from_str::<Self>(&raw) {
+                Ok(config) => (config.sanitized(), None),
                 Err(e) => (
                     Self::default(),
                     Some(format!("invalid app.yml, defaults are active: {e}")),
@@ -60,6 +60,22 @@ impl AppConfig {
             },
             Err(e) => (Self::default(), Some(e.to_string())),
         }
+    }
+
+    /// Clamps values a hand-edited app.yml could set to something that
+    /// would panic in chrono date arithmetic (a huge grid horizon or
+    /// catch-up window) or that no UI state exists for.
+    pub fn sanitized(mut self) -> Self {
+        self.grid_columns = self.grid_columns.clamp(1, 31);
+        self.catchup_days = self.catchup_days.clamp(1, 365);
+        self.retention_days = self.retention_days.min(36500);
+        if !["dark", "light"].contains(&self.theme.as_str()) {
+            self.theme = "dark".into();
+        }
+        if !["inline", "separate"].contains(&self.done_display.as_str()) {
+            self.done_display = "inline".into();
+        }
+        self
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
@@ -118,6 +134,22 @@ mod tests {
         // the broken file is left untouched for the user to fix
         assert_eq!(fs::read_to_string(&path).unwrap(), "theme: [broken\n");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sanitize_clamps_dangerous_values() {
+        let config = AppConfig {
+            grid_columns: 0,
+            catchup_days: 99_999_999,
+            theme: "solarized".into(),
+            done_display: "weird".into(),
+            ..AppConfig::default()
+        }
+        .sanitized();
+        assert_eq!(config.grid_columns, 1);
+        assert_eq!(config.catchup_days, 365);
+        assert_eq!(config.theme, "dark");
+        assert_eq!(config.done_display, "inline");
     }
 
     #[test]

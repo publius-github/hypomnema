@@ -18,12 +18,18 @@ fn validate_date(date: &str) -> Result<NaiveDate> {
         .map_err(|_| Error::State(format!("invalid journal date: {date}")))
 }
 
+/// chrono accepts non-padded input ("2026-8-5"), which would create a
+/// second file next to "2026-08-05.md" and sort wrong; normalize.
+fn normalize_date(date: &str) -> Result<String> {
+    Ok(validate_date(date)?.format("%Y-%m-%d").to_string())
+}
+
 fn entry_path(vault: &Path, date: &str) -> Result<PathBuf> {
     let parsed = validate_date(date)?;
     Ok(vault
         .join("journal")
         .join(parsed.format("%Y").to_string())
-        .join(format!("{date}.md")))
+        .join(format!("{}.md", parsed.format("%Y-%m-%d"))))
 }
 
 fn template_path(vault: &Path) -> PathBuf {
@@ -33,23 +39,21 @@ fn template_path(vault: &Path) -> PathBuf {
 /// Opens the entry for the date, instantiating it from the template on
 /// first open ({{date}} placeholder is substituted).
 pub fn open_entry(vault: &Path, date: &str) -> Result<JournalEntry> {
-    let path = entry_path(vault, date)?;
+    let date = normalize_date(date)?;
+    let path = entry_path(vault, &date)?;
     if path.exists() {
         return Ok(JournalEntry {
-            date: date.into(),
             content: fs::read_to_string(&path)?,
+            date,
         });
     }
     let template = fs::read_to_string(template_path(vault)).unwrap_or_default();
-    let content = template.replace("{{date}}", date);
+    let content = template.replace("{{date}}", &date);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&path, &content)?;
-    Ok(JournalEntry {
-        date: date.into(),
-        content,
-    })
+    crate::vault::write_atomic(&path, &content)?;
+    Ok(JournalEntry { date, content })
 }
 
 pub fn save_entry(vault: &Path, date: &str, content: &str) -> Result<()> {
@@ -57,7 +61,9 @@ pub fn save_entry(vault: &Path, date: &str, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&path, content)?;
+    // Journal text is primary user data: a crash mid-autosave must not
+    // truncate the entry, same guarantee the YAML configs already have.
+    crate::vault::write_atomic(&path, content)?;
     Ok(())
 }
 
@@ -96,7 +102,7 @@ pub fn save_template(vault: &Path, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&path, content)?;
+    crate::vault::write_atomic(&path, content)?;
     Ok(())
 }
 

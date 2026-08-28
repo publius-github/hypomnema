@@ -80,6 +80,9 @@ const MIGRATIONS: &[&str] = &[
 
 pub fn open(path: &Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
+    // A second handle on the DB (backup tooling, another instance)
+    // should wait out a short lock instead of failing with SQLITE_BUSY.
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     Ok(conn)

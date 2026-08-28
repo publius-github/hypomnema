@@ -54,7 +54,12 @@ export default function Dashboard() {
   };
 
   return (
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setActiveTaskId(null)}
+    >
       <div className="flex h-full flex-col gap-3 p-4">
         {dashboard?.focus && (
           <div className="text-center text-sm font-medium italic text-accent">
