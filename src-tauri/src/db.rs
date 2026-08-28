@@ -11,6 +11,37 @@ const MIGRATIONS: &[&str] = &[
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );",
+    // 002: lists and task instances
+    "CREATE TABLE lists (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        color TEXT,
+        archived INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE tasks (
+        id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        description_md TEXT NOT NULL DEFAULT '',
+        list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL,
+        scheduled_date TEXT,
+        time TEXT,
+        status TEXT NOT NULL DEFAULT 'todo'
+            CHECK (status IN ('todo', 'done', 'postponed')),
+        color TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        parent_task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        completed_at TEXT,
+        overdue INTEGER NOT NULL DEFAULT 0,
+        origin TEXT NOT NULL DEFAULT 'manual',
+        rule_key TEXT,
+        period_key TEXT,
+        archived_at TEXT
+    );
+    CREATE INDEX idx_tasks_scheduled_date ON tasks(scheduled_date);
+    CREATE INDEX idx_tasks_list_id ON tasks(list_id);
+    CREATE INDEX idx_tasks_parent ON tasks(parent_task_id);",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

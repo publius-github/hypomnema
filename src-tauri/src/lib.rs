@@ -1,6 +1,7 @@
 mod config;
 mod db;
 mod error;
+mod tasks;
 mod vault;
 
 use std::path::PathBuf;
@@ -62,6 +63,65 @@ fn config_set(state: State<AppState>, config: AppConfig) -> Result<()> {
     vault.save_config(config)
 }
 
+fn with_conn<T>(
+    state: &State<AppState>,
+    f: impl FnOnce(&rusqlite::Connection) -> Result<T>,
+) -> Result<T> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    f(&vault.conn)
+}
+
+#[tauri::command]
+fn lists_all(state: State<AppState>) -> Result<Vec<tasks::List>> {
+    with_conn(&state, tasks::lists_all)
+}
+
+#[tauri::command]
+fn list_create(state: State<AppState>, name: String, color: Option<String>) -> Result<tasks::List> {
+    with_conn(&state, |conn| {
+        tasks::list_create(conn, &name, color.as_deref())
+    })
+}
+
+#[tauri::command]
+fn list_rename(state: State<AppState>, id: i64, name: String) -> Result<()> {
+    with_conn(&state, |conn| tasks::list_rename(conn, id, &name))
+}
+
+#[tauri::command]
+fn list_archive(state: State<AppState>, id: i64) -> Result<()> {
+    with_conn(&state, |conn| tasks::list_archive(conn, id))
+}
+
+#[tauri::command]
+fn tasks_snapshot(
+    state: State<AppState>,
+    start_date: String,
+    end_date: String,
+) -> Result<Vec<tasks::Task>> {
+    with_conn(&state, |conn| {
+        tasks::tasks_snapshot(conn, &start_date, &end_date)
+    })
+}
+
+#[tauri::command]
+fn task_create(state: State<AppState>, new: tasks::NewTask) -> Result<tasks::Task> {
+    with_conn(&state, |conn| tasks::task_create(conn, &new))
+}
+
+#[tauri::command]
+fn task_update(state: State<AppState>, id: i64, patch: tasks::TaskPatch) -> Result<tasks::Task> {
+    with_conn(&state, |conn| tasks::task_update(conn, id, &patch))
+}
+
+#[tauri::command]
+fn task_delete(state: State<AppState>, id: i64) -> Result<()> {
+    with_conn(&state, |conn| tasks::task_delete(conn, id))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -70,7 +130,15 @@ pub fn run() {
             vault_status,
             vault_select,
             config_get,
-            config_set
+            config_set,
+            lists_all,
+            list_create,
+            list_rename,
+            list_archive,
+            tasks_snapshot,
+            task_create,
+            task_update,
+            task_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running app-pkb");

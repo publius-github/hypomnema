@@ -17,3 +17,52 @@ export type Section =
   | "journal"
   | "kb"
   | "settings";
+
+export type TaskStatus = "todo" | "done" | "postponed";
+
+export interface List {
+  id: number;
+  name: string;
+  sort_order: number;
+  color: string | null;
+  archived: boolean;
+}
+
+export interface Task {
+  id: number;
+  title: string;
+  description_md: string;
+  list_id: number | null;
+  scheduled_date: string | null;
+  time: string | null;
+  status: TaskStatus;
+  color: string | null;
+  sort_order: number;
+  parent_task_id: number | null;
+  created_at: string;
+  completed_at: string | null;
+  overdue: boolean;
+  origin: string;
+}
+
+export interface NewTask {
+  title: string;
+  description_md?: string;
+  list_id?: number | null;
+  scheduled_date?: string | null;
+  time?: string | null;
+  color?: string | null;
+  parent_task_id?: number | null;
+}
+
+// A field set to null clears the column; an absent field is untouched.
+export interface TaskPatch {
+  title?: string;
+  description_md?: string;
+  list_id?: number | null;
+  scheduled_date?: string | null;
+  time?: string | null;
+  status?: TaskStatus;
+  color?: string | null;
+  sort_order?: number;
+}
