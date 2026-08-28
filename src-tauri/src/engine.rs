@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone};
 use croner::Cron;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -209,7 +209,7 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
 fn run_recurring(
     conn: &Connection,
     dir: &Path,
-    catchup_days: u32,
+    config: &AppConfig,
     horizon: NaiveDate,
     now: DateTime<Local>,
     outcome: &mut EngineOutcome,
@@ -217,8 +217,21 @@ fn run_recurring(
     let Some(file) = load_yaml::<RecurringFile>(dir, "recurring.yml", &mut outcome.errors) else {
         return Ok(());
     };
-    let window_start = now - Duration::days(i64::from(catchup_days));
     let today = now.date_naive();
+    let exact_start = now - Duration::days(i64::from(config.catchup_days));
+    let window_start = if config.cron_ignore_time {
+        // day granularity: a firing counts by its date alone, as if the
+        // cron fired at 23:59 - "0 0 * * 1" a day ago is still one
+        // missed Monday, no matter what time the engine runs
+        let start_day = today - Duration::days(i64::from(config.catchup_days));
+        start_day
+            .and_hms_opt(0, 0, 0)
+            .and_then(|naive| Local.from_local_datetime(&naive).earliest())
+            .map(|start| start - Duration::seconds(1))
+            .unwrap_or(exact_start)
+    } else {
+        exact_start
+    };
     for (index, rule) in file.tasks.iter().enumerate() {
         let cron = match Cron::new(&rule.schedule).parse() {
             Ok(cron) => cron,
@@ -483,14 +496,7 @@ pub fn run(
     let today = now.date_naive();
     let horizon = today + Duration::days(i64::from(config.grid_columns.max(1)) - 1);
 
-    run_recurring(
-        conn,
-        config_dir,
-        config.catchup_days,
-        horizon,
-        now,
-        &mut outcome,
-    )?;
+    run_recurring(conn, config_dir, config, horizon, now, &mut outcome)?;
     run_scheduled(conn, config_dir, horizon, now, &mut outcome)?;
     run_birthdays(
         conn,
@@ -780,7 +786,6 @@ struct BdayFileOut {
 mod tests {
     use super::*;
     use crate::db;
-    use chrono::TimeZone;
     use std::path::PathBuf;
 
     fn setup(name: &str) -> (Connection, PathBuf) {
@@ -959,10 +964,10 @@ mod tests {
         )
         .unwrap();
         let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        // 7 firings (today + 6 grid days); only the new item 'b'
-        // generates, 'a' stays deduped
-        assert_eq!(outcome.generated, 7);
-        assert_eq!(count_tasks(&conn), 14);
+        // 8 firings (collapsed missed + today + 6 grid days); only the
+        // new item 'b' generates, 'a' stays deduped
+        assert_eq!(outcome.generated, 8);
+        assert_eq!(count_tasks(&conn), 16);
     }
 
     #[test]
@@ -1000,6 +1005,41 @@ mod tests {
     }
 
     #[test]
+    fn cron_ignore_time_counts_missed_firings_by_date() {
+        // "0 0" cron a day ago: with day granularity it is one missed
+        // firing; with exact timing the midnight firing falls outside
+        // the [now - 1d 12:00] window and no overdue task appears
+        let now = at("2026-08-28", "12:00:00");
+        let recurring = "tasks:\n  - schedule: \"0 0 * * *\"\n    items:\n      - \"x\"\n";
+
+        let (conn, dir) = setup("ignore-time-on");
+        fs::write(dir.join("recurring.yml"), recurring).unwrap();
+        let outcome = run(&conn, &dir, &config(1, 7, 0), now).unwrap();
+        assert_eq!(outcome.generated, 8);
+        let overdue: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(overdue, 1);
+
+        let (conn, dir) = setup("ignore-time-off");
+        fs::write(dir.join("recurring.yml"), recurring).unwrap();
+        let cfg = AppConfig {
+            cron_ignore_time: false,
+            ..config(1, 7, 0)
+        };
+        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(outcome.generated, 7);
+        let overdue: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(overdue, 0);
+    }
+
+    #[test]
     fn removed_rule_takes_future_instances_but_keeps_today() {
         let (conn, dir) = setup("reconcile");
         fs::write(
@@ -1010,9 +1050,10 @@ mod tests {
         let now = at("2026-08-28", "12:00:00");
         let cfg = config(1, 7, 0);
         run(&conn, &dir, &cfg, now).unwrap();
-        assert_eq!(count_tasks(&conn), 14);
+        assert_eq!(count_tasks(&conn), 16);
 
-        // drop item 'b': its future instances go, today's stays
+        // drop item 'b': its future instances go; today's copies stay
+        // (the regular one and the carried-over overdue one)
         fs::write(
             dir.join("recurring.yml"),
             "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"a\"\n",
@@ -1025,15 +1066,15 @@ mod tests {
                 r.get(0)
             })
             .unwrap();
-        assert_eq!(b_left, 1);
-        let b_date: String = conn
+        assert_eq!(b_left, 2);
+        let b_future: i64 = conn
             .query_row(
-                "SELECT scheduled_date FROM tasks WHERE title = 'b'",
+                "SELECT COUNT(*) FROM tasks WHERE title = 'b' AND scheduled_date > '2026-08-28'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(b_date, "2026-08-28");
+        assert_eq!(b_future, 0);
 
         // a broken file must not wipe anything
         let before = count_tasks(&conn);
@@ -1256,8 +1297,8 @@ mod tests {
         assert!(listed.errors.is_empty());
 
         let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
-        // today + 6 future grid days
-        assert_eq!(outcome.generated, 7);
+        // collapsed missed firing + today + 6 future grid days
+        assert_eq!(outcome.generated, 8);
     }
 
     #[test]

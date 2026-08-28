@@ -7,6 +7,7 @@ export interface AppConfig {
   done_display: DoneDisplay;
   retention_days: number;
   catchup_days: number;
+  cron_ignore_time: boolean;
   kb_path: string;
   journal_template: string;
 }

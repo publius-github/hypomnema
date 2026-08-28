@@ -13,6 +13,9 @@ pub struct AppConfig {
     pub done_display: String,
     pub retention_days: u32,
     pub catchup_days: u32,
+    /// Catch up recurring crons by calendar day: a firing counts as
+    /// missed based on its date only, as if it fired at 23:59.
+    pub cron_ignore_time: bool,
     pub kb_path: String,
     pub journal_template: String,
 }
@@ -25,6 +28,7 @@ impl Default for AppConfig {
             done_display: "inline".into(),
             retention_days: 0,
             catchup_days: 14,
+            cron_ignore_time: true,
             kb_path: String::new(),
             journal_template: "journal/templates/daily.md".into(),
         }
@@ -58,6 +62,7 @@ impl AppConfig {
             ("done_display", self.done_display.clone()),
             ("retention_days", self.retention_days.to_string()),
             ("catchup_days", self.catchup_days.to_string()),
+            ("cron_ignore_time", self.cron_ignore_time.to_string()),
             ("kb_path", self.kb_path.clone()),
             ("journal_template", self.journal_template.clone()),
         ]

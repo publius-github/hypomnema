@@ -92,6 +92,26 @@ export default function Settings() {
         />
       </Field>
 
+      <label className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={config.cron_ignore_time}
+          onChange={(e) =>
+            void updateConfig({ cron_ignore_time: e.target.checked })
+          }
+        />
+        <span className="flex flex-col">
+          <span className="text-sm font-medium">
+            Catch up recurring crons by calendar day
+          </span>
+          <span className="text-xs text-content-muted">
+            The firing time is ignored: a rule like 0 0 * * 1 counts as
+            missed for the whole Monday, as if it fired at 23:59.
+          </span>
+        </span>
+      </label>
+
       <section className="flex flex-col gap-1">
         <span className="text-sm font-medium">Knowledge Base folder</span>
         <div className="flex items-center gap-2">

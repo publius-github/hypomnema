@@ -1,6 +1,6 @@
 [package]
 name = "app-pkb"
-version = "0.3.0"
+version = "0.4.0"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
