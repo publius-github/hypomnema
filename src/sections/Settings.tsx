@@ -13,8 +13,19 @@ const SECTION_LABELS: Record<string, string> = {
   kb: "Notes",
 };
 
+const TABS = [
+  { id: "appearance", label: "Appearance" },
+  { id: "planner", label: "Planner" },
+  { id: "calendar", label: "Calendar" },
+  { id: "navigation", label: "Navigation" },
+  { id: "files", label: "Files" },
+  { id: "maintenance", label: "Maintenance" },
+] as const;
+type Tab = (typeof TABS)[number]["id"];
+
 export default function Settings() {
   const { vaultPath, config, updateConfig } = useAppStore();
+  const [tab, setTab] = useState<Tab>("appearance");
 
   if (!config) return null;
 
@@ -27,10 +38,26 @@ export default function Settings() {
   };
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-6 p-8 pb-16">
-      <h1 className="text-xl font-semibold">Settings</h1>
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
+      <div className="flex gap-1 border-b border-line">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            className={`px-4 py-2 text-sm font-medium ${
+              tab === t.id
+                ? "border-b-2 border-accent text-accent"
+                : "text-content-muted hover:text-content"
+            }`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      <Group title="Appearance">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-10">
+      {tab === "appearance" && (
+        <>
         <Field label="Theme">
           <select
             className="input"
@@ -58,9 +85,11 @@ export default function Settings() {
             <option value="separate">Separate block per day</option>
           </select>
         </Field>
-      </Group>
+        </>
+      )}
 
-      <Group title="Planner">
+      {tab === "planner" && (
+        <>
         <Field label="Week grid columns (today + following days)">
           <select
             className="input"
@@ -107,6 +136,47 @@ export default function Settings() {
           <input
             type="checkbox"
             className="mt-0.5"
+            checked={config.dashboard_today_only}
+            onChange={(e) =>
+              void updateConfig({ dashboard_today_only: e.target.checked })
+            }
+          />
+          <span className="flex flex-col">
+            <span className="text-sm font-medium">
+              Dashboard shows only today
+            </span>
+            <span className="text-xs text-content-muted">
+              A single Today column with its to-do list instead of the week
+              grid. Also toggled right on the dashboard.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={config.daily_tasks_today_only}
+            onChange={(e) =>
+              void updateConfig({ daily_tasks_today_only: e.target.checked })
+            }
+          />
+          <span className="flex flex-col">
+            <span className="text-sm font-medium">
+              Show daily tasks only on today
+            </span>
+            <span className="text-xs text-content-muted">
+              Future day columns skip daily-cadence tasks - they repeat
+              every day anyway and only clutter the look-ahead. Past days
+              keep them.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
             checked={config.cron_ignore_time}
             onChange={(e) =>
               void updateConfig({ cron_ignore_time: e.target.checked })
@@ -122,9 +192,11 @@ export default function Settings() {
             </span>
           </span>
         </label>
-      </Group>
+        </>
+      )}
 
-      <Group title="Calendar outlook">
+      {tab === "calendar" && (
+        <>
         <p className="text-xs text-content-muted">
           How far ahead the Calendar projects rules that have not become
           tasks yet, by rule frequency. Projected entries are previews;
@@ -165,9 +237,11 @@ export default function Settings() {
             onCommit={(n) => void updateConfig({ calendar_dates_years: n })}
           />
         </Field>
-      </Group>
+        </>
+      )}
 
-      <Group title="Navigation">
+      {tab === "navigation" && (
+        <>
         <span className="text-xs text-content-muted">
           Order of the sections in the left bar.
         </span>
@@ -199,9 +273,11 @@ export default function Settings() {
             </div>
           ))}
         </div>
-      </Group>
+        </>
+      )}
 
-      <Group title="Files">
+      {tab === "files" && (
+        <>
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Vault</span>
           <span className="select-text text-sm text-content-muted">
@@ -269,27 +345,12 @@ export default function Settings() {
             </button>
           </div>
         </section>
-      </Group>
+        </>
+      )}
 
-      <MaintenanceSection />
+      {tab === "maintenance" && <MaintenanceSection />}
+      </div>
     </div>
-  );
-}
-
-function Group({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-4 border-t border-line pt-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-content-muted">
-        {title}
-      </h2>
-      {children}
-    </section>
   );
 }
 
@@ -384,10 +445,7 @@ function MaintenanceSection() {
   };
 
   return (
-    <section className="flex flex-col gap-2 border-t border-line pt-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-content-muted">
-        Maintenance
-      </h2>
+    <section className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <button
           className="btn-danger w-fit px-3 py-1 text-xs"

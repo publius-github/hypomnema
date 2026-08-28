@@ -40,6 +40,24 @@ export default function TaskCard({
 
   const subtasks = [...subtasksRaw].sort(compareTasks);
   const done = task.status === "done";
+  const exactDate = task.origin === "scheduled" || task.origin === "birthday";
+  // "08-30" within the current year, full ISO otherwise
+  const originShort = task.origin_date
+    ? task.origin_date.slice(0, 4) === String(new Date().getFullYear())
+      ? task.origin_date.slice(5)
+      : task.origin_date
+    : null;
+  const tooltip = [
+    task.title,
+    listName ? `List: ${listName}` : null,
+    exactDate && task.origin_date
+      ? `Scheduled for ${task.origin_date}`
+      : null,
+    task.overdue && !done ? "Overdue" : null,
+    task.status === "postponed" ? "Postponed" : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   // postpone = move one day forward with the postponed mark, counted
   // from the task's own day (or today for a stale date)
@@ -64,15 +82,15 @@ export default function TaskCard({
         isDragging ? "opacity-30" : ""
       } ${overlay ? "shadow-lg" : ""}`}
     >
-      <div className="flex items-start gap-2 p-2">
+      <div className="flex items-center gap-2 p-2" title={tooltip}>
         {task.color && (
           <span
-            className="mt-0.5 h-4 w-1 shrink-0 rounded"
+            className="h-4 w-1 shrink-0 rounded"
             style={{ backgroundColor: task.color }}
           />
         )}
         <button
-          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[11px] ${STATUS_BUTTON[task.status]}`}
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[11px] ${STATUS_BUTTON[task.status]}`}
           title={`Status: ${task.status}`}
           onClick={(e) => {
             e.stopPropagation();
@@ -97,54 +115,65 @@ export default function TaskCard({
           )}
         </button>
         <div
-          className="min-w-0 flex-1 cursor-pointer"
+          className={`min-w-0 flex-1 cursor-pointer truncate leading-snug ${
+            done ? "text-content-muted line-through" : ""
+          }`}
           onClick={() => onOpen?.(task.id)}
         >
-          <div
-            className={`break-words leading-snug ${
-              done ? "text-content-muted line-through" : ""
-            }`}
-          >
-            {task.title}
-          </div>
-          <div className="flex flex-wrap gap-1.5 pt-0.5 text-[11px] text-content-muted">
-            {task.time && <span>{task.time}</span>}
-            {task.overdue && task.status !== "done" && (
-              <span className="rounded bg-danger/15 px-1 font-medium text-danger">
-                overdue
-              </span>
-            )}
-            {task.status === "postponed" && (
-              <span className="rounded bg-warn/15 px-1 font-medium text-warn">
-                postponed
-              </span>
-            )}
-            {(task.origin === "scheduled" || task.origin === "birthday") && (
-              <span className="rounded bg-info/15 px-1 font-medium text-info">
-                exact date
-              </span>
-            )}
-            {listName && (
-              <span className="rounded bg-line/40 px-1">{listName}</span>
-            )}
-            {subtasks.length > 0 && (
-              <button
-                className="hover:text-content"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setExpanded((v) => !v);
-                }}
-              >
-                {expanded ? "▾" : "▸"}{" "}
-                {subtasks.filter((s) => s.status === "done").length}/
-                {subtasks.length}
-              </button>
-            )}
-          </div>
+          {task.title}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted">
+          {task.time && <span>{task.time}</span>}
+          {exactDate && (
+            <span
+              className="rounded bg-info/15 px-1 font-medium text-info"
+              title={
+                task.origin_date
+                  ? `Scheduled for ${task.origin_date}`
+                  : "Exact date"
+              }
+            >
+              {originShort ?? "date"}
+            </span>
+          )}
+          {task.overdue && !done && (
+            <span
+              className="rounded bg-danger/15 px-1 font-semibold text-danger"
+              title="Overdue"
+            >
+              !
+            </span>
+          )}
+          {task.status === "postponed" && (
+            <span
+              className="rounded bg-warn/15 px-1 font-medium text-warn"
+              title="Postponed"
+            >
+              →
+            </span>
+          )}
+          {listName && (
+            <span className="max-w-[72px] truncate rounded bg-line/40 px-1">
+              {listName}
+            </span>
+          )}
+          {subtasks.length > 0 && (
+            <button
+              className="hover:text-content"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded((v) => !v);
+              }}
+            >
+              {expanded ? "▾" : "▸"}{" "}
+              {subtasks.filter((s) => s.status === "done").length}/
+              {subtasks.length}
+            </button>
+          )}
         </div>
         {!overlay && !done && task.scheduled_date && (
           <button
-            className="mt-0.5 shrink-0 text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
+            className="shrink-0 text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
             title="Postpone to the next day"
             onClick={(e) => {
               e.stopPropagation();

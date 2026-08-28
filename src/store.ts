@@ -134,7 +134,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!config) return;
     const today = todayISO();
     const start = addDaysISO(today, get().gridOffset);
-    const dates = Array.from({ length: config.grid_columns }, (_, i) =>
+    const columns = config.dashboard_today_only ? 1 : config.grid_columns;
+    const dates = Array.from({ length: columns }, (_, i) =>
       addDaysISO(start, i),
     );
     try {
@@ -142,7 +143,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         invoke<List[]>("lists_all"),
         invoke<Task[]>("tasks_snapshot", {
           startDate: start,
-          endDate: addDaysISO(start, config.grid_columns),
+          endDate: addDaysISO(start, columns),
         }),
         invoke<DashboardContext>("dashboard_context", { dates }),
       ]);

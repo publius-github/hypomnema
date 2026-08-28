@@ -24,6 +24,11 @@ pub struct AppConfig {
     pub journal_template: String,
     /// Order of the sections in the left tab bar.
     pub section_order: Vec<String>,
+    /// Dashboard shows a single Today column instead of the week grid.
+    pub dashboard_today_only: bool,
+    /// Hide daily-cadence tasks on future day columns - they repeat
+    /// every day anyway and only clutter the look-ahead.
+    pub daily_tasks_today_only: bool,
     /// Percent of the dashboard height taken by the day grid (the rest
     /// is the list zone); adjusted by dragging the divider.
     pub dashboard_split: u32,
@@ -50,6 +55,8 @@ impl Default for AppConfig {
             kb_path: String::new(),
             journal_template: "journal/templates/daily.md".into(),
             section_order: SECTIONS.iter().map(|s| s.to_string()).collect(),
+            dashboard_today_only: false,
+            daily_tasks_today_only: false,
             dashboard_split: 60,
             calendar_daily_days: 3,
             calendar_weekly_weeks: 3,
@@ -138,6 +145,14 @@ impl AppConfig {
             ("kb_path", self.kb_path.clone()),
             ("journal_template", self.journal_template.clone()),
             ("section_order", self.section_order.join(",")),
+            (
+                "dashboard_today_only",
+                self.dashboard_today_only.to_string(),
+            ),
+            (
+                "daily_tasks_today_only",
+                self.daily_tasks_today_only.to_string(),
+            ),
             ("dashboard_split", self.dashboard_split.to_string()),
             ("calendar_daily_days", self.calendar_daily_days.to_string()),
             (

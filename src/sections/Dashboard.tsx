@@ -59,7 +59,8 @@ export default function Dashboard() {
 
   if (!config) return null;
 
-  const dates = gridDates(addDaysISO(today, gridOffset), config.grid_columns);
+  const columns = config.dashboard_today_only ? 1 : config.grid_columns;
+  const dates = gridDates(addDaysISO(today, gridOffset), columns);
   // fresh vault: nothing exists yet, so the automation features are
   // invisible - point at them once
   const freshVault = tasks.length === 0 && lists.length === 0;
@@ -107,16 +108,31 @@ export default function Dashboard() {
             <button
               className="btn-ghost px-2 py-0.5 text-sm leading-none"
               title="Earlier days"
-              onClick={() => setGridOffset(gridOffset - config.grid_columns)}
+              onClick={() => setGridOffset(gridOffset - columns)}
             >
               ‹
             </button>
             <button
               className="btn-ghost px-2 py-0.5 text-sm leading-none"
               title="Later days"
-              onClick={() => setGridOffset(gridOffset + config.grid_columns)}
+              onClick={() => setGridOffset(gridOffset + columns)}
             >
               ›
+            </button>
+            <button
+              className={`px-2 py-0.5 text-xs rounded-md ${
+                config.dashboard_today_only
+                  ? "bg-accent/15 text-accent"
+                  : "btn-ghost"
+              }`}
+              title="Show only the Today column"
+              onClick={() =>
+                void useAppStore.getState().updateConfig({
+                  dashboard_today_only: !config.dashboard_today_only,
+                })
+              }
+            >
+              Today only
             </button>
             {gridOffset !== 0 && (
               <button

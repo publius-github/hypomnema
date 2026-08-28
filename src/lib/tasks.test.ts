@@ -26,6 +26,7 @@ function task(overrides: Partial<Task>): Task {
     overdue: false,
     origin: "manual",
     cadence: null,
+    origin_date: null,
     ...overrides,
   };
 }

@@ -5,4 +5,9 @@ export type Task = { id: number, title: string, description_md: string, list_id:
  * Firing cadence of the generating rule ("daily" | "weekly" |
  * "monthly" | "yearly"); None for manual and one-off tasks.
  */
-cadence: string | null, };
+cadence: string | null, 
+/**
+ * The date a generated task was originally scheduled for; unlike
+ * scheduled_date it survives overdue carry-over.
+ */
+origin_date: string | null, };

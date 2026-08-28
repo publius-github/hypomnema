@@ -11,6 +11,15 @@ cron_ignore_time: boolean, kb_path: string, journal_template: string,
  */
 section_order: Array<string>, 
 /**
+ * Dashboard shows a single Today column instead of the week grid.
+ */
+dashboard_today_only: boolean, 
+/**
+ * Hide daily-cadence tasks on future day columns - they repeat
+ * every day anyway and only clutter the look-ahead.
+ */
+daily_tasks_today_only: boolean, 
+/**
  * Percent of the dashboard height taken by the day grid (the rest
  * is the list zone); adjusted by dragging the divider.
  */

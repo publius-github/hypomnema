@@ -26,8 +26,15 @@ export default function DayColumn({
       ? currentAndNextBlock(dashboard.blocks, new Date())
       : null;
 
+  // dailies repeat every day anyway; with the setting on, future
+  // columns skip them so the look-ahead shows only the special stuff
+  const hideDailies =
+    (config?.daily_tasks_today_only ?? false) && date > today;
   const dayTasks = tasks.filter(
-    (t) => t.scheduled_date === date && t.parent_task_id === null,
+    (t) =>
+      t.scheduled_date === date &&
+      t.parent_task_id === null &&
+      !(hideDailies && t.cadence === "daily"),
   );
   const { active, done } = splitDone(dayTasks, config?.done_display ?? "inline");
   const groups = groupByCadence(active);

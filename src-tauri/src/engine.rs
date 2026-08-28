@@ -125,11 +125,12 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
     };
     conn.execute(
         "INSERT INTO tasks (title, list_id, scheduled_date, time, sort_order,
-                            created_at, origin, rule_key, period_key, cadence)
+                            created_at, origin, rule_key, period_key, cadence,
+                            origin_date)
          VALUES (?1, ?2, ?3, ?4,
                  (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tasks
                   WHERE scheduled_date = ?3),
-                 ?5, ?6, ?7, ?8, ?9)",
+                 ?5, ?6, ?7, ?8, ?9, ?3)",
         (
             &task.title,
             list_id,
@@ -622,6 +623,20 @@ pub fn run(
     // birthdays generated before the cadence column existed
     conn.execute(
         "UPDATE tasks SET cadence = 'yearly' WHERE origin = 'birthday' AND cadence IS NULL",
+        [],
+    )?;
+    // origin_date backfill for tasks generated before migration 009:
+    // scheduled tasks keep their date in period_key; anything not yet
+    // carried over still sits on its original date
+    conn.execute(
+        "UPDATE tasks SET origin_date = period_key
+         WHERE origin = 'scheduled' AND origin_date IS NULL AND length(period_key) = 10",
+        [],
+    )?;
+    conn.execute(
+        "UPDATE tasks SET origin_date = scheduled_date
+         WHERE origin != 'manual' AND origin_date IS NULL
+           AND scheduled_date IS NOT NULL AND overdue = 0",
         [],
     )?;
     run_recurring(conn, config_dir, config, horizon, now, &mut outcome)?;
@@ -1338,6 +1353,27 @@ mod tests {
         conn.execute("DELETE FROM tasks", []).unwrap();
         let outcome2 = run(&conn, &dir, &cfg, now).unwrap();
         assert_eq!(outcome2.generated, 0);
+    }
+
+    #[test]
+    fn origin_date_survives_carry_over() {
+        let (conn, dir) = setup("origin-date");
+        fs::write(
+            dir.join("scheduled.yml"),
+            "events:\n  - date: 2026-08-26\n    title: \"dentist\"\n",
+        )
+        .unwrap();
+        let outcome = run(&conn, &dir, &config(7, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(outcome.generated, 1);
+        let (scheduled, origin): (String, String) = conn
+            .query_row(
+                "SELECT scheduled_date, origin_date FROM tasks WHERE title = 'dentist'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(scheduled, "2026-08-28");
+        assert_eq!(origin, "2026-08-26");
     }
 
     #[test]

@@ -80,6 +80,10 @@ const MIGRATIONS: &[&str] = &[
     // monthly/yearly), so day columns can group tasks by cadence.
     // Backfilled by the engine from the current config on every run.
     "ALTER TABLE tasks ADD COLUMN cadence TEXT;",
+    // 009: the date a generated task was originally scheduled for.
+    // Carry-over rewrites scheduled_date, and for an exact-date task
+    // the original date is the information the user planned around.
+    "ALTER TABLE tasks ADD COLUMN origin_date TEXT;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
