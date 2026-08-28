@@ -1,4 +1,5 @@
 mod config;
+mod config_files;
 mod db;
 mod engine;
 mod error;
@@ -7,6 +8,7 @@ mod kb;
 mod reminders;
 mod tasks;
 mod vault;
+mod views;
 
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Mutex};
@@ -67,7 +69,7 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
                 );
                 let mut errors = outcome.map(|o| o.errors).unwrap_or_default();
                 if let Some(msg) = &vault.config_error {
-                    errors.push(engine::ConfigError {
+                    errors.push(config_files::ConfigError {
                         file: "app.yml".into(),
                         line: None,
                         message: msg.clone(),
@@ -205,7 +207,7 @@ fn engine_run(state: State<AppState>) -> Result<engine::EngineOutcome> {
         chrono::Local::now(),
     )?;
     if let Some(msg) = &vault.config_error {
-        outcome.errors.push(engine::ConfigError {
+        outcome.errors.push(config_files::ConfigError {
             file: "app.yml".into(),
             line: None,
             message: msg.clone(),
@@ -215,13 +217,13 @@ fn engine_run(state: State<AppState>) -> Result<engine::EngineOutcome> {
 }
 
 #[tauri::command]
-fn upcoming_events(state: State<AppState>) -> Result<engine::UpcomingResult> {
+fn upcoming_events(state: State<AppState>) -> Result<views::UpcomingResult> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    let (events, errors) = engine::upcoming_events(&vault.conn, &vault.config_dir())?;
-    Ok(engine::UpcomingResult { events, errors })
+    let (events, errors) = views::upcoming_events(&vault.conn, &vault.config_dir())?;
+    Ok(views::UpcomingResult { events, errors })
 }
 
 fn with_vault_root<T>(state: &State<AppState>, f: impl FnOnce(&Path) -> Result<T>) -> Result<T> {
@@ -270,90 +272,90 @@ fn dashboard_context(
 }
 
 #[tauri::command]
-fn birthdays_list(state: State<AppState>) -> Result<engine::BirthdaysResult> {
+fn birthdays_list(state: State<AppState>) -> Result<views::BirthdaysResult> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    Ok(engine::birthdays_list(
+    Ok(views::birthdays_list(
         &vault.config_dir(),
         chrono::Local::now().date_naive(),
     ))
 }
 
 #[tauri::command]
-fn recurring_list(state: State<AppState>) -> Result<engine::RecurringResult> {
+fn recurring_list(state: State<AppState>) -> Result<views::RecurringResult> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    Ok(engine::recurring_list(&vault.config_dir()))
+    Ok(views::recurring_list(&vault.config_dir()))
 }
 
 #[tauri::command]
-fn recurring_add(state: State<AppState>, rule: engine::RecurringRule) -> Result<()> {
+fn recurring_add(state: State<AppState>, rule: config_files::RecurringRule) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    engine::append_recurring(&vault.config_dir(), rule)
+    config_files::append_recurring(&vault.config_dir(), rule)
 }
 
 #[tauri::command]
-fn scheduled_add(state: State<AppState>, event: engine::ScheduledEvent) -> Result<()> {
+fn scheduled_add(state: State<AppState>, event: config_files::ScheduledEvent) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    engine::append_scheduled(&vault.config_dir(), event)
+    config_files::append_scheduled(&vault.config_dir(), event)
 }
 
 #[tauri::command]
-fn birthday_add(state: State<AppState>, entry: engine::BirthdayEntry) -> Result<()> {
+fn birthday_add(state: State<AppState>, entry: config_files::BirthdayEntry) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    engine::append_birthday(&vault.config_dir(), entry)
+    config_files::append_birthday(&vault.config_dir(), entry)
 }
 
 #[tauri::command]
 fn recurring_edit(
     state: State<AppState>,
     index: usize,
-    replacement: Option<engine::RecurringRule>,
+    replacement: Option<config_files::RecurringRule>,
 ) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    engine::edit_recurring(&vault.config_dir(), index, replacement)
+    config_files::edit_recurring(&vault.config_dir(), index, replacement)
 }
 
 #[tauri::command]
 fn scheduled_edit(
     state: State<AppState>,
-    original: engine::ScheduledEvent,
-    replacement: Option<engine::ScheduledEvent>,
+    original: config_files::ScheduledEvent,
+    replacement: Option<config_files::ScheduledEvent>,
 ) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    engine::edit_scheduled(&vault.config_dir(), original, replacement)
+    config_files::edit_scheduled(&vault.config_dir(), original, replacement)
 }
 
 #[tauri::command]
 fn birthday_edit(
     state: State<AppState>,
-    original: engine::BirthdayEntry,
-    replacement: Option<engine::BirthdayEntry>,
+    original: config_files::BirthdayEntry,
+    replacement: Option<config_files::BirthdayEntry>,
 ) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    engine::edit_birthday(&vault.config_dir(), original, replacement)
+    config_files::edit_birthday(&vault.config_dir(), original, replacement)
 }
 
 const EDITABLE_CONFIG_FILES: &[&str] = &[
@@ -389,9 +391,9 @@ fn config_file_set(
     state: State<AppState>,
     file: String,
     content: String,
-) -> Result<Vec<engine::ConfigError>> {
+) -> Result<Vec<config_files::ConfigError>> {
     let path = editable_config_path(&state, &file)?;
-    let errors = engine::validate_config_content(&file, &content);
+    let errors = config_files::validate_config_content(&file, &content);
     if errors.is_empty() {
         vault::write_atomic(&path, &content)?;
     }

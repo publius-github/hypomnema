@@ -1,21 +1,21 @@
-use std::fs;
+//! The generation engine: one pass materializes recurring, scheduled
+//! and birthday tasks (deduped through the rule_runs ledger), then
+//! applies overdue carry-over and retention pruning.
+
 use std::path::Path;
 
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use croner::Cron;
 use rusqlite::Connection;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::config::AppConfig;
+use crate::config_files::{
+    load_yaml, parse_mmdd, BirthdaysFile, ConfigError, RecurringFile, RecurringRule,
+    ScheduledEvent, ScheduledFile,
+};
 use crate::error::Result;
 use crate::tasks;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ConfigError {
-    pub file: String,
-    pub line: Option<usize>,
-    pub message: String,
-}
 
 #[derive(Debug, Default, Serialize)]
 pub struct EngineOutcome {
@@ -23,78 +23,6 @@ pub struct EngineOutcome {
     pub carried_over: usize,
     pub pruned: usize,
     pub removed: usize,
-    pub errors: Vec<ConfigError>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct RecurringFile {
-    #[serde(default)]
-    tasks: Vec<RecurringRule>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RecurringRule {
-    pub schedule: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub items: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct RecurringResult {
-    pub rules: Vec<RecurringRule>,
-    pub errors: Vec<ConfigError>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct ScheduledFile {
-    #[serde(default)]
-    events: Vec<ScheduledEvent>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ScheduledEvent {
-    pub date: String,
-    pub title: String,
-    #[serde(default)]
-    pub time: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct UpcomingResult {
-    pub events: Vec<ScheduledEvent>,
-    pub errors: Vec<ConfigError>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct BirthdaysFile {
-    #[serde(default)]
-    birthdays: Vec<BirthdayEntry>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BirthdayEntry {
-    pub name: String,
-    /// MM-DD
-    pub date: String,
-    #[serde(default)]
-    pub year: Option<i32>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct BirthdayView {
-    pub name: String,
-    pub date: String,
-    pub year: Option<i32>,
-    pub next_occurrence: String,
-    pub days_until: i64,
-    pub turns: Option<i32>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct BirthdaysResult {
-    pub birthdays: Vec<BirthdayView>,
     pub errors: Vec<ConfigError>,
 }
 
@@ -124,40 +52,14 @@ pub fn parse_item(raw: &str) -> (Option<String>, String) {
     (None, trimmed.to_string())
 }
 
-pub(crate) fn load_yaml<T: serde::de::DeserializeOwned + Default>(
-    dir: &Path,
-    file: &str,
-    errors: &mut Vec<ConfigError>,
-) -> Option<T> {
-    let path = dir.join(file);
-    if !path.exists() {
-        return Some(T::default());
-    }
-    let raw = match fs::read_to_string(&path) {
-        Ok(raw) => raw,
-        Err(e) => {
-            errors.push(ConfigError {
-                file: file.into(),
-                line: None,
-                message: e.to_string(),
-            });
-            return None;
-        }
-    };
-    if raw.trim().is_empty() {
-        return Some(T::default());
-    }
-    match serde_yaml::from_str::<T>(&raw) {
-        Ok(value) => Some(value),
-        Err(e) => {
-            errors.push(ConfigError {
-                file: file.into(),
-                line: e.location().map(|l| l.line()),
-                message: e.to_string(),
-            });
-            None
-        }
-    }
+/// Rule keys persist in rule_runs/rule_seen; the derivations below are
+/// the single source of truth for them.
+pub(crate) fn recurring_rule_key(rule: &RecurringRule, item: &str) -> String {
+    fnv1a64(&format!("{}|{}|{}", rule.schedule, rule.description, item))
+}
+
+pub(crate) fn scheduled_rule_key(event: &ScheduledEvent) -> String {
+    fnv1a64(&format!("scheduled|{}|{}", event.date, event.title))
 }
 
 struct GeneratedTask<'a> {
@@ -294,7 +196,7 @@ fn run_recurring(
         let latest_missed = firings.iter().rfind(|f| f.date_naive() < today).copied();
         let current = || firings.iter().filter(|f| f.date_naive() >= today).copied();
         for item in &rule.items {
-            let rule_key = fnv1a64(&format!("{}|{}|{}", rule.schedule, rule.description, item));
+            let rule_key = recurring_rule_key(rule, item);
             // Catch-up never reaches back past the day the engine first
             // saw the item: a rule added today must not open as overdue,
             // and later runs must not resurrect pre-sighting firings.
@@ -357,11 +259,7 @@ fn run_recurring(
     let active: std::collections::HashSet<String> = file
         .tasks
         .iter()
-        .flat_map(|rule| {
-            rule.items
-                .iter()
-                .map(|item| fnv1a64(&format!("{}|{}|{}", rule.schedule, rule.description, item)))
-        })
+        .flat_map(|rule| rule.items.iter().map(|item| recurring_rule_key(rule, item)))
         .collect();
     let today_str = today.format("%Y-%m-%d").to_string();
     let existing: Vec<String> = {
@@ -423,7 +321,7 @@ fn run_scheduled(
         }
         let (list, title) = parse_item(&event.title);
         let generated = GeneratedTask {
-            rule_key: fnv1a64(&format!("scheduled|{}|{}", event.date, event.title)),
+            rule_key: scheduled_rule_key(event),
             period_key: event.date.clone(),
             title,
             list_name: list,
@@ -452,11 +350,7 @@ fn run_birthdays(
     let today = now.date_naive();
     let window_start = today - Duration::days(i64::from(catchup_days));
     for (index, entry) in file.birthdays.iter().enumerate() {
-        let parsed = entry
-            .date
-            .split_once('-')
-            .and_then(|(m, d)| Some((m.parse::<u32>().ok()?, d.parse::<u32>().ok()?)));
-        let Some((month, day)) = parsed else {
+        let Some((month, day)) = parse_mmdd(&entry.date) else {
             outcome.errors.push(ConfigError {
                 file: "birthdays.yml".into(),
                 line: None,
@@ -606,417 +500,13 @@ pub fn run(
     Ok(outcome)
 }
 
-/// Future scheduled events still waiting in the Upcoming list: entries
-/// whose (rule, period) has not been materialized yet.
-pub fn upcoming_events(
-    conn: &Connection,
-    config_dir: &Path,
-) -> Result<(Vec<ScheduledEvent>, Vec<ConfigError>)> {
-    let mut errors = Vec::new();
-    let Some(file) = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors) else {
-        return Ok((vec![], errors));
-    };
-    let mut pending = Vec::new();
-    for event in file.events {
-        let rule_key = fnv1a64(&format!("scheduled|{}|{}", event.date, event.title));
-        let materialized: bool = conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM rule_runs WHERE rule_key = ?1 AND period_key = ?2)",
-            (&rule_key, &event.date),
-            |row| row.get(0),
-        )?;
-        if !materialized {
-            pending.push(event);
-        }
-    }
-    pending.sort_by(|a, b| a.date.cmp(&b.date));
-    Ok((pending, errors))
-}
-
-fn next_birthday_occurrence(month: u32, day: u32, today: NaiveDate) -> Option<NaiveDate> {
-    for year in [today.year(), today.year() + 1] {
-        let occurrence = NaiveDate::from_ymd_opt(year, month, day).or_else(|| {
-            if month == 2 && day == 29 {
-                NaiveDate::from_ymd_opt(year, 2, 28)
-            } else {
-                None
-            }
-        })?;
-        if occurrence >= today {
-            return Some(occurrence);
-        }
-    }
-    None
-}
-
-/// All birthday entries with their next occurrence, sorted by it.
-pub fn birthdays_list(config_dir: &Path, today: NaiveDate) -> BirthdaysResult {
-    let mut errors = Vec::new();
-    let file =
-        load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors).unwrap_or_default();
-    let mut birthdays = Vec::new();
-    for entry in file.birthdays {
-        let parsed = entry
-            .date
-            .split_once('-')
-            .and_then(|(m, d)| Some((m.parse::<u32>().ok()?, d.parse::<u32>().ok()?)));
-        let occurrence = parsed.and_then(|(m, d)| next_birthday_occurrence(m, d, today));
-        let Some(occurrence) = occurrence else {
-            errors.push(ConfigError {
-                file: "birthdays.yml".into(),
-                line: None,
-                message: format!("entry '{}': invalid date '{}'", entry.name, entry.date),
-            });
-            continue;
-        };
-        birthdays.push(BirthdayView {
-            turns: entry.year.map(|y| occurrence.year() - y),
-            next_occurrence: occurrence.format("%Y-%m-%d").to_string(),
-            days_until: (occurrence - today).num_days(),
-            name: entry.name,
-            date: entry.date,
-            year: entry.year,
-        });
-    }
-    birthdays.sort_by(|a, b| a.next_occurrence.cmp(&b.next_occurrence));
-    BirthdaysResult { birthdays, errors }
-}
-
-/// All recurring rules with cron validation errors surfaced, so the
-/// Recurring view shows broken rules next to working ones.
-pub fn recurring_list(config_dir: &Path) -> RecurringResult {
-    let mut errors = Vec::new();
-    let file =
-        load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors).unwrap_or_default();
-    for (index, rule) in file.tasks.iter().enumerate() {
-        if let Err(e) = Cron::new(&rule.schedule).parse() {
-            errors.push(ConfigError {
-                file: "recurring.yml".into(),
-                line: None,
-                message: format!(
-                    "rule {} ('{}'): invalid cron '{}': {e}",
-                    index + 1,
-                    rule.description,
-                    rule.schedule
-                ),
-            });
-        }
-    }
-    RecurringResult {
-        rules: file.tasks,
-        errors,
-    }
-}
-
-pub fn append_recurring(config_dir: &Path, mut rule: RecurringRule) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "recurring.yml is invalid, fix it before adding rules: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
-    Cron::new(&rule.schedule).parse().map_err(|e| {
-        crate::error::Error::State(format!("invalid cron '{}': {e}", rule.schedule))
-    })?;
-    rule.items.retain(|item| !item.trim().is_empty());
-    if rule.items.is_empty() {
-        return Err(crate::error::Error::State(
-            "a recurring rule needs at least one item".into(),
-        ));
-    }
-    file.tasks.push(rule);
-    let yaml = serde_yaml::to_string(&RecurFileOut { tasks: file.tasks })?;
-    crate::vault::write_atomic(&config_dir.join("recurring.yml"), &yaml)?;
-    Ok(())
-}
-
-/// Quick-add write-back (req. 21-22). Note: saving reformats the file
-/// and drops YAML comments; the file remains the source of truth.
-pub fn append_scheduled(config_dir: &Path, event: ScheduledEvent) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "scheduled.yml is invalid, fix it before adding events: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
-    NaiveDate::parse_from_str(&event.date, "%Y-%m-%d")
-        .map_err(|_| crate::error::Error::State(format!("invalid date: {}", event.date)))?;
-    file.events.push(event);
-    file.events.sort_by(|a, b| a.date.cmp(&b.date));
-    let yaml = serde_yaml::to_string(&SchedFileOut {
-        events: file.events,
-    })?;
-    crate::vault::write_atomic(&config_dir.join("scheduled.yml"), &yaml)?;
-    Ok(())
-}
-
-pub fn append_birthday(config_dir: &Path, entry: BirthdayEntry) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "birthdays.yml is invalid, fix it before adding entries: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
-    let valid = entry
-        .date
-        .split_once('-')
-        .and_then(|(m, d)| Some((m.parse::<u32>().ok()?, d.parse::<u32>().ok()?)))
-        .map(|(m, d)| (1..=12).contains(&m) && (1..=31).contains(&d))
-        .unwrap_or(false);
-    if !valid {
-        return Err(crate::error::Error::State(format!(
-            "invalid birthday date '{}', expected MM-DD",
-            entry.date
-        )));
-    }
-    file.birthdays.push(entry);
-    let yaml = serde_yaml::to_string(&BdayFileOut {
-        birthdays: file.birthdays,
-    })?;
-    crate::vault::write_atomic(&config_dir.join("birthdays.yml"), &yaml)?;
-    Ok(())
-}
-
-/// Replaces (or, with `None`, removes) the rule at `index` in file
-/// order; the Recurring view lists rules unfiltered, so the index is
-/// stable.
-pub fn edit_recurring(
-    config_dir: &Path,
-    index: usize,
-    replacement: Option<RecurringRule>,
-) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "recurring.yml is invalid, fix it before editing rules: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
-    if index >= file.tasks.len() {
-        return Err(crate::error::Error::State(format!(
-            "rule {} not found in recurring.yml (edited externally?)",
-            index + 1
-        )));
-    }
-    match replacement {
-        Some(mut rule) => {
-            Cron::new(&rule.schedule).parse().map_err(|e| {
-                crate::error::Error::State(format!("invalid cron '{}': {e}", rule.schedule))
-            })?;
-            rule.items.retain(|item| !item.trim().is_empty());
-            if rule.items.is_empty() {
-                return Err(crate::error::Error::State(
-                    "a recurring rule needs at least one item".into(),
-                ));
-            }
-            file.tasks[index] = rule;
-        }
-        None => {
-            file.tasks.remove(index);
-        }
-    }
-    let yaml = serde_yaml::to_string(&RecurFileOut { tasks: file.tasks })?;
-    crate::vault::write_atomic(&config_dir.join("recurring.yml"), &yaml)?;
-    Ok(())
-}
-
-/// Replaces (or, with `None`, removes) the first entry equal to
-/// `original`. Matching is by value because the Upcoming view filters
-/// and sorts, so indexes do not line up with file order.
-pub fn edit_scheduled(
-    config_dir: &Path,
-    original: ScheduledEvent,
-    replacement: Option<ScheduledEvent>,
-) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "scheduled.yml is invalid, fix it before editing events: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
-    let pos = file
-        .events
-        .iter()
-        .position(|event| *event == original)
-        .ok_or_else(|| {
-            crate::error::Error::State(
-                "event not found in scheduled.yml (changed externally?)".into(),
-            )
-        })?;
-    match replacement {
-        Some(event) => {
-            NaiveDate::parse_from_str(&event.date, "%Y-%m-%d")
-                .map_err(|_| crate::error::Error::State(format!("invalid date: {}", event.date)))?;
-            file.events[pos] = event;
-        }
-        None => {
-            file.events.remove(pos);
-        }
-    }
-    file.events.sort_by(|a, b| a.date.cmp(&b.date));
-    let yaml = serde_yaml::to_string(&SchedFileOut {
-        events: file.events,
-    })?;
-    crate::vault::write_atomic(&config_dir.join("scheduled.yml"), &yaml)?;
-    Ok(())
-}
-
-pub fn edit_birthday(
-    config_dir: &Path,
-    original: BirthdayEntry,
-    replacement: Option<BirthdayEntry>,
-) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "birthdays.yml is invalid, fix it before editing entries: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
-    let pos = file
-        .birthdays
-        .iter()
-        .position(|entry| *entry == original)
-        .ok_or_else(|| {
-            crate::error::Error::State(
-                "entry not found in birthdays.yml (changed externally?)".into(),
-            )
-        })?;
-    match replacement {
-        Some(entry) => {
-            let valid = entry
-                .date
-                .split_once('-')
-                .and_then(|(m, d)| Some((m.parse::<u32>().ok()?, d.parse::<u32>().ok()?)))
-                .map(|(m, d)| (1..=12).contains(&m) && (1..=31).contains(&d))
-                .unwrap_or(false);
-            if !valid {
-                return Err(crate::error::Error::State(format!(
-                    "invalid birthday date '{}', expected MM-DD",
-                    entry.date
-                )));
-            }
-            file.birthdays[pos] = entry;
-        }
-        None => {
-            file.birthdays.remove(pos);
-        }
-    }
-    let yaml = serde_yaml::to_string(&BdayFileOut {
-        birthdays: file.birthdays,
-    })?;
-    crate::vault::write_atomic(&config_dir.join("birthdays.yml"), &yaml)?;
-    Ok(())
-}
-
-/// Validates the content of a task-config file without writing it.
-/// Used by the Settings editor for inline validation before save.
-pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
-    let mut errors = Vec::new();
-    let mut push_yaml_error = |e: serde_yaml::Error| {
-        errors.push(ConfigError {
-            file: file.into(),
-            line: e.location().map(|l| l.line()),
-            message: e.to_string(),
-        });
-    };
-    if content.trim().is_empty() {
-        return errors;
-    }
-    match file {
-        "recurring.yml" => match serde_yaml::from_str::<RecurringFile>(content) {
-            Ok(parsed) => {
-                for (index, rule) in parsed.tasks.iter().enumerate() {
-                    if let Err(e) = Cron::new(&rule.schedule).parse() {
-                        errors.push(ConfigError {
-                            file: file.into(),
-                            line: None,
-                            message: format!(
-                                "rule {}: invalid cron '{}': {e}",
-                                index + 1,
-                                rule.schedule
-                            ),
-                        });
-                    }
-                }
-            }
-            Err(e) => push_yaml_error(e),
-        },
-        "scheduled.yml" => match serde_yaml::from_str::<ScheduledFile>(content) {
-            Ok(parsed) => {
-                for (index, event) in parsed.events.iter().enumerate() {
-                    if NaiveDate::parse_from_str(&event.date, "%Y-%m-%d").is_err() {
-                        errors.push(ConfigError {
-                            file: file.into(),
-                            line: None,
-                            message: format!("event {}: invalid date '{}'", index + 1, event.date),
-                        });
-                    }
-                }
-            }
-            Err(e) => push_yaml_error(e),
-        },
-        "birthdays.yml" => match serde_yaml::from_str::<BirthdaysFile>(content) {
-            Ok(parsed) => {
-                for (index, entry) in parsed.birthdays.iter().enumerate() {
-                    let valid = entry
-                        .date
-                        .split_once('-')
-                        .and_then(|(m, d)| Some((m.parse::<u32>().ok()?, d.parse::<u32>().ok()?)))
-                        .map(|(m, d)| (1..=12).contains(&m) && (1..=31).contains(&d))
-                        .unwrap_or(false);
-                    if !valid {
-                        errors.push(ConfigError {
-                            file: file.into(),
-                            line: None,
-                            message: format!(
-                                "entry {}: invalid date '{}', expected MM-DD",
-                                index + 1,
-                                entry.date
-                            ),
-                        });
-                    }
-                }
-            }
-            Err(e) => push_yaml_error(e),
-        },
-        _ => {
-            if let Err(e) = serde_yaml::from_str::<serde_yaml::Value>(content) {
-                push_yaml_error(e);
-            }
-        }
-    }
-    errors
-}
-
-#[derive(Serialize)]
-struct RecurFileOut {
-    tasks: Vec<RecurringRule>,
-}
-
-#[derive(Serialize)]
-struct SchedFileOut {
-    events: Vec<ScheduledEvent>,
-}
-
-#[derive(Serialize)]
-struct BdayFileOut {
-    birthdays: Vec<BirthdayEntry>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config_files::{append_birthday, append_recurring, append_scheduled, BirthdayEntry};
     use crate::db;
+    use crate::views::{birthdays_list, recurring_list, upcoming_events};
+    use std::fs;
     use std::path::PathBuf;
 
     fn setup(name: &str) -> (Connection, PathBuf) {
@@ -1618,121 +1108,6 @@ mod tests {
         let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
         // freshly added rule: today + 6 future grid days, no catch-up
         assert_eq!(outcome.generated, 7);
-    }
-
-    #[test]
-    fn edit_and_delete_config_entries_round_trip() {
-        let (_conn, dir) = setup("edit-entries");
-        let event = ScheduledEvent {
-            date: "2026-09-10".into(),
-            title: "dentist".into(),
-            time: None,
-        };
-        append_scheduled(&dir, event.clone()).unwrap();
-        let updated = ScheduledEvent {
-            date: "2026-09-11".into(),
-            title: "dentist moved".into(),
-            time: Some("10:00".into()),
-        };
-        edit_scheduled(&dir, event.clone(), Some(updated.clone())).unwrap();
-        assert!(edit_scheduled(&dir, event, None).is_err());
-        edit_scheduled(&dir, updated, None).unwrap();
-        let mut errors = Vec::new();
-        let file = load_yaml::<ScheduledFile>(&dir, "scheduled.yml", &mut errors).unwrap();
-        assert!(file.events.is_empty());
-
-        let entry = BirthdayEntry {
-            name: "Jane".into(),
-            date: "08-30".into(),
-            year: None,
-        };
-        append_birthday(&dir, entry.clone()).unwrap();
-        assert!(edit_birthday(
-            &dir,
-            entry.clone(),
-            Some(BirthdayEntry {
-                name: "Jane".into(),
-                date: "99-99".into(),
-                year: None,
-            }),
-        )
-        .is_err());
-        edit_birthday(&dir, entry, None).unwrap();
-        let file = load_yaml::<BirthdaysFile>(&dir, "birthdays.yml", &mut errors).unwrap();
-        assert!(file.birthdays.is_empty());
-
-        append_recurring(
-            &dir,
-            RecurringRule {
-                schedule: "0 0 * * *".into(),
-                description: String::new(),
-                items: vec!["x".into()],
-            },
-        )
-        .unwrap();
-        assert!(edit_recurring(
-            &dir,
-            0,
-            Some(RecurringRule {
-                schedule: "bad".into(),
-                description: String::new(),
-                items: vec!["x".into()],
-            }),
-        )
-        .is_err());
-        edit_recurring(
-            &dir,
-            0,
-            Some(RecurringRule {
-                schedule: "0 0 * * 1".into(),
-                description: "Mondays".into(),
-                items: vec!["y".into()],
-            }),
-        )
-        .unwrap();
-        assert!(edit_recurring(&dir, 5, None).is_err());
-        let listed = recurring_list(&dir);
-        assert_eq!(listed.rules.len(), 1);
-        assert_eq!(listed.rules[0].schedule, "0 0 * * 1");
-        edit_recurring(&dir, 0, None).unwrap();
-        assert!(recurring_list(&dir).rules.is_empty());
-    }
-
-    #[test]
-    fn validate_config_content_catches_schema_cron_and_date_errors() {
-        assert!(validate_config_content(
-            "recurring.yml",
-            "tasks:\n  - schedule: \"0 6 * * *\"\n    items: [\"a\"]\n"
-        )
-        .is_empty());
-        assert_eq!(
-            validate_config_content(
-                "recurring.yml",
-                "tasks:\n  - schedule: \"nope\"\n    items: [\"a\"]\n"
-            )
-            .len(),
-            1
-        );
-        let broken = validate_config_content("recurring.yml", "tasks: [\n");
-        assert_eq!(broken.len(), 1);
-        assert!(broken[0].line.is_some());
-        assert_eq!(
-            validate_config_content(
-                "scheduled.yml",
-                "events:\n  - date: 2026-15-01\n    title: x\n"
-            )
-            .len(),
-            1
-        );
-        assert_eq!(
-            validate_config_content(
-                "birthdays.yml",
-                "birthdays:\n  - name: x\n    date: \"31-12\"\n"
-            )
-            .len(),
-            1
-        );
-        assert!(validate_config_content("day-schedule.yml", "blocks: []\n").is_empty());
     }
 
     #[test]
