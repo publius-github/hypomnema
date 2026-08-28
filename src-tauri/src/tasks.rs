@@ -226,15 +226,27 @@ pub fn tasks_search(conn: &Connection, query: &str) -> Result<Vec<Task>> {
 }
 
 pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
-    let title = new.title.trim();
+    let mut title = new.title.trim().to_string();
     if title.is_empty() {
         return Err(Error::State("task title cannot be empty".into()));
+    }
+    // Same {List Name} prefix syntax as the YAML items: an explicit
+    // prefix in a typed title wins over the target list and creates the
+    // list on the fly, exactly like the engine does. Subtasks live
+    // under their parent and keep the braces literally.
+    let mut list_id = new.list_id;
+    if new.parent_task_id.is_none() {
+        let (list, rest) = crate::engine::parse_item(&title);
+        if let Some(list) = list {
+            list_id = Some(list_ensure(conn, &list)?.id);
+            title = rest;
+        }
     }
     let next: i64 = conn.query_row(
         "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tasks
          WHERE COALESCE(scheduled_date, '') = COALESCE(?1, '')
            AND COALESCE(list_id, -1) = COALESCE(?2, -1)",
-        (&new.scheduled_date, new.list_id),
+        (&new.scheduled_date, list_id),
         |row| row.get(0),
     )?;
     conn.execute(
@@ -242,9 +254,9 @@ pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
                             color, sort_order, parent_task_id, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         (
-            title,
+            &title,
             &new.description_md,
-            new.list_id,
+            list_id,
             &new.scheduled_date,
             &new.time,
             &new.color,
@@ -339,6 +351,38 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         db::migrate(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn create_parses_list_prefix_like_yaml_items() {
+        let conn = conn();
+        let task = task_create(
+            &conn,
+            &NewTask {
+                title: "{05 Finance} pay bills".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(task.title, "pay bills");
+        let list = lists_all(&conn)
+            .unwrap()
+            .into_iter()
+            .find(|l| l.name == "05 Finance")
+            .expect("list auto-created");
+        assert_eq!(task.list_id, Some(list.id));
+
+        // a subtask keeps the braces literally
+        let sub = task_create(
+            &conn,
+            &NewTask {
+                title: "{not a list} step".into(),
+                parent_task_id: Some(task.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(sub.title, "{not a list} step");
     }
 
     #[test]

@@ -31,11 +31,15 @@ export default function QuickAdd({ target }: { target: Partial<NewTask> }) {
     >
       <input
         className="input w-full py-1 text-xs"
-        placeholder="Task title"
+        placeholder="Task title, or {List} title"
         value={title}
         autoFocus
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => {
+          // a click elsewhere mid-typing must not discard the text
+          if (title.trim()) {
+            void createTask({ title: title.trim(), ...target });
+          }
           setTitle("");
           setOpen(false);
         }}
