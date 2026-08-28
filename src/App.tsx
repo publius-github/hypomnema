@@ -149,7 +149,7 @@ export default function App() {
       <TabBar />
       <main className="min-w-0 flex-1 overflow-auto">
         {error && (
-          <div className="flex items-center justify-between bg-red-600/90 px-4 py-2 text-sm text-white">
+          <div className="flex items-center justify-between border-b border-danger/40 bg-danger/15 px-4 py-2 text-sm text-danger">
             <span>{error}</span>
             <button className="font-semibold" onClick={clearError}>
               Dismiss
@@ -157,7 +157,7 @@ export default function App() {
           </div>
         )}
         {configErrors.length > 0 && (
-          <div className="border-b border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
+          <div className="border-b border-warn/40 bg-warn/15 px-4 py-2 text-sm text-warn">
             {configErrors.map((err, i) => (
               <div key={i}>
                 {err.file}

@@ -5,12 +5,16 @@
 :root {
   /* native widgets (scrollbars, pickers) follow the app theme */
   color-scheme: light;
-  --color-surface: 248 249 250;
+  --color-surface: 244 246 248;
   --color-surface-alt: 255 255 255;
   --color-content: 23 26 31;
   --color-content-muted: 100 108 120;
   --color-accent: 37 99 235;
-  --color-line: 222 226 232;
+  --color-line: 218 223 230;
+  /* semantic roles: overdue/errors, postponed/warnings, exact-date/info */
+  --color-danger: 220 38 38;
+  --color-warn: 217 119 6;
+  --color-info: 2 132 199;
 }
 
 .dark {
@@ -21,6 +25,9 @@
   --color-content-muted: 140 148 160;
   --color-accent: 96 145 255;
   --color-line: 52 57 66;
+  --color-danger: 248 113 113;
+  --color-warn: 251 191 36;
+  --color-info: 56 189 248;
 }
 
 html,
@@ -39,4 +46,20 @@ body {
   .input {
     @apply rounded-md border border-line bg-surface-alt px-3 py-1.5 text-sm text-content outline-none focus:border-accent;
   }
+  .btn-primary {
+    @apply rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply rounded-md border border-line px-3 py-1.5 text-sm hover:border-accent hover:text-accent;
+  }
+  .btn-danger {
+    @apply rounded-md border border-danger/50 px-3 py-1.5 text-sm text-danger hover:bg-danger/10;
+  }
+}
+
+/* keyboard focus must be visible outside .input fields too */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgb(var(--color-accent) / 0.7);
+  outline-offset: 1px;
 }

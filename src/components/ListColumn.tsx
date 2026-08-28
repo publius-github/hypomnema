@@ -69,7 +69,7 @@ export default function ListColumn({
           </button>
         )}
         <button
-          className="hidden text-xs text-content-muted hover:text-red-500 group-hover:block"
+          className="hidden text-xs text-content-muted hover:text-danger group-hover:block"
           title="Archive list"
           onClick={() => void archiveList(list.id)}
         >
@@ -82,7 +82,7 @@ export default function ListColumn({
         ))}
         {done.length > 0 && (
           <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-content-muted">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
               Done
             </div>
             {done.map((task) => (

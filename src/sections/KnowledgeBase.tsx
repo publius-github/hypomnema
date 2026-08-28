@@ -290,7 +290,7 @@ export default function KnowledgeBase() {
               <Icon name="pencil" className="h-3 w-3" />
             </button>
             <button
-              className="hidden hover:text-red-500 group-hover:block"
+              className="hidden hover:text-danger group-hover:block"
               title="Delete"
               onClick={() => setDialog({ kind: "delete", node })}
             >
@@ -334,7 +334,7 @@ export default function KnowledgeBase() {
                 : tree.map((node) => renderNode(node, 0))}
               {searchResults && extraContentHits.length > 0 && (
                 <>
-                  <div className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-content-muted">
+                  <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
                     In content
                   </div>
                   {extraContentHits.map((hit) => (
@@ -363,7 +363,7 @@ export default function KnowledgeBase() {
               folder.
             </p>
             <button
-              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+              className="btn-primary px-3 text-xs"
               onClick={() => void pickFolder()}
             >
               Select KB folder
@@ -371,7 +371,7 @@ export default function KnowledgeBase() {
           </div>
         )}
         <div className="border-t border-line px-1 py-2">
-          <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-content-muted">
+          <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
             Config
           </div>
           {CONFIG_FILES.map((file) => (
@@ -434,7 +434,7 @@ export default function KnowledgeBase() {
               <span
                 className={`text-xs ${
                   configErrors.length > 0
-                    ? "text-red-500"
+                    ? "text-danger"
                     : "text-content-muted"
                 }`}
               >
@@ -446,7 +446,7 @@ export default function KnowledgeBase() {
               </span>
             </div>
             {configErrors.length > 0 && (
-              <div className="border-b border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-500">
+              <div className="border-b border-danger/40 bg-danger/10 px-4 py-2 text-xs text-danger">
                 {configErrors.map((err, i) => (
                   <div key={i}>
                     {err.line !== null ? `line ${err.line}: ` : ""}

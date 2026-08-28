@@ -43,7 +43,7 @@ function SyncButton() {
       onClick={() => void sync()}
       className={`flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
         result === "failed" || result === "config!"
-          ? "text-red-500"
+          ? "text-danger"
           : result
             ? "text-accent"
             : "text-content-muted hover:bg-line/40 hover:text-content"
@@ -53,7 +53,7 @@ function SyncButton() {
         name="sync"
         className={`h-[18px] w-[18px] ${syncing ? "animate-spin" : ""}`}
       />
-      <span className="text-[9px] leading-tight">
+      <span className="text-[11px] leading-tight">
         {syncing ? "..." : (result ?? "Sync")}
       </span>
     </button>
@@ -78,7 +78,7 @@ export default function TabBar() {
           }`}
         >
           <Icon name={tab.icon} />
-          <span className="text-[9px] leading-tight">
+          <span className="text-[11px] leading-tight">
             {tab.label.split(" ")[0]}
           </span>
         </button>
@@ -89,7 +89,7 @@ export default function TabBar() {
         className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg text-content-muted transition-colors hover:bg-line/40 hover:text-content"
       >
         <Icon name="search" />
-        <span className="text-[9px] leading-tight">Search</span>
+        <span className="text-[11px] leading-tight">Search</span>
       </button>
       <div className="flex-1" />
       <SyncButton />
@@ -110,7 +110,7 @@ export default function TabBar() {
         className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg text-content-muted transition-colors hover:bg-line/40 hover:text-content"
       >
         <Icon name="info" />
-        <span className="text-[9px] leading-tight">About</span>
+        <span className="text-[11px] leading-tight">About</span>
       </button>
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
       <button
@@ -123,7 +123,7 @@ export default function TabBar() {
         }`}
       >
         <Icon name="sliders" />
-        <span className="text-[9px] leading-tight">Settings</span>
+        <span className="text-[11px] leading-tight">Settings</span>
       </button>
     </nav>
   );

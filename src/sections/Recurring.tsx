@@ -82,7 +82,7 @@ export default function Recurring() {
       </p>
 
       {fileErrors.length > 0 && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+        <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
           {fileErrors.map((err, i) => (
             <div key={i}>
               {err.line !== null ? `line ${err.line}: ` : ""}
@@ -304,7 +304,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
         value={items}
         onChange={(e) => setItems(e.target.value)}
       />
-      <button className="self-end rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white">
+      <button className="btn-primary self-end">
         Add rule
       </button>
     </form>

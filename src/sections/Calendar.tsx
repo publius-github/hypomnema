@@ -113,7 +113,7 @@ export default function Calendar() {
       <div className="flex w-[380px] shrink-0 flex-col gap-3 border-r border-line p-4">
         <div className="flex items-center justify-between">
           <button
-            className="rounded-md border border-line px-3 py-1 text-sm hover:border-accent hover:text-accent"
+            className="btn-ghost px-3 py-1"
             onClick={() => shiftMonth(-1)}
           >
             &lt;
@@ -130,7 +130,7 @@ export default function Calendar() {
             {MONTHS[month]} {year}
           </button>
           <button
-            className="rounded-md border border-line px-3 py-1 text-sm hover:border-accent hover:text-accent"
+            className="btn-ghost px-3 py-1"
             onClick={() => shiftMonth(1)}
           >
             &gt;
@@ -166,7 +166,7 @@ export default function Calendar() {
                 </span>
                 {dayTasks.length > 0 && (
                   <span
-                    className={`text-[10px] leading-none ${
+                    className={`text-[11px] leading-none ${
                       doneCount === dayTasks.length
                         ? "text-accent"
                         : "text-content-muted"
@@ -203,7 +203,7 @@ export default function Calendar() {
                 task.status === "done"
                   ? "text-accent"
                   : task.status === "postponed"
-                    ? "text-amber-500"
+                    ? "text-warn"
                     : "text-content-muted"
               }
             >

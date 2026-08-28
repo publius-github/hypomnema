@@ -86,7 +86,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <span className="text-[10px] text-content-muted">Esc</span>
+          <span className="text-[11px] text-content-muted">Esc</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {results.map((task) => (
@@ -100,7 +100,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
                   task.status === "done"
                     ? "text-content-muted"
                     : task.status === "postponed"
-                      ? "text-amber-500"
+                      ? "text-warn"
                       : "text-accent"
                 }
               >

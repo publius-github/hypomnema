@@ -120,7 +120,7 @@ export default function Journal() {
       <aside className="flex w-52 shrink-0 flex-col border-r border-line bg-surface-alt/50">
         <div className="flex flex-col gap-1 p-3">
           <button
-            className="rounded-md bg-accent px-3 py-1.5 text-left text-sm font-medium text-white hover:opacity-90"
+            className="btn-primary px-3 text-left"
             onClick={() => void openEntry(today)}
           >
             Today
@@ -133,7 +133,7 @@ export default function Journal() {
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-          <div className="pb-1 text-[10px] font-semibold uppercase tracking-wider text-content-muted">
+          <div className="pb-1 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
             Entries
           </div>
           {dates.map((date) => (

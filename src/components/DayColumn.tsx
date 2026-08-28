@@ -67,7 +67,7 @@ export default function DayColumn({
         {groups.map((group) => (
           <div key={group.listId ?? "none"} className="flex flex-col gap-1.5">
             {group.listName && (
-              <div className="pt-1 text-[10px] font-medium uppercase tracking-wider text-content-muted">
+              <div className="pt-1 text-[11px] font-medium uppercase tracking-wider text-content-muted">
                 {group.listName}
               </div>
             )}
@@ -78,7 +78,7 @@ export default function DayColumn({
         ))}
         {done.length > 0 && (
           <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-content-muted">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
               Done
             </div>
             {done.map((task) => (

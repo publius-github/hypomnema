@@ -123,7 +123,7 @@ export function PromptModal({
           Cancel
         </button>
         <button
-          className="rounded-md bg-accent px-3 py-1.5 text-sm text-white hover:opacity-90"
+          className="btn-primary px-3"
           onClick={submit}
         >
           {submitLabel}

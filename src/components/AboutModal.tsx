@@ -41,7 +41,7 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
           database; nothing leaves your machine.
         </p>
         <button
-          className="mt-4 w-full rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+          className="btn-primary mt-4 w-full"
           onClick={onClose}
         >
           Close

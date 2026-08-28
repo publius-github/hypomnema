@@ -214,7 +214,7 @@ export default function TaskModal({
                 {sub.title}
               </span>
               <button
-                className="text-xs text-content-muted hover:text-red-500"
+                className="text-xs text-content-muted hover:text-danger"
                 onClick={() => void deleteTask(sub.id)}
               >
                 ×
@@ -244,7 +244,7 @@ export default function TaskModal({
 
         <div className="flex justify-between border-t border-line pt-3">
           <button
-            className="text-sm text-red-500 hover:underline"
+            className="text-sm text-danger hover:underline"
             onClick={() => {
               void deleteTask(task.id);
               onClose();
@@ -253,7 +253,7 @@ export default function TaskModal({
             Delete task
           </button>
           <button
-            className="rounded-md bg-accent px-4 py-1.5 text-sm text-white"
+            className="btn-primary"
             onClick={commitAndClose}
           >
             Close

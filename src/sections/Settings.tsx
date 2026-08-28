@@ -120,7 +120,7 @@ export default function Settings() {
             {config.kb_path || "Not set"}
           </span>
           <button
-            className="rounded-md border border-line px-3 py-1 text-xs hover:border-accent hover:text-accent"
+            className="btn-ghost px-3 py-1 text-xs"
             onClick={async () => {
               const path = await open({
                 directory: true,
@@ -139,7 +139,7 @@ export default function Settings() {
       <section className="flex flex-col gap-1">
         <span className="text-sm font-medium">Journal template</span>
         <button
-          className="w-fit rounded-md border border-line px-3 py-1 text-xs hover:border-accent hover:text-accent"
+          className="btn-ghost w-fit px-3 py-1 text-xs"
           onClick={() => useAppStore.getState().setSection("journal")}
         >
           Edit in Journal
@@ -153,7 +153,7 @@ export default function Settings() {
           in Notes under the Config group, with validation on save.
         </p>
         <button
-          className="w-fit rounded-md border border-line px-3 py-1 text-xs hover:border-accent hover:text-accent"
+          className="btn-ghost w-fit px-3 py-1 text-xs"
           onClick={() => useAppStore.getState().setSection("kb")}
         >
           Open in Notes
@@ -185,7 +185,7 @@ function DebugSection() {
       <span className="text-sm font-medium">Debug</span>
       <div className="flex items-center gap-2">
         <button
-          className="w-fit rounded-md border border-red-500/50 px-3 py-1 text-xs text-red-500 hover:bg-red-500/10"
+          className="btn-danger w-fit px-3 py-1 text-xs"
           onClick={() => setConfirming(true)}
         >
           Delete all done tasks

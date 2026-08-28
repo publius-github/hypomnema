@@ -29,7 +29,7 @@ export default function VaultPicker() {
       >
         Select vault folder
       </button>
-      {error && <p className="max-w-md text-sm text-red-500">{error}</p>}
+      {error && <p className="max-w-md text-sm text-danger">{error}</p>}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import type { Task } from "../types";
 const STATUS_BUTTON: Record<Task["status"], string> = {
   todo: "border-content-muted text-content-muted",
   done: "border-accent bg-accent text-white",
-  postponed: "border-amber-500 bg-amber-500 text-white",
+  postponed: "border-warn bg-warn text-white",
 };
 
 export default function TaskCard({
@@ -48,7 +48,7 @@ export default function TaskCard({
           />
         )}
         <button
-          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${STATUS_BUTTON[task.status]}`}
+          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[11px] ${STATUS_BUTTON[task.status]}`}
           title={`Status: ${task.status}`}
           onClick={(e) => {
             e.stopPropagation();
@@ -86,17 +86,17 @@ export default function TaskCard({
           <div className="flex flex-wrap gap-1.5 pt-0.5 text-[11px] text-content-muted">
             {task.time && <span>{task.time}</span>}
             {task.overdue && task.status !== "done" && (
-              <span className="rounded bg-red-500/15 px-1 font-medium text-red-500">
+              <span className="rounded bg-danger/15 px-1 font-medium text-danger">
                 overdue
               </span>
             )}
             {task.status === "postponed" && (
-              <span className="rounded bg-amber-500/15 px-1 font-medium text-amber-500">
+              <span className="rounded bg-warn/15 px-1 font-medium text-warn">
                 postponed
               </span>
             )}
             {(task.origin === "scheduled" || task.origin === "birthday") && (
-              <span className="rounded bg-sky-500/15 px-1 font-medium text-sky-500">
+              <span className="rounded bg-info/15 px-1 font-medium text-info">
                 exact date
               </span>
             )}

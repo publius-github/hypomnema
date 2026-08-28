@@ -82,7 +82,7 @@ export default function Upcoming() {
       </div>
 
       {fileErrors.length > 0 && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+        <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
           {fileErrors.map((err, i) => (
             <div key={i}>
               {err.file}
@@ -174,7 +174,7 @@ function ScheduledTab({
           value={time}
           onChange={(e) => setTime(e.target.value)}
         />
-        <button className="rounded-md bg-accent px-4 text-sm font-medium text-white">
+        <button className="btn-primary py-0">
           Add
         </button>
       </form>
@@ -364,7 +364,7 @@ function BirthdaysTab({
           value={year}
           onChange={(e) => setYear(e.target.value)}
         />
-        <button className="rounded-md bg-accent px-4 text-sm font-medium text-white">
+        <button className="btn-primary py-0">
           Add
         </button>
       </form>
@@ -485,7 +485,7 @@ export function DeleteRowButton({
 }) {
   return (
     <button
-      className="hidden shrink-0 rounded px-1.5 text-xs text-content-muted hover:text-red-500 group-hover:block"
+      className="hidden shrink-0 rounded px-1.5 text-xs text-content-muted hover:text-danger group-hover:block"
       title="Delete"
       onClick={onDelete}
     >
@@ -499,7 +499,7 @@ export function EditFormButtons({ onCancel }: { onCancel: () => void }) {
     <span className="flex shrink-0 gap-1">
       <button
         type="submit"
-        className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-white"
+        className="btn-primary px-3 py-1 text-xs"
       >
         Save
       </button>
