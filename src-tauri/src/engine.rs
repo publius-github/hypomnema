@@ -66,13 +66,29 @@ struct BirthdaysFile {
     birthdays: Vec<BirthdayEntry>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BirthdayEntry {
     pub name: String,
     /// MM-DD
     pub date: String,
     #[serde(default)]
     pub year: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BirthdayView {
+    pub name: String,
+    pub date: String,
+    pub year: Option<i32>,
+    pub next_occurrence: String,
+    pub days_until: i64,
+    pub turns: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BirthdaysResult {
+    pub birthdays: Vec<BirthdayView>,
+    pub errors: Vec<ConfigError>,
 }
 
 /// Stable 64-bit FNV-1a; rule keys persist in the DB, so the hash must
@@ -101,7 +117,7 @@ pub fn parse_item(raw: &str) -> (Option<String>, String) {
     (None, trimmed.to_string())
 }
 
-fn load_yaml<T: serde::de::DeserializeOwned + Default>(
+pub(crate) fn load_yaml<T: serde::de::DeserializeOwned + Default>(
     dir: &Path,
     file: &str,
     errors: &mut Vec<ConfigError>,
@@ -454,6 +470,116 @@ pub fn upcoming_events(
     Ok((pending, errors))
 }
 
+fn next_birthday_occurrence(month: u32, day: u32, today: NaiveDate) -> Option<NaiveDate> {
+    for year in [today.year(), today.year() + 1] {
+        let occurrence = NaiveDate::from_ymd_opt(year, month, day).or_else(|| {
+            if month == 2 && day == 29 {
+                NaiveDate::from_ymd_opt(year, 2, 28)
+            } else {
+                None
+            }
+        })?;
+        if occurrence >= today {
+            return Some(occurrence);
+        }
+    }
+    None
+}
+
+/// All birthday entries with their next occurrence, sorted by it.
+pub fn birthdays_list(config_dir: &Path, today: NaiveDate) -> BirthdaysResult {
+    let mut errors = Vec::new();
+    let file =
+        load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors).unwrap_or_default();
+    let mut birthdays = Vec::new();
+    for entry in file.birthdays {
+        let parsed = entry
+            .date
+            .split_once('-')
+            .and_then(|(m, d)| Some((m.parse::<u32>().ok()?, d.parse::<u32>().ok()?)));
+        let occurrence = parsed.and_then(|(m, d)| next_birthday_occurrence(m, d, today));
+        let Some(occurrence) = occurrence else {
+            errors.push(ConfigError {
+                file: "birthdays.yml".into(),
+                line: None,
+                message: format!("entry '{}': invalid date '{}'", entry.name, entry.date),
+            });
+            continue;
+        };
+        birthdays.push(BirthdayView {
+            turns: entry.year.map(|y| occurrence.year() - y),
+            next_occurrence: occurrence.format("%Y-%m-%d").to_string(),
+            days_until: (occurrence - today).num_days(),
+            name: entry.name,
+            date: entry.date,
+            year: entry.year,
+        });
+    }
+    birthdays.sort_by(|a, b| a.next_occurrence.cmp(&b.next_occurrence));
+    BirthdaysResult { birthdays, errors }
+}
+
+/// Quick-add write-back (req. 21-22). Note: saving reformats the file
+/// and drops YAML comments; the file remains the source of truth.
+pub fn append_scheduled(config_dir: &Path, event: ScheduledEvent) -> Result<()> {
+    let mut errors = Vec::new();
+    let mut file = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors)
+        .ok_or_else(|| {
+            crate::error::Error::State(format!(
+                "scheduled.yml is invalid, fix it before adding events: {}",
+                errors.first().map(|e| e.message.as_str()).unwrap_or("")
+            ))
+        })?;
+    NaiveDate::parse_from_str(&event.date, "%Y-%m-%d")
+        .map_err(|_| crate::error::Error::State(format!("invalid date: {}", event.date)))?;
+    file.events.push(event);
+    file.events.sort_by(|a, b| a.date.cmp(&b.date));
+    let yaml = serde_yaml::to_string(&SchedFileOut {
+        events: file.events,
+    })?;
+    fs::write(config_dir.join("scheduled.yml"), yaml)?;
+    Ok(())
+}
+
+pub fn append_birthday(config_dir: &Path, entry: BirthdayEntry) -> Result<()> {
+    let mut errors = Vec::new();
+    let mut file = load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors)
+        .ok_or_else(|| {
+            crate::error::Error::State(format!(
+                "birthdays.yml is invalid, fix it before adding entries: {}",
+                errors.first().map(|e| e.message.as_str()).unwrap_or("")
+            ))
+        })?;
+    let valid = entry
+        .date
+        .split_once('-')
+        .and_then(|(m, d)| Some((m.parse::<u32>().ok()?, d.parse::<u32>().ok()?)))
+        .map(|(m, d)| (1..=12).contains(&m) && (1..=31).contains(&d))
+        .unwrap_or(false);
+    if !valid {
+        return Err(crate::error::Error::State(format!(
+            "invalid birthday date '{}', expected MM-DD",
+            entry.date
+        )));
+    }
+    file.birthdays.push(entry);
+    let yaml = serde_yaml::to_string(&BdayFileOut {
+        birthdays: file.birthdays,
+    })?;
+    fs::write(config_dir.join("birthdays.yml"), yaml)?;
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct SchedFileOut {
+    events: Vec<ScheduledEvent>,
+}
+
+#[derive(Serialize)]
+struct BdayFileOut {
+    birthdays: Vec<BirthdayEntry>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -769,6 +895,47 @@ mod tests {
         let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(outcome.pruned, 0);
         assert_eq!(count_tasks(&conn), 1);
+    }
+
+    #[test]
+    fn quick_add_writes_back_and_materializes_next_run() {
+        let (conn, dir) = setup("quickadd");
+        append_scheduled(
+            &dir,
+            ScheduledEvent {
+                date: "2026-08-29".into(),
+                title: "{02 Personal} dentist".into(),
+                time: Some("10:30".into()),
+            },
+        )
+        .unwrap();
+        append_birthday(
+            &dir,
+            BirthdayEntry {
+                name: "Jane".into(),
+                date: "08-30".into(),
+                year: Some(2000),
+            },
+        )
+        .unwrap();
+        assert!(append_birthday(
+            &dir,
+            BirthdayEntry {
+                name: "Bad".into(),
+                date: "13-99".into(),
+                year: None,
+            },
+        )
+        .is_err());
+
+        let outcome = run(&conn, &dir, &config(7, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(outcome.generated, 2);
+        assert!(outcome.errors.is_empty());
+
+        let list = birthdays_list(&dir, at("2026-08-28", "12:00:00").date_naive());
+        assert_eq!(list.birthdays.len(), 1);
+        assert_eq!(list.birthdays[0].days_until, 2);
+        assert_eq!(list.birthdays[0].turns, Some(26));
     }
 
     #[test]

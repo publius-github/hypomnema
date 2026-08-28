@@ -4,6 +4,7 @@ mod engine;
 mod error;
 mod journal;
 mod kb;
+mod reminders;
 mod tasks;
 mod vault;
 
@@ -235,6 +236,48 @@ fn journal_template_set(state: State<AppState>, content: String) -> Result<()> {
     with_vault_root(&state, |root| journal::save_template(root, &content))
 }
 
+#[tauri::command]
+fn dashboard_context(
+    state: State<AppState>,
+    dates: Vec<String>,
+) -> Result<reminders::DashboardContext> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    reminders::dashboard_context(&vault.conn, &vault.config_dir(), &dates)
+}
+
+#[tauri::command]
+fn birthdays_list(state: State<AppState>) -> Result<engine::BirthdaysResult> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    Ok(engine::birthdays_list(
+        &vault.config_dir(),
+        chrono::Local::now().date_naive(),
+    ))
+}
+
+#[tauri::command]
+fn scheduled_add(state: State<AppState>, event: engine::ScheduledEvent) -> Result<()> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    engine::append_scheduled(&vault.config_dir(), event)
+}
+
+#[tauri::command]
+fn birthday_add(state: State<AppState>, entry: engine::BirthdayEntry) -> Result<()> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    engine::append_birthday(&vault.config_dir(), entry)
+}
+
 fn kb_root(state: &State<AppState>) -> Result<PathBuf> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
@@ -340,7 +383,11 @@ pub fn run() {
             kb_write,
             kb_create,
             kb_rename,
-            kb_delete
+            kb_delete,
+            dashboard_context,
+            birthdays_list,
+            scheduled_add,
+            birthday_add
         ])
         .run(tauri::generate_context!())
         .expect("error while running app-pkb");

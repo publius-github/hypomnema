@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "./store";
@@ -37,6 +37,38 @@ export default function App() {
     return () => {
       void unlisten.then((fn) => fn());
     };
+  }, []);
+
+  // in-app reminders for timed tasks while the window is open (req. from
+  // Key features; no background service in phase 1)
+  const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
+  const notifiedRef = useRef(new Set<number>());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const { tasks, today } = useAppStore.getState();
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(
+        now.getMinutes(),
+      ).padStart(2, "0")}`;
+      for (const task of tasks) {
+        if (
+          task.scheduled_date === today &&
+          task.time !== null &&
+          task.time <= hhmm &&
+          task.status === "todo" &&
+          !notifiedRef.current.has(task.id)
+        ) {
+          notifiedRef.current.add(task.id);
+          const toast = { id: task.id, text: `${task.time} ${task.title}` };
+          setToasts((prev) => [...prev, toast]);
+          setTimeout(
+            () => setToasts((prev) => prev.filter((t) => t.id !== toast.id)),
+            15_000,
+          );
+        }
+      }
+    }, 30_000);
+    return () => clearInterval(timer);
   }, []);
 
   // day rollover while the app stays open: re-run the engine at midnight
@@ -90,6 +122,23 @@ export default function App() {
         {section === "kb" && <KnowledgeBase />}
         {section === "settings" && <Settings />}
       </main>
+      {toasts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-20 flex flex-col gap-2">
+          {toasts.map((toast) => (
+            <button
+              key={toast.id}
+              className="rounded-lg border border-line bg-surface-alt px-4 py-2 text-left text-sm shadow-lg"
+              onClick={() =>
+                setToasts((prev) => prev.filter((t) => t.id !== toast.id))
+              }
+            >
+              <span className="font-medium text-accent">Task due</span>
+              <br />
+              {toast.text}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

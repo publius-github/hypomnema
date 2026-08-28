@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppConfig,
   ConfigError,
+  DashboardContext,
   EngineOutcome,
   List,
   NewTask,
@@ -22,6 +23,7 @@ interface AppState {
   lists: List[];
   tasks: Task[];
   configErrors: ConfigError[];
+  dashboard: DashboardContext | null;
   init: () => Promise<void>;
   runEngine: () => Promise<void>;
   setConfigErrors: (errors: ConfigError[]) => void;
@@ -55,6 +57,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   lists: [],
   tasks: [],
   configErrors: [],
+  dashboard: null,
 
   init: async () => {
     try {
@@ -101,15 +104,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     const config = get().config;
     if (!config) return;
     const today = todayISO();
+    const dates = Array.from({ length: config.grid_columns }, (_, i) =>
+      addDaysISO(today, i),
+    );
     try {
-      const [lists, tasks] = await Promise.all([
+      const [lists, tasks, dashboard] = await Promise.all([
         invoke<List[]>("lists_all"),
         invoke<Task[]>("tasks_snapshot", {
           startDate: today,
           endDate: addDaysISO(today, config.grid_columns),
         }),
+        invoke<DashboardContext>("dashboard_context", { dates }),
       ]);
-      set({ today, lists, tasks });
+      set({ today, lists, tasks, dashboard });
     } catch (e) {
       set({ error: String(e) });
     }

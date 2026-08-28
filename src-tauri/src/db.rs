@@ -51,6 +51,14 @@ const MIGRATIONS: &[&str] = &[
         generated_at TEXT NOT NULL,
         PRIMARY KEY (rule_key, period_key)
     );",
+    // 004: weekly focus rotation pointer (req. 12): which phrase index
+    // is assigned to which ISO week
+    "CREATE TABLE weekly_focus_state (
+        iso_year INTEGER NOT NULL,
+        iso_week INTEGER NOT NULL,
+        phrase_index INTEGER NOT NULL,
+        PRIMARY KEY (iso_year, iso_week)
+    );",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

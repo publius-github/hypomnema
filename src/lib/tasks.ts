@@ -1,4 +1,4 @@
-import type { List, Task, TaskStatus } from "../types";
+import type { List, ScheduleBlock, Task, TaskStatus } from "../types";
 
 export const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
   todo: "done",
@@ -87,6 +87,28 @@ export function compareTasks(a: Task, b: Task): number {
 export interface DoneSplit {
   active: Task[];
   done: Task[];
+}
+
+export interface BlockFocus {
+  current: ScheduleBlock | null;
+  next: ScheduleBlock | null;
+}
+
+/** Day-schedule mode (req. 14): the block covering now, and the next one. */
+export function currentAndNextBlock(
+  blocks: ScheduleBlock[],
+  now: Date,
+): BlockFocus | null {
+  if (blocks.length === 0) return null;
+  const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(
+    now.getMinutes(),
+  ).padStart(2, "0")}`;
+  const sorted = [...blocks].sort((a, b) => a.from.localeCompare(b.from));
+  const current =
+    sorted.find((b) => b.from <= hhmm && hhmm < b.to) ?? null;
+  const next = sorted.find((b) => b.from > hhmm) ?? null;
+  if (!current && !next) return null;
+  return { current, next };
 }
 
 /** Done display mode (req. 15): inline keeps done in place, separate splits. */

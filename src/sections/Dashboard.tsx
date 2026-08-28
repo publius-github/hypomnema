@@ -17,7 +17,7 @@ import TaskModal from "../components/TaskModal";
 import NewListForm from "../components/NewListForm";
 
 export default function Dashboard() {
-  const { config, today, lists, tasks, updateTask } = useAppStore();
+  const { config, today, lists, tasks, updateTask, dashboard } = useAppStore();
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const sensors = useSensors(
@@ -52,7 +52,12 @@ export default function Dashboard() {
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      <div className="flex h-full flex-col gap-4 p-4">
+      <div className="flex h-full flex-col gap-3 p-4">
+        {dashboard?.focus && (
+          <div className="text-center text-sm font-medium italic text-accent">
+            {dashboard.focus}
+          </div>
+        )}
         <div
           className="grid min-h-0 flex-[3] gap-3"
           style={{

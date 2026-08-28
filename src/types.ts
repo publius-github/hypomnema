@@ -26,6 +26,39 @@ export interface ConfigError {
   message: string;
 }
 
+export interface ScheduleBlock {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export interface DayContext {
+  date: string;
+  reminders: string[];
+}
+
+export interface DashboardContext {
+  focus: string | null;
+  days: DayContext[];
+  blocks: ScheduleBlock[];
+  errors: ConfigError[];
+}
+
+export interface UpcomingEvent {
+  date: string;
+  title: string;
+  time: string | null;
+}
+
+export interface BirthdayView {
+  name: string;
+  date: string;
+  year: number | null;
+  next_occurrence: string;
+  days_until: number;
+  turns: number | null;
+}
+
 export interface EngineOutcome {
   generated: number;
   carried_over: number;

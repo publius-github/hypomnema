@@ -1,6 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { dayLabel, groupDayTasks, splitDone } from "../lib/tasks";
+import { currentAndNextBlock, dayLabel, groupDayTasks, splitDone } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 
@@ -11,8 +11,15 @@ export default function DayColumn({
   date: string;
   onOpenTask: (id: number) => void;
 }) {
-  const { config, today, lists, tasks } = useAppStore();
+  const { config, today, lists, tasks, dashboard } = useAppStore();
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
+
+  const reminders =
+    dashboard?.days.find((d) => d.date === date)?.reminders ?? [];
+  const schedule =
+    date === today && dashboard
+      ? currentAndNextBlock(dashboard.blocks, new Date())
+      : null;
 
   const dayTasks = tasks.filter(
     (t) => t.scheduled_date === date && t.parent_task_id === null,
@@ -35,6 +42,27 @@ export default function DayColumn({
       >
         {dayLabel(date, today)}
       </div>
+      {(reminders.length > 0 || schedule) && (
+        <div className="flex flex-col gap-0.5 px-2.5 pb-1.5 text-[11px] text-content-muted">
+          {reminders.map((text, i) => (
+            <div key={i} className="italic">
+              {text}
+            </div>
+          ))}
+          {schedule?.current && (
+            <div>
+              <span className="font-medium text-accent">Now:</span>{" "}
+              {schedule.current.label} (until {schedule.current.to})
+            </div>
+          )}
+          {schedule?.next && (
+            <div>
+              <span className="font-medium">Next:</span> {schedule.next.label}{" "}
+              at {schedule.next.from}
+            </div>
+          )}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
         {groups.map((group) => (
           <div key={group.listId ?? "none"} className="flex flex-col gap-1.5">
