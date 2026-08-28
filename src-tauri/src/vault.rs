@@ -50,6 +50,9 @@ pub struct Vault {
     pub root: PathBuf,
     pub config: AppConfig,
     pub conn: Connection,
+    /// Set when app.yml could not be parsed and defaults are active;
+    /// surfaced through the engine outcome as a config error banner.
+    pub config_error: Option<String>,
 }
 
 impl Vault {
@@ -78,7 +81,8 @@ impl Vault {
             }
         }
 
-        let config = AppConfig::load_or_create(&root.join("config").join("app.yml"))?;
+        let (config, config_error) =
+            AppConfig::load_or_default(&root.join("config").join("app.yml"));
 
         let conn = db::open(&root.join("app.db"))?;
         db::migrate(&conn)?;
@@ -88,6 +92,7 @@ impl Vault {
             root: root.to_path_buf(),
             config,
             conn,
+            config_error,
         })
     }
 
@@ -95,6 +100,7 @@ impl Vault {
         config.save(&self.root.join("config").join("app.yml"))?;
         db::mirror_settings(&self.conn, &config)?;
         self.config = config;
+        self.config_error = None;
         Ok(())
     }
 
@@ -105,11 +111,44 @@ impl Vault {
     /// Re-reads app.yml (e.g. after an external edit) and refreshes the
     /// settings mirror. app.yml is the source of truth (req. 23).
     pub fn reload_config(&mut self) -> Result<()> {
-        let config = AppConfig::load_or_create(&self.config_dir().join("app.yml"))?;
-        db::mirror_settings(&self.conn, &config)?;
-        self.config = config;
+        let path = self.config_dir().join("app.yml");
+        if !path.exists() {
+            return Ok(());
+        }
+        let parsed = fs::read_to_string(&path)
+            .map_err(|e| e.to_string())
+            .and_then(|raw| serde_yaml::from_str::<AppConfig>(&raw).map_err(|e| e.to_string()));
+        match parsed {
+            Ok(config) => {
+                db::mirror_settings(&self.conn, &config)?;
+                self.config = config;
+                self.config_error = None;
+            }
+            // A broken file mid-session keeps the last valid settings
+            // active (req. 19) and only raises the banner.
+            Err(e) => {
+                self.config_error = Some(format!(
+                    "invalid app.yml, previous settings stay active: {e}"
+                ));
+            }
+        }
         Ok(())
     }
+}
+
+/// Writes to a temp file in the same directory, then renames over the
+/// target: a crash mid-write never truncates the file and the config
+/// watcher never reads a half-written state. std::fs::rename replaces
+/// an existing target on Windows too (MOVEFILE_REPLACE_EXISTING).
+pub fn write_atomic(path: &Path, content: &str) -> Result<()> {
+    let dir = path
+        .parent()
+        .ok_or_else(|| Error::State(format!("no parent dir for {}", path.display())))?;
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
+    let tmp = dir.join(format!(".{name}.tmp"));
+    fs::write(&tmp, content)?;
+    fs::rename(&tmp, path)?;
+    Ok(())
 }
 
 /// The vault path is the only state kept outside the vault, in the OS
@@ -174,7 +213,7 @@ mod tests {
         config.grid_columns = 10;
         vault.save_config(config).unwrap();
 
-        let reloaded = AppConfig::load_or_create(&root.join("config").join("app.yml")).unwrap();
+        let (reloaded, _) = AppConfig::load_or_default(&root.join("config").join("app.yml"));
         assert_eq!(reloaded.grid_columns, 10);
 
         let mirrored: String = vault

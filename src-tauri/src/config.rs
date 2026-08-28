@@ -36,14 +36,25 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
-    pub fn load_or_create(path: &Path) -> Result<Self> {
-        if path.exists() {
-            let raw = fs::read_to_string(path)?;
-            Ok(serde_yaml::from_str(&raw)?)
-        } else {
+    /// Loads app.yml, falling back to defaults when the file is broken
+    /// instead of making the vault unopenable. The parse error comes
+    /// back for the UI banner; the broken file stays on disk untouched
+    /// until the user fixes it or saves a setting.
+    pub fn load_or_default(path: &Path) -> (Self, Option<String>) {
+        if !path.exists() {
             let config = Self::default();
-            config.save(path)?;
-            Ok(config)
+            let error = config.save(path).err().map(|e| e.to_string());
+            return (config, error);
+        }
+        match fs::read_to_string(path) {
+            Ok(raw) => match serde_yaml::from_str(&raw) {
+                Ok(config) => (config, None),
+                Err(e) => (
+                    Self::default(),
+                    Some(format!("invalid app.yml, defaults are active: {e}")),
+                ),
+            },
+            Err(e) => (Self::default(), Some(e.to_string())),
         }
     }
 
@@ -51,7 +62,7 @@ impl AppConfig {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(path, serde_yaml::to_string(self)?)?;
+        crate::vault::write_atomic(path, &serde_yaml::to_string(self)?)?;
         Ok(())
     }
 
@@ -79,12 +90,29 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("app.yml");
 
-        let config = AppConfig::load_or_create(&path).unwrap();
+        let (config, error) = AppConfig::load_or_default(&path);
+        assert!(error.is_none());
         assert_eq!(config, AppConfig::default());
         assert!(path.exists());
 
-        let reloaded = AppConfig::load_or_create(&path).unwrap();
+        let (reloaded, _) = AppConfig::load_or_default(&path);
         assert_eq!(reloaded, config);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn broken_app_yml_falls_back_to_defaults_with_error() {
+        let dir = std::env::temp_dir().join("app-pkb-test-config-broken");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("app.yml");
+        fs::write(&path, "theme: [broken\n").unwrap();
+
+        let (config, error) = AppConfig::load_or_default(&path);
+        assert_eq!(config, AppConfig::default());
+        assert!(error.is_some());
+        // the broken file is left untouched for the user to fix
+        assert_eq!(fs::read_to_string(&path).unwrap(), "theme: [broken\n");
         let _ = fs::remove_dir_all(&dir);
     }
 

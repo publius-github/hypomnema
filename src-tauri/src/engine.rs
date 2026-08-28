@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use croner::Cron;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -176,7 +176,11 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
     let inserted = conn.execute(
         "INSERT OR IGNORE INTO rule_runs (rule_key, period_key, generated_at)
          VALUES (?1, ?2, ?3)",
-        (&task.rule_key, &task.period_key, now.to_rfc3339()),
+        (
+            &task.rule_key,
+            &task.period_key,
+            now.with_timezone(&Utc).to_rfc3339(),
+        ),
     )?;
     if inserted == 0 {
         return Ok(false);
@@ -197,7 +201,7 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
             list_id,
             &task.scheduled_date,
             task.time,
-            now.to_rfc3339(),
+            now.with_timezone(&Utc).to_rfc3339(),
             task.origin,
             &task.rule_key,
             &task.period_key,
@@ -254,16 +258,38 @@ fn run_recurring(
         // collapse into the single latest firing, which carry-over then
         // moves to today with the overdue mark - a gap of N days must
         // produce one overdue task per item, not N duplicates.
+        // Guard against runaway schedules ("* * * * *" would enumerate
+        // tens of thousands of firings and insert a task for each).
+        const MAX_FIRINGS: usize = 2000;
         let mut firings = Vec::new();
         let mut cursor = window_start;
+        let mut overflow = false;
         loop {
             match cron.find_next_occurrence(&cursor, false) {
                 Ok(firing) if firing.date_naive() <= horizon => {
+                    if firings.len() >= MAX_FIRINGS {
+                        overflow = true;
+                        break;
+                    }
                     cursor = firing;
                     firings.push(firing);
                 }
                 _ => break,
             }
+        }
+        if overflow {
+            outcome.errors.push(ConfigError {
+                file: "recurring.yml".into(),
+                line: None,
+                message: format!(
+                    "rule {} ('{}'): cron '{}' fires more than {MAX_FIRINGS} times \
+                     inside the catch-up window; rule skipped",
+                    index + 1,
+                    rule.description,
+                    rule.schedule
+                ),
+            });
+            continue;
         }
         let latest_missed = firings.iter().rfind(|f| f.date_naive() < today).copied();
         let current = || firings.iter().filter(|f| f.date_naive() >= today).copied();
@@ -272,9 +298,12 @@ fn run_recurring(
             // Catch-up never reaches back past the day the engine first
             // saw the item: a rule added today must not open as overdue,
             // and later runs must not resurrect pre-sighting firings.
+            // first_seen is consumed as a LOCAL date (substr below), so it
+            // is stored as the plain local date - a UTC timestamp would
+            // shift the sighting day around midnight.
             let newly_seen = conn.execute(
                 "INSERT OR IGNORE INTO rule_seen (rule_key, first_seen) VALUES (?1, ?2)",
-                (&rule_key, now.to_rfc3339()),
+                (&rule_key, today.format("%Y-%m-%d").to_string()),
             )? == 1;
             if newly_seen {
                 // A first-seen rule starts with a clean ledger from today
@@ -511,7 +540,9 @@ fn prune(conn: &Connection, retention_days: u32, now: DateTime<Local>) -> Result
     if retention_days == 0 {
         return Ok(0);
     }
-    let cutoff = (now - Duration::days(i64::from(retention_days))).to_rfc3339();
+    // completed_at is stored in UTC; the cutoff must be UTC too, since
+    // RFC3339 strings with mixed offsets do not order chronologically.
+    let cutoff = (now.with_timezone(&Utc) - Duration::days(i64::from(retention_days))).to_rfc3339();
     let pruned = conn.execute(
         "DELETE FROM tasks
          WHERE status = 'done'
@@ -537,6 +568,11 @@ pub fn run(
     let today = now.date_naive();
     let horizon = today + Duration::days(i64::from(config.grid_columns.max(1)) - 1);
 
+    // One transaction for the whole pass: a crash between the ledger
+    // insert and the task insert would otherwise mark a period as
+    // generated without ever creating its task - unrecoverable, since
+    // dedup then refuses to regenerate it.
+    let tx = conn.unchecked_transaction()?;
     run_recurring(conn, config_dir, config, horizon, now, &mut outcome)?;
     run_scheduled(conn, config_dir, horizon, now, &mut outcome)?;
     run_birthdays(
@@ -549,6 +585,19 @@ pub fn run(
     )?;
     outcome.carried_over = carry_over(conn, today)?;
     outcome.pruned = prune(conn, config.retention_days, now)?;
+    // Recurring ledger rows older than the catch-up window can never
+    // influence generation again; drop them so rule_runs stays bounded.
+    // Only recurring period keys (YYYY-MM-DDTHH:MM, 16 chars) qualify -
+    // scheduled/birthday keys use other formats and stay.
+    let ledger_cutoff = (today - Duration::days(i64::from(config.catchup_days)))
+        .format("%Y-%m-%d")
+        .to_string();
+    conn.execute(
+        "DELETE FROM rule_runs
+         WHERE length(period_key) = 16 AND substr(period_key, 1, 10) < ?1",
+        [&ledger_cutoff],
+    )?;
+    tx.commit()?;
     Ok(outcome)
 }
 
@@ -673,7 +722,7 @@ pub fn append_recurring(config_dir: &Path, mut rule: RecurringRule) -> Result<()
     }
     file.tasks.push(rule);
     let yaml = serde_yaml::to_string(&RecurFileOut { tasks: file.tasks })?;
-    fs::write(config_dir.join("recurring.yml"), yaml)?;
+    crate::vault::write_atomic(&config_dir.join("recurring.yml"), &yaml)?;
     Ok(())
 }
 
@@ -695,7 +744,7 @@ pub fn append_scheduled(config_dir: &Path, event: ScheduledEvent) -> Result<()> 
     let yaml = serde_yaml::to_string(&SchedFileOut {
         events: file.events,
     })?;
-    fs::write(config_dir.join("scheduled.yml"), yaml)?;
+    crate::vault::write_atomic(&config_dir.join("scheduled.yml"), &yaml)?;
     Ok(())
 }
 
@@ -724,7 +773,7 @@ pub fn append_birthday(config_dir: &Path, entry: BirthdayEntry) -> Result<()> {
     let yaml = serde_yaml::to_string(&BdayFileOut {
         birthdays: file.birthdays,
     })?;
-    fs::write(config_dir.join("birthdays.yml"), yaml)?;
+    crate::vault::write_atomic(&config_dir.join("birthdays.yml"), &yaml)?;
     Ok(())
 }
 
@@ -768,7 +817,7 @@ pub fn edit_recurring(
         }
     }
     let yaml = serde_yaml::to_string(&RecurFileOut { tasks: file.tasks })?;
-    fs::write(config_dir.join("recurring.yml"), yaml)?;
+    crate::vault::write_atomic(&config_dir.join("recurring.yml"), &yaml)?;
     Ok(())
 }
 
@@ -811,7 +860,7 @@ pub fn edit_scheduled(
     let yaml = serde_yaml::to_string(&SchedFileOut {
         events: file.events,
     })?;
-    fs::write(config_dir.join("scheduled.yml"), yaml)?;
+    crate::vault::write_atomic(&config_dir.join("scheduled.yml"), &yaml)?;
     Ok(())
 }
 
@@ -860,7 +909,7 @@ pub fn edit_birthday(
     let yaml = serde_yaml::to_string(&BdayFileOut {
         birthdays: file.birthdays,
     })?;
-    fs::write(config_dir.join("birthdays.yml"), yaml)?;
+    crate::vault::write_atomic(&config_dir.join("birthdays.yml"), &yaml)?;
     Ok(())
 }
 
@@ -1060,6 +1109,49 @@ mod tests {
             })
             .unwrap();
         assert_eq!(overdue, 0);
+    }
+
+    #[test]
+    fn runaway_cron_is_skipped_with_an_error() {
+        let (conn, dir) = setup("runaway");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"* * * * *\"\n    description: Spam\n    items:\n      - \"noise\"\n",
+        )
+        .unwrap();
+        let outcome = run(&conn, &dir, &config(30, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(outcome.generated, 0);
+        assert_eq!(count_tasks(&conn), 0);
+        assert_eq!(outcome.errors.len(), 1);
+        assert!(outcome.errors[0].message.contains("fires more than"));
+    }
+
+    #[test]
+    fn old_recurring_ledger_rows_are_pruned() {
+        let (conn, dir) = setup("ledger-prune");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"daily\"\n",
+        )
+        .unwrap();
+        let cfg = config(3, 3, 0);
+        run(&conn, &dir, &cfg, at("2026-08-01", "12:00:00")).unwrap();
+        // a month later: rows whose period predates the catch-up window
+        // are gone, recent ones stay, and nothing regenerates for the
+        // pruned periods (they are outside the enumeration window anyway)
+        run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
+        let stale: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM rule_runs WHERE substr(period_key, 1, 10) < '2026-08-25'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(stale, 0);
+        let recent: i64 = conn
+            .query_row("SELECT COUNT(*) FROM rule_runs", [], |r| r.get(0))
+            .unwrap();
+        assert!(recent > 0);
     }
 
     #[test]

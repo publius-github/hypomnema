@@ -234,6 +234,9 @@ pub fn task_get(conn: &Connection, id: i64) -> Result<Task> {
 }
 
 pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task> {
+    // The patch spans several UPDATEs; an error mid-way must not leave
+    // half of it applied.
+    let tx = conn.unchecked_transaction()?;
     if let Some(status) = &patch.status {
         if !["todo", "done", "postponed"].contains(&status.as_str()) {
             return Err(Error::State(format!("invalid status: {status}")));
@@ -283,6 +286,7 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
             (sort_order, id),
         )?;
     }
+    tx.commit()?;
     task_get(conn, id)
 }
 

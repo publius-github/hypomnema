@@ -65,8 +65,15 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
                     &vault.config,
                     chrono::Local::now(),
                 );
+                let mut errors = outcome.map(|o| o.errors).unwrap_or_default();
+                if let Some(msg) = &vault.config_error {
+                    errors.push(engine::ConfigError {
+                        file: "app.yml".into(),
+                        line: None,
+                        message: msg.clone(),
+                    });
+                }
                 drop(guard);
-                let errors = outcome.map(|o| o.errors).unwrap_or_default();
                 let _ = app.emit("vault-updated", errors);
             }
         }
@@ -79,9 +86,10 @@ fn open_vault(app: &AppHandle, state: &State<AppState>, root: &Path) -> Result<A
     let config = vault.config.clone();
     let config_dir = vault.config_dir();
     *state.vault.lock().unwrap() = Some(vault);
-    if state.watcher.lock().unwrap().is_none() {
-        start_config_watcher(app.clone(), &config_dir)?;
-    }
+    // Always rebind: re-selecting a vault must watch the NEW config dir.
+    // Replacing the watcher drops the old one, which closes its channel
+    // and lets the old debounce thread exit.
+    start_config_watcher(app.clone(), &config_dir)?;
     Ok(config)
 }
 
@@ -190,12 +198,20 @@ fn engine_run(state: State<AppState>) -> Result<engine::EngineOutcome> {
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    engine::run(
+    let mut outcome = engine::run(
         &vault.conn,
         &vault.config_dir(),
         &vault.config,
         chrono::Local::now(),
-    )
+    )?;
+    if let Some(msg) = &vault.config_error {
+        outcome.errors.push(engine::ConfigError {
+            file: "app.yml".into(),
+            line: None,
+            message: msg.clone(),
+        });
+    }
+    Ok(outcome)
 }
 
 #[tauri::command]
@@ -377,7 +393,7 @@ fn config_file_set(
     let path = editable_config_path(&state, &file)?;
     let errors = engine::validate_config_content(&file, &content);
     if errors.is_empty() {
-        std::fs::write(path, content).map_err(Error::Io)?;
+        vault::write_atomic(&path, &content)?;
     }
     Ok(errors)
 }

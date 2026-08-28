@@ -73,6 +73,9 @@ const MIGRATIONS: &[&str] = &[
     );
     INSERT INTO rule_seen (rule_key, first_seen)
         SELECT rule_key, MIN(generated_at) FROM rule_runs GROUP BY rule_key;",
+    // 007: reconcile and the first-seen ledger purge look tasks up by
+    // (rule_key, period_key); without an index they scan the table
+    "CREATE INDEX idx_tasks_rule_period ON tasks(rule_key, period_key);",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -87,8 +90,14 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     for (idx, migration) in MIGRATIONS.iter().enumerate() {
         let target = (idx + 1) as i64;
         if version < target {
-            conn.execute_batch(migration)?;
-            conn.pragma_update(None, "user_version", target)?;
+            // Each step commits atomically with its version bump: a crash
+            // mid-migration must not leave a half-applied schema behind
+            // the old user_version (the re-run would then fail on
+            // duplicate DDL).
+            let tx = conn.unchecked_transaction()?;
+            tx.execute_batch(migration)?;
+            tx.pragma_update(None, "user_version", target)?;
+            tx.commit()?;
         }
     }
     Ok(())
