@@ -570,6 +570,86 @@ pub fn append_birthday(config_dir: &Path, entry: BirthdayEntry) -> Result<()> {
     Ok(())
 }
 
+/// Validates the content of a task-config file without writing it.
+/// Used by the Settings editor for inline validation before save.
+pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
+    let mut errors = Vec::new();
+    let mut push_yaml_error = |e: serde_yaml::Error| {
+        errors.push(ConfigError {
+            file: file.into(),
+            line: e.location().map(|l| l.line()),
+            message: e.to_string(),
+        });
+    };
+    if content.trim().is_empty() {
+        return errors;
+    }
+    match file {
+        "recurring.yml" => match serde_yaml::from_str::<RecurringFile>(content) {
+            Ok(parsed) => {
+                for (index, rule) in parsed.tasks.iter().enumerate() {
+                    if let Err(e) = Cron::new(&rule.schedule).parse() {
+                        errors.push(ConfigError {
+                            file: file.into(),
+                            line: None,
+                            message: format!(
+                                "rule {}: invalid cron '{}': {e}",
+                                index + 1,
+                                rule.schedule
+                            ),
+                        });
+                    }
+                }
+            }
+            Err(e) => push_yaml_error(e),
+        },
+        "scheduled.yml" => match serde_yaml::from_str::<ScheduledFile>(content) {
+            Ok(parsed) => {
+                for (index, event) in parsed.events.iter().enumerate() {
+                    if NaiveDate::parse_from_str(&event.date, "%Y-%m-%d").is_err() {
+                        errors.push(ConfigError {
+                            file: file.into(),
+                            line: None,
+                            message: format!("event {}: invalid date '{}'", index + 1, event.date),
+                        });
+                    }
+                }
+            }
+            Err(e) => push_yaml_error(e),
+        },
+        "birthdays.yml" => match serde_yaml::from_str::<BirthdaysFile>(content) {
+            Ok(parsed) => {
+                for (index, entry) in parsed.birthdays.iter().enumerate() {
+                    let valid = entry
+                        .date
+                        .split_once('-')
+                        .and_then(|(m, d)| Some((m.parse::<u32>().ok()?, d.parse::<u32>().ok()?)))
+                        .map(|(m, d)| (1..=12).contains(&m) && (1..=31).contains(&d))
+                        .unwrap_or(false);
+                    if !valid {
+                        errors.push(ConfigError {
+                            file: file.into(),
+                            line: None,
+                            message: format!(
+                                "entry {}: invalid date '{}', expected MM-DD",
+                                index + 1,
+                                entry.date
+                            ),
+                        });
+                    }
+                }
+            }
+            Err(e) => push_yaml_error(e),
+        },
+        _ => {
+            if let Err(e) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+                push_yaml_error(e);
+            }
+        }
+    }
+    errors
+}
+
 #[derive(Serialize)]
 struct SchedFileOut {
     events: Vec<ScheduledEvent>,
@@ -936,6 +1016,43 @@ mod tests {
         assert_eq!(list.birthdays.len(), 1);
         assert_eq!(list.birthdays[0].days_until, 2);
         assert_eq!(list.birthdays[0].turns, Some(26));
+    }
+
+    #[test]
+    fn validate_config_content_catches_schema_cron_and_date_errors() {
+        assert!(validate_config_content(
+            "recurring.yml",
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items: [\"a\"]\n"
+        )
+        .is_empty());
+        assert_eq!(
+            validate_config_content(
+                "recurring.yml",
+                "tasks:\n  - schedule: \"nope\"\n    items: [\"a\"]\n"
+            )
+            .len(),
+            1
+        );
+        let broken = validate_config_content("recurring.yml", "tasks: [\n");
+        assert_eq!(broken.len(), 1);
+        assert!(broken[0].line.is_some());
+        assert_eq!(
+            validate_config_content(
+                "scheduled.yml",
+                "events:\n  - date: 2026-15-01\n    title: x\n"
+            )
+            .len(),
+            1
+        );
+        assert_eq!(
+            validate_config_content(
+                "birthdays.yml",
+                "birthdays:\n  - name: x\n    date: \"31-12\"\n"
+            )
+            .len(),
+            1
+        );
+        assert!(validate_config_content("day-schedule.yml", "blocks: []\n").is_empty());
     }
 
     #[test]

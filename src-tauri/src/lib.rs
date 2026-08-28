@@ -278,6 +278,48 @@ fn birthday_add(state: State<AppState>, entry: engine::BirthdayEntry) -> Result<
     engine::append_birthday(&vault.config_dir(), entry)
 }
 
+const EDITABLE_CONFIG_FILES: &[&str] = &[
+    "recurring.yml",
+    "scheduled.yml",
+    "birthdays.yml",
+    "weekly-focus.yml",
+    "day-reminders.yml",
+    "day-schedule.yml",
+];
+
+fn editable_config_path(state: &State<AppState>, file: &str) -> Result<PathBuf> {
+    if !EDITABLE_CONFIG_FILES.contains(&file) {
+        return Err(Error::State(format!("not an editable config file: {file}")));
+    }
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    Ok(vault.config_dir().join(file))
+}
+
+#[tauri::command]
+fn config_file_get(state: State<AppState>, file: String) -> Result<String> {
+    let path = editable_config_path(&state, &file)?;
+    Ok(std::fs::read_to_string(path).unwrap_or_default())
+}
+
+/// Validates and, when valid, writes the config file. Invalid content is
+/// never written, so the last valid state stays active (req. 19).
+#[tauri::command]
+fn config_file_set(
+    state: State<AppState>,
+    file: String,
+    content: String,
+) -> Result<Vec<engine::ConfigError>> {
+    let path = editable_config_path(&state, &file)?;
+    let errors = engine::validate_config_content(&file, &content);
+    if errors.is_empty() {
+        std::fs::write(path, content).map_err(Error::Io)?;
+    }
+    Ok(errors)
+}
+
 fn kb_root(state: &State<AppState>) -> Result<PathBuf> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
@@ -387,7 +429,9 @@ pub fn run() {
             dashboard_context,
             birthdays_list,
             scheduled_add,
-            birthday_add
+            birthday_add,
+            config_file_get,
+            config_file_set
         ])
         .run(tauri::generate_context!())
         .expect("error while running app-pkb");
