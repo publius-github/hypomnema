@@ -3,6 +3,8 @@
 @tailwind utilities;
 
 :root {
+  /* native widgets (scrollbars, pickers) follow the app theme */
+  color-scheme: light;
   --color-surface: 248 249 250;
   --color-surface-alt: 255 255 255;
   --color-content: 23 26 31;
@@ -12,6 +14,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --color-surface: 18 20 24;
   --color-surface-alt: 28 31 37;
   --color-content: 230 233 238;
