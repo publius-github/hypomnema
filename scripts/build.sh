@@ -90,7 +90,18 @@ function install_frontend_dependencies() {
 function build_bundle() {
   printf "\n"
   log_info "function build_bundle - tauri release build with installer bundles"
-  npm run tauri build
+  local key_file="$HOME/.tauri/app-pkb.key"
+  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+    log_info "using signing key from TAURI_SIGNING_PRIVATE_KEY"
+    npm run tauri build
+  elif [ -f "$key_file" ] && [ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]; then
+    log_info "using signing key from $key_file"
+    TAURI_SIGNING_PRIVATE_KEY="$(cat "$key_file")" \
+      npm run tauri build
+  else
+    log_warn "no updater signing key found; building installer without updater artifacts"
+    npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
+  fi
 }
 
 function report_artifacts() {

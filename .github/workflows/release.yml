@@ -23,10 +23,11 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      # Updater manifest signing (TAURI_SIGNING_PRIVATE_KEY) is wired in M7
       - uses: tauri-apps/tauri-action@v0.5.20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: app-pkb ${{ github.ref_name }}

@@ -19,6 +19,7 @@ export default function App() {
 
   useEffect(() => {
     void init();
+    void import("./lib/updater").then((m) => m.checkForUpdates());
   }, [init]);
 
   // config watcher: backend reloaded YAML and re-ran the engine
