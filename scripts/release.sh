@@ -30,7 +30,8 @@ function custom_cleanup() {
 
 REQUIRED_PROGRAMS=(git npm node)
 EXTERNAL_ENV_VARIABLES=()
-ARGUMENT_ENV_VARIABLES=(RELEASE_VERSION)
+ARGUMENT_ENV_VARIABLES=(BUMP_TYPE)
+SCRIPT_ARGS=("$@")
 
 function check_required_programs() {
   log_info "function check_required_programs - verify release toolchain is present"
@@ -53,24 +54,52 @@ function export_env_variables_external() {
 
 function export_env_variables_from_arguments() {
   log_info "function export_env_variables_from_arguments - map positional arguments"
-  local index=1
+  local index=0
   local variable
   for variable in "${ARGUMENT_ENV_VARIABLES[@]}"; do
-    export "$variable"="${!index:-blank}"
+    export "$variable"="${SCRIPT_ARGS[$index]:-blank}"
     index=$((index + 1))
   done
 }
 
 function validate_env_variables() {
-  log_info "function validate_env_variables - check release version argument"
-  if [ "$RELEASE_VERSION" = "blank" ]; then
-    log_error "usage: scripts/release.sh <version>, e.g. scripts/release.sh 0.1.0"
+  log_info "function validate_env_variables - check bump type argument"
+  if [ "$BUMP_TYPE" = "blank" ]; then
+    BUMP_TYPE="patch"
+    log_info "no bump type given, defaulting to patch"
+  fi
+  case "$BUMP_TYPE" in
+    major|minor|patch) ;;
+    *)
+      log_error "usage: scripts/release.sh [major|minor|patch] (default: patch)"
+      exit 1
+      ;;
+  esac
+}
+
+function bump_version_file() {
+  printf "\n"
+  log_info "function bump_version_file - bump $BUMP_TYPE version in VERSION file"
+  if [ ! -f VERSION ]; then
+    log_error "VERSION file not found at the repository root"
     exit 1
   fi
-  if ! printf "%s" "$RELEASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-    log_error "version must be semver X.Y.Z, got: $RELEASE_VERSION"
+  local current
+  current="$(tr -d '[:space:]' < VERSION)"
+  if ! printf "%s" "$current" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    log_error "VERSION file must contain semver X.Y.Z, got: $current"
     exit 1
   fi
+  local major minor patch
+  IFS='.' read -r major minor patch <<< "$current"
+  case "$BUMP_TYPE" in
+    major) RELEASE_VERSION="$((major + 1)).0.0" ;;
+    minor) RELEASE_VERSION="$major.$((minor + 1)).0" ;;
+    patch) RELEASE_VERSION="$major.$minor.$((patch + 1))" ;;
+  esac
+  export RELEASE_VERSION
+  printf "%s\n" "$RELEASE_VERSION" > VERSION
+  log_info "version: $current -> $RELEASE_VERSION"
 }
 
 function resolve_repo_root() {
@@ -87,10 +116,6 @@ function check_working_tree() {
   log_info "function check_working_tree - refuse to release from a dirty tree"
   if [ -n "$(git status --porcelain)" ]; then
     log_error "working tree is not clean; commit or stash changes first"
-    exit 1
-  fi
-  if git rev-parse "v$RELEASE_VERSION" >/dev/null 2>&1; then
-    log_error "tag v$RELEASE_VERSION already exists"
     exit 1
   fi
 }
@@ -122,7 +147,11 @@ function bump_versions() {
 function commit_and_tag() {
   printf "\n"
   log_info "function commit_and_tag - commit version bump and create tag v$RELEASE_VERSION"
-  git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock 2>/dev/null || true
+  if git rev-parse "v$RELEASE_VERSION" >/dev/null 2>&1; then
+    log_error "tag v$RELEASE_VERSION already exists"
+    exit 1
+  fi
+  git add VERSION package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock 2>/dev/null || true
   git commit -m "Release v$RELEASE_VERSION"
   git tag "v$RELEASE_VERSION"
 }
@@ -138,10 +167,11 @@ function push_release() {
 }
 
 function main() {
-  log_info "function main - cut release v$RELEASE_VERSION"
+  log_info "function main - cut a release from the VERSION file"
   validate_env_variables
   resolve_repo_root
   check_working_tree
+  bump_version_file
   bump_versions
   commit_and_tag
   push_release
