@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-surface: 248 249 250;
+  --color-surface-alt: 255 255 255;
+  --color-content: 23 26 31;
+  --color-content-muted: 100 108 120;
+  --color-accent: 37 99 235;
+  --color-line: 222 226 232;
+}
+
+.dark {
+  --color-surface: 18 20 24;
+  --color-surface-alt: 28 31 37;
+  --color-content: 230 233 238;
+  --color-content-muted: 140 148 160;
+  --color-accent: 96 145 255;
+  --color-line: 52 57 66;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface text-content antialiased;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  user-select: none;
+}
+
+@layer components {
+  .input {
+    @apply rounded-md border border-line bg-surface-alt px-3 py-1.5 text-sm text-content outline-none focus:border-accent;
+  }
+}

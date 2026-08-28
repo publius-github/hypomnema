@@ -427,3 +427,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# app-pkb build outputs
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
