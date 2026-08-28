@@ -1,17 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
-import type { ConfigError, DoneDisplay, Theme } from "../types";
-
-const CONFIG_FILES = [
-  "recurring.yml",
-  "scheduled.yml",
-  "birthdays.yml",
-  "weekly-focus.yml",
-  "day-reminders.yml",
-  "day-schedule.yml",
-];
+import type { DoneDisplay, Theme } from "../types";
 
 export default function Settings() {
   const { vaultPath, config, updateConfig } = useAppStore();
@@ -134,101 +124,21 @@ export default function Settings() {
         </button>
       </section>
 
-      <ConfigFilesEditor />
-    </div>
-  );
-}
-
-function ConfigFilesEditor() {
-  const [file, setFile] = useState(CONFIG_FILES[0]);
-  const [content, setContent] = useState("");
-  const [dirty, setDirty] = useState(false);
-  const [errors, setErrors] = useState<ConfigError[]>([]);
-  const [status, setStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void invoke<string>("config_file_get", { file }).then((text) => {
-      if (!cancelled) {
-        setContent(text);
-        setDirty(false);
-        setErrors([]);
-        setStatus(null);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [file]);
-
-  const save = async () => {
-    try {
-      const result = await invoke<ConfigError[]>("config_file_set", {
-        file,
-        content,
-      });
-      setErrors(result);
-      if (result.length === 0) {
-        setDirty(false);
-        setStatus("Saved");
-      } else {
-        setStatus(null);
-      }
-    } catch (e) {
-      useAppStore.setState({ error: String(e) });
-    }
-  };
-
-  return (
-    <section className="flex flex-col gap-2 border-t border-line pt-4">
-      <span className="text-sm font-medium">Config files</span>
-      <p className="text-xs text-content-muted">
-        Files are validated before saving; invalid content is not written.
-        The YAML file stays the source of truth.
-      </p>
-      <div className="flex items-center gap-2">
-        <select
-          className="input"
-          value={file}
-          onChange={(e) => setFile(e.target.value)}
-        >
-          {CONFIG_FILES.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
+      <section className="flex flex-col gap-1 border-t border-line pt-4">
+        <span className="text-sm font-medium">Config files</span>
+        <p className="text-xs text-content-muted">
+          recurring.yml, scheduled.yml and the other config files are edited
+          in the Knowledge Base under the Config group, with validation on
+          save.
+        </p>
         <button
-          className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-          disabled={!dirty}
-          onClick={() => void save()}
+          className="w-fit rounded-md border border-line px-3 py-1 text-xs hover:border-accent hover:text-accent"
+          onClick={() => useAppStore.getState().setSection("kb")}
         >
-          Validate and save
+          Open in Knowledge Base
         </button>
-        {status && !dirty && (
-          <span className="text-xs text-content-muted">{status}</span>
-        )}
-      </div>
-      {errors.length > 0 && (
-        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-500">
-          {errors.map((err, i) => (
-            <div key={i}>
-              {err.line !== null ? `line ${err.line}: ` : ""}
-              {err.message}
-            </div>
-          ))}
-        </div>
-      )}
-      <textarea
-        className="input min-h-[220px] resize-y font-mono text-xs"
-        spellCheck={false}
-        value={content}
-        onChange={(e) => {
-          setContent(e.target.value);
-          setDirty(true);
-        }}
-      />
-    </section>
+      </section>
+    </div>
   );
 }
 

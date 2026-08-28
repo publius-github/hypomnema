@@ -57,7 +57,7 @@ fn build_tree(root: &Path, dir: &Path) -> Result<Vec<KbNode>> {
                 is_dir: true,
                 children: build_tree(root, &path)?,
             });
-        } else if name.to_lowercase().ends_with(".md") {
+        } else {
             files.push(KbNode {
                 name,
                 path: rel,
@@ -71,7 +71,7 @@ fn build_tree(root: &Path, dir: &Path) -> Result<Vec<KbNode>> {
 }
 
 /// The KB folder is never restructured by the app: the tree is read
-/// as-is, only .md files (and folders) are shown.
+/// as-is; all non-hidden files are shown.
 pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
     if !root.is_dir() {
         return Err(Error::State(format!(
@@ -95,8 +95,9 @@ pub fn write(root: &Path, rel: &str, content: &str) -> Result<()> {
     Ok(())
 }
 
+/// New files default to .md; an explicit extension is kept as-is.
 pub fn create(root: &Path, rel: &str) -> Result<String> {
-    let rel = if rel.to_lowercase().ends_with(".md") {
+    let rel = if Path::new(rel).extension().is_some() {
         rel.to_string()
     } else {
         format!("{rel}.md")
@@ -112,11 +113,16 @@ pub fn create(root: &Path, rel: &str) -> Result<String> {
     Ok(rel)
 }
 
+/// A target without an extension inherits the source's extension, so
+/// renaming never silently changes a file's type.
 pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {
-    let to = if to.to_lowercase().ends_with(".md") {
+    let to = if Path::new(to).extension().is_some() {
         to.to_string()
     } else {
-        format!("{to}.md")
+        match Path::new(from).extension() {
+            Some(ext) => format!("{to}.{}", ext.to_string_lossy()),
+            None => to.to_string(),
+        }
     };
     let source = resolve(root, from)?;
     let target = resolve(root, &to)?;
@@ -151,20 +157,21 @@ mod tests {
     }
 
     #[test]
-    fn tree_lists_md_files_dirs_first_and_skips_others() {
+    fn tree_lists_all_files_dirs_first_and_skips_hidden() {
         let root = root("tree");
         fs::create_dir_all(root.join("b-notes")).unwrap();
         fs::write(root.join("b-notes").join("inner.md"), "x").unwrap();
         fs::write(root.join("a.md"), "x").unwrap();
-        fs::write(root.join("image.png"), "x").unwrap();
+        fs::write(root.join("notes.txt"), "x").unwrap();
         fs::write(root.join(".hidden.md"), "x").unwrap();
 
         let nodes = tree(&root).unwrap();
-        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes.len(), 3);
         assert_eq!(nodes[0].name, "b-notes");
         assert!(nodes[0].is_dir);
         assert_eq!(nodes[0].children[0].path, "b-notes/inner.md");
         assert_eq!(nodes[1].name, "a.md");
+        assert_eq!(nodes[2].name, "notes.txt");
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -192,6 +199,19 @@ mod tests {
 
         delete(&root, "notes/renamed.md").unwrap();
         assert!(read(&root, "notes/renamed.md").is_err());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn non_md_extensions_survive_create_and_rename() {
+        let root = root("ext");
+        assert_eq!(create(&root, "todo.txt").unwrap(), "todo.txt");
+
+        rename(&root, "todo.txt", "renamed").unwrap();
+        assert!(read(&root, "renamed.txt").is_ok());
+
+        rename(&root, "renamed.txt", "explicit.yml").unwrap();
+        assert!(read(&root, "explicit.yml").is_ok());
         let _ = fs::remove_dir_all(&root);
     }
 }

@@ -1,0 +1,150 @@
+import { useCallback, useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { useAppStore } from "../store";
+import type { ConfigError, RecurringRule } from "../types";
+
+export default function Recurring() {
+  const { runEngine, refresh } = useAppStore();
+  const setError = useCallback(
+    (e: unknown) => useAppStore.setState({ error: String(e) }),
+    [],
+  );
+  const [rules, setRules] = useState<RecurringRule[]>([]);
+  const [fileErrors, setFileErrors] = useState<ConfigError[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      const result = await invoke<{
+        rules: RecurringRule[];
+        errors: ConfigError[];
+      }>("recurring_list");
+      setRules(result.rules);
+      setFileErrors(result.errors);
+    } catch (e) {
+      setError(e);
+    }
+  }, [setError]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const afterWrite = async () => {
+    await runEngine();
+    await refresh();
+    await load();
+  };
+
+  return (
+    <div className="mx-auto flex h-full max-w-2xl flex-col gap-4 p-6">
+      <h1 className="text-xl font-semibold">Recurring tasks</h1>
+      <p className="text-sm text-content-muted">
+        Rules from recurring.yml. Each firing of the cron schedule creates
+        the listed items as tasks; a &#123;List&#125; prefix places an item
+        into that list.
+      </p>
+
+      {fileErrors.length > 0 && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+          {fileErrors.map((err, i) => (
+            <div key={i}>
+              {err.line !== null ? `line ${err.line}: ` : ""}
+              {err.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <AddRuleForm onWrite={afterWrite} />
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {rules.length === 0 && (
+          <p className="pt-6 text-center text-sm text-content-muted">
+            No recurring rules yet. Add one above or edit recurring.yml
+            directly (Knowledge Base &gt; Config).
+          </p>
+        )}
+        {rules.map((rule, i) => (
+          <div key={i} className="border-b border-line py-3">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="shrink-0 rounded bg-line/40 px-2 py-0.5 font-mono text-xs">
+                {rule.schedule}
+              </span>
+              <span className="font-medium">
+                {rule.description || "(no description)"}
+              </span>
+            </div>
+            <ul className="mt-1 pl-1 text-sm text-content-muted">
+              {rule.items.map((item, j) => (
+                <li key={j}>- {item}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
+  const setError = (e: unknown) => useAppStore.setState({ error: String(e) });
+  const [schedule, setSchedule] = useState("");
+  const [description, setDescription] = useState("");
+  const [items, setItems] = useState("");
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsedItems = items
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!schedule.trim() || parsedItems.length === 0) return;
+    try {
+      await invoke("recurring_add", {
+        rule: {
+          schedule: schedule.trim(),
+          description: description.trim(),
+          items: parsedItems,
+        },
+      });
+      setSchedule("");
+      setDescription("");
+      setItems("");
+      await onWrite();
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-lg border border-line p-3"
+      onSubmit={add}
+    >
+      <div className="flex gap-2">
+        <input
+          className="input w-40 font-mono"
+          placeholder="0 6 * * 1"
+          title="Cron: minute hour day-of-month month day-of-week"
+          value={schedule}
+          onChange={(e) => setSchedule(e.target.value)}
+        />
+        <input
+          className="input min-w-0 flex-1"
+          placeholder="Description (optional)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+      <textarea
+        className="input min-h-[64px] resize-y"
+        placeholder={"One task per line, e.g.\n{Home} water plants"}
+        value={items}
+        onChange={(e) => setItems(e.target.value)}
+      />
+      <button className="self-end rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white">
+        Add rule
+      </button>
+    </form>
+  );
+}

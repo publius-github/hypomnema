@@ -14,6 +14,7 @@ export interface AppConfig {
 export type Section =
   | "dashboard"
   | "upcoming"
+  | "recurring"
   | "journal"
   | "kb"
   | "settings";
@@ -42,6 +43,12 @@ export interface DashboardContext {
   days: DayContext[];
   blocks: ScheduleBlock[];
   errors: ConfigError[];
+}
+
+export interface RecurringRule {
+  schedule: string;
+  description: string;
+  items: string[];
 }
 
 export interface UpcomingEvent {

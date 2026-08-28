@@ -12,8 +12,30 @@ interface KbNode {
   children: KbNode[];
 }
 
+// Vault config files editable right in the KB editor (validated on save)
+const CONFIG_FILES = [
+  "recurring.yml",
+  "scheduled.yml",
+  "birthdays.yml",
+  "weekly-focus.yml",
+  "day-reminders.yml",
+  "day-schedule.yml",
+];
+
+interface OpenDoc {
+  kind: "note" | "config";
+  path: string;
+  content: string;
+}
+
 function flattenFiles(nodes: KbNode[]): KbNode[] {
   return nodes.flatMap((n) => (n.is_dir ? flattenFiles(n.children) : [n]));
+}
+
+// .md is the default note type and stays hidden; anything else shows
+// its extension so non-standard files are recognizable
+function displayName(name: string): string {
+  return name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
 }
 
 export default function KnowledgeBase() {
@@ -24,7 +46,10 @@ export default function KnowledgeBase() {
   );
   const [tree, setTree] = useState<KbNode[]>([]);
   const [search, setSearch] = useState("");
-  const [current, setCurrent] = useState<{ path: string; content: string } | null>(null);
+  const [current, setCurrent] = useState<OpenDoc | null>(null);
+  const [configErrors, setConfigErrors] = useState<
+    { line: number | null; message: string }[]
+  >([]);
   const [saved, setSaved] = useState(true);
   const savedRef = useRef(true);
   savedRef.current = saved;
@@ -50,7 +75,7 @@ export default function KnowledgeBase() {
     const unlisten = listen("kb-updated", async () => {
       await loadTree();
       const doc = current;
-      if (doc && savedRef.current) {
+      if (doc && doc.kind === "note" && savedRef.current) {
         try {
           const content = await invoke<string>("kb_read", { path: doc.path });
           setCurrent((prev) =>
@@ -70,7 +95,19 @@ export default function KnowledgeBase() {
   const openFile = async (path: string) => {
     try {
       const content = await invoke<string>("kb_read", { path });
-      setCurrent({ path, content });
+      setCurrent({ kind: "note", path, content });
+      setConfigErrors([]);
+      setSaved(true);
+    } catch (e) {
+      setError(e);
+    }
+  };
+
+  const openConfig = async (file: string) => {
+    try {
+      const content = await invoke<string>("config_file_get", { file });
+      setCurrent({ kind: "config", path: file, content });
+      setConfigErrors([]);
       setSaved(true);
     } catch (e) {
       setError(e);
@@ -79,14 +116,24 @@ export default function KnowledgeBase() {
 
   const scheduleSave = (content: string) => {
     if (!current) return;
-    const path = current.path;
-    setCurrent({ path, content });
+    const { kind, path } = current;
+    setCurrent({ kind, path, content });
     setSaved(false);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        await invoke("kb_write", { path, content });
-        setSaved(true);
+        if (kind === "config") {
+          // invalid YAML is reported and never written (last valid
+          // state stays active), same as the Settings editor
+          const errors = await invoke<
+            { line: number | null; message: string }[]
+          >("config_file_set", { file: path, content });
+          setConfigErrors(errors);
+          if (errors.length === 0) setSaved(true);
+        } else {
+          await invoke("kb_write", { path, content });
+          setSaved(true);
+        }
       } catch (e) {
         setError(e);
       }
@@ -135,23 +182,6 @@ export default function KnowledgeBase() {
     }
   };
 
-  if (!kbPath) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-        <p className="max-w-md text-content-muted">
-          Connect a folder with Markdown notes. The app only reads the tree
-          and edits files you open; it never restructures the folder.
-        </p>
-        <button
-          className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
-          onClick={() => void pickFolder()}
-        >
-          Select KB folder
-        </button>
-      </div>
-    );
-  }
-
   const query = search.trim().toLowerCase();
   const searchResults = query
     ? flattenFiles(tree).filter((f) => f.name.toLowerCase().includes(query))
@@ -175,7 +205,7 @@ export default function KnowledgeBase() {
               className="flex-1 truncate text-left"
               onClick={() => void openFile(node.path)}
             >
-              {node.name.replace(/\.md$/i, "")}
+              {displayName(node.name)}
             </button>
             <button
               className="hidden text-xs group-hover:block"
@@ -201,49 +231,113 @@ export default function KnowledgeBase() {
   return (
     <div className="flex h-full">
       <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-surface-alt/50">
-        <div className="flex items-center gap-1 p-2">
-          <input
-            className="input min-w-0 flex-1 py-1 text-xs"
-            placeholder="Search notes"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        {kbPath ? (
+          <>
+            <div className="flex items-center gap-1 p-2">
+              <input
+                className="input min-w-0 flex-1 py-1 text-xs"
+                placeholder="Search notes"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <button
+                className="rounded-md border border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
+                title="New note"
+                onClick={() => void createFile()}
+              >
+                +
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+              {searchResults
+                ? searchResults.map((node) => renderNode(node, 0))
+                : tree.map((node) => renderNode(node, 0))}
+            </div>
+          </>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-3 text-center">
+            <p className="text-xs text-content-muted">
+              Connect a folder with Markdown notes. The app only reads the
+              tree and edits files you open; it never restructures the
+              folder.
+            </p>
+            <button
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+              onClick={() => void pickFolder()}
+            >
+              Select KB folder
+            </button>
+          </div>
+        )}
+        <div className="border-t border-line px-1 py-2">
+          <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-content-muted">
+            Config
+          </div>
+          {CONFIG_FILES.map((file) => (
+            <button
+              key={file}
+              className={`block w-full truncate rounded px-2 py-0.5 text-left text-sm ${
+                current?.kind === "config" && current.path === file
+                  ? "bg-accent/15 text-accent"
+                  : "text-content-muted hover:bg-line/40 hover:text-content"
+              }`}
+              onClick={() => void openConfig(file)}
+            >
+              {file}
+            </button>
+          ))}
+        </div>
+        {kbPath && (
           <button
-            className="rounded-md border border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
-            title="New note"
-            onClick={() => void createFile()}
+            className="border-t border-line px-3 py-2 text-left text-[11px] text-content-muted hover:text-content"
+            title={kbPath}
+            onClick={() => void pickFolder()}
           >
-            +
+            Change folder
           </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
-          {searchResults
-            ? searchResults.map((node) => renderNode(node, 0))
-            : tree.map((node) => renderNode(node, 0))}
-        </div>
-        <button
-          className="border-t border-line px-3 py-2 text-left text-[11px] text-content-muted hover:text-content"
-          title={kbPath}
-          onClick={() => void pickFolder()}
-        >
-          Change folder
-        </button>
+        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {current ? (
           <>
             <div className="flex items-center justify-between border-b border-line px-4 py-2 text-sm">
-              <span className="truncate font-medium">{current.path}</span>
-              <span className="text-xs text-content-muted">
-                {saved ? "Saved" : "Saving..."}
+              <span className="truncate font-medium">
+                {current.kind === "config"
+                  ? `config/${current.path}`
+                  : current.path}
+              </span>
+              <span
+                className={`text-xs ${
+                  configErrors.length > 0
+                    ? "text-red-500"
+                    : "text-content-muted"
+                }`}
+              >
+                {configErrors.length > 0
+                  ? "Invalid, not saved"
+                  : saved
+                    ? "Saved"
+                    : "Saving..."}
               </span>
             </div>
+            {configErrors.length > 0 && (
+              <div className="border-b border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-500">
+                {configErrors.map((err, i) => (
+                  <div key={i}>
+                    {err.line !== null ? `line ${err.line}: ` : ""}
+                    {err.message}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="min-h-0 flex-1">
               <MarkdownEditor
-                docKey={`kb:${current.path}`}
+                docKey={`${current.kind}:${current.path}`}
                 value={current.content}
                 onChange={scheduleSave}
+                plain={!current.path.toLowerCase().endsWith(".md")}
+                showLineNumbers={current.kind === "config"}
               />
             </div>
           </>

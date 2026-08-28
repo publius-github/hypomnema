@@ -4,9 +4,9 @@ import type { Section } from "../types";
 const TABS: { id: Section; label: string; icon: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "▦" },
   { id: "upcoming", label: "Upcoming", icon: "◷" },
+  { id: "recurring", label: "Recurring", icon: "↻" },
   { id: "journal", label: "Journal", icon: "✎" },
   { id: "kb", label: "Knowledge Base", icon: "❖" },
-  { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
 export default function TabBar() {
@@ -42,6 +42,18 @@ export default function TabBar() {
         className="flex h-12 w-12 items-center justify-center rounded-lg text-lg text-content-muted hover:bg-line/40 hover:text-content"
       >
         {config?.theme === "light" ? "☾" : "☀"}
+      </button>
+      <button
+        title="Settings"
+        onClick={() => setSection("settings")}
+        className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-lg transition-colors ${
+          section === "settings"
+            ? "bg-accent/15 text-accent"
+            : "text-content-muted hover:bg-line/40 hover:text-content"
+        }`}
+      >
+        <span aria-hidden>⚙</span>
+        <span className="text-[9px] leading-tight">Settings</span>
       </button>
     </nav>
   );

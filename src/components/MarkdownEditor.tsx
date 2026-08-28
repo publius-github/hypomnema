@@ -54,17 +54,27 @@ const editorTheme = EditorView.theme({
   },
 });
 
+const plainTheme = EditorView.theme({
+  ".cm-content": {
+    fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+    fontSize: "13px",
+  },
+});
+
 export default function MarkdownEditor({
   docKey,
   value,
   onChange,
   showLineNumbers = false,
+  plain = false,
 }: {
   /** Identity of the document; changing it resets the editor state. */
   docKey: string;
   value: string;
   onChange: (content: string) => void;
   showLineNumbers?: boolean;
+  /** Monospace plain-text mode without markdown highlighting (YAML, txt). */
+  plain?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -78,10 +88,16 @@ export default function MarkdownEditor({
       extensions: [
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
-        markdown({ base: markdownLanguage, codeLanguages: languages }),
-        syntaxHighlighting(markdownHighlight),
+        ...(plain
+          ? []
+          : [
+              markdown({ base: markdownLanguage, codeLanguages: languages }),
+              syntaxHighlighting(markdownHighlight),
+            ]),
         EditorView.lineWrapping,
         editorTheme,
+        // after editorTheme so its .cm-content font wins the CSS tie
+        ...(plain ? [plainTheme] : []),
         ...(showLineNumbers ? [lineNumbers()] : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {

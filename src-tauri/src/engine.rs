@@ -31,13 +31,19 @@ struct RecurringFile {
     tasks: Vec<RecurringRule>,
 }
 
-#[derive(Debug, Deserialize)]
-struct RecurringRule {
-    schedule: String,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RecurringRule {
+    pub schedule: String,
     #[serde(default)]
-    description: String,
+    pub description: String,
     #[serde(default)]
-    items: Vec<String>,
+    pub items: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RecurringResult {
+    pub rules: Vec<RecurringRule>,
+    pub errors: Vec<ConfigError>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -519,6 +525,56 @@ pub fn birthdays_list(config_dir: &Path, today: NaiveDate) -> BirthdaysResult {
     BirthdaysResult { birthdays, errors }
 }
 
+/// All recurring rules with cron validation errors surfaced, so the
+/// Recurring view shows broken rules next to working ones.
+pub fn recurring_list(config_dir: &Path) -> RecurringResult {
+    let mut errors = Vec::new();
+    let file =
+        load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors).unwrap_or_default();
+    for (index, rule) in file.tasks.iter().enumerate() {
+        if let Err(e) = Cron::new(&rule.schedule).parse() {
+            errors.push(ConfigError {
+                file: "recurring.yml".into(),
+                line: None,
+                message: format!(
+                    "rule {} ('{}'): invalid cron '{}': {e}",
+                    index + 1,
+                    rule.description,
+                    rule.schedule
+                ),
+            });
+        }
+    }
+    RecurringResult {
+        rules: file.tasks,
+        errors,
+    }
+}
+
+pub fn append_recurring(config_dir: &Path, mut rule: RecurringRule) -> Result<()> {
+    let mut errors = Vec::new();
+    let mut file = load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors)
+        .ok_or_else(|| {
+            crate::error::Error::State(format!(
+                "recurring.yml is invalid, fix it before adding rules: {}",
+                errors.first().map(|e| e.message.as_str()).unwrap_or("")
+            ))
+        })?;
+    Cron::new(&rule.schedule).parse().map_err(|e| {
+        crate::error::Error::State(format!("invalid cron '{}': {e}", rule.schedule))
+    })?;
+    rule.items.retain(|item| !item.trim().is_empty());
+    if rule.items.is_empty() {
+        return Err(crate::error::Error::State(
+            "a recurring rule needs at least one item".into(),
+        ));
+    }
+    file.tasks.push(rule);
+    let yaml = serde_yaml::to_string(&RecurFileOut { tasks: file.tasks })?;
+    fs::write(config_dir.join("recurring.yml"), yaml)?;
+    Ok(())
+}
+
 /// Quick-add write-back (req. 21-22). Note: saving reformats the file
 /// and drops YAML comments; the file remains the source of truth.
 pub fn append_scheduled(config_dir: &Path, event: ScheduledEvent) -> Result<()> {
@@ -648,6 +704,11 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
         }
     }
     errors
+}
+
+#[derive(Serialize)]
+struct RecurFileOut {
+    tasks: Vec<RecurringRule>,
 }
 
 #[derive(Serialize)]
@@ -1016,6 +1077,46 @@ mod tests {
         assert_eq!(list.birthdays.len(), 1);
         assert_eq!(list.birthdays[0].days_until, 2);
         assert_eq!(list.birthdays[0].turns, Some(26));
+    }
+
+    #[test]
+    fn recurring_quick_add_validates_and_lists() {
+        let (conn, dir) = setup("recurring-add");
+        append_recurring(
+            &dir,
+            RecurringRule {
+                schedule: "0 6 * * *".into(),
+                description: "Daily".into(),
+                items: vec!["{Home} water plants".into(), "  ".into()],
+            },
+        )
+        .unwrap();
+        assert!(append_recurring(
+            &dir,
+            RecurringRule {
+                schedule: "not a cron".into(),
+                description: String::new(),
+                items: vec!["x".into()],
+            },
+        )
+        .is_err());
+        assert!(append_recurring(
+            &dir,
+            RecurringRule {
+                schedule: "0 6 * * *".into(),
+                description: String::new(),
+                items: vec![],
+            },
+        )
+        .is_err());
+
+        let listed = recurring_list(&dir);
+        assert_eq!(listed.rules.len(), 1);
+        assert_eq!(listed.rules[0].items, vec!["{Home} water plants"]);
+        assert!(listed.errors.is_empty());
+
+        let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(outcome.generated, 1);
     }
 
     #[test]

@@ -261,6 +261,24 @@ fn birthdays_list(state: State<AppState>) -> Result<engine::BirthdaysResult> {
 }
 
 #[tauri::command]
+fn recurring_list(state: State<AppState>) -> Result<engine::RecurringResult> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    Ok(engine::recurring_list(&vault.config_dir()))
+}
+
+#[tauri::command]
+fn recurring_add(state: State<AppState>, rule: engine::RecurringRule) -> Result<()> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    engine::append_recurring(&vault.config_dir(), rule)
+}
+
+#[tauri::command]
 fn scheduled_add(state: State<AppState>, event: engine::ScheduledEvent) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
@@ -458,6 +476,8 @@ pub fn run() {
             kb_delete,
             dashboard_context,
             birthdays_list,
+            recurring_list,
+            recurring_add,
             scheduled_add,
             birthday_add,
             config_file_get,
