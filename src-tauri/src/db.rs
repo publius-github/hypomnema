@@ -42,6 +42,15 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX idx_tasks_scheduled_date ON tasks(scheduled_date);
     CREATE INDEX idx_tasks_list_id ON tasks(list_id);
     CREATE INDEX idx_tasks_parent ON tasks(parent_task_id);",
+    // 003: dedup ledger shared by all generators (req. 10). A row here
+    // means the (rule, period) instance was generated once, ever -
+    // deleting the task does not resurrect it.
+    "CREATE TABLE rule_runs (
+        rule_key TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        generated_at TEXT NOT NULL,
+        PRIMARY KEY (rule_key, period_key)
+    );",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

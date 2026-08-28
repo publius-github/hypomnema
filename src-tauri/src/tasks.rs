@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rusqlite::{Connection, Row};
+use rusqlite::{Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
@@ -128,6 +128,18 @@ pub fn list_create(conn: &Connection, name: &str, color: Option<&str>) -> Result
     let id = conn.last_insert_rowid();
     conn.query_row("SELECT * FROM lists WHERE id = ?1", [id], row_to_list)
         .map_err(Into::into)
+}
+
+/// Returns the list with the given name, creating it if missing.
+/// Backs the `{List Name}` prefix of YAML items (req. 3).
+pub fn list_ensure(conn: &Connection, name: &str) -> Result<List> {
+    let existing = conn
+        .query_row("SELECT * FROM lists WHERE name = ?1", [name], row_to_list)
+        .optional()?;
+    match existing {
+        Some(list) => Ok(list),
+        None => list_create(conn, name, None),
+    }
 }
 
 pub fn list_rename(conn: &Connection, id: i64, name: &str) -> Result<()> {

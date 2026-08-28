@@ -1,13 +1,16 @@
 mod config;
 mod db;
+mod engine;
 mod error;
 mod tasks;
 mod vault;
 
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::{mpsc, Mutex};
+use std::time::Duration;
 
-use tauri::{AppHandle, Manager, State};
+use notify::{RecursiveMode, Watcher};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use config::AppConfig;
 use error::{Error, Result};
@@ -16,6 +19,7 @@ use vault::Vault;
 #[derive(Default)]
 struct AppState {
     vault: Mutex<Option<Vault>>,
+    watcher: Mutex<Option<notify::RecommendedWatcher>>,
 }
 
 fn app_config_dir(app: &AppHandle) -> Result<PathBuf> {
@@ -24,24 +28,73 @@ fn app_config_dir(app: &AppHandle) -> Result<PathBuf> {
         .map_err(|e| Error::State(format!("cannot resolve app config dir: {e}")))
 }
 
+/// Watches <vault>/config and, after a debounce, reloads app.yml, runs
+/// the engine, and notifies the frontend (req. 18, safe reload per 19).
+fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
+    let (tx, rx) = mpsc::channel::<()>();
+    let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+        if event.is_ok() {
+            let _ = tx.send(());
+        }
+    })
+    .map_err(|e| Error::State(format!("cannot start config watcher: {e}")))?;
+    watcher
+        .watch(config_dir, RecursiveMode::NonRecursive)
+        .map_err(|e| Error::State(format!("cannot watch config dir: {e}")))?;
+
+    let state = app.state::<AppState>();
+    *state.watcher.lock().unwrap() = Some(watcher);
+
+    std::thread::spawn(move || {
+        while rx.recv().is_ok() {
+            // debounce bursts of file events
+            std::thread::sleep(Duration::from_millis(400));
+            while rx.try_recv().is_ok() {}
+
+            let state = app.state::<AppState>();
+            let mut guard = state.vault.lock().unwrap();
+            if let Some(vault) = guard.as_mut() {
+                let _ = vault.reload_config();
+                let outcome = engine::run(
+                    &vault.conn,
+                    &vault.config_dir(),
+                    &vault.config,
+                    chrono::Local::now(),
+                );
+                drop(guard);
+                let errors = outcome.map(|o| o.errors).unwrap_or_default();
+                let _ = app.emit("vault-updated", errors);
+            }
+        }
+    });
+    Ok(())
+}
+
+fn open_vault(app: &AppHandle, state: &State<AppState>, root: &Path) -> Result<AppConfig> {
+    let vault = Vault::open(root)?;
+    let config = vault.config.clone();
+    let config_dir = vault.config_dir();
+    *state.vault.lock().unwrap() = Some(vault);
+    if state.watcher.lock().unwrap().is_none() {
+        start_config_watcher(app.clone(), &config_dir)?;
+    }
+    Ok(config)
+}
+
 #[tauri::command]
 fn vault_status(app: AppHandle, state: State<AppState>) -> Result<Option<String>> {
     let Some(path) = vault::read_vault_path(&app_config_dir(&app)?) else {
         return Ok(None);
     };
-    let vault = Vault::open(&path)?;
-    let display = vault.root.to_string_lossy().into_owned();
-    *state.vault.lock().unwrap() = Some(vault);
-    Ok(Some(display))
+    open_vault(&app, &state, &path)?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
 fn vault_select(app: AppHandle, state: State<AppState>, path: String) -> Result<AppConfig> {
     let root = PathBuf::from(&path);
-    let vault = Vault::open(&root)?;
+    let config = open_vault(&app, &state, &root)?;
     vault::write_vault_path(&app_config_dir(&app)?, &root)?;
-    let config = vault.config.clone();
-    *state.vault.lock().unwrap() = Some(vault);
     Ok(config)
 }
 
@@ -122,6 +175,30 @@ fn task_delete(state: State<AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::task_delete(conn, id))
 }
 
+#[tauri::command]
+fn engine_run(state: State<AppState>) -> Result<engine::EngineOutcome> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    engine::run(
+        &vault.conn,
+        &vault.config_dir(),
+        &vault.config,
+        chrono::Local::now(),
+    )
+}
+
+#[tauri::command]
+fn upcoming_events(state: State<AppState>) -> Result<engine::UpcomingResult> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let (events, errors) = engine::upcoming_events(&vault.conn, &vault.config_dir())?;
+    Ok(engine::UpcomingResult { events, errors })
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -138,7 +215,9 @@ pub fn run() {
             tasks_snapshot,
             task_create,
             task_update,
-            task_delete
+            task_delete,
+            engine_run,
+            upcoming_events
         ])
         .run(tauri::generate_context!())
         .expect("error while running app-pkb");

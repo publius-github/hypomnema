@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppConfig,
+  ConfigError,
+  EngineOutcome,
   List,
   NewTask,
   Section,
@@ -19,7 +21,10 @@ interface AppState {
   today: string;
   lists: List[];
   tasks: Task[];
+  configErrors: ConfigError[];
   init: () => Promise<void>;
+  runEngine: () => Promise<void>;
+  setConfigErrors: (errors: ConfigError[]) => void;
   selectVault: (path: string) => Promise<void>;
   updateConfig: (patch: Partial<AppConfig>) => Promise<void>;
   setSection: (section: Section) => void;
@@ -49,6 +54,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   today: todayISO(),
   lists: [],
   tasks: [],
+  configErrors: [],
 
   init: async () => {
     try {
@@ -59,7 +65,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       applyTheme(config);
       set({ loaded: true, vaultPath, config });
-      if (vaultPath) await get().refresh();
+      if (vaultPath) {
+        await get().runEngine();
+        await get().refresh();
+      }
     } catch (e) {
       set({ loaded: true, error: String(e) });
     }
@@ -70,11 +79,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       const config = await invoke<AppConfig>("vault_select", { path });
       applyTheme(config);
       set({ vaultPath: path, config, error: null });
+      await get().runEngine();
       await get().refresh();
     } catch (e) {
       set({ error: String(e) });
     }
   },
+
+  runEngine: async () => {
+    try {
+      const outcome = await invoke<EngineOutcome>("engine_run");
+      set({ configErrors: outcome.errors });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  setConfigErrors: (configErrors) => set({ configErrors }),
 
   refresh: async () => {
     const config = get().config;

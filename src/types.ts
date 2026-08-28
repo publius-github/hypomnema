@@ -20,6 +20,19 @@ export type Section =
 
 export type TaskStatus = "todo" | "done" | "postponed";
 
+export interface ConfigError {
+  file: string;
+  line: number | null;
+  message: string;
+}
+
+export interface EngineOutcome {
+  generated: number;
+  carried_over: number;
+  pruned: number;
+  errors: ConfigError[];
+}
+
 export interface List {
   id: number;
   name: string;
