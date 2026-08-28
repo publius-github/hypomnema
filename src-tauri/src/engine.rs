@@ -209,6 +209,7 @@ fn run_recurring(
     conn: &Connection,
     dir: &Path,
     catchup_days: u32,
+    horizon: NaiveDate,
     now: DateTime<Local>,
     outcome: &mut EngineOutcome,
 ) -> Result<()> {
@@ -216,6 +217,7 @@ fn run_recurring(
         return Ok(());
     };
     let window_start = now - Duration::days(i64::from(catchup_days));
+    let today = now.date_naive();
     for (index, rule) in file.tasks.iter().enumerate() {
         let cron = match Cron::new(&rule.schedule).parse() {
             Ok(cron) => cron,
@@ -233,12 +235,27 @@ fn run_recurring(
                 continue;
             }
         };
+        // Firings inside [now - catchup, grid horizon]: future ones fill
+        // the coming grid days ahead of time; missed ones (before today)
+        // collapse into the single latest firing, which carry-over then
+        // moves to today with the overdue mark - a gap of N days must
+        // produce one overdue task per item, not N duplicates.
+        let mut firings = Vec::new();
         let mut cursor = window_start;
         loop {
-            let firing = match cron.find_next_occurrence(&cursor, false) {
-                Ok(firing) if firing <= now => firing,
+            match cron.find_next_occurrence(&cursor, false) {
+                Ok(firing) if firing.date_naive() <= horizon => {
+                    cursor = firing;
+                    firings.push(firing);
+                }
                 _ => break,
-            };
+            }
+        }
+        let latest_missed = firings.iter().rfind(|f| f.date_naive() < today).copied();
+        let selected = latest_missed
+            .into_iter()
+            .chain(firings.iter().filter(|f| f.date_naive() >= today).copied());
+        for firing in selected {
             let period_key = firing.format("%Y-%m-%dT%H:%M").to_string();
             for item in &rule.items {
                 let (list, title) = parse_item(item);
@@ -255,7 +272,6 @@ fn run_recurring(
                     outcome.generated += 1;
                 }
             }
-            cursor = firing;
         }
     }
     Ok(())
@@ -435,7 +451,14 @@ pub fn run(
     let today = now.date_naive();
     let horizon = today + Duration::days(i64::from(config.grid_columns.max(1)) - 1);
 
-    run_recurring(conn, config_dir, config.catchup_days, now, &mut outcome)?;
+    run_recurring(
+        conn,
+        config_dir,
+        config.catchup_days,
+        horizon,
+        now,
+        &mut outcome,
+    )?;
     run_scheduled(conn, config_dir, horizon, now, &mut outcome)?;
     run_birthdays(
         conn,
@@ -783,17 +806,18 @@ mod tests {
         let cfg = config(3, 7, 0);
 
         let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        // firings: 08-26 06:00, 08-27 06:00, 08-28 06:00 (08-25 06:00 is
-        // before now - 3d = 08-25 12:00)
-        assert_eq!(outcome.generated, 3);
+        // missed firings 08-26/08-27 collapse into the latest (08-27);
+        // today 08-28 plus the future grid days 08-29..09-03 generate
+        // ahead of time: 1 + 1 + 6 = 8
+        assert_eq!(outcome.generated, 8);
         assert!(outcome.errors.is_empty());
 
         // second run: nothing new (restart scenario)
         let outcome2 = run(&conn, &dir, &cfg, now).unwrap();
         assert_eq!(outcome2.generated, 0);
-        assert_eq!(count_tasks(&conn), 3);
+        assert_eq!(count_tasks(&conn), 8);
 
-        // past instances carried over to today with the overdue mark
+        // the collapsed missed instance carried over to today as overdue
         let overdue: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM tasks WHERE overdue = 1 AND scheduled_date = '2026-08-28'",
@@ -801,7 +825,47 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(overdue, 2);
+        assert_eq!(overdue, 1);
+    }
+
+    #[test]
+    fn long_catchup_gap_collapses_to_one_overdue_task() {
+        let (conn, dir) = setup("gap");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 9 * * 1-5\"\n    description: Weekdays\n    items:\n      - \"standup\"\n",
+        )
+        .unwrap();
+        // 30-day catch-up, 2026-08-28 is a Friday
+        let outcome = run(&conn, &dir, &config(30, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        // one collapsed overdue (08-27) + today + future weekdays in the
+        // grid (08-31, 09-01..09-03); weekend days get nothing
+        assert_eq!(outcome.generated, 6);
+
+        let overdue: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(overdue, 1);
+
+        let weekend: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE scheduled_date IN ('2026-08-29', '2026-08-30')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(weekend, 0);
+
+        let monday: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE scheduled_date = '2026-08-31'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(monday, 1);
     }
 
     #[test]
@@ -863,10 +927,10 @@ mod tests {
         )
         .unwrap();
         let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        // one firing (08-28 06:00) inside the 1-day window; only the new
-        // item 'b' generates, 'a' stays deduped
-        assert_eq!(outcome.generated, 1);
-        assert_eq!(count_tasks(&conn), 2);
+        // 7 firings (today + 6 grid days); only the new item 'b'
+        // generates, 'a' stays deduped
+        assert_eq!(outcome.generated, 7);
+        assert_eq!(count_tasks(&conn), 14);
     }
 
     #[test]
@@ -1116,7 +1180,8 @@ mod tests {
         assert!(listed.errors.is_empty());
 
         let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
-        assert_eq!(outcome.generated, 1);
+        // today + 6 future grid days
+        assert_eq!(outcome.generated, 7);
     }
 
     #[test]
@@ -1166,12 +1231,12 @@ mod tests {
         .unwrap();
         let cfg = config(40, 7, 0);
 
-        // run on the 5th (window covers 07-01 and 08-01 firings), then
-        // again on the 20th: same periods, nothing new
+        // run on the 5th: missed 07-01 and 08-01 collapse into 08-01;
+        // again on the 20th: same period, nothing new
         let first = run(&conn, &dir, &cfg, at("2026-08-05", "09:00:00")).unwrap();
-        assert_eq!(first.generated, 2);
+        assert_eq!(first.generated, 1);
         let outcome = run(&conn, &dir, &cfg, at("2026-08-20", "09:00:00")).unwrap();
         assert_eq!(outcome.generated, 0);
-        assert_eq!(count_tasks(&conn), 2);
+        assert_eq!(count_tasks(&conn), 1);
     }
 }
