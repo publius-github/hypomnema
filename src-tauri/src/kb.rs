@@ -89,6 +89,65 @@ pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
     build_tree(root, root, 0)
 }
 
+#[derive(Debug, Serialize)]
+pub struct KbSearchHit {
+    pub path: String,
+    pub name: String,
+    pub line: usize,
+    pub preview: String,
+}
+
+const SEARCH_MAX_HITS: usize = 100;
+const SEARCH_MAX_FILE_BYTES: u64 = 2_000_000;
+
+fn collect_files(nodes: &[KbNode], out: &mut Vec<(String, String)>) {
+    for node in nodes {
+        if node.is_dir {
+            collect_files(&node.children, out);
+        } else {
+            out.push((node.path.clone(), node.name.clone()));
+        }
+    }
+}
+
+/// Case-insensitive substring search over note contents (one hit per
+/// file, first matching line as preview). Plain scan - at personal
+/// scale an index is not worth its invalidation bugs.
+pub fn search_content(root: &Path, query: &str) -> Result<Vec<KbSearchHit>> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return Ok(vec![]);
+    }
+    let mut files = Vec::new();
+    collect_files(&tree(root)?, &mut files);
+    let mut hits = Vec::new();
+    for (path, name) in files {
+        let abs = resolve(root, &path)?;
+        if fs::metadata(&abs).map(|m| m.len()).unwrap_or(u64::MAX) > SEARCH_MAX_FILE_BYTES {
+            continue;
+        }
+        // read_to_string also skips binary files (invalid UTF-8)
+        let Ok(content) = fs::read_to_string(&abs) else {
+            continue;
+        };
+        for (i, line) in content.lines().enumerate() {
+            if line.to_lowercase().contains(&query) {
+                hits.push(KbSearchHit {
+                    path,
+                    name,
+                    line: i + 1,
+                    preview: line.trim().chars().take(120).collect(),
+                });
+                break;
+            }
+        }
+        if hits.len() >= SEARCH_MAX_HITS {
+            break;
+        }
+    }
+    Ok(hits)
+}
+
 pub fn read(root: &Path, rel: &str) -> Result<String> {
     Ok(fs::read_to_string(resolve(root, rel)?)?)
 }

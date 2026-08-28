@@ -196,6 +196,35 @@ pub fn tasks_snapshot(conn: &Connection, start_date: &str, end_date: &str) -> Re
     Ok(tasks)
 }
 
+/// Title substring search across the whole history, newest dates first,
+/// unscheduled tasks last. Subtasks are excluded; the parent is what
+/// the user looks for.
+pub fn tasks_search(conn: &Connection, query: &str) -> Result<Vec<Task>> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Ok(vec![]);
+    }
+    let pattern = format!(
+        "%{}%",
+        trimmed
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_")
+    );
+    let mut stmt = conn.prepare(
+        "SELECT * FROM tasks
+         WHERE title LIKE ?1 ESCAPE '\\'
+           AND parent_task_id IS NULL
+           AND archived_at IS NULL
+         ORDER BY scheduled_date IS NULL, scheduled_date DESC, id DESC
+         LIMIT 100",
+    )?;
+    let tasks = stmt
+        .query_map([pattern], row_to_task)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(tasks)
+}
+
 pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
     let title = new.title.trim();
     if title.is_empty() {

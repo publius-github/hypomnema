@@ -6,6 +6,7 @@ import { useAppStore } from "./store";
 import { todayISO } from "./lib/tasks";
 import type { AppConfig, ConfigError } from "./types";
 import TabBar from "./components/TabBar";
+import SearchPalette from "./components/SearchPalette";
 import VaultPicker from "./components/VaultPicker";
 import Dashboard from "./sections/Dashboard";
 import Upcoming from "./sections/Upcoming";
@@ -95,6 +96,20 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
+  // Ctrl/Cmd+K opens the task search palette from anywhere
+  const searchOpen = useAppStore((s) => s.searchOpen);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        const store = useAppStore.getState();
+        if (store.vaultPath) store.setSearchOpen(!store.searchOpen);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // day rollover while the app stays open: re-run the engine at midnight
   useEffect(() => {
     const timer = setInterval(() => {
@@ -148,6 +163,11 @@ export default function App() {
         {section === "kb" && <KnowledgeBase />}
         {section === "settings" && <Settings />}
       </main>
+      {searchOpen && (
+        <SearchPalette
+          onClose={() => useAppStore.getState().setSearchOpen(false)}
+        />
+      )}
       {toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-20 flex flex-col gap-2">
           {toasts.map((toast) => (

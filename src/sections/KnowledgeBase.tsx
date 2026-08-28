@@ -53,6 +53,9 @@ export default function KnowledgeBase() {
     return stored >= 160 && stored <= 480 ? stored : 240;
   });
   const [search, setSearch] = useState("");
+  const [contentHits, setContentHits] = useState<
+    { path: string; name: string; line: number; preview: string }[]
+  >([]);
   const [current, setCurrent] = useState<OpenDoc | null>(null);
   const [configErrors, setConfigErrors] = useState<
     { line: number | null; message: string }[]
@@ -226,6 +229,28 @@ export default function KnowledgeBase() {
     ? flattenFiles(tree).filter((f) => f.name.toLowerCase().includes(query))
     : null;
 
+  // content search runs alongside the filename filter, debounced
+  useEffect(() => {
+    if (!query || !kbPath) {
+      setContentHits([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      invoke<{ path: string; name: string; line: number; preview: string }[]>(
+        "kb_search",
+        { query },
+      )
+        .then(setContentHits)
+        .catch(() => setContentHits([]));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, kbPath]);
+
+  const nameMatchPaths = new Set((searchResults ?? []).map((f) => f.path));
+  const extraContentHits = contentHits.filter(
+    (h) => !nameMatchPaths.has(h.path),
+  );
+
   const renderNode = (node: KbNode, depth: number) => (
     <div key={node.path}>
       <div
@@ -312,6 +337,27 @@ export default function KnowledgeBase() {
               {searchResults
                 ? searchResults.map((node) => renderNode(node, 0))
                 : tree.map((node) => renderNode(node, 0))}
+              {searchResults && extraContentHits.length > 0 && (
+                <>
+                  <div className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-content-muted">
+                    In content
+                  </div>
+                  {extraContentHits.map((hit) => (
+                    <button
+                      key={hit.path}
+                      className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
+                      onClick={() => void openFile(hit.path)}
+                    >
+                      <span className="block truncate text-sm text-content-muted hover:text-content">
+                        {displayName(hit.name)}
+                      </span>
+                      <span className="block truncate text-[11px] text-content-muted/70">
+                        {hit.line}: {hit.preview}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           </>
         ) : (

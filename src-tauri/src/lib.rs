@@ -474,6 +474,21 @@ fn kb_delete(state: State<AppState>, path: String) -> Result<()> {
     kb::delete(&kb_root(&state)?, &path)
 }
 
+#[tauri::command]
+fn kb_search(state: State<AppState>, query: String) -> Result<Vec<kb::KbSearchHit>> {
+    kb::search_content(&kb_root(&state)?, &query)
+}
+
+#[tauri::command]
+fn tasks_search(state: State<AppState>, query: String) -> Result<Vec<tasks::Task>> {
+    with_conn(&state, |conn| tasks::tasks_search(conn, &query))
+}
+
+#[tauri::command]
+fn task_get(state: State<AppState>, id: i64) -> Result<tasks::Task> {
+    with_conn(&state, |conn| tasks::task_get(conn, id))
+}
+
 /// Panics land in <app-config-dir>/hypomnema.log so field errors are
 /// diagnosable without a console (M7 error reporting).
 fn install_panic_logger(log_path: PathBuf) {
@@ -545,7 +560,10 @@ pub fn run() {
             scheduled_edit,
             birthday_edit,
             config_file_get,
-            config_file_set
+            config_file_set,
+            kb_search,
+            tasks_search,
+            task_get
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");

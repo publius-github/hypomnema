@@ -83,6 +83,14 @@ export default function TabBar() {
           </span>
         </button>
       ))}
+      <button
+        title="Search tasks (Ctrl+K)"
+        onClick={() => useAppStore.getState().setSearchOpen(true)}
+        className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg text-content-muted transition-colors hover:bg-line/40 hover:text-content"
+      >
+        <Icon name="search" />
+        <span className="text-[9px] leading-tight">Search</span>
+      </button>
       <div className="flex-1" />
       <SyncButton />
       <button

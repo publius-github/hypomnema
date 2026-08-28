@@ -33,6 +33,8 @@ interface AppState {
   selectVault: (path: string) => Promise<void>;
   updateConfig: (patch: Partial<AppConfig>) => Promise<void>;
   setSection: (section: Section) => void;
+  searchOpen: boolean;
+  setSearchOpen: (open: boolean) => void;
   clearError: () => void;
   refresh: () => Promise<void>;
   createTask: (task: NewTask) => Promise<void>;
@@ -211,5 +213,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setSection: (section) => set({ section }),
+  searchOpen: false,
+  setSearchOpen: (searchOpen) => set({ searchOpen }),
   clearError: () => set({ error: null }),
 }));
