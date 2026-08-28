@@ -95,7 +95,11 @@ export default function TaskModal({
         if (e.target === e.currentTarget) commitAndClose();
       }}
     >
-      <div className="flex max-h-full w-[560px] flex-col gap-4 overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex max-h-full w-[560px] flex-col gap-4 overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-xl"
+      >
         <div className="flex items-start gap-3">
           <input
             className="input flex-1 text-base font-medium"

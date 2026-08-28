@@ -182,6 +182,16 @@ async fn list_archive(state: State<'_, AppState>, id: i64) -> Result<()> {
 }
 
 #[tauri::command]
+async fn lists_archived(state: State<'_, AppState>) -> Result<Vec<tasks::List>> {
+    with_conn(&state, tasks::lists_archived)
+}
+
+#[tauri::command]
+async fn list_unarchive(state: State<'_, AppState>, id: i64) -> Result<()> {
+    with_conn(&state, |conn| tasks::list_unarchive(conn, id))
+}
+
+#[tauri::command]
 async fn tasks_snapshot(
     state: State<'_, AppState>,
     start_date: String,
@@ -573,6 +583,8 @@ pub fn run() {
             list_create,
             list_rename,
             list_archive,
+            lists_archived,
+            list_unarchive,
             tasks_snapshot,
             task_create,
             task_update,

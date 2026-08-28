@@ -28,7 +28,11 @@ function Backdrop({
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div className="flex w-[400px] flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex w-[400px] flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl"
+      >
         {children}
       </div>
     </div>
@@ -60,7 +64,7 @@ export function ConfirmModal({
           Cancel
         </button>
         <button
-          className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500"
+          className="btn-danger px-3 py-1.5 text-sm"
           onClick={onConfirm}
           autoFocus
         >

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { ConfirmModal } from "../components/dialogs";
 import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
-import { formatMmDd, formatYmd } from "../lib/dates";
+import { formatMmDd } from "../lib/dates";
 import Recurring from "./Recurring";
 import type { BirthdayView, ConfigError, UpcomingEvent } from "../types";
 
@@ -148,14 +148,16 @@ function ScheduledTab({
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <form className="flex gap-2" onSubmit={add}>
         <input
-          className="input w-32 font-mono"
-          placeholder="YYYY-MM-DD"
+          className="input w-36"
+          type="date"
+          required
           value={date}
-          onChange={(e) => setDate(formatYmd(e.target.value))}
+          onChange={(e) => setDate(e.target.value)}
         />
         <input
           className="input min-w-0 flex-1"
           placeholder="{List} event title"
+          required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
@@ -244,13 +246,15 @@ function EventEditRow({
       }}
     >
       <input
-        className="input w-32 font-mono"
-        placeholder="YYYY-MM-DD"
+        className="input w-36"
+        type="date"
+        required
         value={date}
-        onChange={(e) => setDate(formatYmd(e.target.value))}
+        onChange={(e) => setDate(e.target.value)}
       />
       <input
         className="input min-w-0 flex-1"
+        required
         value={title}
         onChange={(e) => setTitle(e.target.value)}
       />

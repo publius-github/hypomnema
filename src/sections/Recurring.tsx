@@ -155,48 +155,199 @@ export default function Recurring() {
 
 type Frequency = "daily" | "weekly" | "monthly";
 
+interface BuilderState {
+  mode: "simple" | "cron";
+  frequency: Frequency;
+  weekdays: Set<number>;
+  monthDay: number;
+  cron: string;
+}
+
+/** Maps the simple patterns the builder emits back into Simple mode, so
+ * editing a rule created with weekday chips does not confront the user
+ * with raw cron; anything else opens in Cron mode. */
+function parseSchedule(cron: string): BuilderState {
+  const base: BuilderState = {
+    mode: "cron",
+    frequency: "daily",
+    weekdays: new Set([1]),
+    monthDay: 1,
+    cron,
+  };
+  const trimmed = cron.trim();
+  if (trimmed === "" || trimmed === "0 0 * * *") {
+    return { ...base, mode: "simple", frequency: "daily" };
+  }
+  const weekly = trimmed.match(/^0 0 \* \* ([0-6](?:,[0-6])*)$/);
+  if (weekly) {
+    return {
+      ...base,
+      mode: "simple",
+      frequency: "weekly",
+      weekdays: new Set(weekly[1].split(",").map(Number)),
+    };
+  }
+  const monthly = trimmed.match(/^0 0 ([1-9]|[12]\d|3[01]) \* \*$/);
+  if (monthly) {
+    return {
+      ...base,
+      mode: "simple",
+      frequency: "monthly",
+      monthDay: Number(monthly[1]),
+    };
+  }
+  return base;
+}
+
+function buildSchedule(s: BuilderState): string | null {
+  if (s.mode === "cron") return s.cron.trim() || null;
+  switch (s.frequency) {
+    case "daily":
+      return "0 0 * * *";
+    case "weekly": {
+      if (s.weekdays.size === 0) return null;
+      const days = [...s.weekdays].sort((a, b) => a - b).join(",");
+      return `0 0 * * ${days}`;
+    }
+    case "monthly":
+      return `0 0 ${s.monthDay} * *`;
+  }
+}
+
+function ScheduleBuilder({
+  state,
+  onChange,
+}: {
+  state: BuilderState;
+  onChange: (state: BuilderState) => void;
+}) {
+  return (
+    <>
+      <div className="flex gap-1">
+        {(["simple", "cron"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            className={`rounded-md px-3 py-1 text-xs font-medium capitalize ${
+              state.mode === m
+                ? "bg-accent/15 text-accent"
+                : "text-content-muted hover:text-content"
+            }`}
+            onClick={() => {
+              // switching to cron shows the schedule the simple state
+              // builds, so nothing silently changes meaning
+              if (m === "cron" && state.mode === "simple") {
+                onChange({
+                  ...state,
+                  mode: m,
+                  cron: buildSchedule(state) ?? state.cron,
+                });
+              } else {
+                onChange({ ...state, mode: m });
+              }
+            }}
+          >
+            {m === "simple" ? "Simple" : "Cron expression"}
+          </button>
+        ))}
+      </div>
+
+      {state.mode === "simple" ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="input w-32"
+            value={state.frequency}
+            onChange={(e) =>
+              onChange({ ...state, frequency: e.target.value as Frequency })
+            }
+          >
+            <option value="daily">Every day</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+          {state.frequency === "weekly" && (
+            <span className="flex gap-1">
+              {WEEKDAYS.map((d) => (
+                <button
+                  key={d.cron}
+                  type="button"
+                  className={`rounded-md border px-2 py-1 text-xs ${
+                    state.weekdays.has(d.cron)
+                      ? "border-accent bg-accent/15 text-accent"
+                      : "border-line text-content-muted hover:text-content"
+                  }`}
+                  onClick={() => {
+                    const next = new Set(state.weekdays);
+                    if (next.has(d.cron)) next.delete(d.cron);
+                    else next.add(d.cron);
+                    onChange({ ...state, weekdays: next });
+                  }}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </span>
+          )}
+          {state.frequency === "monthly" && (
+            <label className="flex items-center gap-1 text-xs text-content-muted">
+              on day
+              <input
+                className="input w-16"
+                type="number"
+                min={1}
+                max={31}
+                value={state.monthDay}
+                onChange={(e) =>
+                  onChange({
+                    ...state,
+                    monthDay: Math.min(
+                      31,
+                      Math.max(1, Number(e.target.value) || 1),
+                    ),
+                  })
+                }
+              />
+            </label>
+          )}
+        </div>
+      ) : (
+        <input
+          className="input w-48 font-mono"
+          placeholder="0 0 * * 1-5"
+          title="Cron: minute hour day-of-month month day-of-week"
+          value={state.cron}
+          onChange={(e) => onChange({ ...state, cron: e.target.value })}
+        />
+      )}
+    </>
+  );
+}
+
 function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
   const setError = (e: unknown) => useAppStore.setState({ error: String(e) });
-  const [mode, setMode] = useState<"simple" | "cron">("simple");
-  const [frequency, setFrequency] = useState<Frequency>("daily");
-  const [weekdays, setWeekdays] = useState<Set<number>>(new Set([1]));
-  const [monthDay, setMonthDay] = useState(1);
-  const [cron, setCron] = useState("");
+  const [schedule, setSchedule] = useState<BuilderState>(() =>
+    parseSchedule(""),
+  );
   const [description, setDescription] = useState("");
   const [items, setItems] = useState("");
 
-  const builtCron = (): string | null => {
-    if (mode === "cron") return cron.trim() || null;
-    switch (frequency) {
-      case "daily":
-        return "0 0 * * *";
-      case "weekly": {
-        if (weekdays.size === 0) return null;
-        const days = [...weekdays].sort((a, b) => a - b).join(",");
-        return `0 0 * * ${days}`;
-      }
-      case "monthly":
-        return `0 0 ${monthDay} * *`;
-    }
-  };
-
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    const schedule = builtCron();
+    const cron = buildSchedule(schedule);
     const parsedItems = items
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
-    if (!schedule || parsedItems.length === 0) return;
+    if (!cron || parsedItems.length === 0) return;
     try {
       await invoke("recurring_add", {
         rule: {
-          schedule,
+          schedule: cron,
           description: description.trim(),
           items: parsedItems,
         },
       });
-      setCron("");
+      setSchedule(parseSchedule(""));
       setDescription("");
       setItems("");
       await onWrite();
@@ -210,87 +361,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
       className="flex flex-col gap-2 rounded-lg border border-line p-3"
       onSubmit={add}
     >
-      <div className="flex gap-1">
-        {(["simple", "cron"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={`rounded-md px-3 py-1 text-xs font-medium capitalize ${
-              mode === m
-                ? "bg-accent/15 text-accent"
-                : "text-content-muted hover:text-content"
-            }`}
-            onClick={() => setMode(m)}
-          >
-            {m === "simple" ? "Simple" : "Cron expression"}
-          </button>
-        ))}
-      </div>
-
-      {mode === "simple" ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="input w-32"
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value as Frequency)}
-          >
-            <option value="daily">Every day</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-          {frequency === "weekly" && (
-            <span className="flex gap-1">
-              {WEEKDAYS.map((d) => (
-                <button
-                  key={d.cron}
-                  type="button"
-                  className={`rounded-md border px-2 py-1 text-xs ${
-                    weekdays.has(d.cron)
-                      ? "border-accent bg-accent/15 text-accent"
-                      : "border-line text-content-muted hover:text-content"
-                  }`}
-                  onClick={() =>
-                    setWeekdays((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(d.cron)) next.delete(d.cron);
-                      else next.add(d.cron);
-                      return next;
-                    })
-                  }
-                >
-                  {d.label}
-                </button>
-              ))}
-            </span>
-          )}
-          {frequency === "monthly" && (
-            <label className="flex items-center gap-1 text-xs text-content-muted">
-              on day
-              <input
-                className="input w-16"
-                type="number"
-                min={1}
-                max={31}
-                value={monthDay}
-                onChange={(e) =>
-                  setMonthDay(
-                    Math.min(31, Math.max(1, Number(e.target.value) || 1)),
-                  )
-                }
-              />
-            </label>
-          )}
-        </div>
-      ) : (
-        <input
-          className="input w-48 font-mono"
-          placeholder="0 0 * * 1-5"
-          title="Cron: minute hour day-of-month month day-of-week"
-          value={cron}
-          onChange={(e) => setCron(e.target.value)}
-        />
-      )}
-
+      <ScheduleBuilder state={schedule} onChange={setSchedule} />
       <input
         className="input"
         placeholder="Description (optional)"
@@ -319,7 +390,9 @@ function RuleEditForm({
   onSave: (replacement: RecurringRule) => void;
   onCancel: () => void;
 }) {
-  const [schedule, setSchedule] = useState(rule.schedule);
+  const [schedule, setSchedule] = useState<BuilderState>(() =>
+    parseSchedule(rule.schedule),
+  );
   const [description, setDescription] = useState(rule.description);
   const [items, setItems] = useState(rule.items.join("\n"));
 
@@ -328,31 +401,26 @@ function RuleEditForm({
       className="flex flex-col gap-2 border-b border-line py-3"
       onSubmit={(e) => {
         e.preventDefault();
+        const cron = buildSchedule(schedule);
         const parsedItems = items
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean);
-        if (!schedule.trim() || parsedItems.length === 0) return;
+        if (!cron || parsedItems.length === 0) return;
         onSave({
-          schedule: schedule.trim(),
+          schedule: cron,
           description: description.trim(),
           items: parsedItems,
         });
       }}
     >
-      <div className="flex gap-2">
-        <input
-          className="input w-40 font-mono"
-          value={schedule}
-          onChange={(e) => setSchedule(e.target.value)}
-        />
-        <input
-          className="input min-w-0 flex-1"
-          placeholder="Description (optional)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-      </div>
+      <ScheduleBuilder state={schedule} onChange={setSchedule} />
+      <input
+        className="input"
+        placeholder="Description (optional)"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
       <textarea
         className="input min-h-[64px] resize-y"
         value={items}

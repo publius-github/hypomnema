@@ -85,7 +85,11 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="flex h-fit max-h-[70vh] w-[560px] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex h-fit max-h-[70vh] w-[560px] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-xl"
+      >
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           <Icon name="search" className="h-4 w-4 text-content-muted" />
           <input

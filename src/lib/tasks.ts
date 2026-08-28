@@ -107,8 +107,12 @@ export function currentAndNextBlock(
     now.getMinutes(),
   ).padStart(2, "0")}`;
   const sorted = [...blocks].sort((a, b) => a.from.localeCompare(b.from));
-  const current =
-    sorted.find((b) => b.from <= hhmm && hhmm < b.to) ?? null;
+  // a block with from > to spans midnight (e.g. 22:00-06:00)
+  const covers = (b: ScheduleBlock) =>
+    b.from <= b.to
+      ? b.from <= hhmm && hhmm < b.to
+      : hhmm >= b.from || hhmm < b.to;
+  const current = sorted.find(covers) ?? null;
   const next = sorted.find((b) => b.from > hhmm) ?? null;
   if (!current && !next) return null;
   return { current, next };

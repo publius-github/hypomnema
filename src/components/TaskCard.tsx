@@ -1,5 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { addDaysISO, compareTasks, nextStatus } from "../lib/tasks";
 import type { Task } from "../types";
@@ -19,16 +20,19 @@ export default function TaskCard({
   overlay?: boolean;
   onOpen?: (id: number) => void;
 }) {
-  const { tasks, updateTask } = useAppStore();
+  // selector subscriptions: with a whole-store subscribe, every toast or
+  // banner change re-rendered every card on the grid
+  const updateTask = useAppStore((s) => s.updateTask);
+  const subtasksRaw = useAppStore(
+    useShallow((s) => s.tasks.filter((t) => t.parent_task_id === task.id)),
+  );
   const [expanded, setExpanded] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `task:${task.id}`,
     disabled: overlay,
   });
 
-  const subtasks = tasks
-    .filter((t) => t.parent_task_id === task.id)
-    .sort(compareTasks);
+  const subtasks = [...subtasksRaw].sort(compareTasks);
   const done = task.status === "done";
 
   // postpone = move one day forward with the postponed mark, counted
@@ -131,7 +135,7 @@ export default function TaskCard({
         </div>
         {!overlay && !done && task.scheduled_date && (
           <button
-            className="mt-0.5 hidden shrink-0 text-content-muted hover:text-warn group-hover:block"
+            className="mt-0.5 shrink-0 text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
             title="Postpone to the next day"
             onClick={(e) => {
               e.stopPropagation();

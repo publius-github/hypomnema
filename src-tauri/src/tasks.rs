@@ -201,6 +201,27 @@ pub fn list_archive(conn: &Connection, id: i64) -> Result<()> {
     Ok(())
 }
 
+pub fn lists_archived(conn: &Connection) -> Result<Vec<List>> {
+    let mut stmt = conn.prepare("SELECT * FROM lists WHERE archived = 1 ORDER BY name")?;
+    let lists = stmt
+        .query_map([], row_to_list)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(lists)
+}
+
+/// Restores an archived list. The auto flag is cleared: an explicit
+/// restore means the user wants the list visible in the list zone.
+pub fn list_unarchive(conn: &Connection, id: i64) -> Result<()> {
+    let updated = conn.execute(
+        "UPDATE lists SET archived = 0, auto = 0 WHERE id = ?1",
+        [id],
+    )?;
+    if updated == 0 {
+        return Err(Error::State(format!("list {id} not found")));
+    }
+    Ok(())
+}
+
 /// Tasks visible on the Dashboard: everything scheduled in the rolling
 /// window, everything unscheduled (list zone), and all their subtasks.
 /// Overdue carry-over (M2) will move older tasks into the window before

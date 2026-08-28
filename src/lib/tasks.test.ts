@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   addDaysISO,
+  currentAndNextBlock,
   gridDates,
   groupDayTasks,
   nextStatus,
   splitDone,
 } from "./tasks";
-import type { List, Task } from "../types";
+import type { List, ScheduleBlock, Task } from "../types";
 
 function task(overrides: Partial<Task>): Task {
   return {
@@ -96,6 +97,36 @@ describe("groupDayTasks", () => {
     const groups = groupDayTasks([task({ id: 1, list_id: 99 })], lists);
     expect(groups).toHaveLength(1);
     expect(groups[0].listId).toBeNull();
+  });
+});
+
+describe("currentAndNextBlock", () => {
+  const block = (from: string, to: string, label: string): ScheduleBlock => ({
+    from,
+    to,
+    label,
+  });
+  const at = (h: number, m: number) => new Date(2026, 7, 28, h, m);
+
+  it("finds the covering block and the next one", () => {
+    const blocks = [block("09:00", "12:30", "Deep work"), block("14:00", "17:00", "Meetings")];
+    const focus = currentAndNextBlock(blocks, at(10, 15));
+    expect(focus?.current?.label).toBe("Deep work");
+    expect(focus?.next?.label).toBe("Meetings");
+    const gap = currentAndNextBlock(blocks, at(13, 0));
+    expect(gap?.current).toBeNull();
+    expect(gap?.next?.label).toBe("Meetings");
+  });
+
+  it("supports a block spanning midnight", () => {
+    const blocks = [block("22:00", "06:00", "Night")];
+    expect(currentAndNextBlock(blocks, at(23, 30))?.current?.label).toBe(
+      "Night",
+    );
+    expect(currentAndNextBlock(blocks, at(5, 0))?.current?.label).toBe(
+      "Night",
+    );
+    expect(currentAndNextBlock(blocks, at(12, 0))?.current ?? null).toBeNull();
   });
 });
 

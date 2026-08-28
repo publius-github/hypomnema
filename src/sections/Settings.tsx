@@ -1,9 +1,9 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
 import { ConfirmModal } from "../components/dialogs";
-import type { DoneDisplay, Theme } from "../types";
+import type { DoneDisplay, List, Theme } from "../types";
 
 export default function Settings() {
   const { vaultPath, config, updateConfig } = useAppStore();
@@ -138,17 +138,31 @@ export default function Settings() {
         <span className="text-sm font-medium">Config files</span>
         <p className="text-xs text-content-muted">
           recurring.yml, scheduled.yml and the other config files are edited
-          in Notes under the Config group, with validation on save.
+          in Notes under the Config group, with validation on save. Quick
+          links to the files without a form UI:
         </p>
-        <button
-          className="btn-ghost w-fit px-3 py-1 text-xs"
-          onClick={() => useAppStore.getState().setSection("kb")}
-        >
-          Open in Notes
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {["weekly-focus.yml", "day-reminders.yml", "day-schedule.yml"].map(
+            (file) => (
+              <button
+                key={file}
+                className="btn-ghost px-3 py-1 text-xs"
+                onClick={() => useAppStore.getState().openConfigFile(file)}
+              >
+                {file}
+              </button>
+            ),
+          )}
+          <button
+            className="btn-ghost px-3 py-1 text-xs"
+            onClick={() => useAppStore.getState().setSection("kb")}
+          >
+            All in Notes
+          </button>
+        </div>
       </section>
 
-      <DebugSection />
+      <MaintenanceSection />
     </div>
   );
 }
@@ -205,9 +219,22 @@ function NumberInput({
   );
 }
 
-function DebugSection() {
+function MaintenanceSection() {
   const [status, setStatus] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [archived, setArchived] = useState<List[]>([]);
+
+  const loadArchived = useCallback(async () => {
+    try {
+      setArchived(await invoke<List[]>("lists_archived"));
+    } catch (e) {
+      useAppStore.setState({ error: String(e) });
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadArchived();
+  }, [loadArchived]);
 
   const deleteDone = async () => {
     setConfirming(false);
@@ -220,9 +247,19 @@ function DebugSection() {
     }
   };
 
+  const restore = async (id: number) => {
+    try {
+      await invoke("list_unarchive", { id });
+      await loadArchived();
+      await useAppStore.getState().refresh();
+    } catch (e) {
+      useAppStore.setState({ error: String(e) });
+    }
+  };
+
   return (
     <section className="flex flex-col gap-2 border-t border-line pt-4">
-      <span className="text-sm font-medium">Debug</span>
+      <span className="text-sm font-medium">Maintenance</span>
       <div className="flex items-center gap-2">
         <button
           className="btn-danger w-fit px-3 py-1 text-xs"
@@ -234,6 +271,22 @@ function DebugSection() {
           <span className="text-xs text-content-muted">{status}</span>
         )}
       </div>
+      {archived.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-content-muted">Archived lists</span>
+          {archived.map((list) => (
+            <div key={list.id} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{list.name}</span>
+              <button
+                className="btn-ghost px-2 py-0.5 text-xs"
+                onClick={() => void restore(list.id)}
+              >
+                Restore
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       {confirming && (
         <ConfirmModal
           title="Delete every task marked done?"

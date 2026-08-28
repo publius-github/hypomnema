@@ -1132,15 +1132,26 @@ mod tests {
     #[test]
     fn carry_over_moves_only_undone_parent_tasks() {
         let (conn, dir) = setup("carry");
+        // deliberate: a postponed task whose new date has also passed is
+        // treated like any open task - carried to today, marked overdue
         conn.execute_batch(
             "INSERT INTO tasks (id, title, scheduled_date, status, created_at)
              VALUES (1, 'old todo', '2026-08-20', 'todo', ''),
                     (2, 'old done', '2026-08-20', 'done', ''),
-                    (3, 'future', '2026-09-05', 'todo', '');",
+                    (3, 'future', '2026-09-05', 'todo', ''),
+                    (4, 'old postponed', '2026-08-21', 'postponed', '');",
         )
         .unwrap();
         let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
-        assert_eq!(outcome.carried_over, 1);
+        assert_eq!(outcome.carried_over, 2);
+        let postponed: (String, i64) = conn
+            .query_row(
+                "SELECT scheduled_date, overdue FROM tasks WHERE id = 4",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(postponed, ("2026-08-28".into(), 1));
 
         let (date, overdue): (String, i64) = conn
             .query_row(

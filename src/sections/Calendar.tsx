@@ -118,23 +118,27 @@ export default function Calendar() {
           >
             &lt;
           </button>
-          <button
-            className="text-sm font-semibold hover:text-accent"
-            title="Jump to today"
-            onClick={() => {
-              setYear(Number(today.slice(0, 4)));
-              setMonth(Number(today.slice(5, 7)) - 1);
-              setSelected(today);
-            }}
-          >
+          <span className="text-sm font-semibold">
             {MONTHS[month]} {year}
-          </button>
-          <button
-            className="btn-ghost px-3 py-1"
-            onClick={() => shiftMonth(1)}
-          >
-            &gt;
-          </button>
+          </span>
+          <span className="flex items-center gap-1">
+            <button
+              className="btn-ghost px-2 py-1 text-xs"
+              onClick={() => {
+                setYear(Number(today.slice(0, 4)));
+                setMonth(Number(today.slice(5, 7)) - 1);
+                setSelected(today);
+              }}
+            >
+              Today
+            </button>
+            <button
+              className="btn-ghost px-3 py-1"
+              onClick={() => shiftMonth(1)}
+            >
+              &gt;
+            </button>
+          </span>
         </div>
         <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-content-muted">
           {WEEKDAYS.map((d) => (

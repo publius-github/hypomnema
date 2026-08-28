@@ -8,7 +8,7 @@ export function DeleteRowButton({
 }) {
   return (
     <button
-      className="hidden shrink-0 rounded px-1.5 text-xs text-content-muted hover:text-danger group-hover:block"
+      className="shrink-0 rounded px-1.5 text-xs text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
       title="Delete"
       onClick={onDelete}
     >

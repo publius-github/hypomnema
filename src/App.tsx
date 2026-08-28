@@ -114,14 +114,26 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [undo]);
 
-  // Ctrl/Cmd+K opens the task search palette from anywhere
+  // global shortcuts: Ctrl/Cmd+K search palette, Ctrl/Cmd+1..6 sections
   const searchOpen = useAppStore((s) => s.searchOpen);
   useEffect(() => {
+    const sections = [
+      "dashboard",
+      "upcoming",
+      "calendar",
+      "journal",
+      "kb",
+      "settings",
+    ] as const;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const store = useAppStore.getState();
+      if (e.key.toLowerCase() === "k") {
         e.preventDefault();
-        const store = useAppStore.getState();
         if (store.vaultPath) store.setSearchOpen(!store.searchOpen);
+      } else if (e.key >= "1" && e.key <= "6") {
+        e.preventDefault();
+        if (store.vaultPath) store.setSection(sections[Number(e.key) - 1]);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -165,12 +177,26 @@ export default function App() {
         )}
         {configErrors.length > 0 && (
           <div className="border-b border-warn/40 bg-warn/15 px-4 py-2 text-sm text-warn">
-            {configErrors.map((err, i) => (
-              <div key={i}>
-                {err.file}
-                {err.line !== null ? ` line ${err.line}` : ""}: {err.message}
-              </div>
-            ))}
+            {configErrors.map((err, i) => {
+              const editable = err.file !== "app.yml";
+              const text = `${err.file}${
+                err.line !== null ? ` line ${err.line}` : ""
+              }: ${err.message}`;
+              return editable ? (
+                <button
+                  key={i}
+                  className="block w-full truncate text-left hover:underline"
+                  title="Open the file in Notes"
+                  onClick={() =>
+                    useAppStore.getState().openConfigFile(err.file)
+                  }
+                >
+                  {text}
+                </button>
+              ) : (
+                <div key={i}>{text}</div>
+              );
+            })}
           </div>
         )}
         {section === "dashboard" && <Dashboard />}

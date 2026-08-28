@@ -229,6 +229,16 @@ export default function KnowledgeBase() {
     }
   };
 
+  // navigation requests from elsewhere (error banner, focus line,
+  // Settings links): open the named config file on arrival
+  const kbOpenConfig = useAppStore((s) => s.kbOpenConfig);
+  useEffect(() => {
+    if (!kbOpenConfig) return;
+    useAppStore.setState({ kbOpenConfig: null });
+    void openConfig(kbOpenConfig);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kbOpenConfig]);
+
   const pickFolder = async () => {
     try {
       const path = await open({ directory: true, title: "Select KB folder" });
@@ -301,14 +311,14 @@ export default function KnowledgeBase() {
               {displayName(node.name)}
             </button>
             <button
-              className="hidden group-hover:block"
+              className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
               title="Rename"
               onClick={() => setDialog({ kind: "rename", node })}
             >
               <Icon name="pencil" className="h-3 w-3" />
             </button>
             <button
-              className="hidden hover:text-danger group-hover:block"
+              className="opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
               title="Delete"
               onClick={() => setDialog({ kind: "delete", node })}
             >

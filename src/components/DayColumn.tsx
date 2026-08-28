@@ -11,7 +11,13 @@ export default function DayColumn({
   date: string;
   onOpenTask: (id: number) => void;
 }) {
-  const { config, today, lists, tasks, dashboard } = useAppStore();
+  // individual selectors: a whole-store subscribe would re-render every
+  // column on unrelated state changes (toasts, palette, banners)
+  const config = useAppStore((s) => s.config);
+  const today = useAppStore((s) => s.today);
+  const lists = useAppStore((s) => s.lists);
+  const tasks = useAppStore((s) => s.tasks);
+  const dashboard = useAppStore((s) => s.dashboard);
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
 
   const reminders =

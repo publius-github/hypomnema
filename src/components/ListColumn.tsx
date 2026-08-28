@@ -4,6 +4,7 @@ import { useAppStore } from "../store";
 import { compareTasks, splitDone } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
+import { ConfirmModal } from "./dialogs";
 import type { List } from "../types";
 
 export default function ListColumn({
@@ -13,10 +14,14 @@ export default function ListColumn({
   list: List;
   onOpenTask: (id: number) => void;
 }) {
-  const { config, tasks, renameList, archiveList } = useAppStore();
+  const config = useAppStore((s) => s.config);
+  const tasks = useAppStore((s) => s.tasks);
+  const renameList = useAppStore((s) => s.renameList);
+  const archiveList = useAppStore((s) => s.archiveList);
   const { setNodeRef, isOver } = useDroppable({ id: `list:${list.id}` });
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(list.name);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const listTasks = tasks
     .filter(
@@ -69,13 +74,24 @@ export default function ListColumn({
           </button>
         )}
         <button
-          className="hidden text-xs text-content-muted hover:text-danger group-hover:block"
+          className="text-xs text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
           title="Archive list"
-          onClick={() => void archiveList(list.id)}
+          onClick={() => setConfirmArchive(true)}
         >
           ×
         </button>
       </div>
+      {confirmArchive && (
+        <ConfirmModal
+          title={`Archive list "${list.name}"?`}
+          message="The column disappears from the dashboard; its tasks stay in the database. Restore it from Settings > Maintenance."
+          onConfirm={() => {
+            setConfirmArchive(false);
+            void archiveList(list.id);
+          }}
+          onCancel={() => setConfirmArchive(false)}
+        />
+      )}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
         {active.map((task) => (
           <TaskCard key={task.id} task={task} onOpen={onOpenTask} />

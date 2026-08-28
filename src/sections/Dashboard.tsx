@@ -10,7 +10,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { gridDates } from "../lib/tasks";
+import { addDaysISO, gridDates } from "../lib/tasks";
 import DayColumn from "../components/DayColumn";
 import ListColumn from "../components/ListColumn";
 import TaskCard from "../components/TaskCard";
@@ -20,6 +20,8 @@ import type { Task } from "../types";
 
 export default function Dashboard() {
   const { config, today, lists, tasks, updateTask, dashboard } = useAppStore();
+  const gridOffset = useAppStore((s) => s.gridOffset);
+  const setGridOffset = useAppStore((s) => s.setGridOffset);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   // Moving the open task's date beyond the grid window drops it from
@@ -54,7 +56,7 @@ export default function Dashboard() {
 
   if (!config) return null;
 
-  const dates = gridDates(today, config.grid_columns);
+  const dates = gridDates(addDaysISO(today, gridOffset), config.grid_columns);
   // fresh vault: nothing exists yet, so the automation features are
   // invisible - point at them once
   const freshVault = tasks.length === 0 && lists.length === 0;
@@ -97,11 +99,43 @@ export default function Dashboard() {
       onDragCancel={() => setActiveTaskId(null)}
     >
       <div className="flex h-full flex-col gap-3 p-4">
-        {dashboard?.focus && (
-          <div className="text-center text-sm font-medium italic text-accent">
-            {dashboard.focus}
+        <div className="relative flex min-h-[24px] items-center">
+          <div className="flex items-center gap-1">
+            <button
+              className="btn-ghost px-2 py-0.5 text-sm leading-none"
+              title="Earlier days"
+              onClick={() => setGridOffset(gridOffset - config.grid_columns)}
+            >
+              ‹
+            </button>
+            <button
+              className="btn-ghost px-2 py-0.5 text-sm leading-none"
+              title="Later days"
+              onClick={() => setGridOffset(gridOffset + config.grid_columns)}
+            >
+              ›
+            </button>
+            {gridOffset !== 0 && (
+              <button
+                className="btn-ghost px-2 py-0.5 text-xs"
+                onClick={() => setGridOffset(0)}
+              >
+                Back to today
+              </button>
+            )}
           </div>
-        )}
+          {dashboard?.focus && (
+            <button
+              className="absolute left-1/2 -translate-x-1/2 text-sm font-medium italic text-accent hover:underline"
+              title="Edit weekly-focus.yml"
+              onClick={() =>
+                useAppStore.getState().openConfigFile("weekly-focus.yml")
+              }
+            >
+              {dashboard.focus}
+            </button>
+          )}
+        </div>
         {freshVault && (
           <div className="mx-auto flex w-full max-w-xl flex-col gap-2 rounded-lg border border-line bg-surface-alt p-4 text-sm">
             <span className="font-semibold">Getting started</span>
@@ -137,7 +171,7 @@ export default function Dashboard() {
           </div>
         )}
         <div
-          className="grid min-h-0 flex-[3] gap-3"
+          className="grid min-h-0 flex-[3] gap-3 overflow-x-auto"
           style={{
             gridTemplateColumns: `repeat(${dates.length}, minmax(200px, 1fr))`,
           }}

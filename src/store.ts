@@ -27,6 +27,14 @@ interface AppState {
   /// bumped after every engine pass (manual or watcher-triggered) so
   /// sections holding YAML-derived local state know to reload
   vaultVersion: number;
+  /// grid window shift in days (negative = the past); the snapshot
+  /// window follows it so past days are browsable in place
+  gridOffset: number;
+  setGridOffset: (offset: number) => void;
+  /// set to jump to Notes with a config file opened (error banner,
+  /// focus line, Settings links)
+  kbOpenConfig: string | null;
+  openConfigFile: (file: string) => void;
   init: () => Promise<void>;
   runEngine: () => Promise<EngineOutcome | null>;
   setConfigErrors: (errors: ConfigError[]) => void;
@@ -119,15 +127,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     const config = get().config;
     if (!config) return;
     const today = todayISO();
+    const start = addDaysISO(today, get().gridOffset);
     const dates = Array.from({ length: config.grid_columns }, (_, i) =>
-      addDaysISO(today, i),
+      addDaysISO(start, i),
     );
     try {
       const [lists, tasks, dashboard] = await Promise.all([
         invoke<List[]>("lists_all"),
         invoke<Task[]>("tasks_snapshot", {
-          startDate: today,
-          endDate: addDaysISO(today, config.grid_columns),
+          startDate: start,
+          endDate: addDaysISO(start, config.grid_columns),
         }),
         invoke<DashboardContext>("dashboard_context", { dates }),
       ]);
@@ -245,6 +254,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setSection: (section) => set({ section }),
+  gridOffset: 0,
+  setGridOffset: (gridOffset) => {
+    set({ gridOffset });
+    void get().refresh();
+  },
+  kbOpenConfig: null,
+  openConfigFile: (file) => set({ section: "kb", kbOpenConfig: file }),
   searchOpen: false,
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   undo: null,
