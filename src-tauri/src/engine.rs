@@ -272,10 +272,27 @@ fn run_recurring(
             // Catch-up never reaches back past the day the engine first
             // saw the item: a rule added today must not open as overdue,
             // and later runs must not resurrect pre-sighting firings.
-            conn.execute(
+            let newly_seen = conn.execute(
                 "INSERT OR IGNORE INTO rule_seen (rule_key, first_seen) VALUES (?1, ?2)",
                 (&rule_key, now.to_rfc3339()),
-            )?;
+            )? == 1;
+            if newly_seen {
+                // A first-seen rule starts with a clean ledger from today
+                // on. Removing a rule deletes its future tasks but leaves
+                // their rule_runs rows; re-adding the same rule text would
+                // otherwise skip those periods forever (e.g. today's
+                // instance never reappearing). Rows whose task still
+                // exists stay - reconcile keeps today's live instance.
+                conn.execute(
+                    "DELETE FROM rule_runs
+                     WHERE rule_key = ?1
+                       AND substr(period_key, 1, 10) >= ?2
+                       AND NOT EXISTS (SELECT 1 FROM tasks
+                                       WHERE tasks.rule_key = rule_runs.rule_key
+                                         AND tasks.period_key = rule_runs.period_key)",
+                    (&rule_key, today.format("%Y-%m-%d").to_string()),
+                )?;
+            }
             let first_seen: String = conn.query_row(
                 "SELECT substr(first_seen, 1, 10) FROM rule_seen WHERE rule_key = ?1",
                 [&rule_key],
@@ -1037,6 +1054,45 @@ mod tests {
         // a 30-day catch-up window must not matter for a rule added today
         let outcome = run(&conn, &dir, &config(30, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(outcome.generated, 7);
+        let overdue: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(overdue, 0);
+    }
+
+    #[test]
+    fn readded_rule_regenerates_periods_freed_by_removal() {
+        let (conn, dir) = setup("readd");
+        let rule_yaml = "tasks:\n  - schedule: \"0 6 * * *\"\n    description: Daily\n    items:\n      - \"water\"\n";
+        fs::write(dir.join("recurring.yml"), rule_yaml).unwrap();
+        let cfg = config(3, 3, 0);
+
+        let first = run(&conn, &dir, &cfg, at("2026-08-25", "12:00:00")).unwrap();
+        assert_eq!(first.generated, 3);
+
+        // rule removed: the future instances go, their ledger rows stay
+        fs::write(dir.join("recurring.yml"), "tasks: []\n").unwrap();
+        let removed = run(&conn, &dir, &cfg, at("2026-08-25", "13:00:00")).unwrap();
+        assert_eq!(removed.removed, 2);
+        conn.execute("UPDATE tasks SET status = 'done'", [])
+            .unwrap();
+
+        // next day the same rule text comes back: it counts as new and
+        // must fill the grid again, today's instance included
+        fs::write(dir.join("recurring.yml"), rule_yaml).unwrap();
+        let readded = run(&conn, &dir, &cfg, at("2026-08-26", "12:00:00")).unwrap();
+        assert_eq!(readded.generated, 3);
+        let today_tasks: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks
+                 WHERE scheduled_date = '2026-08-26' AND status = 'todo'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(today_tasks, 1);
         let overdue: i64 = conn
             .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
                 r.get(0)
