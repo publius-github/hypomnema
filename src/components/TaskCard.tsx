@@ -15,10 +15,13 @@ export default function TaskCard({
   task,
   overlay = false,
   onOpen,
+  showList = true,
 }: {
   task: Task;
   overlay?: boolean;
   onOpen?: (id: number) => void;
+  /** off inside a list column, where the list is the column itself */
+  showList?: boolean;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -152,7 +155,7 @@ export default function TaskCard({
               →
             </span>
           )}
-          {listName && (
+          {showList && listName && (
             <span className="max-w-[72px] truncate rounded bg-line/40 px-1">
               {listName}
             </span>

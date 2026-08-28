@@ -17,6 +17,7 @@ const CONFIG_FILES = [
   "weekly-focus.yml",
   "day-reminders.yml",
   "day-schedule.yml",
+  "journal-template.md",
 ];
 
 interface OpenDoc {
@@ -517,7 +518,11 @@ export default function KnowledgeBase() {
                       ? "yaml"
                       : "plain"
                 }
-                showLineNumbers={current.kind === "config"}
+                showLineNumbers={
+                  (current.kind === "config" &&
+                    !current.path.endsWith(".md")) ||
+                  (config?.kb_line_numbers ?? false)
+                }
               />
             </div>
           </>

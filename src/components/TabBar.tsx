@@ -18,7 +18,7 @@ const DEFAULT_ORDER = ["dashboard", "upcoming", "calendar", "journal", "kb"];
 // one shared shape for every rail button, so the highlight always
 // covers icon and label alike
 const railButton =
-  "flex h-12 w-14 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors";
+  "flex h-12 w-[72px] flex-col items-center justify-center gap-0.5 rounded-lg transition-colors";
 const railLabel = "max-w-full truncate px-0.5 text-[11px] leading-tight";
 
 function SyncButton() {
@@ -70,7 +70,7 @@ export default function TabBar() {
   const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
-    <nav className="flex w-[68px] flex-col items-center gap-1 border-r border-line bg-surface-alt py-3">
+    <nav className="flex w-20 flex-col items-center gap-1 border-r border-line bg-surface-alt py-3">
       {(config?.section_order ?? DEFAULT_ORDER)
         .map((id) => TABS[id])
         .filter(Boolean)
@@ -106,7 +106,7 @@ export default function TabBar() {
             theme: config?.theme === "light" ? "dark" : "light",
           })
         }
-        className="flex h-12 w-14 items-center justify-center rounded-lg text-content-muted hover:bg-line/40 hover:text-content"
+        className="flex h-12 w-[72px] items-center justify-center rounded-lg text-content-muted hover:bg-line/40 hover:text-content"
       >
         <Icon name={config?.theme === "light" ? "moon" : "sun"} />
       </button>

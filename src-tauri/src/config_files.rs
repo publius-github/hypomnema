@@ -1,9 +1,11 @@
-//! Round-trip CRUD and validation for the task config YAML files.
-//! The files are the source of truth; saving reformats them and drops
-//! comments (documented trade-off, see IMPLEMENTATION_PLAN section 10).
+//! CRUD and validation for the task config YAML files. The files are
+//! the source of truth; quick-add and inline edits splice the touched
+//! item's lines only, so comments and blank lines elsewhere survive.
+//! YAML files in subfolders of config/ merge into the same sections
+//! (see `load_extras`), which makes drop-in task packs possible.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
 use croner::Cron;
@@ -112,15 +114,258 @@ pub(crate) fn load_yaml<T: serde::de::DeserializeOwned + Default>(
     }
 }
 
+/// YAML files in subfolders of the config dir (recursive), sorted so
+/// merge order is deterministic. The top-level files stay canonical.
+pub(crate) fn extra_config_files(dir: &Path) -> Vec<PathBuf> {
+    fn walk(dir: &Path, root: bool, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, false, out);
+            } else if !root
+                && matches!(
+                    path.extension().and_then(|e| e.to_str()),
+                    Some("yml") | Some("yaml")
+                )
+            {
+                out.push(path);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(dir, true, &mut out);
+    out.sort();
+    out
+}
+
+/// Loads every subfolder YAML whose top level carries `key`, so a file
+/// with a `tasks:` section merges into recurring, `events:` into
+/// scheduled, and so on - one file may feed several sections. Returns
+/// (path relative to config/, parsed value).
+pub(crate) fn load_extras<T: serde::de::DeserializeOwned>(
+    dir: &Path,
+    key: &str,
+    errors: &mut Vec<ConfigError>,
+) -> Vec<(String, T)> {
+    let mut out = Vec::new();
+    for path in extra_config_files(dir) {
+        let name = path
+            .strip_prefix(dir)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|_| path.to_string_lossy().into_owned());
+        let Ok(raw) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let value: serde_yaml::Value = match serde_yaml::from_str(&raw) {
+            Ok(value) => value,
+            Err(e) => {
+                errors.push(ConfigError {
+                    file: name,
+                    line: e.location().map(|l| l.line()),
+                    message: e.to_string(),
+                });
+                continue;
+            }
+        };
+        if value.get(key).is_none() {
+            continue;
+        }
+        match serde_yaml::from_value::<T>(value) {
+            Ok(parsed) => out.push((name, parsed)),
+            Err(e) => errors.push(ConfigError {
+                file: name,
+                line: None,
+                message: e.to_string(),
+            }),
+        }
+    }
+    out
+}
+
+/// Line spans of the `- ` items under the top-level `key:` line.
+/// `items` are (start, end) line ranges (end exclusive); `insert_at` is
+/// where an appended item goes. Returns None when the layout defeats
+/// the scanner (e.g. a flow list on the key line) - callers then fall
+/// back to a full parse-and-rewrite, which reformats.
+struct SectionSpan {
+    insert_at: usize,
+    items: Vec<(usize, usize)>,
+    indent: String,
+}
+
+fn scan_section(lines: &[&str], key: &str) -> Option<SectionSpan> {
+    let key_prefix = format!("{key}:");
+    let key_line = lines.iter().position(|line| {
+        line.strip_prefix(&key_prefix)
+            .map(|rest| rest.trim().is_empty() || rest.trim_start().starts_with('#'))
+            .unwrap_or(false)
+    })?;
+    // section runs until the next top-level key (a line whose first
+    // char is not whitespace, '-' or '#')
+    let mut end = lines.len();
+    for (i, line) in lines.iter().enumerate().skip(key_line + 1) {
+        if let Some(first) = line.chars().next() {
+            if !first.is_whitespace() && first != '-' && first != '#' {
+                end = i;
+                break;
+            }
+        }
+    }
+    let mut items: Vec<(usize, usize)> = Vec::new();
+    let mut indent: Option<String> = None;
+    for (i, line) in lines.iter().enumerate().take(end).skip(key_line + 1) {
+        let this_indent = &line[..line.len() - line.trim_start().len()];
+        if line.trim_start().starts_with("- ") || line.trim_start() == "-" {
+            match &indent {
+                None => {
+                    indent = Some(this_indent.to_string());
+                    items.push((i, end));
+                }
+                Some(indent) if this_indent == indent => {
+                    if let Some(last) = items.last_mut() {
+                        last.1 = i;
+                    }
+                    items.push((i, end));
+                }
+                // deeper "- " lines are nested list values of the item
+                _ => {}
+            }
+        }
+    }
+    // blank and comment-only lines before a boundary belong to the file,
+    // not to the item being spliced out
+    for span in items.iter_mut() {
+        while span.1 > span.0 + 1 {
+            let line = lines[span.1 - 1].trim();
+            if line.is_empty() || line.starts_with('#') {
+                span.1 -= 1;
+            } else {
+                break;
+            }
+        }
+    }
+    let insert_at = items.last().map(|s| s.1).unwrap_or(key_line + 1);
+    Some(SectionSpan {
+        insert_at,
+        items,
+        indent: indent.unwrap_or_else(|| "  ".into()),
+    })
+}
+
+/// Serializes one list item, indented to match the section.
+fn to_item_block<T: serde::Serialize>(value: &T, indent: &str) -> Result<String> {
+    let yaml = serde_yaml::to_string(&[value])?;
+    let mut out = String::new();
+    for line in yaml.lines() {
+        if line.is_empty() {
+            out.push('\n');
+        } else {
+            out.push_str(indent);
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    Ok(out)
+}
+
+/// Splices one list item in `file` under `key`: append (`at` None),
+/// replace, or delete (replacement None). Only the touched lines
+/// change; everything else, comments included, stays byte-identical.
+/// The result is re-parsed with `check` before anything is written.
+fn splice_item<T: serde::Serialize>(
+    config_dir: &Path,
+    file: &str,
+    key: &str,
+    at: Option<usize>,
+    replacement: Option<&T>,
+    check: impl Fn(&str) -> Option<String>,
+) -> Result<()> {
+    let path = config_dir.join(file);
+    let mut raw = fs::read_to_string(&path).unwrap_or_default();
+    if raw.trim().is_empty() {
+        raw = format!("{key}:\n");
+    }
+    // normalize a bare `key: []` so items can be spliced under it
+    let normalized: String;
+    {
+        let lines: Vec<&str> = raw.lines().collect();
+        if scan_section(&lines, key).is_none() {
+            let empty_flow = format!("{key}: []");
+            if lines.iter().any(|l| l.trim_end() == empty_flow) {
+                normalized = raw.replace(&empty_flow, &format!("{key}:"));
+                raw = normalized;
+            } else if !lines.iter().any(|l| l.starts_with(&format!("{key}:"))) {
+                if !raw.ends_with('\n') {
+                    raw.push('\n');
+                }
+                raw.push_str(&format!("{key}:\n"));
+            }
+        }
+    }
+    let lines: Vec<&str> = raw.lines().collect();
+    let section = scan_section(&lines, key).ok_or_else(|| {
+        crate::error::Error::State(format!(
+            "cannot edit {file}: the {key} section uses a layout the app \
+             cannot splice; edit the file in Notes instead"
+        ))
+    })?;
+    let mut new_lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+    match at {
+        None => {
+            let block = to_item_block(replacement.expect("append needs a value"), &section.indent)?;
+            let insert: Vec<String> = block.lines().map(str::to_string).collect();
+            new_lines.splice(section.insert_at..section.insert_at, insert);
+        }
+        Some(index) => {
+            let span = *section.items.get(index).ok_or_else(|| {
+                crate::error::Error::State(format!(
+                    "item {} not found in {file} (edited externally?)",
+                    index + 1
+                ))
+            })?;
+            let insert: Vec<String> = match replacement {
+                Some(value) => to_item_block(value, &section.indent)?
+                    .lines()
+                    .map(str::to_string)
+                    .collect(),
+                None => Vec::new(),
+            };
+            new_lines.splice(span.0..span.1, insert);
+        }
+    }
+    let mut content = new_lines.join("\n");
+    content.push('\n');
+    if let Some(problem) = check(&content) {
+        return Err(crate::error::Error::State(format!(
+            "refusing to write {file}: {problem}"
+        )));
+    }
+    crate::vault::write_atomic(&path, &content)?;
+    Ok(())
+}
+
+fn check_recurring(content: &str) -> Option<String> {
+    serde_yaml::from_str::<RecurringFile>(content)
+        .err()
+        .map(|e| e.to_string())
+}
+
+fn check_scheduled(content: &str) -> Option<String> {
+    serde_yaml::from_str::<ScheduledFile>(content)
+        .err()
+        .map(|e| e.to_string())
+}
+
+fn check_birthdays(content: &str) -> Option<String> {
+    serde_yaml::from_str::<BirthdaysFile>(content)
+        .err()
+        .map(|e| e.to_string())
+}
+
 pub fn append_recurring(config_dir: &Path, mut rule: RecurringRule) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "recurring.yml is invalid, fix it before adding rules: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
     Cron::new(&rule.schedule).parse().map_err(|e| {
         crate::error::Error::State(format!("invalid cron '{}': {e}", rule.schedule))
     })?;
@@ -130,55 +375,47 @@ pub fn append_recurring(config_dir: &Path, mut rule: RecurringRule) -> Result<()
             "a recurring rule needs at least one item".into(),
         ));
     }
-    file.tasks.push(rule);
-    let yaml = serde_yaml::to_string(&RecurFileOut { tasks: file.tasks })?;
-    crate::vault::write_atomic(&config_dir.join("recurring.yml"), &yaml)?;
-    Ok(())
+    splice_item(
+        config_dir,
+        "recurring.yml",
+        "tasks",
+        None,
+        Some(&rule),
+        check_recurring,
+    )
 }
 
-/// Quick-add write-back (req. 21-22). Note: saving reformats the file
-/// and drops YAML comments; the file remains the source of truth.
+/// Quick-add write-back (req. 21-22). Items are spliced in as text, so
+/// the rest of the file - comments and blank lines included - is
+/// preserved as-is.
 pub fn append_scheduled(config_dir: &Path, event: ScheduledEvent) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "scheduled.yml is invalid, fix it before adding events: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
     NaiveDate::parse_from_str(&event.date, "%Y-%m-%d")
         .map_err(|_| crate::error::Error::State(format!("invalid date: {}", event.date)))?;
-    file.events.push(event);
-    file.events.sort_by(|a, b| a.date.cmp(&b.date));
-    let yaml = serde_yaml::to_string(&SchedFileOut {
-        events: file.events,
-    })?;
-    crate::vault::write_atomic(&config_dir.join("scheduled.yml"), &yaml)?;
-    Ok(())
+    splice_item(
+        config_dir,
+        "scheduled.yml",
+        "events",
+        None,
+        Some(&event),
+        check_scheduled,
+    )
 }
 
 pub fn append_birthday(config_dir: &Path, entry: BirthdayEntry) -> Result<()> {
-    let mut errors = Vec::new();
-    let mut file = load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors)
-        .ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "birthdays.yml is invalid, fix it before adding entries: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
     if parse_mmdd(&entry.date).is_none() {
         return Err(crate::error::Error::State(format!(
             "invalid birthday date '{}', expected MM-DD",
             entry.date
         )));
     }
-    file.birthdays.push(entry);
-    let yaml = serde_yaml::to_string(&BdayFileOut {
-        birthdays: file.birthdays,
-    })?;
-    crate::vault::write_atomic(&config_dir.join("birthdays.yml"), &yaml)?;
-    Ok(())
+    splice_item(
+        config_dir,
+        "birthdays.yml",
+        "birthdays",
+        None,
+        Some(&entry),
+        check_birthdays,
+    )
 }
 
 /// Replaces (or, with `None`, removes) the rule at `index` in file
@@ -190,8 +427,8 @@ pub fn edit_recurring(
     replacement: Option<RecurringRule>,
 ) -> Result<()> {
     let mut errors = Vec::new();
-    let mut file = load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors)
-        .ok_or_else(|| {
+    let file =
+        load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors).ok_or_else(|| {
             crate::error::Error::State(format!(
                 "recurring.yml is invalid, fix it before editing rules: {}",
                 errors.first().map(|e| e.message.as_str()).unwrap_or("")
@@ -214,15 +451,24 @@ pub fn edit_recurring(
                     "a recurring rule needs at least one item".into(),
                 ));
             }
-            file.tasks[index] = rule;
+            splice_item(
+                config_dir,
+                "recurring.yml",
+                "tasks",
+                Some(index),
+                Some(&rule),
+                check_recurring,
+            )
         }
-        None => {
-            file.tasks.remove(index);
-        }
+        None => splice_item::<RecurringRule>(
+            config_dir,
+            "recurring.yml",
+            "tasks",
+            Some(index),
+            None,
+            check_recurring,
+        ),
     }
-    let yaml = serde_yaml::to_string(&RecurFileOut { tasks: file.tasks })?;
-    crate::vault::write_atomic(&config_dir.join("recurring.yml"), &yaml)?;
-    Ok(())
 }
 
 /// Replaces (or, with `None`, removes) the first entry equal to
@@ -234,8 +480,8 @@ pub fn edit_scheduled(
     replacement: Option<ScheduledEvent>,
 ) -> Result<()> {
     let mut errors = Vec::new();
-    let mut file = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors)
-        .ok_or_else(|| {
+    let file =
+        load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors).ok_or_else(|| {
             crate::error::Error::State(format!(
                 "scheduled.yml is invalid, fix it before editing events: {}",
                 errors.first().map(|e| e.message.as_str()).unwrap_or("")
@@ -254,18 +500,24 @@ pub fn edit_scheduled(
         Some(event) => {
             NaiveDate::parse_from_str(&event.date, "%Y-%m-%d")
                 .map_err(|_| crate::error::Error::State(format!("invalid date: {}", event.date)))?;
-            file.events[pos] = event;
+            splice_item(
+                config_dir,
+                "scheduled.yml",
+                "events",
+                Some(pos),
+                Some(&event),
+                check_scheduled,
+            )
         }
-        None => {
-            file.events.remove(pos);
-        }
+        None => splice_item::<ScheduledEvent>(
+            config_dir,
+            "scheduled.yml",
+            "events",
+            Some(pos),
+            None,
+            check_scheduled,
+        ),
     }
-    file.events.sort_by(|a, b| a.date.cmp(&b.date));
-    let yaml = serde_yaml::to_string(&SchedFileOut {
-        events: file.events,
-    })?;
-    crate::vault::write_atomic(&config_dir.join("scheduled.yml"), &yaml)?;
-    Ok(())
 }
 
 pub fn edit_birthday(
@@ -274,8 +526,8 @@ pub fn edit_birthday(
     replacement: Option<BirthdayEntry>,
 ) -> Result<()> {
     let mut errors = Vec::new();
-    let mut file = load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors)
-        .ok_or_else(|| {
+    let file =
+        load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors).ok_or_else(|| {
             crate::error::Error::State(format!(
                 "birthdays.yml is invalid, fix it before editing entries: {}",
                 errors.first().map(|e| e.message.as_str()).unwrap_or("")
@@ -298,17 +550,24 @@ pub fn edit_birthday(
                     entry.date
                 )));
             }
-            file.birthdays[pos] = entry;
+            splice_item(
+                config_dir,
+                "birthdays.yml",
+                "birthdays",
+                Some(pos),
+                Some(&entry),
+                check_birthdays,
+            )
         }
-        None => {
-            file.birthdays.remove(pos);
-        }
+        None => splice_item::<BirthdayEntry>(
+            config_dir,
+            "birthdays.yml",
+            "birthdays",
+            Some(pos),
+            None,
+            check_birthdays,
+        ),
     }
-    let yaml = serde_yaml::to_string(&BdayFileOut {
-        birthdays: file.birthdays,
-    })?;
-    crate::vault::write_atomic(&config_dir.join("birthdays.yml"), &yaml)?;
-    Ok(())
 }
 
 /// Validates the content of a task-config file without writing it.
@@ -322,7 +581,7 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
             message: e.to_string(),
         });
     };
-    if content.trim().is_empty() {
+    if content.trim().is_empty() || file.ends_with(".md") {
         return errors;
     }
     match file {
@@ -383,21 +642,6 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
         }
     }
     errors
-}
-
-#[derive(Serialize)]
-struct RecurFileOut {
-    tasks: Vec<RecurringRule>,
-}
-
-#[derive(Serialize)]
-struct SchedFileOut {
-    events: Vec<ScheduledEvent>,
-}
-
-#[derive(Serialize)]
-struct BdayFileOut {
-    birthdays: Vec<BirthdayEntry>,
 }
 
 #[cfg(test)]
@@ -489,6 +733,78 @@ mod tests {
         assert_eq!(listed.rules[0].schedule, "0 0 * * 1");
         edit_recurring(&dir, 0, None).unwrap();
         assert!(recurring_list(&dir).rules.is_empty());
+    }
+
+    #[test]
+    fn splice_preserves_comments_and_blank_lines() {
+        let dir = dir("splice");
+        let original = "# my rules\n\ntasks:\n  # morning block\n  - schedule: \"0 6 * * *\"\n    description: Morning\n    items:\n      - \"water\"\n\n  - schedule: \"0 0 * * 1\"\n    description: Weekly\n    items:\n      - \"review\"\n";
+        fs::write(dir.join("recurring.yml"), original).unwrap();
+
+        append_recurring(
+            &dir,
+            RecurringRule {
+                schedule: "0 0 1 * *".into(),
+                description: "Monthly".into(),
+                items: vec!["bills".into()],
+            },
+        )
+        .unwrap();
+        let after = fs::read_to_string(dir.join("recurring.yml")).unwrap();
+        assert!(after.starts_with("# my rules\n\ntasks:\n  # morning block\n"));
+        assert!(after.contains("Monthly"));
+
+        // editing the middle rule keeps the header comment and the rest
+        edit_recurring(
+            &dir,
+            1,
+            Some(RecurringRule {
+                schedule: "0 0 * * 2".into(),
+                description: "Tuesdays".into(),
+                items: vec!["review".into()],
+            }),
+        )
+        .unwrap();
+        let after = fs::read_to_string(dir.join("recurring.yml")).unwrap();
+        assert!(after.contains("# my rules"));
+        assert!(after.contains("# morning block"));
+        assert!(after.contains("Tuesdays"));
+        assert!(!after.contains("Weekly"));
+
+        edit_recurring(&dir, 2, None).unwrap();
+        let after = fs::read_to_string(dir.join("recurring.yml")).unwrap();
+        assert!(!after.contains("Monthly"));
+        assert!(after.contains("# morning block"));
+        assert_eq!(recurring_list(&dir).rules.len(), 2);
+    }
+
+    #[test]
+    fn subfolder_yaml_merges_by_top_level_key() {
+        let dir = dir("extras");
+        fs::write(dir.join("recurring.yml"), "tasks: []\n").unwrap();
+        fs::create_dir_all(dir.join("packs")).unwrap();
+        // one pack file may feed several sections at once
+        fs::write(
+            dir.join("packs").join("work.yml"),
+            "tasks:\n  - schedule: \"0 9 * * 1-5\"\n    description: Standup\n    items:\n      - \"standup\"\nevents:\n  - date: 2026-09-10\n    title: \"review\"\n",
+        )
+        .unwrap();
+        fs::write(dir.join("packs").join("notes.txt"), "ignored").unwrap();
+
+        let mut errors = Vec::new();
+        let tasks = load_extras::<RecurringFile>(&dir, "tasks", &mut errors);
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].0, "packs/work.yml");
+        assert_eq!(tasks[0].1.tasks[0].description, "Standup");
+        let events = load_extras::<ScheduledFile>(&dir, "events", &mut errors);
+        assert_eq!(events.len(), 1);
+        let bdays = load_extras::<BirthdaysFile>(&dir, "birthdays", &mut errors);
+        assert!(bdays.is_empty());
+        assert!(errors.is_empty());
+
+        let listed = recurring_list(&dir);
+        assert_eq!(listed.rules.len(), 1);
+        assert_eq!(listed.rules[0].source, "packs/work.yml");
     }
 
     #[test]

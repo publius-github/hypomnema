@@ -106,6 +106,22 @@ export default function Settings() {
           </select>
         </Field>
 
+        <Field label="List columns visible in the bottom zone">
+          <select
+            className="input"
+            value={config.list_columns}
+            onChange={(e) =>
+              void updateConfig({ list_columns: Number(e.target.value) })
+            }
+          >
+            {[1, 2, 3, 4, 5, 6, 8].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </Field>
+
         <Field label="Dashboard split: day grid height, % (also draggable on the dashboard)">
           <NumberInput
             value={config.dashboard_split}
@@ -310,13 +326,39 @@ export default function Settings() {
 
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Journal template</span>
+          <p className="text-xs text-content-muted">
+            The template for new journal entries lives in
+            config/journal-template.md.
+          </p>
           <button
             className="btn-ghost w-fit px-3 py-1 text-xs"
-            onClick={() => useAppStore.getState().setSection("journal")}
+            onClick={() =>
+              useAppStore.getState().openConfigFile("journal-template.md")
+            }
           >
-            Edit in Journal
+            Edit in Notes
           </button>
         </section>
+
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={config.kb_line_numbers}
+            onChange={(e) =>
+              void updateConfig({ kb_line_numbers: e.target.checked })
+            }
+          />
+          <span className="flex flex-col">
+            <span className="text-sm font-medium">
+              Line numbers in the Notes editor
+            </span>
+            <span className="text-xs text-content-muted">
+              Config files always show them; this turns them on for notes
+              too.
+            </span>
+          </span>
+        </label>
 
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Config files</span>

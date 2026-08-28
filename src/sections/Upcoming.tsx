@@ -92,6 +92,8 @@ export default function Upcoming() {
   );
 }
 
+type EventFields = { date: string; title: string; time: string | null };
+
 function ScheduledTab({
   events,
   onWrite,
@@ -124,19 +126,28 @@ function ScheduledTab({
     }
   };
 
+  const fieldsOf = (e: UpcomingEvent): EventFields => ({
+    date: e.date,
+    title: e.title,
+    time: e.time,
+  });
+
   const remove = async (event: UpcomingEvent) => {
     setConfirmDelete(null);
     try {
-      await invoke("scheduled_edit", { original: event, replacement: null });
+      await invoke("scheduled_edit", {
+        original: fieldsOf(event),
+        replacement: null,
+      });
       await onWrite();
     } catch (err) {
       setError(err);
     }
   };
 
-  const save = async (original: UpcomingEvent, replacement: UpcomingEvent) => {
+  const save = async (original: UpcomingEvent, replacement: EventFields) => {
     try {
-      await invoke("scheduled_edit", { original, replacement });
+      await invoke("scheduled_edit", { original: fieldsOf(original), replacement });
       setEditing(null);
       await onWrite();
     } catch (err) {
@@ -177,8 +188,9 @@ function ScheduledTab({
             week grid, then become normal tasks.
           </p>
         )}
-        {events.map((event, i) =>
-          editing === i ? (
+        {events.map((event, i) => {
+          const editable = event.source === "scheduled.yml";
+          return editing === i ? (
             <EventEditRow
               key={`edit-${i}`}
               event={event}
@@ -188,9 +200,13 @@ function ScheduledTab({
           ) : (
             <div
               key={`${event.date}-${event.title}-${i}`}
-              className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
-              title="Click to edit"
-              onClick={() => setEditing(i)}
+              className={`group flex items-center gap-3 border-b border-line py-2 text-sm ${
+                editable ? "cursor-pointer hover:bg-line/20" : ""
+              }`}
+              title={
+                editable ? "Click to edit" : `Read-only: from ${event.source}`
+              }
+              onClick={() => editable && setEditing(i)}
             >
               <span className="w-24 shrink-0 font-mono text-content-muted">
                 {event.date}
@@ -201,15 +217,22 @@ function ScheduledTab({
                   {event.time}
                 </span>
               )}
-              <DeleteRowButton
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(event);
-                }}
-              />
+              {!editable && (
+                <span className="max-w-[140px] truncate rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                  {event.source}
+                </span>
+              )}
+              {editable && (
+                <DeleteRowButton
+                  onDelete={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(event);
+                  }}
+                />
+              )}
             </div>
-          ),
-        )}
+          );
+        })}
       </div>
       {confirmDelete && (
         <ConfirmModal
@@ -228,7 +251,7 @@ function EventEditRow({
   onCancel,
 }: {
   event: UpcomingEvent;
-  onSave: (replacement: UpcomingEvent) => void;
+  onSave: (replacement: EventFields) => void;
   onCancel: () => void;
 }) {
   const [date, setDate] = useState(event.date);
@@ -368,8 +391,9 @@ function BirthdaysTab({
             the Birthdays list.
           </p>
         )}
-        {birthdays.map((b, i) =>
-          editing === i ? (
+        {birthdays.map((b, i) => {
+          const editable = b.source === "birthdays.yml";
+          return editing === i ? (
             <BirthdayEditRow
               key={`edit-${i}`}
               birthday={b}
@@ -379,9 +403,11 @@ function BirthdaysTab({
           ) : (
             <div
               key={`${b.name}-${i}`}
-              className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
-              title="Click to edit"
-              onClick={() => setEditing(i)}
+              className={`group flex items-center gap-3 border-b border-line py-2 text-sm ${
+                editable ? "cursor-pointer hover:bg-line/20" : ""
+              }`}
+              title={editable ? "Click to edit" : `Read-only: from ${b.source}`}
+              onClick={() => editable && setEditing(i)}
             >
               <span className="w-24 shrink-0 font-mono text-content-muted">
                 {b.next_occurrence}
@@ -395,15 +421,22 @@ function BirthdaysTab({
               <span className="text-xs text-content-muted">
                 {b.days_until === 0 ? "today" : `in ${b.days_until}d`}
               </span>
-              <DeleteRowButton
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(b);
-                }}
-              />
+              {!editable && (
+                <span className="max-w-[140px] truncate rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                  {b.source}
+                </span>
+              )}
+              {editable && (
+                <DeleteRowButton
+                  onDelete={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(b);
+                  }}
+                />
+              )}
             </div>
-          ),
-        )}
+          );
+        })}
       </div>
       {confirmDelete && (
         <ConfirmModal

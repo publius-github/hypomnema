@@ -26,6 +26,11 @@ pub struct AppConfig {
     pub section_order: Vec<String>,
     /// Dashboard shows a single Today column instead of the week grid.
     pub dashboard_today_only: bool,
+    /// How many list columns are visible at once in the dashboard list
+    /// zone; the rest are paged with the arrows.
+    pub list_columns: u32,
+    /// Show line numbers in the Notes editor (config files always do).
+    pub kb_line_numbers: bool,
     /// Hide daily-cadence tasks on future day columns - they repeat
     /// every day anyway and only clutter the look-ahead.
     pub daily_tasks_today_only: bool,
@@ -56,6 +61,8 @@ impl Default for AppConfig {
             journal_template: "journal/templates/daily.md".into(),
             section_order: SECTIONS.iter().map(|s| s.to_string()).collect(),
             dashboard_today_only: false,
+            list_columns: 4,
+            kb_line_numbers: false,
             daily_tasks_today_only: false,
             dashboard_split: 60,
             calendar_daily_days: 3,
@@ -104,6 +111,7 @@ impl AppConfig {
             self.done_display = "inline".into();
         }
         self.dashboard_split = self.dashboard_split.clamp(20, 80);
+        self.list_columns = self.list_columns.clamp(1, 12);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -149,6 +157,8 @@ impl AppConfig {
                 "dashboard_today_only",
                 self.dashboard_today_only.to_string(),
             ),
+            ("list_columns", self.list_columns.to_string()),
+            ("kb_line_numbers", self.kb_line_numbers.to_string()),
             (
                 "daily_tasks_today_only",
                 self.daily_tasks_today_only.to_string(),

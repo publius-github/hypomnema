@@ -83,19 +83,6 @@ export default function Journal() {
     [flushPending, loadDates, setError],
   );
 
-  const openTemplate = useCallback(async () => {
-    const seq = ++openSeq.current;
-    await flushPending();
-    try {
-      const content = await invoke<string>("journal_template_get");
-      if (seq !== openSeq.current) return;
-      setDoc({ kind: "template", date: "template", content });
-      setSaved(true);
-    } catch (e) {
-      setError(e);
-    }
-  }, [flushPending, setError]);
-
   useEffect(() => {
     void openEntry(todayISO());
     // open Today once on mount
@@ -131,12 +118,6 @@ export default function Journal() {
             onClick={() => void openEntry(today)}
           >
             Today
-          </button>
-          <button
-            className="rounded-md px-3 py-1.5 text-left text-sm text-content-muted hover:bg-line/40 hover:text-content"
-            onClick={() => void openTemplate()}
-          >
-            Edit template
           </button>
           <input
             type="date"

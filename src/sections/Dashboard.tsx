@@ -28,6 +28,8 @@ export default function Dashboard() {
   // the snapshot; the modal must survive that (and keep unsaved edits),
   // so fall back to fetching the task by id.
   const [fetchedTask, setFetchedTask] = useState<Task | null>(null);
+  // first visible list in the paged list zone
+  const [listOffset, setListOffset] = useState(0);
   // live value while dragging the grid/lists divider; null = use config
   const [splitDraft, setSplitDraft] = useState<number | null>(null);
   const zonesRef = useRef<HTMLDivElement | null>(null);
@@ -239,35 +241,13 @@ export default function Dashboard() {
             <div className="h-px w-full bg-line group-hover:bg-accent/60" />
           </div>
 
-          <div
-            className="flex min-h-0 gap-3 overflow-x-auto pt-1"
-            style={{
-              flex: `${100 - (splitDraft ?? config.dashboard_split)} 1 0px`,
-            }}
-          >
-          {lists
-            // engine-created lists ({List} prefixes, Birthdays) only
-            // group tasks inside day columns; they earn a backlog
-            // column only when something unscheduled lands in them
-            .filter(
-              (list) =>
-                !list.auto ||
-                tasks.some(
-                  (t) =>
-                    t.list_id === list.id &&
-                    !t.scheduled_date &&
-                    t.parent_task_id === null,
-                ),
-            )
-            .map((list) => (
-              <ListColumn
-                key={list.id}
-                list={list}
-                onOpenTask={setEditingTaskId}
-              />
-            ))}
-            <NewListForm />
-          </div>
+          <ListZone
+            split={splitDraft ?? config.dashboard_split}
+            perPage={config.list_columns}
+            offset={listOffset}
+            setOffset={setListOffset}
+            onOpenTask={setEditingTaskId}
+          />
         </div>
       </div>
 
@@ -279,5 +259,74 @@ export default function Dashboard() {
         <TaskModal task={editingTask} onClose={() => setEditingTaskId(null)} />
       )}
     </DndContext>
+  );
+}
+
+/**
+ * The bottom list zone: shows `perPage` list columns stretched to the
+ * full width, the rest are paged with the edge arrows.
+ */
+function ListZone({
+  split,
+  perPage,
+  offset,
+  setOffset,
+  onOpenTask,
+}: {
+  split: number;
+  perPage: number;
+  offset: number;
+  setOffset: (n: number) => void;
+  onOpenTask: (id: number) => void;
+}) {
+  const lists = useAppStore((s) => s.lists);
+  const tasks = useAppStore((s) => s.tasks);
+  // engine-created lists ({List} prefixes, Birthdays) only group tasks
+  // inside day columns; they earn a backlog column only when something
+  // unscheduled lands in them
+  const visible = lists.filter(
+    (list) =>
+      !list.auto ||
+      tasks.some(
+        (t) =>
+          t.list_id === list.id &&
+          !t.scheduled_date &&
+          t.parent_task_id === null,
+      ),
+  );
+  const maxOffset = Math.max(0, visible.length - perPage);
+  const off = Math.min(offset, maxOffset);
+  const page = visible.slice(off, off + perPage);
+
+  const arrow = (delta: number, disabled: boolean, label: string) => (
+    <button
+      className="btn-ghost self-stretch px-1 text-lg leading-none disabled:opacity-20"
+      title={label}
+      disabled={disabled}
+      onClick={() => setOffset(Math.max(0, Math.min(maxOffset, off + delta)))}
+    >
+      {delta < 0 ? "‹" : "›"}
+    </button>
+  );
+
+  return (
+    <div
+      className="flex min-h-0 items-stretch gap-2 pt-1"
+      style={{ flex: `${100 - split} 1 0px` }}
+    >
+      {visible.length > perPage && arrow(-1, off === 0, "Previous lists")}
+      <div
+        className="grid min-h-0 min-w-0 flex-1 gap-3"
+        style={{
+          gridTemplateColumns: `repeat(${Math.max(page.length, 1)}, minmax(0, 1fr))`,
+        }}
+      >
+        {page.map((list) => (
+          <ListColumn key={list.id} list={list} onOpenTask={onOpenTask} />
+        ))}
+      </div>
+      {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
+      <NewListForm />
+    </div>
   );
 }

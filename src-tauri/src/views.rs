@@ -11,23 +11,42 @@ use ts_rs::TS;
 
 use crate::config::AppConfig;
 use crate::config_files::{
-    load_yaml, parse_mmdd, BirthdaysFile, ConfigError, RecurringFile, RecurringRule,
-    ScheduledEvent, ScheduledFile,
+    load_extras, load_yaml, parse_mmdd, BirthdaysFile, ConfigError, RecurringFile, ScheduledFile,
 };
 use crate::engine::{cadence_of, parse_item, scheduled_rule_key};
 use crate::error::Result;
 
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
+pub struct RecurringRuleView {
+    pub schedule: String,
+    pub description: String,
+    pub items: Vec<String>,
+    /// file the rule lives in, relative to config/; only rules from the
+    /// root recurring.yml are editable through the UI
+    pub source: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct RecurringResult {
-    pub rules: Vec<RecurringRule>,
+    pub rules: Vec<RecurringRuleView>,
     pub errors: Vec<ConfigError>,
 }
 
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
+pub struct UpcomingEventView {
+    pub date: String,
+    pub title: String,
+    pub time: Option<String>,
+    pub source: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct UpcomingResult {
-    pub events: Vec<ScheduledEvent>,
+    pub events: Vec<UpcomingEventView>,
     pub errors: Vec<ConfigError>,
 }
 
@@ -41,6 +60,7 @@ pub struct BirthdayView {
     #[ts(type = "number")]
     pub days_until: i64,
     pub turns: Option<i32>,
+    pub source: String,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -55,21 +75,34 @@ pub struct BirthdaysResult {
 pub fn upcoming_events(
     conn: &Connection,
     config_dir: &Path,
-) -> Result<(Vec<ScheduledEvent>, Vec<ConfigError>)> {
+) -> Result<(Vec<UpcomingEventView>, Vec<ConfigError>)> {
     let mut errors = Vec::new();
-    let Some(file) = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors) else {
+    let Some(root) = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors) else {
         return Ok((vec![], errors));
     };
+    let mut sources: Vec<(String, ScheduledFile)> = vec![("scheduled.yml".into(), root)];
+    sources.extend(load_extras::<ScheduledFile>(
+        config_dir,
+        "events",
+        &mut errors,
+    ));
     let mut pending = Vec::new();
-    for event in file.events {
-        let rule_key = scheduled_rule_key(&event);
-        let materialized: bool = conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM rule_runs WHERE rule_key = ?1 AND period_key = ?2)",
-            (&rule_key, &event.date),
-            |row| row.get(0),
-        )?;
-        if !materialized {
-            pending.push(event);
+    for (source, file) in sources {
+        for event in file.events {
+            let rule_key = scheduled_rule_key(&event);
+            let materialized: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM rule_runs WHERE rule_key = ?1 AND period_key = ?2)",
+                (&rule_key, &event.date),
+                |row| row.get(0),
+            )?;
+            if !materialized {
+                pending.push(UpcomingEventView {
+                    date: event.date,
+                    title: event.title,
+                    time: event.time,
+                    source: source.clone(),
+                });
+            }
         }
     }
     pending.sort_by(|a, b| a.date.cmp(&b.date));
@@ -95,28 +128,37 @@ fn next_birthday_occurrence(month: u32, day: u32, today: NaiveDate) -> Option<Na
 /// All birthday entries with their next occurrence, sorted by it.
 pub fn birthdays_list(config_dir: &Path, today: NaiveDate) -> BirthdaysResult {
     let mut errors = Vec::new();
-    let file =
+    let root =
         load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors).unwrap_or_default();
+    let mut sources: Vec<(String, BirthdaysFile)> = vec![("birthdays.yml".into(), root)];
+    sources.extend(load_extras::<BirthdaysFile>(
+        config_dir,
+        "birthdays",
+        &mut errors,
+    ));
     let mut birthdays = Vec::new();
-    for entry in file.birthdays {
-        let occurrence =
-            parse_mmdd(&entry.date).and_then(|(m, d)| next_birthday_occurrence(m, d, today));
-        let Some(occurrence) = occurrence else {
-            errors.push(ConfigError {
-                file: "birthdays.yml".into(),
-                line: None,
-                message: format!("entry '{}': invalid date '{}'", entry.name, entry.date),
+    for (source, file) in sources {
+        for entry in file.birthdays {
+            let occurrence =
+                parse_mmdd(&entry.date).and_then(|(m, d)| next_birthday_occurrence(m, d, today));
+            let Some(occurrence) = occurrence else {
+                errors.push(ConfigError {
+                    file: source.clone(),
+                    line: None,
+                    message: format!("entry '{}': invalid date '{}'", entry.name, entry.date),
+                });
+                continue;
+            };
+            birthdays.push(BirthdayView {
+                turns: entry.year.map(|y| occurrence.year() - y),
+                next_occurrence: occurrence.format("%Y-%m-%d").to_string(),
+                days_until: (occurrence - today).num_days(),
+                name: entry.name,
+                date: entry.date,
+                year: entry.year,
+                source: source.clone(),
             });
-            continue;
-        };
-        birthdays.push(BirthdayView {
-            turns: entry.year.map(|y| occurrence.year() - y),
-            next_occurrence: occurrence.format("%Y-%m-%d").to_string(),
-            days_until: (occurrence - today).num_days(),
-            name: entry.name,
-            date: entry.date,
-            year: entry.year,
-        });
+        }
     }
     birthdays.sort_by(|a, b| a.next_occurrence.cmp(&b.next_occurrence));
     BirthdaysResult { birthdays, errors }
@@ -153,8 +195,17 @@ pub fn calendar_outlook(
     let mut events = Vec::new();
     let mut errors = Vec::new();
 
-    if let Some(file) = load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors) {
-        for rule in &file.tasks {
+    let mut recurring: Vec<(String, RecurringFile)> = Vec::new();
+    if let Some(root) = load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors) {
+        recurring.push(("recurring.yml".into(), root));
+    }
+    recurring.extend(load_extras::<RecurringFile>(
+        config_dir,
+        "tasks",
+        &mut errors,
+    ));
+    {
+        for rule in recurring.iter().flat_map(|(_, f)| f.tasks.iter()) {
             let Ok(cron) = Cron::new(&rule.schedule).parse() else {
                 continue;
             };
@@ -193,8 +244,17 @@ pub fn calendar_outlook(
     }
 
     let dates_cap = add_months(config.calendar_dates_years * 12);
-    if let Some(file) = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors) {
-        for event in &file.events {
+    let mut scheduled: Vec<(String, ScheduledFile)> = Vec::new();
+    if let Some(root) = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors) {
+        scheduled.push(("scheduled.yml".into(), root));
+    }
+    scheduled.extend(load_extras::<ScheduledFile>(
+        config_dir,
+        "events",
+        &mut errors,
+    ));
+    {
+        for event in scheduled.iter().flat_map(|(_, f)| f.events.iter()) {
             let Ok(date) = NaiveDate::parse_from_str(&event.date, "%Y-%m-%d") else {
                 continue;
             };
@@ -209,8 +269,17 @@ pub fn calendar_outlook(
         }
     }
 
-    if let Some(file) = load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors) {
-        for entry in &file.birthdays {
+    let mut bdays: Vec<(String, BirthdaysFile)> = Vec::new();
+    if let Some(root) = load_yaml::<BirthdaysFile>(config_dir, "birthdays.yml", &mut errors) {
+        bdays.push(("birthdays.yml".into(), root));
+    }
+    bdays.extend(load_extras::<BirthdaysFile>(
+        config_dir,
+        "birthdays",
+        &mut errors,
+    ));
+    {
+        for entry in bdays.iter().flat_map(|(_, f)| f.birthdays.iter()) {
             let Some((month, day)) = parse_mmdd(&entry.date) else {
                 continue;
             };
@@ -250,26 +319,38 @@ pub fn calendar_outlook(
 /// Recurring view shows broken rules next to working ones.
 pub fn recurring_list(config_dir: &Path) -> RecurringResult {
     let mut errors = Vec::new();
-    let file =
+    let root =
         load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors).unwrap_or_default();
-    for (index, rule) in file.tasks.iter().enumerate() {
-        if let Err(e) = Cron::new(&rule.schedule).parse() {
-            errors.push(ConfigError {
-                file: "recurring.yml".into(),
-                line: None,
-                message: format!(
-                    "rule {} ('{}'): invalid cron '{}': {e}",
-                    index + 1,
-                    rule.description,
-                    rule.schedule
-                ),
+    let mut sources: Vec<(String, RecurringFile)> = vec![("recurring.yml".into(), root)];
+    sources.extend(load_extras::<RecurringFile>(
+        config_dir,
+        "tasks",
+        &mut errors,
+    ));
+    let mut rules = Vec::new();
+    for (source, file) in sources {
+        for (index, rule) in file.tasks.into_iter().enumerate() {
+            if let Err(e) = Cron::new(&rule.schedule).parse() {
+                errors.push(ConfigError {
+                    file: source.clone(),
+                    line: None,
+                    message: format!(
+                        "rule {} ('{}'): invalid cron '{}': {e}",
+                        index + 1,
+                        rule.description,
+                        rule.schedule
+                    ),
+                });
+            }
+            rules.push(RecurringRuleView {
+                schedule: rule.schedule,
+                description: rule.description,
+                items: rule.items,
+                source: source.clone(),
             });
         }
     }
-    RecurringResult {
-        rules: file.tasks,
-        errors,
-    }
+    RecurringResult { rules, errors }
 }
 
 #[cfg(test)]

@@ -15,6 +15,15 @@ section_order: Array<string>,
  */
 dashboard_today_only: boolean, 
 /**
+ * How many list columns are visible at once in the dashboard list
+ * zone; the rest are paged with the arrows.
+ */
+list_columns: number, 
+/**
+ * Show line numbers in the Notes editor (config files always do).
+ */
+kb_line_numbers: boolean, 
+/**
  * Hide daily-cadence tasks on future day columns - they repeat
  * every day anyway and only clutter the look-ahead.
  */

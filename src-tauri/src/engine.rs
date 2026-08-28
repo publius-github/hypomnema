@@ -12,7 +12,7 @@ use ts_rs::TS;
 
 use crate::config::AppConfig;
 use crate::config_files::{
-    load_yaml, parse_mmdd, BirthdaysFile, ConfigError, RecurringFile, RecurringRule,
+    load_extras, load_yaml, parse_mmdd, BirthdaysFile, ConfigError, RecurringFile, RecurringRule,
     ScheduledEvent, ScheduledFile,
 };
 use crate::error::Result;
@@ -196,23 +196,43 @@ fn run_recurring(
     // nothing, reconcile nothing. An explicit `tasks: []` still counts
     // as intentionally empty and reconciles.
     let path = dir.join("recurring.yml");
+    let mut root_transient = false;
     match std::fs::read_to_string(&path) {
         Ok(raw) => {
-            let effectively_empty = raw.lines().all(|line| {
+            root_transient = raw.lines().all(|line| {
                 let trimmed = line.trim();
                 trimmed.is_empty() || trimmed.starts_with('#')
             });
-            if effectively_empty {
-                return Ok(());
-            }
         }
-        Err(_) if !path.exists() => return Ok(()),
+        Err(_) if !path.exists() => root_transient = true,
         // exists but unreadable: fall through, load_yaml reports it
         Err(_) => {}
     }
-    let Some(file) = load_yaml::<RecurringFile>(dir, "recurring.yml", &mut outcome.errors) else {
-        return Ok(());
+    let root = if root_transient {
+        RecurringFile::default()
+    } else {
+        match load_yaml::<RecurringFile>(dir, "recurring.yml", &mut outcome.errors) {
+            Some(file) => file,
+            // broken root: keep the last valid state untouched
+            None => return Ok(()),
+        }
     };
+    // subfolder YAML packs with a tasks: section merge in after the root
+    let mut sources: Vec<(String, RecurringFile)> = vec![("recurring.yml".into(), root)];
+    sources.extend(load_extras::<RecurringFile>(
+        dir,
+        "tasks",
+        &mut outcome.errors,
+    ));
+    let rules: Vec<(&str, usize, &RecurringRule)> = sources
+        .iter()
+        .flat_map(|(source, file)| {
+            file.tasks
+                .iter()
+                .enumerate()
+                .map(move |(index, rule)| (source.as_str(), index, rule))
+        })
+        .collect();
     let today = now.date_naive();
     let exact_start = now - Duration::days(i64::from(config.catchup_days));
     let window_start = if config.cron_ignore_time {
@@ -228,12 +248,13 @@ fn run_recurring(
     } else {
         exact_start
     };
-    for (index, rule) in file.tasks.iter().enumerate() {
+    for (source, index, rule) in &rules {
+        let (source, index, rule) = (*source, *index, *rule);
         let cron = match Cron::new(&rule.schedule).parse() {
             Ok(cron) => cron,
             Err(e) => {
                 outcome.errors.push(ConfigError {
-                    file: "recurring.yml".into(),
+                    file: source.into(),
                     line: None,
                     message: format!(
                         "rule {} ('{}'): invalid cron '{}': {e}",
@@ -271,7 +292,7 @@ fn run_recurring(
                 // so, or the rule silently under-generates.
                 Err(e) => {
                     outcome.errors.push(ConfigError {
-                        file: "recurring.yml".into(),
+                        file: source.into(),
                         line: None,
                         message: format!(
                             "rule {} ('{}'): cron '{}' enumeration failed: {e}",
@@ -286,7 +307,7 @@ fn run_recurring(
         }
         if overflow {
             outcome.errors.push(ConfigError {
-                file: "recurring.yml".into(),
+                file: source.into(),
                 line: None,
                 message: format!(
                     "rule {} ('{}'): cron '{}' fires more than {MAX_FIRINGS} times \
@@ -374,9 +395,14 @@ fn run_recurring(
     // Today's and past instances (incl. overdue carry-overs) stay,
     // and a broken file never reaches this point, so the last valid
     // state is preserved.
-    let active: std::collections::HashSet<String> = file
-        .tasks
+    if root_transient {
+        // reconciling against a momentarily empty/missing root file
+        // would wipe its rules' future tasks and rule_seen entries
+        return Ok(());
+    }
+    let active: std::collections::HashSet<String> = sources
         .iter()
+        .flat_map(|(_, file)| file.tasks.iter())
         .flat_map(|rule| rule.items.iter().map(|item| recurring_rule_key(rule, item)))
         .collect();
     let today_str = today.format("%Y-%m-%d").to_string();
@@ -448,13 +474,28 @@ fn run_scheduled(
     now: DateTime<Local>,
     outcome: &mut EngineOutcome,
 ) -> Result<()> {
-    let Some(file) = load_yaml::<ScheduledFile>(dir, "scheduled.yml", &mut outcome.errors) else {
+    let Some(root) = load_yaml::<ScheduledFile>(dir, "scheduled.yml", &mut outcome.errors) else {
         return Ok(());
     };
-    for (index, event) in file.events.iter().enumerate() {
+    let mut sources: Vec<(String, ScheduledFile)> = vec![("scheduled.yml".into(), root)];
+    sources.extend(load_extras::<ScheduledFile>(
+        dir,
+        "events",
+        &mut outcome.errors,
+    ));
+    let events: Vec<(&str, usize, &ScheduledEvent)> = sources
+        .iter()
+        .flat_map(|(source, file)| {
+            file.events
+                .iter()
+                .enumerate()
+                .map(move |(index, event)| (source.as_str(), index, event))
+        })
+        .collect();
+    for (source, index, event) in events {
         let Ok(date) = NaiveDate::parse_from_str(&event.date, "%Y-%m-%d") else {
             outcome.errors.push(ConfigError {
-                file: "scheduled.yml".into(),
+                file: source.into(),
                 line: None,
                 message: format!(
                     "event {} ('{}'): invalid date '{}', expected YYYY-MM-DD",
@@ -496,15 +537,30 @@ fn run_birthdays(
     now: DateTime<Local>,
     outcome: &mut EngineOutcome,
 ) -> Result<()> {
-    let Some(file) = load_yaml::<BirthdaysFile>(dir, "birthdays.yml", &mut outcome.errors) else {
+    let Some(root) = load_yaml::<BirthdaysFile>(dir, "birthdays.yml", &mut outcome.errors) else {
         return Ok(());
     };
+    let mut sources: Vec<(String, BirthdaysFile)> = vec![("birthdays.yml".into(), root)];
+    sources.extend(load_extras::<BirthdaysFile>(
+        dir,
+        "birthdays",
+        &mut outcome.errors,
+    ));
     let today = now.date_naive();
     let window_start = today - Duration::days(i64::from(catchup_days));
-    for (index, entry) in file.birthdays.iter().enumerate() {
+    let entries: Vec<(&str, usize, &crate::config_files::BirthdayEntry)> = sources
+        .iter()
+        .flat_map(|(source, file)| {
+            file.birthdays
+                .iter()
+                .enumerate()
+                .map(move |(index, entry)| (source.as_str(), index, entry))
+        })
+        .collect();
+    for (source, index, entry) in entries {
         let Some((month, day)) = parse_mmdd(&entry.date) else {
             outcome.errors.push(ConfigError {
-                file: "birthdays.yml".into(),
+                file: source.into(),
                 line: None,
                 message: format!(
                     "entry {} ('{}'): invalid date '{}', expected MM-DD",
@@ -528,7 +584,7 @@ fn run_birthdays(
             });
             let Some(occurrence) = occurrence else {
                 outcome.errors.push(ConfigError {
-                    file: "birthdays.yml".into(),
+                    file: source.into(),
                     line: None,
                     message: format!(
                         "entry {} ('{}'): invalid date '{}'",
@@ -678,6 +734,10 @@ pub fn run(
         [&ledger_cutoff],
     )?;
     tx.commit()?;
+    let mut seen_errors = std::collections::HashSet::new();
+    outcome
+        .errors
+        .retain(|e| seen_errors.insert((e.file.clone(), e.line, e.message.clone())));
     Ok(outcome)
 }
 
@@ -1275,6 +1335,48 @@ mod tests {
         run(&conn, &dir, &cfg, at("2026-08-20", "12:00:00")).unwrap();
         let outcome = run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(outcome.generated, 7);
+    }
+
+    #[test]
+    fn subfolder_pack_generates_and_reconciles_independently() {
+        let (conn, dir) = setup("packs");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"root task\"\n",
+        )
+        .unwrap();
+        fs::create_dir_all(dir.join("packs")).unwrap();
+        fs::write(
+            dir.join("packs").join("extra.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"pack task\"\n",
+        )
+        .unwrap();
+        let cfg = config(1, 3, 0);
+        let now = at("2026-08-28", "12:00:00");
+        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(outcome.generated, 6);
+
+        // removing the pack file reconciles its future tasks away while
+        // the root rule keeps everything
+        fs::remove_file(dir.join("packs").join("extra.yml")).unwrap();
+        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(outcome.removed, 2);
+        let pack_left: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE title = 'pack task'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(pack_left, 1);
+        let root_left: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE title = 'root task'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(root_left, 3);
     }
 
     #[test]

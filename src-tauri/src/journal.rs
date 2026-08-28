@@ -32,8 +32,23 @@ fn entry_path(vault: &Path, date: &str) -> Result<PathBuf> {
         .join(format!("{}.md", parsed.format("%Y-%m-%d"))))
 }
 
+/// The template lives with the other config files (it used to sit in
+/// journal/templates/daily.md, which cluttered the notes tree); an old
+/// file is moved over on first access.
 fn template_path(vault: &Path) -> PathBuf {
-    vault.join("journal").join("templates").join("daily.md")
+    let new = vault.join("config").join("journal-template.md");
+    let old = vault.join("journal").join("templates").join("daily.md");
+    if !new.exists() && old.exists() {
+        let _ = fs::create_dir_all(vault.join("config"));
+        if fs::rename(&old, &new).is_err() {
+            if let Ok(content) = fs::read_to_string(&old) {
+                if crate::vault::write_atomic(&new, &content).is_ok() {
+                    let _ = fs::remove_file(&old);
+                }
+            }
+        }
+    }
+    new
 }
 
 /// Opens the entry for the date, instantiating it from the template on
@@ -114,7 +129,19 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("app-pkb-journal-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("journal").join("templates")).unwrap();
+        fs::create_dir_all(dir.join("config")).unwrap();
         dir
+    }
+
+    #[test]
+    fn old_template_location_migrates_to_config() {
+        let vault = vault("tpl-migrate");
+        let old = vault.join("journal").join("templates").join("daily.md");
+        fs::write(&old, "# {{date}}\n").unwrap();
+
+        assert_eq!(read_template(&vault).unwrap(), "# {{date}}\n");
+        assert!(!old.exists());
+        assert!(vault.join("config").join("journal-template.md").exists());
     }
 
     #[test]

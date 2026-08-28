@@ -17,13 +17,15 @@ export type { KbSearchHit } from "./bindings/KbSearchHit";
 export type { List } from "./bindings/List";
 export type { OutlookEvent } from "./bindings/OutlookEvent";
 export type { RecurringResult } from "./bindings/RecurringResult";
+export type { RecurringRuleView } from "./bindings/RecurringRuleView";
+export type { UpcomingEventView } from "./bindings/UpcomingEventView";
 export type { RecurringRule } from "./bindings/RecurringRule";
 export type { ScheduleBlock } from "./bindings/ScheduleBlock";
 export type { ScheduledEvent } from "./bindings/ScheduledEvent";
 export type { Task } from "./bindings/Task";
 export type { UpcomingResult } from "./bindings/UpcomingResult";
 
-export type { ScheduledEvent as UpcomingEvent } from "./bindings/ScheduledEvent";
+export type { UpcomingEventView as UpcomingEvent } from "./bindings/UpcomingEventView";
 
 import type { Task } from "./bindings/Task";
 

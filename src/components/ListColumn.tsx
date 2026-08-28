@@ -39,7 +39,7 @@ export default function ListColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-64 shrink-0 flex-col rounded-lg border ${
+      className={`flex min-w-0 flex-col rounded-lg border ${
         isOver ? "border-accent" : "border-line"
       } bg-surface-alt/50`}
     >
@@ -94,7 +94,7 @@ export default function ListColumn({
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
         {active.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
+          <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
         ))}
         {done.length > 0 && (
           <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
@@ -102,7 +102,7 @@ export default function ListColumn({
               Done
             </div>
             {done.map((task) => (
-              <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
+              <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
             ))}
           </div>
         )}

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
 import { ConfirmModal } from "../components/dialogs";
-import type { ConfigError, RecurringRule } from "../types";
+import type { ConfigError, RecurringRule, RecurringRuleView } from "../types";
 
 const WEEKDAYS = [
   { cron: 1, label: "Mon" },
@@ -22,7 +22,7 @@ export default function Recurring() {
     (e: unknown) => useAppStore.setState({ error: String(e) }),
     [],
   );
-  const [rules, setRules] = useState<RecurringRule[]>([]);
+  const [rules, setRules] = useState<RecurringRuleView[]>([]);
   const [fileErrors, setFileErrors] = useState<ConfigError[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
@@ -30,7 +30,7 @@ export default function Recurring() {
   const load = useCallback(async () => {
     try {
       const result = await invoke<{
-        rules: RecurringRule[];
+        rules: RecurringRuleView[];
         errors: ConfigError[];
       }>("recurring_list");
       setRules(result.rules);
@@ -75,9 +75,10 @@ export default function Recurring() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <p className="text-sm text-content-muted">
-        Rules from recurring.yml. Each firing of the schedule creates the
-        listed items as tasks; a &#123;List&#125; prefix places an item
-        into that list.
+        Rules from recurring.yml plus any YAML packs in config subfolders
+        (files with a tasks: section merge in read-only). Each firing of
+        the schedule creates the listed items as tasks; a
+        &#123;List&#125; prefix places an item into that list.
       </p>
 
       {fileErrors.length > 0 && (
@@ -100,8 +101,11 @@ export default function Recurring() {
             directly (Notes &gt; Config).
           </p>
         )}
-        {rules.map((rule, i) =>
-          editing === i ? (
+        {rules.map((rule, i) => {
+          // root rules come first, so i is also the index inside
+          // recurring.yml; pack rules are edited in their own file
+          const editable = rule.source === "recurring.yml";
+          return editing === i ? (
             <RuleEditForm
               key={`edit-${i}`}
               rule={rule}
@@ -111,9 +115,13 @@ export default function Recurring() {
           ) : (
             <div
               key={i}
-              className="group flex cursor-pointer items-center gap-2 border-b border-line py-3 hover:bg-line/20"
-              title="Click to edit"
-              onClick={() => setEditing(i)}
+              className={`group flex items-center gap-2 border-b border-line py-3 ${
+                editable ? "cursor-pointer hover:bg-line/20" : ""
+              }`}
+              title={
+                editable ? "Click to edit" : `Read-only: from ${rule.source}`
+              }
+              onClick={() => editable && setEditing(i)}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3 text-sm">
@@ -130,15 +138,22 @@ export default function Recurring() {
                   ))}
                 </ul>
               </div>
-              <DeleteRowButton
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(i);
-                }}
-              />
+              {!editable && (
+                <span className="max-w-[140px] shrink-0 truncate rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                  {rule.source}
+                </span>
+              )}
+              {editable && (
+                <DeleteRowButton
+                  onDelete={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(i);
+                  }}
+                />
+              )}
             </div>
-          ),
-        )}
+          );
+        })}
       </div>
       {confirmDelete !== null && rules[confirmDelete] && (
         <ConfirmModal

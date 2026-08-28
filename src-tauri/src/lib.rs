@@ -44,8 +44,9 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
         }
     })
     .map_err(|e| Error::State(format!("cannot start config watcher: {e}")))?;
+    // recursive: YAML task packs in subfolders merge into the config
     watcher
-        .watch(config_dir, RecursiveMode::NonRecursive)
+        .watch(config_dir, RecursiveMode::Recursive)
         .map_err(|e| Error::State(format!("cannot watch config dir: {e}")))?;
 
     let state = app.state::<AppState>();
@@ -433,6 +434,7 @@ const EDITABLE_CONFIG_FILES: &[&str] = &[
     "weekly-focus.yml",
     "day-reminders.yml",
     "day-schedule.yml",
+    "journal-template.md",
 ];
 
 fn editable_config_path(state: &State<'_, AppState>, file: &str) -> Result<PathBuf> {
