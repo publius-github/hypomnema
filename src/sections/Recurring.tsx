@@ -111,29 +111,31 @@ export default function Recurring() {
           ) : (
             <div
               key={i}
-              className="group cursor-pointer border-b border-line py-3 hover:bg-line/20"
+              className="group flex cursor-pointer items-center gap-2 border-b border-line py-3 hover:bg-line/20"
               title="Click to edit"
               onClick={() => setEditing(i)}
             >
-              <div className="flex items-center gap-3 text-sm">
-                <span className="shrink-0 rounded bg-line/40 px-2 py-0.5 font-mono text-xs">
-                  {rule.schedule}
-                </span>
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {rule.description || "(no description)"}
-                </span>
-                <DeleteRowButton
-                  onDelete={(e) => {
-                    e.stopPropagation();
-                    setConfirmDelete(i);
-                  }}
-                />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="shrink-0 rounded bg-line/40 px-2 py-0.5 font-mono text-xs">
+                    {rule.schedule}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-medium">
+                    {rule.description || "(no description)"}
+                  </span>
+                </div>
+                <ul className="mt-1 pl-1 text-sm text-content-muted">
+                  {rule.items.map((item, j) => (
+                    <li key={j}>- {item}</li>
+                  ))}
+                </ul>
               </div>
-              <ul className="mt-1 pl-1 text-sm text-content-muted">
-                {rule.items.map((item, j) => (
-                  <li key={j}>- {item}</li>
-                ))}
-              </ul>
+              <DeleteRowButton
+                onDelete={(e) => {
+                  e.stopPropagation();
+                  setConfirmDelete(i);
+                }}
+              />
             </div>
           ),
         )}

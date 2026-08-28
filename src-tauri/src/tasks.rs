@@ -42,6 +42,9 @@ pub struct Task {
     pub completed_at: Option<String>,
     pub overdue: bool,
     pub origin: String,
+    /// Firing cadence of the generating rule ("daily" | "weekly" |
+    /// "monthly" | "yearly"); None for manual and one-off tasks.
+    pub cadence: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -118,6 +121,7 @@ fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
         completed_at: row.get("completed_at")?,
         overdue: row.get::<_, i64>("overdue")? != 0,
         origin: row.get("origin")?,
+        cadence: row.get("cadence")?,
     })
 }
 

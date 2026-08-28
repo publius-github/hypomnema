@@ -42,8 +42,18 @@ export default function KnowledgeBase() {
     [],
   );
   const [tree, setTree] = useState<KbNode[]>([]);
-  // folders start collapsed; the set tracks the ones the user opened
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // folders start collapsed on launch; the opened set lives in the
+  // store so it survives switching sections during the session
+  const expandedPaths = useAppStore((s) => s.kbExpanded);
+  const expanded = new Set(expandedPaths);
+  const toggleExpanded = (path: string) => {
+    const store = useAppStore.getState();
+    store.setKbExpanded(
+      expanded.has(path)
+        ? store.kbExpanded.filter((p) => p !== path)
+        : [...store.kbExpanded, path],
+    );
+  };
   const [treeWidth, setTreeWidth] = useState(() => {
     const stored = Number(localStorage.getItem("kb-tree-width"));
     return stored >= 160 && stored <= 480 ? stored : 240;
@@ -93,6 +103,7 @@ export default function KnowledgeBase() {
         } catch {
           // file may have been deleted externally
           setCurrent(null);
+          useAppStore.getState().setKbCurrent(null);
         }
       }
     });
@@ -136,6 +147,7 @@ export default function KnowledgeBase() {
     try {
       const content = await invoke<string>("kb_read", { path });
       setCurrent({ kind: "note", path, content });
+      useAppStore.getState().setKbCurrent({ kind: "note", path });
       setConfigErrors([]);
       setSaved(true);
     } catch (e) {
@@ -148,12 +160,23 @@ export default function KnowledgeBase() {
     try {
       const content = await invoke<string>("config_file_get", { file });
       setCurrent({ kind: "config", path: file, content });
+      useAppStore.getState().setKbCurrent({ kind: "config", path: file });
       setConfigErrors([]);
       setSaved(true);
     } catch (e) {
       setError(e);
     }
   };
+
+  // returning to Notes reopens the document that was open before the
+  // section switch (fresh content is read from disk)
+  useEffect(() => {
+    const remembered = useAppStore.getState().kbCurrent;
+    if (!remembered) return;
+    if (remembered.kind === "config") void openConfig(remembered.path);
+    else void openFile(remembered.path);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const persist = async (doc: OpenDoc) => {
     try {
@@ -211,7 +234,10 @@ export default function KnowledgeBase() {
     try {
       await invoke("kb_rename", { from: node.path, to });
       await loadTree();
-      if (current?.path === node.path) setCurrent(null);
+      if (current?.path === node.path) {
+        setCurrent(null);
+        useAppStore.getState().setKbCurrent(null);
+      }
     } catch (e) {
       setError(e);
     }
@@ -223,7 +249,10 @@ export default function KnowledgeBase() {
     try {
       await invoke("kb_delete", { path: node.path });
       await loadTree();
-      if (current?.path === node.path) setCurrent(null);
+      if (current?.path === node.path) {
+        setCurrent(null);
+        useAppStore.getState().setKbCurrent(null);
+      }
     } catch (e) {
       setError(e);
     }
@@ -287,14 +316,7 @@ export default function KnowledgeBase() {
         {node.is_dir ? (
           <button
             className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium"
-            onClick={() =>
-              setExpanded((prev) => {
-                const next = new Set(prev);
-                if (next.has(node.path)) next.delete(node.path);
-                else next.add(node.path);
-                return next;
-              })
-            }
+            onClick={() => toggleExpanded(node.path)}
           >
             <Icon
               name={expanded.has(node.path) ? "chevronDown" : "chevronRight"}

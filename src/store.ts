@@ -35,6 +35,12 @@ interface AppState {
   /// focus line, Settings links)
   kbOpenConfig: string | null;
   openConfigFile: (file: string) => void;
+  /// Notes tree/editor state survives section switches for the whole
+  /// app session (folders start collapsed only on a fresh launch)
+  kbExpanded: string[];
+  setKbExpanded: (paths: string[]) => void;
+  kbCurrent: { kind: "note" | "config"; path: string } | null;
+  setKbCurrent: (doc: { kind: "note" | "config"; path: string } | null) => void;
   init: () => Promise<void>;
   runEngine: () => Promise<EngineOutcome | null>;
   setConfigErrors: (errors: ConfigError[]) => void;
@@ -261,6 +267,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   kbOpenConfig: null,
   openConfigFile: (file) => set({ section: "kb", kbOpenConfig: file }),
+  kbExpanded: [],
+  setKbExpanded: (paths) => set({ kbExpanded: paths }),
+  kbCurrent: null,
+  setKbCurrent: (doc) => set({ kbCurrent: doc }),
   searchOpen: false,
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   undo: null,

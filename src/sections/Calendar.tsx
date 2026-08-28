@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
-import type { Task } from "../types";
+import type { OutlookEvent, Task } from "../types";
 import TaskModal from "../components/TaskModal";
 import QuickAdd from "../components/QuickAdd";
 
@@ -33,6 +33,7 @@ export default function Calendar() {
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)) - 1);
   const [selected, setSelected] = useState(today);
   const [monthTasks, setMonthTasks] = useState<Task[]>([]);
+  const [outlook, setOutlook] = useState<OutlookEvent[]>([]);
   const [openTask, setOpenTask] = useState<Task | null>(null);
   // any task mutation anywhere refreshes the month view
   const storeTasks = useAppStore((s) => s.tasks);
@@ -62,6 +63,16 @@ export default function Calendar() {
         }
       })
       .catch((e) => useAppStore.setState({ error: String(e) }));
+    // projected occurrences beyond the grid horizon (Settings > Calendar
+    // outlook controls how far each cadence reaches)
+    void invoke<OutlookEvent[]>("calendar_outlook", {
+      from: monthStart,
+      to: nextMonthStart,
+    })
+      .then((events) => {
+        if (!cancelled) setOutlook(events);
+      })
+      .catch(() => setOutlook([]));
     return () => {
       cancelled = true;
     };
@@ -90,6 +101,14 @@ export default function Calendar() {
     return map;
   }, [monthTasks]);
 
+  const outlookByDate = useMemo(() => {
+    const map = new Map<string, OutlookEvent[]>();
+    for (const event of outlook) {
+      map.set(event.date, [...(map.get(event.date) ?? []), event]);
+    }
+    return map;
+  }, [outlook]);
+
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   // Monday-first offset of the 1st
   const offset = (new Date(year, month, 1).getDay() + 6) % 7;
@@ -105,6 +124,7 @@ export default function Calendar() {
   };
 
   const selectedTasks = byDate.get(selected) ?? [];
+  const selectedOutlook = outlookByDate.get(selected) ?? [];
   const listName = (id: number | null) =>
     lists.find((l) => l.id === id)?.name ?? null;
 
@@ -150,6 +170,7 @@ export default function Calendar() {
             if (day === null) return <span key={`empty-${i}`} />;
             const date = iso(year, month, day);
             const dayTasks = byDate.get(date) ?? [];
+            const projected = outlookByDate.get(date)?.length ?? 0;
             const doneCount = dayTasks.filter(
               (t) => t.status === "done",
             ).length;
@@ -168,7 +189,7 @@ export default function Calendar() {
                 <span className={date === today ? "font-bold" : ""}>
                   {day}
                 </span>
-                {dayTasks.length > 0 && (
+                {dayTasks.length > 0 ? (
                   <span
                     className={`text-[11px] leading-none ${
                       doneCount === dayTasks.length
@@ -178,6 +199,12 @@ export default function Calendar() {
                   >
                     {doneCount}/{dayTasks.length}
                   </span>
+                ) : (
+                  projected > 0 && (
+                    <span className="text-[11px] leading-none text-content-muted/60">
+                      +{projected}
+                    </span>
+                  )
                 )}
               </button>
             );
@@ -191,7 +218,7 @@ export default function Calendar() {
 
       <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
         <h2 className="text-sm font-semibold">{selected}</h2>
-        {selectedTasks.length === 0 && (
+        {selectedTasks.length === 0 && selectedOutlook.length === 0 && (
           <p className="text-sm text-content-muted">
             No tasks recorded for this day.
           </p>
@@ -234,6 +261,25 @@ export default function Calendar() {
             )}
           </button>
         ))}
+        {selectedOutlook.length > 0 && (
+          <>
+            <div className="pt-2 text-[11px] font-medium uppercase tracking-wider text-content-muted">
+              Projected
+            </div>
+            {selectedOutlook.map((event, i) => (
+              <div
+                key={`${event.title}-${i}`}
+                className="flex items-center gap-2 rounded-md border border-dashed border-line px-3 py-2 text-sm text-content-muted"
+                title="Not generated yet; appears as a task when the date nears"
+              >
+                <span className="min-w-0 flex-1 truncate">{event.title}</span>
+                <span className="rounded bg-line/40 px-1.5 py-0.5 text-[11px]">
+                  {event.kind}
+                </span>
+              </div>
+            ))}
+          </>
+        )}
         <div className="pt-1">
           <QuickAdd target={{ scheduled_date: selected }} />
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   DndContext,
@@ -28,6 +28,9 @@ export default function Dashboard() {
   // the snapshot; the modal must survive that (and keep unsaved edits),
   // so fall back to fetching the task by id.
   const [fetchedTask, setFetchedTask] = useState<Task | null>(null);
+  // live value while dragging the grid/lists divider; null = use config
+  const [splitDraft, setSplitDraft] = useState<number | null>(null);
+  const zonesRef = useRef<HTMLDivElement | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
@@ -170,22 +173,62 @@ export default function Dashboard() {
             </span>
           </div>
         )}
-        <div
-          className="grid min-h-0 flex-[3] gap-3 overflow-x-auto"
-          style={{
-            gridTemplateColumns: `repeat(${dates.length}, minmax(200px, 1fr))`,
-          }}
-        >
-          {dates.map((date) => (
-            <DayColumn
-              key={date}
-              date={date}
-              onOpenTask={setEditingTaskId}
-            />
-          ))}
-        </div>
+        <div ref={zonesRef} className="flex min-h-0 flex-1 flex-col">
+          <div
+            className="grid min-h-0 gap-3 overflow-x-auto"
+            style={{
+              flex: `${splitDraft ?? config.dashboard_split} 1 0px`,
+              gridTemplateColumns: `repeat(${dates.length}, minmax(200px, 1fr))`,
+            }}
+          >
+            {dates.map((date) => (
+              <DayColumn
+                key={date}
+                date={date}
+                onOpenTask={setEditingTaskId}
+              />
+            ))}
+          </div>
 
-        <div className="flex min-h-0 flex-[2] gap-3 overflow-x-auto border-t border-line pt-4">
+          <div
+            className="group -my-1 shrink-0 cursor-row-resize py-2"
+            title="Drag to resize"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              const container = zonesRef.current;
+              if (!container) return;
+              const height = container.getBoundingClientRect().height;
+              const start = splitDraft ?? config.dashboard_split;
+              const startY = e.clientY;
+              const at = (ev: PointerEvent) =>
+                Math.round(
+                  Math.min(
+                    80,
+                    Math.max(20, start + ((ev.clientY - startY) / height) * 100),
+                  ),
+                );
+              const onMove = (ev: PointerEvent) => setSplitDraft(at(ev));
+              const onUp = (ev: PointerEvent) => {
+                window.removeEventListener("pointermove", onMove);
+                window.removeEventListener("pointerup", onUp);
+                setSplitDraft(null);
+                void useAppStore
+                  .getState()
+                  .updateConfig({ dashboard_split: at(ev) });
+              };
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+            }}
+          >
+            <div className="h-px w-full bg-line group-hover:bg-accent/60" />
+          </div>
+
+          <div
+            className="flex min-h-0 gap-3 overflow-x-auto pt-1"
+            style={{
+              flex: `${100 - (splitDraft ?? config.dashboard_split)} 1 0px`,
+            }}
+          >
           {lists
             // engine-created lists ({List} prefixes, Birthdays) only
             // group tasks inside day columns; they earn a backlog
@@ -207,7 +250,8 @@ export default function Dashboard() {
                 onOpenTask={setEditingTaskId}
               />
             ))}
-          <NewListForm />
+            <NewListForm />
+          </div>
         </div>
       </div>
 

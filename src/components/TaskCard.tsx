@@ -26,6 +26,12 @@ export default function TaskCard({
   const subtasksRaw = useAppStore(
     useShallow((s) => s.tasks.filter((t) => t.parent_task_id === task.id)),
   );
+  // day columns group by cadence, so the list membership shows as a chip
+  const listName = useAppStore((s) =>
+    task.list_id === null
+      ? null
+      : (s.lists.find((l) => l.id === task.list_id)?.name ?? null),
+  );
   const [expanded, setExpanded] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `task:${task.id}`,
@@ -117,6 +123,9 @@ export default function TaskCard({
               <span className="rounded bg-info/15 px-1 font-medium text-info">
                 exact date
               </span>
+            )}
+            {listName && (
+              <span className="rounded bg-line/40 px-1">{listName}</span>
             )}
             {subtasks.length > 0 && (
               <button

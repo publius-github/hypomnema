@@ -1,4 +1,4 @@
-import type { List, ScheduleBlock, Task, TaskStatus } from "../types";
+import type { ScheduleBlock, Task, TaskStatus } from "../types";
 
 // The checkbox toggles between open and done only - a double-click on
 // a done task must not accidentally postpone it. Postponing is its own
@@ -42,39 +42,43 @@ export function dayLabel(dateISO: string, today: string): string {
   });
 }
 
-export interface DayGroup {
-  listId: number | null;
-  listName: string;
+export interface CadenceGroup {
+  key: string;
+  /** null for the unlabeled one-off group at the top */
+  label: string | null;
   tasks: Task[];
 }
 
+const CADENCE_GROUPS: { key: string; label: string | null }[] = [
+  { key: "once", label: null },
+  { key: "daily", label: "Daily" },
+  { key: "weekly", label: "Weekly" },
+  { key: "monthly", label: "Monthly" },
+  { key: "yearly", label: "Yearly" },
+];
+
 /**
- * Tasks of one day column, grouped by list and sorted by
- * (time, list order, sort_order) per requirements 16-17.
+ * Tasks of one day column, grouped by how often their rule fires.
+ * One-off tasks (manual and exact dates) come first, then daily,
+ * weekly, monthly, yearly - so the dailies are the block to clear and
+ * the rare ones sit below, safe to leave for later.
  */
-export function groupDayTasks(tasks: Task[], lists: List[]): DayGroup[] {
-  const listOrder = new Map<number, { order: number; name: string }>(
-    lists.map((l) => [l.id, { order: l.sort_order, name: l.name }]),
-  );
-  const groups = new Map<number | null, Task[]>();
+export function groupByCadence(tasks: Task[]): CadenceGroup[] {
+  const buckets = new Map<string, Task[]>();
   for (const task of tasks) {
-    const key = task.list_id !== null && listOrder.has(task.list_id) ? task.list_id : null;
-    const bucket = groups.get(key);
+    const key =
+      task.cadence && CADENCE_GROUPS.some((g) => g.key === task.cadence)
+        ? task.cadence
+        : "once";
+    const bucket = buckets.get(key);
     if (bucket) bucket.push(task);
-    else groups.set(key, [task]);
+    else buckets.set(key, [task]);
   }
-  const result: DayGroup[] = Array.from(groups.entries()).map(
-    ([listId, groupTasks]) => ({
-      listId,
-      listName: listId === null ? "" : listOrder.get(listId)!.name,
-      tasks: groupTasks.sort(compareTasks),
-    }),
-  );
-  return result.sort((a, b) => {
-    if (a.listId === null) return -1;
-    if (b.listId === null) return 1;
-    return listOrder.get(a.listId)!.order - listOrder.get(b.listId)!.order;
-  });
+  return CADENCE_GROUPS.filter((g) => buckets.has(g.key)).map((g) => ({
+    key: g.key,
+    label: g.label,
+    tasks: buckets.get(g.key)!.sort(compareTasks),
+  }));
 }
 
 export function compareTasks(a: Task, b: Task): number {

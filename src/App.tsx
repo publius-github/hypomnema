@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useAppStore } from "./store";
 import { todayISO } from "./lib/tasks";
-import type { AppConfig, ConfigError } from "./types";
+import type { AppConfig, ConfigError, Section } from "./types";
 import TabBar from "./components/TabBar";
 import SearchPalette from "./components/SearchPalette";
 import VaultPicker from "./components/VaultPicker";
@@ -117,23 +117,27 @@ export default function App() {
   // global shortcuts: Ctrl/Cmd+K search palette, Ctrl/Cmd+1..6 sections
   const searchOpen = useAppStore((s) => s.searchOpen);
   useEffect(() => {
-    const sections = [
-      "dashboard",
-      "upcoming",
-      "calendar",
-      "journal",
-      "kb",
-      "settings",
-    ] as const;
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       const store = useAppStore.getState();
+      // Ctrl+1..6 follow the configured tab order, settings last
+      const sections = [
+        ...(store.config?.section_order ?? [
+          "dashboard",
+          "upcoming",
+          "calendar",
+          "journal",
+          "kb",
+        ]),
+        "settings",
+      ] as Section[];
       if (e.key.toLowerCase() === "k") {
         e.preventDefault();
         if (store.vaultPath) store.setSearchOpen(!store.searchOpen);
       } else if (e.key >= "1" && e.key <= "6") {
         e.preventDefault();
-        if (store.vaultPath) store.setSection(sections[Number(e.key) - 1]);
+        const target = sections[Number(e.key) - 1];
+        if (store.vaultPath && target) store.setSection(target);
       }
     };
     window.addEventListener("keydown", onKey);

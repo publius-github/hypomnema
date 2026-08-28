@@ -1,6 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { currentAndNextBlock, dayLabel, groupDayTasks, splitDone } from "../lib/tasks";
+import { currentAndNextBlock, dayLabel, groupByCadence, splitDone } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 
@@ -15,7 +15,6 @@ export default function DayColumn({
   // column on unrelated state changes (toasts, palette, banners)
   const config = useAppStore((s) => s.config);
   const today = useAppStore((s) => s.today);
-  const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
   const dashboard = useAppStore((s) => s.dashboard);
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
@@ -31,7 +30,7 @@ export default function DayColumn({
     (t) => t.scheduled_date === date && t.parent_task_id === null,
   );
   const { active, done } = splitDone(dayTasks, config?.done_display ?? "inline");
-  const groups = groupDayTasks(active, lists);
+  const groups = groupByCadence(active);
   const isToday = date === today;
 
   return (
@@ -71,10 +70,11 @@ export default function DayColumn({
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
         {groups.map((group) => (
-          <div key={group.listId ?? "none"} className="flex flex-col gap-1.5">
-            {group.listName && (
-              <div className="pt-1 text-[11px] font-medium uppercase tracking-wider text-content-muted">
-                {group.listName}
+          <div key={group.key} className="flex flex-col gap-1.5">
+            {group.label && (
+              <div className="flex items-center gap-1.5 pt-1 text-[11px] font-medium uppercase tracking-wider text-content-muted">
+                <span>{group.label}</span>
+                <span className="h-px flex-1 bg-line" />
               </div>
             )}
             {group.tasks.map((task) => (

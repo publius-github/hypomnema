@@ -76,6 +76,10 @@ const MIGRATIONS: &[&str] = &[
     // 007: reconcile and the first-seen ledger purge look tasks up by
     // (rule_key, period_key); without an index they scan the table
     "CREATE INDEX idx_tasks_rule_period ON tasks(rule_key, period_key);",
+    // 008: how often a generated task's rule fires (daily/weekly/
+    // monthly/yearly), so day columns can group tasks by cadence.
+    // Backfilled by the engine from the current config on every run.
+    "ALTER TABLE tasks ADD COLUMN cadence TEXT;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

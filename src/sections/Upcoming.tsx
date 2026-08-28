@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { ConfirmModal } from "../components/dialogs";
 import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
-import { formatMmDd } from "../lib/dates";
+import { DateInput, MonthDayInput } from "../components/dateFields";
 import Recurring from "./Recurring";
 import type { BirthdayView, ConfigError, UpcomingEvent } from "../types";
 
@@ -53,7 +53,7 @@ export default function Upcoming() {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-2xl flex-col gap-4 p-6">
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
       <div className="flex gap-1 border-b border-line">
         {(["scheduled", "birthdays", "recurring"] as const).map((t) => (
           <button
@@ -147,12 +147,11 @@ function ScheduledTab({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <form className="flex gap-2" onSubmit={add}>
-        <input
-          className="input w-36"
-          type="date"
+        <DateInput
+          className="w-36"
           required
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={setDate}
         />
         <input
           className="input min-w-0 flex-1"
@@ -245,12 +244,11 @@ function EventEditRow({
         onSave({ date, title: title.trim(), time: time || null });
       }}
     >
-      <input
-        className="input w-36"
-        type="date"
+      <DateInput
+        className="w-36"
         required
         value={date}
-        onChange={(e) => setDate(e.target.value)}
+        onChange={setDate}
       />
       <input
         className="input min-w-0 flex-1"
@@ -346,11 +344,11 @@ function BirthdaysTab({
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <input
-          className="input w-24"
-          placeholder="MM-DD"
+        <MonthDayInput
+          className="w-24"
+          required
           value={date}
-          onChange={(e) => setDate(formatMmDd(e.target.value))}
+          onChange={setDate}
         />
         <input
           className="input w-24"
@@ -455,11 +453,11 @@ function BirthdayEditRow({
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      <input
-        className="input w-24"
-        placeholder="MM-DD"
+      <MonthDayInput
+        className="w-24"
+        required
         value={date}
-        onChange={(e) => setDate(formatMmDd(e.target.value))}
+        onChange={setDate}
       />
       <input
         className="input w-24"

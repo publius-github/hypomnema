@@ -15,6 +15,7 @@ export type { JournalEntry } from "./bindings/JournalEntry";
 export type { KbNode } from "./bindings/KbNode";
 export type { KbSearchHit } from "./bindings/KbSearchHit";
 export type { List } from "./bindings/List";
+export type { OutlookEvent } from "./bindings/OutlookEvent";
 export type { RecurringResult } from "./bindings/RecurringResult";
 export type { RecurringRule } from "./bindings/RecurringRule";
 export type { ScheduleBlock } from "./bindings/ScheduleBlock";

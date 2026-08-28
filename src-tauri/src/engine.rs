@@ -76,6 +76,32 @@ struct GeneratedTask<'a> {
     scheduled_date: String,
     time: Option<&'a str>,
     origin: &'static str,
+    cadence: Option<&'static str>,
+}
+
+/// Buckets a cron by how often it actually fires over the next year:
+/// the day grid groups tasks by this, and the Calendar picks its
+/// projection horizon from it. Firing counts, not field syntax, so
+/// "0 9 * * 1-5" lands in daily and a quarterly rule in monthly.
+pub(crate) fn cadence_of(cron: &Cron, now: DateTime<Local>) -> &'static str {
+    let end = now + Duration::days(365);
+    let mut cursor = now;
+    let mut count: u32 = 0;
+    while count < 190 {
+        match cron.find_next_occurrence(&cursor, false) {
+            Ok(firing) if firing <= end => {
+                cursor = firing;
+                count += 1;
+            }
+            _ => break,
+        }
+    }
+    match count {
+        183.. => "daily", // every 1-2 days
+        37.. => "weekly", // up to ~10 days apart
+        4.. => "monthly", // up to a quarter apart
+        _ => "yearly",
+    }
 }
 
 /// Inserts a generated task if its (rule_key, period_key) was never
@@ -99,11 +125,11 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
     };
     conn.execute(
         "INSERT INTO tasks (title, list_id, scheduled_date, time, sort_order,
-                            created_at, origin, rule_key, period_key)
+                            created_at, origin, rule_key, period_key, cadence)
          VALUES (?1, ?2, ?3, ?4,
                  (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tasks
                   WHERE scheduled_date = ?3),
-                 ?5, ?6, ?7, ?8)",
+                 ?5, ?6, ?7, ?8, ?9)",
         (
             &task.title,
             list_id,
@@ -113,6 +139,7 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
             task.origin,
             &task.rule_key,
             &task.period_key,
+            task.cadence,
         ),
     )?;
     Ok(true)
@@ -272,8 +299,16 @@ fn run_recurring(
         }
         let latest_missed = firings.iter().rfind(|f| f.date_naive() < today).copied();
         let current = || firings.iter().filter(|f| f.date_naive() >= today).copied();
+        let cadence = cadence_of(&cron, now);
         for item in &rule.items {
             let rule_key = recurring_rule_key(rule, item);
+            // keep already-generated tasks in the right grid group when
+            // the app updates or the rule's schedule changes cadence
+            conn.execute(
+                "UPDATE tasks SET cadence = ?1
+                 WHERE rule_key = ?2 AND (cadence IS NULL OR cadence != ?1)",
+                (cadence, &rule_key),
+            )?;
             // Catch-up never reaches back past the day the engine first
             // saw the item: a rule added today must not open as overdue,
             // and later runs must not resurrect pre-sighting firings.
@@ -320,6 +355,7 @@ fn run_recurring(
                     scheduled_date: firing.format("%Y-%m-%d").to_string(),
                     time: None,
                     origin: "recurring",
+                    cadence: Some(cadence),
                 };
                 let inserted = insert_generated(conn, &generated, now)?
                     || (firing.date_naive() >= today
@@ -442,6 +478,7 @@ fn run_scheduled(
             scheduled_date: event.date.clone(),
             time: event.time.as_deref(),
             origin: "scheduled",
+            cadence: None,
         };
         if insert_generated(conn, &generated, now)? {
             outcome.generated += 1;
@@ -518,6 +555,7 @@ fn run_birthdays(
                 scheduled_date: occurrence.format("%Y-%m-%d").to_string(),
                 time: None,
                 origin: "birthday",
+                cadence: Some("yearly"),
             };
             if insert_generated(conn, &generated, now)? {
                 outcome.generated += 1;
@@ -581,6 +619,11 @@ pub fn run(
     // generated without ever creating its task - unrecoverable, since
     // dedup then refuses to regenerate it.
     let tx = conn.unchecked_transaction()?;
+    // birthdays generated before the cadence column existed
+    conn.execute(
+        "UPDATE tasks SET cadence = 'yearly' WHERE origin = 'birthday' AND cadence IS NULL",
+        [],
+    )?;
     run_recurring(conn, config_dir, config, horizon, now, &mut outcome)?;
     run_scheduled(conn, config_dir, horizon, now, &mut outcome)?;
     run_birthdays(
@@ -663,6 +706,44 @@ mod tests {
     fn count_tasks(conn: &Connection) -> i64 {
         conn.query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap()
+    }
+
+    #[test]
+    fn cadence_buckets_by_firing_frequency() {
+        let now = at("2026-08-28", "12:00:00");
+        let of = |cron: &str| cadence_of(&Cron::new(cron).parse().unwrap(), now);
+        assert_eq!(of("0 0 * * *"), "daily");
+        assert_eq!(of("0 9 * * 1-5"), "daily");
+        assert_eq!(of("0 0 * * 1"), "weekly");
+        assert_eq!(of("0 0 * * 2,5"), "weekly");
+        assert_eq!(of("0 0 1 * *"), "monthly");
+        assert_eq!(of("0 0 1 1,4,7,10 *"), "monthly");
+        assert_eq!(of("0 0 15 6 *"), "yearly");
+    }
+
+    #[test]
+    fn generated_tasks_carry_cadence_and_backfill_updates_it() {
+        let (conn, dir) = setup("cadence");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 0 * * *\"\n    items:\n      - \"water\"\n",
+        )
+        .unwrap();
+        let cfg = config(1, 3, 0);
+        let now = at("2026-08-28", "12:00:00");
+        run(&conn, &dir, &cfg, now).unwrap();
+        let cadence: String = conn
+            .query_row("SELECT DISTINCT cadence FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(cadence, "daily");
+
+        // pre-cadence rows (NULL) pick up the rule's bucket on the next run
+        conn.execute("UPDATE tasks SET cadence = NULL", []).unwrap();
+        run(&conn, &dir, &cfg, now).unwrap();
+        let backfilled: String = conn
+            .query_row("SELECT DISTINCT cadence FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(backfilled, "daily");
     }
 
     #[test]

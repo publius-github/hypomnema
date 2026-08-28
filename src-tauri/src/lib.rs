@@ -319,6 +319,30 @@ async fn birthdays_list(state: State<'_, AppState>) -> Result<views::BirthdaysRe
 }
 
 #[tauri::command]
+async fn calendar_outlook(
+    state: State<'_, AppState>,
+    from: String,
+    to: String,
+) -> Result<Vec<views::OutlookEvent>> {
+    let parse = |s: &str| {
+        chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+            .map_err(|_| Error::State(format!("invalid date '{s}'")))
+    };
+    let (from, to) = (parse(&from)?, parse(&to)?);
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    Ok(views::calendar_outlook(
+        &vault.config_dir(),
+        &vault.config,
+        from,
+        to,
+        chrono::Local::now(),
+    ))
+}
+
+#[tauri::command]
 async fn recurring_list(state: State<'_, AppState>) -> Result<views::RecurringResult> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
@@ -605,6 +629,7 @@ pub fn run() {
             kb_delete,
             dashboard_context,
             birthdays_list,
+            calendar_outlook,
             recurring_list,
             recurring_add,
             scheduled_add,

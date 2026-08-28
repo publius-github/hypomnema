@@ -3,11 +3,11 @@ import {
   addDaysISO,
   currentAndNextBlock,
   gridDates,
-  groupDayTasks,
+  groupByCadence,
   nextStatus,
   splitDone,
 } from "./tasks";
-import type { List, ScheduleBlock, Task } from "../types";
+import type { ScheduleBlock, Task } from "../types";
 
 function task(overrides: Partial<Task>): Task {
   return {
@@ -25,18 +25,7 @@ function task(overrides: Partial<Task>): Task {
     completed_at: null,
     overdue: false,
     origin: "manual",
-    ...overrides,
-  };
-}
-
-function list(overrides: Partial<List>): List {
-  return {
-    id: 1,
-    name: "L",
-    sort_order: 0,
-    color: null,
-    archived: false,
-    auto: false,
+    cadence: null,
     ...overrides,
   };
 }
@@ -63,40 +52,40 @@ describe("date helpers", () => {
   });
 });
 
-describe("groupDayTasks", () => {
-  const lists = [
-    list({ id: 1, name: "Work", sort_order: 1 }),
-    list({ id: 2, name: "Home", sort_order: 0 }),
-  ];
-
-  it("groups by list ordered by list sort_order, ungrouped first", () => {
-    const groups = groupDayTasks(
-      [
-        task({ id: 1, list_id: 1 }),
-        task({ id: 2, list_id: 2 }),
-        task({ id: 3, list_id: null }),
-      ],
-      lists,
-    );
-    expect(groups.map((g) => g.listName)).toEqual(["", "Home", "Work"]);
+describe("groupByCadence", () => {
+  it("orders groups once, daily, weekly, monthly, yearly", () => {
+    const groups = groupByCadence([
+      task({ id: 1, cadence: "yearly" }),
+      task({ id: 2, cadence: "daily" }),
+      task({ id: 3, cadence: null }),
+      task({ id: 4, cadence: "weekly" }),
+      task({ id: 5, cadence: "monthly" }),
+    ]);
+    expect(groups.map((g) => g.label)).toEqual([
+      null,
+      "Daily",
+      "Weekly",
+      "Monthly",
+      "Yearly",
+    ]);
+    expect(groups.map((g) => g.tasks[0].id)).toEqual([3, 2, 4, 5, 1]);
   });
 
-  it("sorts timed tasks first, by time then sort_order", () => {
-    const groups = groupDayTasks(
-      [
-        task({ id: 1, sort_order: 0 }),
-        task({ id: 2, time: "14:00" }),
-        task({ id: 3, time: "09:00" }),
-      ],
-      [],
-    );
+  it("skips empty groups and treats unknown cadence as one-off", () => {
+    const groups = groupByCadence([
+      task({ id: 1, cadence: "hourly" }),
+      task({ id: 2, cadence: "daily" }),
+    ]);
+    expect(groups.map((g) => g.key)).toEqual(["once", "daily"]);
+  });
+
+  it("sorts timed tasks first inside a group, by time then sort_order", () => {
+    const groups = groupByCadence([
+      task({ id: 1, sort_order: 0 }),
+      task({ id: 2, time: "14:00" }),
+      task({ id: 3, time: "09:00" }),
+    ]);
     expect(groups[0].tasks.map((t) => t.id)).toEqual([3, 2, 1]);
-  });
-
-  it("treats tasks of an unknown list as ungrouped", () => {
-    const groups = groupDayTasks([task({ id: 1, list_id: 99 })], lists);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].listId).toBeNull();
   });
 });
 

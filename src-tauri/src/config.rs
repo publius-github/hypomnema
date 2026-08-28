@@ -22,7 +22,21 @@ pub struct AppConfig {
     pub cron_ignore_time: bool,
     pub kb_path: String,
     pub journal_template: String,
+    /// Order of the sections in the left tab bar.
+    pub section_order: Vec<String>,
+    /// Percent of the dashboard height taken by the day grid (the rest
+    /// is the list zone); adjusted by dragging the divider.
+    pub dashboard_split: u32,
+    /// How far ahead the Calendar projects not-yet-materialized firings,
+    /// per rule cadence, plus scheduled dates and birthdays.
+    pub calendar_daily_days: u32,
+    pub calendar_weekly_weeks: u32,
+    pub calendar_monthly_months: u32,
+    pub calendar_yearly_years: u32,
+    pub calendar_dates_years: u32,
 }
+
+pub const SECTIONS: &[&str] = &["dashboard", "upcoming", "calendar", "journal", "kb"];
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -35,6 +49,13 @@ impl Default for AppConfig {
             cron_ignore_time: true,
             kb_path: String::new(),
             journal_template: "journal/templates/daily.md".into(),
+            section_order: SECTIONS.iter().map(|s| s.to_string()).collect(),
+            dashboard_split: 60,
+            calendar_daily_days: 3,
+            calendar_weekly_weeks: 3,
+            calendar_monthly_months: 3,
+            calendar_yearly_years: 1,
+            calendar_dates_years: 1,
         }
     }
 }
@@ -75,6 +96,26 @@ impl AppConfig {
         if !["inline", "separate"].contains(&self.done_display.as_str()) {
             self.done_display = "inline".into();
         }
+        self.dashboard_split = self.dashboard_split.clamp(20, 80);
+        self.calendar_daily_days = self.calendar_daily_days.min(366);
+        self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
+        self.calendar_monthly_months = self.calendar_monthly_months.min(24);
+        self.calendar_yearly_years = self.calendar_yearly_years.min(5);
+        self.calendar_dates_years = self.calendar_dates_years.min(5);
+        // unknown names are dropped, missing sections come back in their
+        // default position, so a typo can never lose a tab
+        let mut order: Vec<String> = Vec::new();
+        for name in &self.section_order {
+            if SECTIONS.contains(&name.as_str()) && !order.contains(name) {
+                order.push(name.clone());
+            }
+        }
+        for name in SECTIONS {
+            if !order.iter().any(|o| o == name) {
+                order.push((*name).to_string());
+            }
+        }
+        self.section_order = order;
         self
     }
 
@@ -96,6 +137,25 @@ impl AppConfig {
             ("cron_ignore_time", self.cron_ignore_time.to_string()),
             ("kb_path", self.kb_path.clone()),
             ("journal_template", self.journal_template.clone()),
+            ("section_order", self.section_order.join(",")),
+            ("dashboard_split", self.dashboard_split.to_string()),
+            ("calendar_daily_days", self.calendar_daily_days.to_string()),
+            (
+                "calendar_weekly_weeks",
+                self.calendar_weekly_weeks.to_string(),
+            ),
+            (
+                "calendar_monthly_months",
+                self.calendar_monthly_months.to_string(),
+            ),
+            (
+                "calendar_yearly_years",
+                self.calendar_yearly_years.to_string(),
+            ),
+            (
+                "calendar_dates_years",
+                self.calendar_dates_years.to_string(),
+            ),
         ]
     }
 }
@@ -143,6 +203,8 @@ mod tests {
             catchup_days: 99_999_999,
             theme: "solarized".into(),
             done_display: "weird".into(),
+            dashboard_split: 99,
+            section_order: vec!["kb".into(), "typo".into(), "kb".into()],
             ..AppConfig::default()
         }
         .sanitized();
@@ -150,6 +212,11 @@ mod tests {
         assert_eq!(config.catchup_days, 365);
         assert_eq!(config.theme, "dark");
         assert_eq!(config.done_display, "inline");
+        assert_eq!(config.dashboard_split, 80);
+        assert_eq!(
+            config.section_order,
+            vec!["kb", "dashboard", "upcoming", "calendar", "journal"]
+        );
     }
 
     #[test]

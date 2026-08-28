@@ -5,4 +5,18 @@ export type AppConfig = { theme: "dark" | "light", grid_columns: number, done_di
  * Catch up recurring crons by calendar day: a firing counts as
  * missed based on its date only, as if it fired at 23:59.
  */
-cron_ignore_time: boolean, kb_path: string, journal_template: string, };
+cron_ignore_time: boolean, kb_path: string, journal_template: string, 
+/**
+ * Order of the sections in the left tab bar.
+ */
+section_order: Array<string>, 
+/**
+ * Percent of the dashboard height taken by the day grid (the rest
+ * is the list zone); adjusted by dragging the divider.
+ */
+dashboard_split: number, 
+/**
+ * How far ahead the Calendar projects not-yet-materialized firings,
+ * per rule cadence, plus scheduled dates and birthdays.
+ */
+calendar_daily_days: number, calendar_weekly_weeks: number, calendar_monthly_months: number, calendar_yearly_years: number, calendar_dates_years: number, };
