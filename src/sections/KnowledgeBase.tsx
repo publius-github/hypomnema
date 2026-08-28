@@ -101,8 +101,9 @@ export default function KnowledgeBase() {
     };
   }, [loadTree]);
 
-  // saves the debounced edit immediately (file switch, tab switch)
-  const flushPending = useCallback(() => {
+  // saves the debounced edit immediately (file switch, tab switch);
+  // awaited before reads so a reopen never sees the pre-save file
+  const flushPending = useCallback(async () => {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
@@ -110,17 +111,28 @@ export default function KnowledgeBase() {
     const pending = pendingRef.current;
     if (pending) {
       pendingRef.current = null;
-      void persist(pending);
+      await persist(pending);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // rename/delete of the open file: the debounced kb_write would
+  // otherwise fire after the operation and resurrect the old path
+  const dropPendingFor = (path: string) => {
+    if (pendingRef.current?.path !== path) return;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    pendingRef.current = null;
+  };
+
   useEffect(() => {
-    return () => flushPending();
+    return () => void flushPending();
   }, [flushPending]);
 
   const openFile = async (path: string) => {
-    flushPending();
+    await flushPending();
     try {
       const content = await invoke<string>("kb_read", { path });
       setCurrent({ kind: "note", path, content });
@@ -132,7 +144,7 @@ export default function KnowledgeBase() {
   };
 
   const openConfig = async (file: string) => {
-    flushPending();
+    await flushPending();
     try {
       const content = await invoke<string>("config_file_get", { file });
       setCurrent({ kind: "config", path: file, content });
@@ -195,6 +207,7 @@ export default function KnowledgeBase() {
 
   const renameFile = async (node: KbNode, to: string) => {
     setDialog(null);
+    dropPendingFor(node.path);
     try {
       await invoke("kb_rename", { from: node.path, to });
       await loadTree();
@@ -206,6 +219,7 @@ export default function KnowledgeBase() {
 
   const deleteFile = async (node: KbNode) => {
     setDialog(null);
+    dropPendingFor(node.path);
     try {
       await invoke("kb_delete", { path: node.path });
       await loadTree();
@@ -216,9 +230,13 @@ export default function KnowledgeBase() {
   };
 
   const pickFolder = async () => {
-    const path = await open({ directory: true, title: "Select KB folder" });
-    if (typeof path === "string") {
-      await updateConfig({ kb_path: path });
+    try {
+      const path = await open({ directory: true, title: "Select KB folder" });
+      if (typeof path === "string") {
+        await updateConfig({ kb_path: path });
+      }
+    } catch (e) {
+      setError(e);
     }
   };
 

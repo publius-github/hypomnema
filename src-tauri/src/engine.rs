@@ -308,9 +308,9 @@ fn run_recurring(
     let existing: Vec<String> = {
         let mut stmt = conn.prepare(
             "SELECT DISTINCT rule_key FROM tasks
-             WHERE origin = 'recurring' AND rule_key IS NOT NULL AND scheduled_date > ?1",
+             WHERE origin = 'recurring' AND rule_key IS NOT NULL AND archived_at IS NULL",
         )?;
-        let keys = stmt.query_map([&today_str], |row| row.get(0))?;
+        let keys = stmt.query_map([], |row| row.get(0))?;
         keys.collect::<std::result::Result<_, _>>()?
     };
     for key in existing.iter().filter(|key| !active.contains(*key)) {
@@ -318,6 +318,39 @@ fn run_recurring(
             "DELETE FROM tasks
              WHERE origin = 'recurring' AND rule_key = ?1 AND scheduled_date > ?2",
             (key, &today_str),
+        )?;
+        // Editing a rule re-identifies it: the new key regenerated
+        // today's firing above while this old key still owns a copy of
+        // it - without the two steps below the user sees the task twice
+        // after a rename. (a) An untouched todo copy of the removed key
+        // yields to a same-title-same-day copy from another key;
+        outcome.removed += conn.execute(
+            "DELETE FROM tasks
+             WHERE origin = 'recurring' AND rule_key = ?1 AND status = 'todo'
+               AND archived_at IS NULL
+               AND EXISTS (SELECT 1 FROM tasks live
+                           WHERE live.origin = 'recurring'
+                             AND live.id != tasks.id
+                             AND live.rule_key != ?1
+                             AND live.archived_at IS NULL
+                             AND live.title = tasks.title
+                             AND live.scheduled_date = tasks.scheduled_date)",
+            [key],
+        )?;
+        // (b) a firing already completed under the old identity must not
+        // come back as a fresh todo under the new one.
+        conn.execute(
+            "DELETE FROM tasks
+             WHERE origin = 'recurring' AND status = 'todo' AND archived_at IS NULL
+               AND rule_key != ?1
+               AND EXISTS (SELECT 1 FROM tasks old
+                           WHERE old.origin = 'recurring'
+                             AND old.rule_key = ?1
+                             AND old.status = 'done'
+                             AND old.archived_at IS NULL
+                             AND old.title = tasks.title
+                             AND old.scheduled_date = tasks.scheduled_date)",
+            [key],
         )?;
     }
     // Forget removed rules entirely, so re-adding the same rule later
@@ -729,6 +762,60 @@ mod tests {
             })
             .unwrap();
         assert_eq!(overdue, 0);
+    }
+
+    #[test]
+    fn edited_rule_does_not_duplicate_todays_task() {
+        let (conn, dir) = setup("edited-rule");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    description: Old\n    items:\n      - \"water\"\n",
+        )
+        .unwrap();
+        let cfg = config(3, 7, 0);
+        let now = at("2026-08-28", "12:00:00");
+        run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(count_tasks(&conn), 7);
+
+        // a cosmetic rename changes the rule key; the regenerated window
+        // must replace, not duplicate, the old identity's instances
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    description: New\n    items:\n      - \"water\"\n",
+        )
+        .unwrap();
+        run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(count_tasks(&conn), 7);
+        let today_copies: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE scheduled_date = '2026-08-28'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(today_copies, 1);
+
+        // a firing completed under the old identity stays done after the
+        // next rename instead of reappearing as a fresh todo
+        conn.execute(
+            "UPDATE tasks SET status = 'done' WHERE scheduled_date = '2026-08-28'",
+            [],
+        )
+        .unwrap();
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    description: Newer\n    items:\n      - \"water\"\n",
+        )
+        .unwrap();
+        run(&conn, &dir, &cfg, now).unwrap();
+        let today: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT status FROM tasks WHERE scheduled_date = '2026-08-28'")
+                .unwrap();
+            let rows = stmt.query_map([], |r| r.get(0)).unwrap();
+            rows.collect::<std::result::Result<_, _>>().unwrap()
+        };
+        assert_eq!(today, vec!["done".to_string()]);
     }
 
     #[test]

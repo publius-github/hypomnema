@@ -61,6 +61,7 @@ export default function App() {
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const notifiedRef = useRef(new Set<number>());
   const notifiedDayRef = useRef(todayISO());
+  const toastTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
   useEffect(() => {
     const timer = setInterval(() => {
       const { tasks, today } = useAppStore.getState();
@@ -85,14 +86,21 @@ export default function App() {
           notifiedRef.current.add(task.id);
           const toast = { id: task.id, text: `${task.time} ${task.title}` };
           setToasts((prev) => [...prev, toast]);
-          setTimeout(
-            () => setToasts((prev) => prev.filter((t) => t.id !== toast.id)),
-            15_000,
-          );
+          const timers = toastTimersRef.current;
+          const dismiss = setTimeout(() => {
+            timers.delete(dismiss);
+            setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+          }, 15_000);
+          timers.add(dismiss);
         }
       }
     }, 30_000);
-    return () => clearInterval(timer);
+    const timers = toastTimersRef.current;
+    return () => {
+      clearInterval(timer);
+      timers.forEach(clearTimeout);
+      timers.clear();
+    };
   }, []);
 
   // undo toast for deleted tasks, auto-dismissed after 6s

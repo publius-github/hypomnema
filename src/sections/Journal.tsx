@@ -29,8 +29,26 @@ export default function Journal() {
     }
   }, [setError]);
 
-  // saves the debounced edit immediately (tab switch, entry switch)
-  const flushPending = useCallback(() => {
+  const persist = useCallback(
+    async (kind: OpenDoc["kind"], date: string, content: string) => {
+      try {
+        if (kind === "template") {
+          await invoke("journal_template_set", { content });
+        } else {
+          await invoke("journal_save", { date, content });
+        }
+        setSaved(true);
+      } catch (e) {
+        setError(e);
+      }
+    },
+    [setError],
+  );
+
+  // saves the debounced edit immediately (tab switch, entry switch);
+  // awaited before reopening, or the read could return the pre-save
+  // file and the user would keep typing over stale text
+  const flushPending = useCallback(async () => {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
@@ -38,19 +56,23 @@ export default function Journal() {
     const pending = pendingRef.current;
     if (pending) {
       pendingRef.current = null;
-      void persist(pending.kind, pending.date, pending.content);
+      await persist(pending.kind, pending.date, pending.content);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [persist]);
+
+  // two quick clicks race their reads: only the latest open may land
+  const openSeq = useRef(0);
 
   const openEntry = useCallback(
     async (date: string) => {
-      flushPending();
+      const seq = ++openSeq.current;
+      await flushPending();
       try {
         const entry = await invoke<{ date: string; content: string }>(
           "journal_open",
           { date },
         );
+        if (seq !== openSeq.current) return;
         setDoc({ kind: "entry", date: entry.date, content: entry.content });
         setSaved(true);
         await loadDates();
@@ -62,9 +84,11 @@ export default function Journal() {
   );
 
   const openTemplate = useCallback(async () => {
-    flushPending();
+    const seq = ++openSeq.current;
+    await flushPending();
     try {
       const content = await invoke<string>("journal_template_get");
+      if (seq !== openSeq.current) return;
       setDoc({ kind: "template", date: "template", content });
       setSaved(true);
     } catch (e) {
@@ -92,25 +116,8 @@ export default function Journal() {
     }, 800);
   };
 
-  const persist = async (
-    kind: OpenDoc["kind"],
-    date: string,
-    content: string,
-  ) => {
-    try {
-      if (kind === "template") {
-        await invoke("journal_template_set", { content });
-      } else {
-        await invoke("journal_save", { date, content });
-      }
-      setSaved(true);
-    } catch (e) {
-      setError(e);
-    }
-  };
-
   useEffect(() => {
-    return () => flushPending();
+    return () => void flushPending();
   }, [flushPending]);
 
   const today = todayISO();
@@ -131,6 +138,15 @@ export default function Journal() {
           >
             Edit template
           </button>
+          <input
+            type="date"
+            className="input px-2 py-1 text-xs"
+            title="Open the entry for any date"
+            value={doc?.kind === "entry" ? doc.date : ""}
+            onChange={(e) => {
+              if (e.target.value) void openEntry(e.target.value);
+            }}
+          />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
           <div className="pb-1 text-[11px] font-semibold uppercase tracking-wider text-content-muted">

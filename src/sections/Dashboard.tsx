@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   DndContext,
   DragOverlay,
@@ -15,14 +16,41 @@ import ListColumn from "../components/ListColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import NewListForm from "../components/NewListForm";
+import type { Task } from "../types";
 
 export default function Dashboard() {
   const { config, today, lists, tasks, updateTask, dashboard } = useAppStore();
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  // Moving the open task's date beyond the grid window drops it from
+  // the snapshot; the modal must survive that (and keep unsaved edits),
+  // so fall back to fetching the task by id.
+  const [fetchedTask, setFetchedTask] = useState<Task | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
+
+  useEffect(() => {
+    if (editingTaskId === null) {
+      setFetchedTask(null);
+      return;
+    }
+    const inStore = useAppStore
+      .getState()
+      .tasks.some((t) => t.id === editingTaskId);
+    if (inStore) return;
+    let cancelled = false;
+    invoke<Task>("task_get", { id: editingTaskId })
+      .then((t) => {
+        if (!cancelled) setFetchedTask(t);
+      })
+      .catch(() => {
+        if (!cancelled) setEditingTaskId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editingTaskId, tasks]);
 
   if (!config) return null;
 
@@ -31,7 +59,9 @@ export default function Dashboard() {
   // invisible - point at them once
   const freshVault = tasks.length === 0 && lists.length === 0;
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
-  const editingTask = tasks.find((t) => t.id === editingTaskId) ?? null;
+  const editingTask =
+    tasks.find((t) => t.id === editingTaskId) ??
+    (fetchedTask && fetchedTask.id === editingTaskId ? fetchedTask : null);
 
   const onDragStart = (event: DragStartEvent) => {
     setActiveTaskId(Number(String(event.active.id).replace("task:", "")));
@@ -43,11 +73,17 @@ export default function Dashboard() {
     if (!over) return;
     const taskId = Number(String(active.id).replace("task:", ""));
     const target = String(over.id);
+    const task = tasks.find((t) => t.id === taskId);
     if (target.startsWith("day:")) {
-      void updateTask(taskId, { scheduled_date: target.slice(4) });
+      const date = target.slice(4);
+      if (task?.scheduled_date === date) return;
+      void updateTask(taskId, { scheduled_date: date });
     } else if (target.startsWith("list:")) {
+      const listId = Number(target.slice(5));
+      if (task && task.list_id === listId && task.scheduled_date === null)
+        return;
       void updateTask(taskId, {
-        list_id: Number(target.slice(5)),
+        list_id: listId,
         scheduled_date: null,
       });
     }

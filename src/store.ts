@@ -147,9 +147,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   updateTask: async (id, patch) => {
-    const previous = get().tasks;
-    set({
-      tasks: previous.map((t) => {
+    const previousTask = get().tasks.find((t) => t.id === id);
+    set((s) => ({
+      tasks: s.tasks.map((t) => {
         if (t.id !== id) return t;
         const merged = { ...t };
         for (const [key, value] of Object.entries(patch)) {
@@ -157,12 +157,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
         return merged;
       }),
-    });
+    }));
     try {
       await invoke<Task>("task_update", { id, patch });
       await get().refresh();
     } catch (e) {
-      set({ tasks: previous, error: String(e) });
+      // roll back only this task: restoring a whole snapshot would
+      // clobber concurrent optimistic updates of other tasks
+      set((s) => ({
+        tasks: previousTask
+          ? s.tasks.map((t) => (t.id === id ? previousTask : t))
+          : s.tasks,
+        error: String(e),
+      }));
     }
   },
 

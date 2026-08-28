@@ -24,15 +24,24 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
     inputRef.current?.focus();
   }, []);
 
+  // responses can interleave even with the debounce: only the newest
+  // request may set the result list
+  const searchSeq = useRef(0);
+  const [highlighted, setHighlighted] = useState(0);
+
   const runSearch = useCallback(async (q: string) => {
+    const seq = ++searchSeq.current;
     if (!q) {
       setResults([]);
       setSearched(false);
       return;
     }
     try {
-      setResults(await invoke<Task[]>("tasks_search", { query: q }));
+      const found = await invoke<Task[]>("tasks_search", { query: q });
+      if (seq !== searchSeq.current) return;
+      setResults(found);
       setSearched(true);
+      setHighlighted(0);
     } catch (e) {
       useAppStore.setState({ error: String(e) });
     }
@@ -85,14 +94,32 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
             placeholder="Search tasks by title..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setHighlighted((i) => Math.min(i + 1, results.length - 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setHighlighted((i) => Math.max(i - 1, 0));
+              } else if (e.key === "Enter" && results[highlighted]) {
+                setSelected(results[highlighted]);
+              }
+            }}
           />
           <span className="text-[11px] text-content-muted">Esc</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {results.map((task) => (
+          {results.map((task, index) => (
             <button
               key={task.id}
-              className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-line/30"
+              ref={(el) => {
+                if (index === highlighted)
+                  el?.scrollIntoView({ block: "nearest" });
+              }}
+              className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm ${
+                index === highlighted ? "bg-line/40" : "hover:bg-line/30"
+              }`}
+              onMouseMove={() => setHighlighted(index)}
               onClick={() => setSelected(task)}
             >
               <span

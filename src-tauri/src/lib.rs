@@ -57,33 +57,43 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
             std::thread::sleep(Duration::from_millis(400));
             while rx.try_recv().is_ok() {}
 
+            // Hold the vault lock only long enough to reload app.yml and
+            // snapshot what the pass needs; the engine then runs on its
+            // own connection (WAL + busy_timeout make that safe), so a
+            // slow disk cannot stall every command behind this thread.
             let state = app.state::<AppState>();
-            let mut guard = state.vault.lock().unwrap();
-            if let Some(vault) = guard.as_mut() {
-                let _ = vault.reload_config();
-                let outcome = engine::run(
-                    &vault.conn,
-                    &vault.config_dir(),
-                    &vault.config,
-                    chrono::Local::now(),
-                );
-                let mut errors = outcome.map(|o| o.errors).unwrap_or_default();
-                if let Some(msg) = &vault.config_error {
-                    errors.push(config_files::ConfigError {
-                        file: "app.yml".into(),
-                        line: None,
-                        message: msg.clone(),
-                    });
-                }
-                drop(guard);
-                let _ = app.emit("vault-updated", errors);
+            let snapshot = {
+                let mut guard = state.vault.lock().unwrap();
+                guard.as_mut().map(|vault| {
+                    let _ = vault.reload_config();
+                    (
+                        vault.root.clone(),
+                        vault.config.clone(),
+                        vault.config_error.clone(),
+                    )
+                })
+            };
+            let Some((root, config, config_error)) = snapshot else {
+                continue;
+            };
+            let outcome = db::open(&root.join("app.db")).and_then(|conn| {
+                engine::run(&conn, &root.join("config"), &config, chrono::Local::now())
+            });
+            let mut errors = outcome.map(|o| o.errors).unwrap_or_default();
+            if let Some(msg) = config_error {
+                errors.push(config_files::ConfigError {
+                    file: "app.yml".into(),
+                    line: None,
+                    message: msg,
+                });
             }
+            let _ = app.emit("vault-updated", errors);
         }
     });
     Ok(())
 }
 
-fn open_vault(app: &AppHandle, state: &State<AppState>, root: &Path) -> Result<AppConfig> {
+fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<AppConfig> {
     let vault = Vault::open(root)?;
     let config = vault.config.clone();
     let config_dir = vault.config_dir();
@@ -96,7 +106,7 @@ fn open_vault(app: &AppHandle, state: &State<AppState>, root: &Path) -> Result<A
 }
 
 #[tauri::command]
-fn vault_status(app: AppHandle, state: State<AppState>) -> Result<Option<String>> {
+async fn vault_status(app: AppHandle, state: State<'_, AppState>) -> Result<Option<String>> {
     let Some(path) = vault::read_vault_path(&app_config_dir(&app)?) else {
         return Ok(None);
     };
@@ -105,7 +115,11 @@ fn vault_status(app: AppHandle, state: State<AppState>) -> Result<Option<String>
 }
 
 #[tauri::command]
-fn vault_select(app: AppHandle, state: State<AppState>, path: String) -> Result<AppConfig> {
+async fn vault_select(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<AppConfig> {
     let root = PathBuf::from(&path);
     let config = open_vault(&app, &state, &root)?;
     vault::write_vault_path(&app_config_dir(&app)?, &root)?;
@@ -113,7 +127,7 @@ fn vault_select(app: AppHandle, state: State<AppState>, path: String) -> Result<
 }
 
 #[tauri::command]
-fn config_get(state: State<AppState>) -> Result<AppConfig> {
+async fn config_get(state: State<'_, AppState>) -> Result<AppConfig> {
     let guard = state.vault.lock().unwrap();
     guard
         .as_ref()
@@ -122,7 +136,7 @@ fn config_get(state: State<AppState>) -> Result<AppConfig> {
 }
 
 #[tauri::command]
-fn config_set(state: State<AppState>, config: AppConfig) -> Result<()> {
+async fn config_set(state: State<'_, AppState>, config: AppConfig) -> Result<()> {
     let mut guard = state.vault.lock().unwrap();
     let vault = guard
         .as_mut()
@@ -131,7 +145,7 @@ fn config_set(state: State<AppState>, config: AppConfig) -> Result<()> {
 }
 
 fn with_conn<T>(
-    state: &State<AppState>,
+    state: &State<'_, AppState>,
     f: impl FnOnce(&rusqlite::Connection) -> Result<T>,
 ) -> Result<T> {
     let guard = state.vault.lock().unwrap();
@@ -142,30 +156,34 @@ fn with_conn<T>(
 }
 
 #[tauri::command]
-fn lists_all(state: State<AppState>) -> Result<Vec<tasks::List>> {
+async fn lists_all(state: State<'_, AppState>) -> Result<Vec<tasks::List>> {
     with_conn(&state, tasks::lists_all)
 }
 
 #[tauri::command]
-fn list_create(state: State<AppState>, name: String, color: Option<String>) -> Result<tasks::List> {
+async fn list_create(
+    state: State<'_, AppState>,
+    name: String,
+    color: Option<String>,
+) -> Result<tasks::List> {
     with_conn(&state, |conn| {
         tasks::list_create(conn, &name, color.as_deref(), false)
     })
 }
 
 #[tauri::command]
-fn list_rename(state: State<AppState>, id: i64, name: String) -> Result<()> {
+async fn list_rename(state: State<'_, AppState>, id: i64, name: String) -> Result<()> {
     with_conn(&state, |conn| tasks::list_rename(conn, id, &name))
 }
 
 #[tauri::command]
-fn list_archive(state: State<AppState>, id: i64) -> Result<()> {
+async fn list_archive(state: State<'_, AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::list_archive(conn, id))
 }
 
 #[tauri::command]
-fn tasks_snapshot(
-    state: State<AppState>,
+async fn tasks_snapshot(
+    state: State<'_, AppState>,
     start_date: String,
     end_date: String,
 ) -> Result<Vec<tasks::Task>> {
@@ -175,27 +193,31 @@ fn tasks_snapshot(
 }
 
 #[tauri::command]
-fn task_create(state: State<AppState>, new: tasks::NewTask) -> Result<tasks::Task> {
+async fn task_create(state: State<'_, AppState>, new: tasks::NewTask) -> Result<tasks::Task> {
     with_conn(&state, |conn| tasks::task_create(conn, &new))
 }
 
 #[tauri::command]
-fn task_update(state: State<AppState>, id: i64, patch: tasks::TaskPatch) -> Result<tasks::Task> {
+async fn task_update(
+    state: State<'_, AppState>,
+    id: i64,
+    patch: tasks::TaskPatch,
+) -> Result<tasks::Task> {
     with_conn(&state, |conn| tasks::task_update(conn, id, &patch))
 }
 
 #[tauri::command]
-fn task_delete(state: State<AppState>, id: i64) -> Result<()> {
+async fn task_delete(state: State<'_, AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::task_delete(conn, id))
 }
 
 #[tauri::command]
-fn tasks_delete_done(state: State<AppState>) -> Result<usize> {
+async fn tasks_delete_done(state: State<'_, AppState>) -> Result<usize> {
     with_conn(&state, tasks::tasks_delete_done)
 }
 
 #[tauri::command]
-fn engine_run(state: State<AppState>) -> Result<engine::EngineOutcome> {
+async fn engine_run(state: State<'_, AppState>) -> Result<engine::EngineOutcome> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -217,7 +239,7 @@ fn engine_run(state: State<AppState>) -> Result<engine::EngineOutcome> {
 }
 
 #[tauri::command]
-fn upcoming_events(state: State<AppState>) -> Result<views::UpcomingResult> {
+async fn upcoming_events(state: State<'_, AppState>) -> Result<views::UpcomingResult> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -226,7 +248,10 @@ fn upcoming_events(state: State<AppState>) -> Result<views::UpcomingResult> {
     Ok(views::UpcomingResult { events, errors })
 }
 
-fn with_vault_root<T>(state: &State<AppState>, f: impl FnOnce(&Path) -> Result<T>) -> Result<T> {
+fn with_vault_root<T>(
+    state: &State<'_, AppState>,
+    f: impl FnOnce(&Path) -> Result<T>,
+) -> Result<T> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -235,33 +260,33 @@ fn with_vault_root<T>(state: &State<AppState>, f: impl FnOnce(&Path) -> Result<T
 }
 
 #[tauri::command]
-fn journal_open(state: State<AppState>, date: String) -> Result<journal::JournalEntry> {
+async fn journal_open(state: State<'_, AppState>, date: String) -> Result<journal::JournalEntry> {
     with_vault_root(&state, |root| journal::open_entry(root, &date))
 }
 
 #[tauri::command]
-fn journal_save(state: State<AppState>, date: String, content: String) -> Result<()> {
+async fn journal_save(state: State<'_, AppState>, date: String, content: String) -> Result<()> {
     with_vault_root(&state, |root| journal::save_entry(root, &date, &content))
 }
 
 #[tauri::command]
-fn journal_list(state: State<AppState>) -> Result<Vec<String>> {
+async fn journal_list(state: State<'_, AppState>) -> Result<Vec<String>> {
     with_vault_root(&state, journal::list_entries)
 }
 
 #[tauri::command]
-fn journal_template_get(state: State<AppState>) -> Result<String> {
+async fn journal_template_get(state: State<'_, AppState>) -> Result<String> {
     with_vault_root(&state, journal::read_template)
 }
 
 #[tauri::command]
-fn journal_template_set(state: State<AppState>, content: String) -> Result<()> {
+async fn journal_template_set(state: State<'_, AppState>, content: String) -> Result<()> {
     with_vault_root(&state, |root| journal::save_template(root, &content))
 }
 
 #[tauri::command]
-fn dashboard_context(
-    state: State<AppState>,
+async fn dashboard_context(
+    state: State<'_, AppState>,
     dates: Vec<String>,
 ) -> Result<reminders::DashboardContext> {
     let guard = state.vault.lock().unwrap();
@@ -272,7 +297,7 @@ fn dashboard_context(
 }
 
 #[tauri::command]
-fn birthdays_list(state: State<AppState>) -> Result<views::BirthdaysResult> {
+async fn birthdays_list(state: State<'_, AppState>) -> Result<views::BirthdaysResult> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -284,7 +309,7 @@ fn birthdays_list(state: State<AppState>) -> Result<views::BirthdaysResult> {
 }
 
 #[tauri::command]
-fn recurring_list(state: State<AppState>) -> Result<views::RecurringResult> {
+async fn recurring_list(state: State<'_, AppState>) -> Result<views::RecurringResult> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -293,7 +318,10 @@ fn recurring_list(state: State<AppState>) -> Result<views::RecurringResult> {
 }
 
 #[tauri::command]
-fn recurring_add(state: State<AppState>, rule: config_files::RecurringRule) -> Result<()> {
+async fn recurring_add(
+    state: State<'_, AppState>,
+    rule: config_files::RecurringRule,
+) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -302,7 +330,10 @@ fn recurring_add(state: State<AppState>, rule: config_files::RecurringRule) -> R
 }
 
 #[tauri::command]
-fn scheduled_add(state: State<AppState>, event: config_files::ScheduledEvent) -> Result<()> {
+async fn scheduled_add(
+    state: State<'_, AppState>,
+    event: config_files::ScheduledEvent,
+) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -311,7 +342,10 @@ fn scheduled_add(state: State<AppState>, event: config_files::ScheduledEvent) ->
 }
 
 #[tauri::command]
-fn birthday_add(state: State<AppState>, entry: config_files::BirthdayEntry) -> Result<()> {
+async fn birthday_add(
+    state: State<'_, AppState>,
+    entry: config_files::BirthdayEntry,
+) -> Result<()> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -320,8 +354,8 @@ fn birthday_add(state: State<AppState>, entry: config_files::BirthdayEntry) -> R
 }
 
 #[tauri::command]
-fn recurring_edit(
-    state: State<AppState>,
+async fn recurring_edit(
+    state: State<'_, AppState>,
     index: usize,
     replacement: Option<config_files::RecurringRule>,
 ) -> Result<()> {
@@ -333,8 +367,8 @@ fn recurring_edit(
 }
 
 #[tauri::command]
-fn scheduled_edit(
-    state: State<AppState>,
+async fn scheduled_edit(
+    state: State<'_, AppState>,
     original: config_files::ScheduledEvent,
     replacement: Option<config_files::ScheduledEvent>,
 ) -> Result<()> {
@@ -346,8 +380,8 @@ fn scheduled_edit(
 }
 
 #[tauri::command]
-fn birthday_edit(
-    state: State<AppState>,
+async fn birthday_edit(
+    state: State<'_, AppState>,
     original: config_files::BirthdayEntry,
     replacement: Option<config_files::BirthdayEntry>,
 ) -> Result<()> {
@@ -367,7 +401,7 @@ const EDITABLE_CONFIG_FILES: &[&str] = &[
     "day-schedule.yml",
 ];
 
-fn editable_config_path(state: &State<AppState>, file: &str) -> Result<PathBuf> {
+fn editable_config_path(state: &State<'_, AppState>, file: &str) -> Result<PathBuf> {
     if !EDITABLE_CONFIG_FILES.contains(&file) {
         return Err(Error::State(format!("not an editable config file: {file}")));
     }
@@ -379,7 +413,7 @@ fn editable_config_path(state: &State<AppState>, file: &str) -> Result<PathBuf> 
 }
 
 #[tauri::command]
-fn config_file_get(state: State<AppState>, file: String) -> Result<String> {
+async fn config_file_get(state: State<'_, AppState>, file: String) -> Result<String> {
     let path = editable_config_path(&state, &file)?;
     Ok(std::fs::read_to_string(path).unwrap_or_default())
 }
@@ -387,8 +421,8 @@ fn config_file_get(state: State<AppState>, file: String) -> Result<String> {
 /// Validates and, when valid, writes the config file. Invalid content is
 /// never written, so the last valid state stays active (req. 19).
 #[tauri::command]
-fn config_file_set(
-    state: State<AppState>,
+async fn config_file_set(
+    state: State<'_, AppState>,
     file: String,
     content: String,
 ) -> Result<Vec<config_files::ConfigError>> {
@@ -400,7 +434,7 @@ fn config_file_set(
     Ok(errors)
 }
 
-fn kb_root(state: &State<AppState>) -> Result<PathBuf> {
+fn kb_root(state: &State<'_, AppState>) -> Result<PathBuf> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -413,7 +447,7 @@ fn kb_root(state: &State<AppState>) -> Result<PathBuf> {
 
 /// (Re)arms the KB watcher when the tree is loaded, so external edits
 /// refresh the UI. Replaced when the KB path changes in settings.
-fn ensure_kb_watcher(app: &AppHandle, state: &State<AppState>, root: &Path) -> Result<()> {
+fn ensure_kb_watcher(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<()> {
     let mut guard = state.kb_watcher.lock().unwrap();
     if let Some((watched, _)) = guard.as_ref() {
         if watched == root {
@@ -444,7 +478,7 @@ fn ensure_kb_watcher(app: &AppHandle, state: &State<AppState>, root: &Path) -> R
 }
 
 #[tauri::command]
-fn kb_tree(app: AppHandle, state: State<AppState>) -> Result<Vec<kb::KbNode>> {
+async fn kb_tree(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<kb::KbNode>> {
     let root = kb_root(&state)?;
     let tree = kb::tree(&root)?;
     ensure_kb_watcher(&app, &state, &root)?;
@@ -452,47 +486,47 @@ fn kb_tree(app: AppHandle, state: State<AppState>) -> Result<Vec<kb::KbNode>> {
 }
 
 #[tauri::command]
-fn kb_read(state: State<AppState>, path: String) -> Result<String> {
+async fn kb_read(state: State<'_, AppState>, path: String) -> Result<String> {
     kb::read(&kb_root(&state)?, &path)
 }
 
 #[tauri::command]
-fn kb_write(state: State<AppState>, path: String, content: String) -> Result<()> {
+async fn kb_write(state: State<'_, AppState>, path: String, content: String) -> Result<()> {
     kb::write(&kb_root(&state)?, &path, &content)
 }
 
 #[tauri::command]
-fn kb_create(state: State<AppState>, path: String) -> Result<String> {
+async fn kb_create(state: State<'_, AppState>, path: String) -> Result<String> {
     kb::create(&kb_root(&state)?, &path)
 }
 
 #[tauri::command]
-fn kb_rename(state: State<AppState>, from: String, to: String) -> Result<()> {
+async fn kb_rename(state: State<'_, AppState>, from: String, to: String) -> Result<()> {
     kb::rename(&kb_root(&state)?, &from, &to)
 }
 
 #[tauri::command]
-fn kb_delete(state: State<AppState>, path: String) -> Result<()> {
+async fn kb_delete(state: State<'_, AppState>, path: String) -> Result<()> {
     kb::delete(&kb_root(&state)?, &path)
 }
 
 #[tauri::command]
-fn kb_search(state: State<AppState>, query: String) -> Result<Vec<kb::KbSearchHit>> {
+async fn kb_search(state: State<'_, AppState>, query: String) -> Result<Vec<kb::KbSearchHit>> {
     kb::search_content(&kb_root(&state)?, &query)
 }
 
 #[tauri::command]
-fn tasks_search(state: State<AppState>, query: String) -> Result<Vec<tasks::Task>> {
+async fn tasks_search(state: State<'_, AppState>, query: String) -> Result<Vec<tasks::Task>> {
     with_conn(&state, |conn| tasks::tasks_search(conn, &query))
 }
 
 #[tauri::command]
-fn task_get(state: State<AppState>, id: i64) -> Result<tasks::Task> {
+async fn task_get(state: State<'_, AppState>, id: i64) -> Result<tasks::Task> {
     with_conn(&state, |conn| tasks::task_get(conn, id))
 }
 
 #[tauri::command]
-fn task_restore(state: State<AppState>, id: i64) -> Result<()> {
+async fn task_restore(state: State<'_, AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::task_restore(conn, id))
 }
 

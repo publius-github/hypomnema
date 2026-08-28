@@ -6,12 +6,16 @@ export default function VaultPicker() {
 
   const pick = async () => {
     clearError();
-    const path = await open({
-      directory: true,
-      title: "Select vault folder",
-    });
-    if (typeof path === "string") {
-      await selectVault(path);
+    try {
+      const path = await open({
+        directory: true,
+        title: "Select vault folder",
+      });
+      if (typeof path === "string") {
+        await selectVault(path);
+      }
+    } catch (e) {
+      useAppStore.setState({ error: String(e) });
     }
   };
 

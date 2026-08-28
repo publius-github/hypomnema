@@ -45,10 +45,11 @@ export default function Upcoming() {
     void load();
   }, [load, vaultVersion]);
 
+  // runEngine bumps vaultVersion, which already triggers load() via the
+  // effect above - an explicit load() here would double-fetch
   const afterWrite = async () => {
     await runEngine();
     await refresh();
-    await load();
   };
 
   return (
