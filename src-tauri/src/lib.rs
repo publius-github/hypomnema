@@ -2,6 +2,7 @@ mod config;
 mod db;
 mod engine;
 mod error;
+mod journal;
 mod tasks;
 mod vault;
 
@@ -199,6 +200,39 @@ fn upcoming_events(state: State<AppState>) -> Result<engine::UpcomingResult> {
     Ok(engine::UpcomingResult { events, errors })
 }
 
+fn with_vault_root<T>(state: &State<AppState>, f: impl FnOnce(&Path) -> Result<T>) -> Result<T> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    f(&vault.root)
+}
+
+#[tauri::command]
+fn journal_open(state: State<AppState>, date: String) -> Result<journal::JournalEntry> {
+    with_vault_root(&state, |root| journal::open_entry(root, &date))
+}
+
+#[tauri::command]
+fn journal_save(state: State<AppState>, date: String, content: String) -> Result<()> {
+    with_vault_root(&state, |root| journal::save_entry(root, &date, &content))
+}
+
+#[tauri::command]
+fn journal_list(state: State<AppState>) -> Result<Vec<String>> {
+    with_vault_root(&state, journal::list_entries)
+}
+
+#[tauri::command]
+fn journal_template_get(state: State<AppState>) -> Result<String> {
+    with_vault_root(&state, journal::read_template)
+}
+
+#[tauri::command]
+fn journal_template_set(state: State<AppState>, content: String) -> Result<()> {
+    with_vault_root(&state, |root| journal::save_template(root, &content))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -217,7 +251,12 @@ pub fn run() {
             task_update,
             task_delete,
             engine_run,
-            upcoming_events
+            upcoming_events,
+            journal_open,
+            journal_save,
+            journal_list,
+            journal_template_get,
+            journal_template_set
         ])
         .run(tauri::generate_context!())
         .expect("error while running app-pkb");
