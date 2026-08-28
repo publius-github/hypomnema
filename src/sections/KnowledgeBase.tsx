@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
 import MarkdownEditor from "../components/MarkdownEditor";
+import Icon from "../components/icons";
 
 interface KbNode {
   name: string;
@@ -247,9 +248,10 @@ export default function KnowledgeBase() {
               })
             }
           >
-            <span className="text-[9px]">
-              {expanded.has(node.path) ? "▾" : "▸"}
-            </span>
+            <Icon
+              name={expanded.has(node.path) ? "chevronDown" : "chevronRight"}
+              className="h-3 w-3 shrink-0"
+            />
             <span className="truncate">{node.name}</span>
           </button>
         ) : (
@@ -261,18 +263,18 @@ export default function KnowledgeBase() {
               {displayName(node.name)}
             </button>
             <button
-              className="hidden text-xs group-hover:block"
+              className="hidden group-hover:block"
               title="Rename"
               onClick={() => void renameFile(node)}
             >
-              ✎
+              <Icon name="pencil" className="h-3 w-3" />
             </button>
             <button
-              className="hidden text-xs hover:text-red-500 group-hover:block"
+              className="hidden hover:text-red-500 group-hover:block"
               title="Delete"
               onClick={() => void deleteFile(node)}
             >
-              ×
+              <Icon name="trash" className="h-3 w-3" />
             </button>
           </>
         )}
