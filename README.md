@@ -237,6 +237,48 @@ birthdays:
 6. Settings: настройка количества колонок недельной сетки и базовых параметров отображения.
 7. Импорт задач из раздельных конфигов: `recurring.yml`, `scheduled.yml`, `birthdays.yml`.
 
+## Сборка и релиз
+
+Инсталлятор собирается на той платформе, под которую он нужен: NSIS `.exe` - только на Windows, `.dmg` - только на macOS.
+
+### Требования к машине сборки
+
+Общие для всех платформ:
+
+- Node.js 22+ и npm.
+- Rust (stable) через [rustup](https://rustup.rs).
+
+Windows:
+
+- Microsoft Visual Studio Build Tools с компонентом "Desktop development with C++" (нужен для линковки Rust).
+- WebView2 Runtime (на Windows 10/11 обычно уже установлен).
+- Git Bash (идёт с Git for Windows) - в нём запускаются скрипты из `scripts/`.
+
+Linux:
+
+- `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf` (пример для Debian/Ubuntu).
+
+### Локальная сборка инсталлятора
+
+```bash
+git clone <repo-url> && cd app-pkb
+./scripts/build.sh
+```
+
+Скрипт ставит зависимости (`npm ci`) и запускает `tauri build`. Готовые артефакты лежат в `src-tauri/target/release/bundle/`: на Windows - `nsis/app-pkb_<version>_x64-setup.exe`, на macOS - `dmg/app-pkb_<version>_aarch64.dmg`.
+
+Запуск в dev-режиме (окно с hot reload, без инсталлятора): `npm ci && npm run tauri dev`.
+
+### Релиз через GitHub Actions
+
+Инсталлятор для релиза можно не собирать вручную: workflow `.github/workflows/release.yml` собирает Windows-инсталлятор на теге `v*` и прикладывает его к draft GitHub Release.
+
+```bash
+./scripts/release.sh 0.1.0
+```
+
+Скрипт проверяет чистоту рабочего дерева, проставляет версию в `package.json`, `src-tauri/tauri.conf.json` и `src-tauri/Cargo.toml`, коммитит, ставит тег `v0.1.0` и пушит ветку с тегом. Дальше CI собирает инсталлятор; останется опубликовать draft-релиз на GitHub.
+
 ## Итог
 
 app-pkb развивается из обычного to-do в персональную систему продуктивности: планирование, рефлексия и знания в одном локальном приложении с акцентом на Markdown и управляемую автоматизацию задач через YAML + cron.
