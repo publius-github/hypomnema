@@ -25,7 +25,7 @@ interface AppState {
   configErrors: ConfigError[];
   dashboard: DashboardContext | null;
   init: () => Promise<void>;
-  runEngine: () => Promise<void>;
+  runEngine: () => Promise<EngineOutcome | null>;
   setConfigErrors: (errors: ConfigError[]) => void;
   selectVault: (path: string) => Promise<void>;
   updateConfig: (patch: Partial<AppConfig>) => Promise<void>;
@@ -93,8 +93,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const outcome = await invoke<EngineOutcome>("engine_run");
       set({ configErrors: outcome.errors });
+      return outcome;
     } catch (e) {
       set({ error: String(e) });
+      return null;
     }
   },
 
