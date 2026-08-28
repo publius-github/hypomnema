@@ -41,7 +41,7 @@ export default function Settings() {
             void updateConfig({ grid_columns: Number(e.target.value) })
           }
         >
-          {[3, 5, 7, 10].map((n) => (
+          {[2, 3, 5, 7, 10].map((n) => (
             <option key={n} value={n}>
               {n}
             </option>
