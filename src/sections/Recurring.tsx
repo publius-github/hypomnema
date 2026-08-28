@@ -16,6 +16,7 @@ const WEEKDAYS = [
 
 export default function Recurring() {
   const { runEngine, refresh } = useAppStore();
+  const vaultVersion = useAppStore((s) => s.vaultVersion);
   const setError = useCallback(
     (e: unknown) => useAppStore.setState({ error: String(e) }),
     [],
@@ -37,9 +38,11 @@ export default function Recurring() {
     }
   }, [setError]);
 
+  // reload whenever the engine ran (sync button, watcher, YAML edit in
+  // Notes), so the list never shows a stale file state
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, vaultVersion]);
 
   const afterWrite = async () => {
     await runEngine();

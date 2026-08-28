@@ -24,6 +24,9 @@ interface AppState {
   tasks: Task[];
   configErrors: ConfigError[];
   dashboard: DashboardContext | null;
+  /// bumped after every engine pass (manual or watcher-triggered) so
+  /// sections holding YAML-derived local state know to reload
+  vaultVersion: number;
   init: () => Promise<void>;
   runEngine: () => Promise<EngineOutcome | null>;
   setConfigErrors: (errors: ConfigError[]) => void;
@@ -58,6 +61,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   tasks: [],
   configErrors: [],
   dashboard: null,
+  vaultVersion: 0,
 
   init: async () => {
     try {
@@ -92,7 +96,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   runEngine: async () => {
     try {
       const outcome = await invoke<EngineOutcome>("engine_run");
-      set({ configErrors: outcome.errors });
+      set((s) => ({
+        configErrors: outcome.errors,
+        vaultVersion: s.vaultVersion + 1,
+      }));
       return outcome;
     } catch (e) {
       set({ error: String(e) });

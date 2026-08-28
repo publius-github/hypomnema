@@ -42,6 +42,7 @@ export default function App() {
     const unlisten = listen<ConfigError[]>("vault-updated", async (event) => {
       const store = useAppStore.getState();
       store.setConfigErrors(event.payload);
+      useAppStore.setState((s) => ({ vaultVersion: s.vaultVersion + 1 }));
       try {
         const config = await invoke<AppConfig>("config_get");
         useAppStore.setState({ config });
