@@ -7,12 +7,7 @@ import MarkdownEditor from "../components/MarkdownEditor";
 import Icon from "../components/icons";
 import { ConfirmModal, PromptModal } from "../components/dialogs";
 
-interface KbNode {
-  name: string;
-  path: string;
-  is_dir: boolean;
-  children: KbNode[];
-}
+import type { KbNode, KbSearchHit } from "../types";
 
 // Vault config files editable right in the KB editor (validated on save)
 const CONFIG_FILES = [
@@ -54,9 +49,7 @@ export default function KnowledgeBase() {
     return stored >= 160 && stored <= 480 ? stored : 240;
   });
   const [search, setSearch] = useState("");
-  const [contentHits, setContentHits] = useState<
-    { path: string; name: string; line: number; preview: string }[]
-  >([]);
+  const [contentHits, setContentHits] = useState<KbSearchHit[]>([]);
   const [current, setCurrent] = useState<OpenDoc | null>(null);
   const [configErrors, setConfigErrors] = useState<
     { line: number | null; message: string }[]
@@ -241,10 +234,7 @@ export default function KnowledgeBase() {
       return;
     }
     const timer = setTimeout(() => {
-      invoke<{ path: string; name: string; line: number; preview: string }[]>(
-        "kb_search",
-        { query },
-      )
+      invoke<KbSearchHit[]>("kb_search", { query })
         .then(setContentHits)
         .catch(() => setContentHits([]));
     }, 250);

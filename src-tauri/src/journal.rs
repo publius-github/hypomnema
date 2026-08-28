@@ -6,7 +6,8 @@ use serde::Serialize;
 
 use crate::error::{Error, Result};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct JournalEntry {
     pub date: String,
     pub content: String,

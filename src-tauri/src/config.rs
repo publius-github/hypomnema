@@ -2,14 +2,18 @@ use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::error::Result;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 #[serde(default)]
 pub struct AppConfig {
+    #[ts(type = "\"dark\" | \"light\"")]
     pub theme: String,
     pub grid_columns: u32,
+    #[ts(type = "\"inline\" | \"separate\"")]
     pub done_display: String,
     pub retention_days: u32,
     pub catchup_days: u32,

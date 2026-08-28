@@ -2,10 +2,12 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
+use ts_rs::TS;
 
 use crate::error::{Error, Result};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct KbNode {
     pub name: String,
     /// Path relative to the KB root, with '/' separators.
@@ -89,10 +91,12 @@ pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
     build_tree(root, root, 0)
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct KbSearchHit {
     pub path: String,
     pub name: String,
+    #[ts(type = "number")]
     pub line: usize,
     pub preview: String,
 }

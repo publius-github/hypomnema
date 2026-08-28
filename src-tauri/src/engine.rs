@@ -8,6 +8,7 @@ use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use croner::Cron;
 use rusqlite::Connection;
 use serde::Serialize;
+use ts_rs::TS;
 
 use crate::config::AppConfig;
 use crate::config_files::{
@@ -17,11 +18,16 @@ use crate::config_files::{
 use crate::error::Result;
 use crate::tasks;
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct EngineOutcome {
+    #[ts(type = "number")]
     pub generated: usize,
+    #[ts(type = "number")]
     pub carried_over: usize,
+    #[ts(type = "number")]
     pub pruned: usize,
+    #[ts(type = "number")]
     pub removed: usize,
     pub errors: Vec<ConfigError>,
 }

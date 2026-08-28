@@ -8,12 +8,15 @@ use std::path::Path;
 use chrono::NaiveDate;
 use croner::Cron;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::error::Result;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct ConfigError {
     pub file: String,
+    #[ts(type = "number | null")]
     pub line: Option<usize>,
     pub message: String,
 }
@@ -24,7 +27,8 @@ pub(crate) struct RecurringFile {
     pub(crate) tasks: Vec<RecurringRule>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct RecurringRule {
     pub schedule: String,
     #[serde(default)]
@@ -39,7 +43,8 @@ pub(crate) struct ScheduledFile {
     pub(crate) events: Vec<ScheduledEvent>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct ScheduledEvent {
     pub date: String,
     pub title: String,
@@ -53,7 +58,8 @@ pub(crate) struct BirthdaysFile {
     pub(crate) birthdays: Vec<BirthdayEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct BirthdayEntry {
     pub name: String,
     /// MM-DD

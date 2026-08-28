@@ -7,6 +7,7 @@ use chrono::{Datelike, NaiveDate};
 use croner::Cron;
 use rusqlite::Connection;
 use serde::Serialize;
+use ts_rs::TS;
 
 use crate::config_files::{
     load_yaml, parse_mmdd, BirthdaysFile, ConfigError, RecurringFile, RecurringRule,
@@ -15,29 +16,34 @@ use crate::config_files::{
 use crate::engine::scheduled_rule_key;
 use crate::error::Result;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct RecurringResult {
     pub rules: Vec<RecurringRule>,
     pub errors: Vec<ConfigError>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct UpcomingResult {
     pub events: Vec<ScheduledEvent>,
     pub errors: Vec<ConfigError>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct BirthdayView {
     pub name: String,
     pub date: String,
     pub year: Option<i32>,
     pub next_occurrence: String,
+    #[ts(type = "number")]
     pub days_until: i64,
     pub turns: Option<i32>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct BirthdaysResult {
     pub birthdays: Vec<BirthdayView>,
     pub errors: Vec<ConfigError>,

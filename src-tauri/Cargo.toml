@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.10.1"
+version = "0.10.2"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
@@ -24,6 +24,7 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 croner = "2"
 notify = "6"
+ts-rs = "10"
 
 [profile.release]
 panic = "abort"

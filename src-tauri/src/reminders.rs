@@ -33,20 +33,23 @@ struct DayScheduleFile {
     blocks: Vec<ScheduleBlock>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct ScheduleBlock {
     pub from: String,
     pub to: String,
     pub label: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct DayContext {
     pub date: String,
     pub reminders: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct DashboardContext {
     pub focus: Option<String>,
     pub days: Vec<DayContext>,

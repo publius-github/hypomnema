@@ -1,13 +1,17 @@
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::error::{Error, Result};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct List {
+    #[ts(type = "number")]
     pub id: i64,
     pub name: String,
+    #[ts(type = "number")]
     pub sort_order: i64,
     pub color: Option<String>,
     pub archived: bool,
@@ -16,17 +20,23 @@ pub struct List {
     pub auto: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
 pub struct Task {
+    #[ts(type = "number")]
     pub id: i64,
     pub title: String,
     pub description_md: String,
+    #[ts(type = "number | null")]
     pub list_id: Option<i64>,
     pub scheduled_date: Option<String>,
     pub time: Option<String>,
+    #[ts(type = "\"todo\" | \"done\" | \"postponed\"")]
     pub status: String,
     pub color: Option<String>,
+    #[ts(type = "number")]
     pub sort_order: i64,
+    #[ts(type = "number | null")]
     pub parent_task_id: Option<i64>,
     pub created_at: String,
     pub completed_at: Option<String>,
