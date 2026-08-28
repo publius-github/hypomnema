@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../store";
 import { compareTasks } from "../lib/tasks";
@@ -36,11 +36,29 @@ export default function TaskModal({
     }
   };
 
+  // Backdrop and Escape both close through here: the backdrop mousedown
+  // fires before the input's blur handler, so closing without an
+  // explicit commit would drop an edited title or description.
+  const commitAndClose = () => {
+    commitTitle();
+    commitDescription();
+    onClose();
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") commitAndClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, description]);
+
   return (
     <div
       className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-6"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) commitAndClose();
       }}
     >
       <div className="flex max-h-full w-[560px] flex-col gap-4 overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-xl">
@@ -53,7 +71,7 @@ export default function TaskModal({
           />
           <button
             className="text-lg text-content-muted hover:text-content"
-            onClick={onClose}
+            onClick={commitAndClose}
           >
             ×
           </button>
@@ -236,11 +254,7 @@ export default function TaskModal({
           </button>
           <button
             className="rounded-md bg-accent px-4 py-1.5 text-sm text-white"
-            onClick={() => {
-              commitTitle();
-              commitDescription();
-              onClose();
-            }}
+            onClick={commitAndClose}
           >
             Close
           </button>

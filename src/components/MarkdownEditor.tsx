@@ -178,9 +178,13 @@ export default function MarkdownEditor({
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // last content the editor itself reported; anything else arriving via
+  // the value prop is an external change that must reach the document
+  const lastEmittedRef = useRef(value);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    lastEmittedRef.current = value;
     const state = EditorState.create({
       doc: value,
       extensions: [
@@ -192,7 +196,9 @@ export default function MarkdownEditor({
         ...(showLineNumbers ? [lineNumbers()] : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
-            onChangeRef.current(update.state.doc.toString());
+            const content = update.state.doc.toString();
+            lastEmittedRef.current = content;
+            onChangeRef.current(content);
           }
         }),
       ],
@@ -206,6 +212,21 @@ export default function MarkdownEditor({
     // recreate the editor only when the document identity changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docKey]);
+
+  // External reload of the same document (e.g. the file changed on
+  // disk): replace the doc in place - the editor is only rebuilt on
+  // docKey changes and would otherwise silently ignore the new value.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || value === lastEmittedRef.current) return;
+    const current = view.state.doc.toString();
+    if (value !== current) {
+      view.dispatch({
+        changes: { from: 0, to: current.length, insert: value },
+      });
+    }
+    lastEmittedRef.current = value;
+  }, [value]);
 
   return <div ref={containerRef} className="h-full min-h-0 select-text overflow-auto" />;
 }

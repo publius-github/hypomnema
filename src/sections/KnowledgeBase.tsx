@@ -59,7 +59,10 @@ export default function KnowledgeBase() {
   const [saved, setSaved] = useState(true);
   const savedRef = useRef(true);
   savedRef.current = saved;
+  const currentRef = useRef<OpenDoc | null>(null);
+  currentRef.current = current;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRef = useRef<OpenDoc | null>(null);
 
   const kbPath = config?.kb_path?.trim() ?? "";
 
@@ -76,11 +79,13 @@ export default function KnowledgeBase() {
   }, [kbPath, loadTree]);
 
   // external edits: refresh the tree; reload the open file only when
-  // there are no unsaved local changes
+  // there are no unsaved local changes. The open doc is read through a
+  // ref so the Tauri subscription is created once, not re-registered on
+  // every keystroke (which leaves windows where events are missed).
   useEffect(() => {
     const unlisten = listen("kb-updated", async () => {
       await loadTree();
-      const doc = current;
+      const doc = currentRef.current;
       if (doc && doc.kind === "note" && savedRef.current) {
         try {
           const content = await invoke<string>("kb_read", { path: doc.path });
@@ -96,9 +101,28 @@ export default function KnowledgeBase() {
     return () => {
       void unlisten.then((fn) => fn());
     };
-  }, [current, loadTree]);
+  }, [loadTree]);
+
+  // saves the debounced edit immediately (file switch, tab switch)
+  const flushPending = useCallback(() => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const pending = pendingRef.current;
+    if (pending) {
+      pendingRef.current = null;
+      void persist(pending);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => flushPending();
+  }, [flushPending]);
 
   const openFile = async (path: string) => {
+    flushPending();
     try {
       const content = await invoke<string>("kb_read", { path });
       setCurrent({ kind: "note", path, content });
@@ -110,6 +134,7 @@ export default function KnowledgeBase() {
   };
 
   const openConfig = async (file: string) => {
+    flushPending();
     try {
       const content = await invoke<string>("config_file_get", { file });
       setCurrent({ kind: "config", path: file, content });
@@ -120,29 +145,36 @@ export default function KnowledgeBase() {
     }
   };
 
+  const persist = async (doc: OpenDoc) => {
+    try {
+      if (doc.kind === "config") {
+        // invalid YAML is reported and never written (last valid
+        // state stays active), same as the Settings editor
+        const errors = await invoke<{ line: number | null; message: string }[]>(
+          "config_file_set",
+          { file: doc.path, content: doc.content },
+        );
+        setConfigErrors(errors);
+        if (errors.length === 0) setSaved(true);
+      } else {
+        await invoke("kb_write", { path: doc.path, content: doc.content });
+        setSaved(true);
+      }
+    } catch (e) {
+      setError(e);
+    }
+  };
+
   const scheduleSave = (content: string) => {
     if (!current) return;
-    const { kind, path } = current;
-    setCurrent({ kind, path, content });
+    const target: OpenDoc = { kind: current.kind, path: current.path, content };
+    setCurrent(target);
     setSaved(false);
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      try {
-        if (kind === "config") {
-          // invalid YAML is reported and never written (last valid
-          // state stays active), same as the Settings editor
-          const errors = await invoke<
-            { line: number | null; message: string }[]
-          >("config_file_set", { file: path, content });
-          setConfigErrors(errors);
-          if (errors.length === 0) setSaved(true);
-        } else {
-          await invoke("kb_write", { path, content });
-          setSaved(true);
-        }
-      } catch (e) {
-        setError(e);
-      }
+    pendingRef.current = target;
+    saveTimer.current = setTimeout(() => {
+      pendingRef.current = null;
+      void persist(target);
     }, 800);
   };
 

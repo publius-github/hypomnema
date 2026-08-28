@@ -19,6 +19,7 @@ export default function Journal() {
   const [doc, setDoc] = useState<OpenDoc | null>(null);
   const [saved, setSaved] = useState(true);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRef = useRef<OpenDoc | null>(null);
 
   const loadDates = useCallback(async () => {
     try {
@@ -28,8 +29,23 @@ export default function Journal() {
     }
   }, [setError]);
 
+  // saves the debounced edit immediately (tab switch, entry switch)
+  const flushPending = useCallback(() => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const pending = pendingRef.current;
+    if (pending) {
+      pendingRef.current = null;
+      void persist(pending.kind, pending.date, pending.content);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openEntry = useCallback(
     async (date: string) => {
+      flushPending();
       try {
         const entry = await invoke<{ date: string; content: string }>(
           "journal_open",
@@ -42,10 +58,11 @@ export default function Journal() {
         setError(e);
       }
     },
-    [loadDates, setError],
+    [flushPending, loadDates, setError],
   );
 
   const openTemplate = useCallback(async () => {
+    flushPending();
     try {
       const content = await invoke<string>("journal_template_get");
       setDoc({ kind: "template", date: "template", content });
@@ -53,7 +70,7 @@ export default function Journal() {
     } catch (e) {
       setError(e);
     }
-  }, [setError]);
+  }, [flushPending, setError]);
 
   useEffect(() => {
     void openEntry(todayISO());
@@ -61,15 +78,17 @@ export default function Journal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // autosave with debounce; flush on unmount
+  // autosave with debounce; flush on unmount and on entry switch
   const scheduleSave = (content: string) => {
     if (!doc) return;
     setDoc({ ...doc, content });
     setSaved(false);
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    const target = doc;
+    const target = { ...doc, content };
+    pendingRef.current = target;
     saveTimer.current = setTimeout(() => {
-      void persist(target.kind, target.date, content);
+      pendingRef.current = null;
+      void persist(target.kind, target.date, target.content);
     }, 800);
   };
 
@@ -91,10 +110,8 @@ export default function Journal() {
   };
 
   useEffect(() => {
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, []);
+    return () => flushPending();
+  }, [flushPending]);
 
   const today = todayISO();
 

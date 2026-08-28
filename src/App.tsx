@@ -59,9 +59,16 @@ export default function App() {
   // Key features; no background service in phase 1)
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const notifiedRef = useRef(new Set<number>());
+  const notifiedDayRef = useRef(todayISO());
   useEffect(() => {
     const timer = setInterval(() => {
       const { tasks, today } = useAppStore.getState();
+      // a task carried over to the next day may keep its id and time;
+      // it deserves a fresh notification on the new day
+      if (notifiedDayRef.current !== today) {
+        notifiedDayRef.current = today;
+        notifiedRef.current.clear();
+      }
       const now = new Date();
       const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(
         now.getMinutes(),
