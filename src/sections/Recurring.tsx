@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { DeleteRowButton, EditFormButtons } from "./Upcoming";
+import { ConfirmModal } from "../components/dialogs";
 import type { ConfigError, RecurringRule } from "../types";
 
 const WEEKDAYS = [
@@ -24,6 +25,7 @@ export default function Recurring() {
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [fileErrors, setFileErrors] = useState<ConfigError[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -51,14 +53,7 @@ export default function Recurring() {
   };
 
   const remove = async (index: number) => {
-    const rule = rules[index];
-    if (
-      !confirm(
-        `Delete rule "${rule.description || rule.schedule}"? Its future tasks will be removed from the grid.`,
-      )
-    ) {
-      return;
-    }
+    setConfirmDelete(null);
     try {
       await invoke("recurring_edit", { index, replacement: null });
       await afterWrite();
@@ -131,7 +126,7 @@ export default function Recurring() {
                 <DeleteRowButton
                   onDelete={(e) => {
                     e.stopPropagation();
-                    void remove(i);
+                    setConfirmDelete(i);
                   }}
                 />
               </div>
@@ -144,6 +139,17 @@ export default function Recurring() {
           ),
         )}
       </div>
+      {confirmDelete !== null && rules[confirmDelete] && (
+        <ConfirmModal
+          title={`Delete rule "${
+            rules[confirmDelete].description ||
+            rules[confirmDelete].schedule
+          }"?`}
+          message="Its not-yet-reached task instances are removed from the grid; today's and past instances stay."
+          onConfirm={() => void remove(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
+import { ConfirmModal } from "../components/dialogs";
 import type { BirthdayView, ConfigError, UpcomingEvent } from "../types";
 
 type SubTab = "scheduled" | "birthdays";
@@ -112,6 +113,9 @@ function ScheduledTab({
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<UpcomingEvent | null>(
+    null,
+  );
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,7 +134,7 @@ function ScheduledTab({
   };
 
   const remove = async (event: UpcomingEvent) => {
-    if (!confirm(`Delete "${event.title}" (${event.date})?`)) return;
+    setConfirmDelete(null);
     try {
       await invoke("scheduled_edit", { original: event, replacement: null });
       await onWrite();
@@ -208,13 +212,20 @@ function ScheduledTab({
               <DeleteRowButton
                 onDelete={(e) => {
                   e.stopPropagation();
-                  void remove(event);
+                  setConfirmDelete(event);
                 }}
               />
             </div>
           ),
         )}
       </div>
+      {confirmDelete && (
+        <ConfirmModal
+          title={`Delete "${confirmDelete.title}" (${confirmDelete.date})?`}
+          onConfirm={() => void remove(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }
@@ -275,6 +286,9 @@ function BirthdaysTab({
   const [date, setDate] = useState("");
   const [year, setYear] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<BirthdayView | null>(
+    null,
+  );
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -303,7 +317,7 @@ function BirthdaysTab({
   });
 
   const remove = async (b: BirthdayView) => {
-    if (!confirm(`Delete birthday "${b.name}"?`)) return;
+    setConfirmDelete(null);
     try {
       await invoke("birthday_edit", {
         original: entryOf(b),
@@ -391,13 +405,20 @@ function BirthdaysTab({
               <DeleteRowButton
                 onDelete={(e) => {
                   e.stopPropagation();
-                  void remove(b);
+                  setConfirmDelete(b);
                 }}
               />
             </div>
           ),
         )}
       </div>
+      {confirmDelete && (
+        <ConfirmModal
+          title={`Delete birthday "${confirmDelete.name}"?`}
+          onConfirm={() => void remove(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }

@@ -35,6 +35,10 @@ interface AppState {
   setSection: (section: Section) => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
+  /// last soft-deleted task, restorable until the toast expires
+  undo: { message: string; taskId: number } | null;
+  undoDelete: () => Promise<void>;
+  dismissUndo: () => void;
   clearError: () => void;
   refresh: () => Promise<void>;
   createTask: (task: NewTask) => Promise<void>;
@@ -164,12 +168,33 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deleteTask: async (id) => {
     try {
+      const title = get().tasks.find((t) => t.id === id)?.title;
       await invoke("task_delete", { id });
+      set({
+        undo: {
+          message: title ? `Deleted "${title}"` : "Task deleted",
+          taskId: id,
+        },
+      });
       await get().refresh();
     } catch (e) {
       set({ error: String(e) });
     }
   },
+
+  undoDelete: async () => {
+    const undo = get().undo;
+    if (!undo) return;
+    set({ undo: null });
+    try {
+      await invoke("task_restore", { id: undo.taskId });
+      await get().refresh();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  dismissUndo: () => set({ undo: null }),
 
   createList: async (name) => {
     try {
@@ -215,5 +240,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSection: (section) => set({ section }),
   searchOpen: false,
   setSearchOpen: (searchOpen) => set({ searchOpen }),
+  undo: null,
   clearError: () => set({ error: null }),
 }));

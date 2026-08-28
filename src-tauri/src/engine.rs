@@ -585,6 +585,11 @@ pub fn run(
     )?;
     outcome.carried_over = carry_over(conn, today)?;
     outcome.pruned = prune(conn, config.retention_days, now)?;
+    // Soft-deleted tasks past their undo window are purged for good.
+    conn.execute(
+        "DELETE FROM tasks WHERE archived_at IS NOT NULL AND archived_at < ?1",
+        [(now.with_timezone(&Utc) - Duration::days(1)).to_rfc3339()],
+    )?;
     // Recurring ledger rows older than the catch-up window can never
     // influence generation again; drop them so rule_runs stays bounded.
     // Only recurring period keys (YYYY-MM-DDTHH:MM, 16 chars) qualify -

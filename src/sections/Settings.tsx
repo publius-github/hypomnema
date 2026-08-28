@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
+import { ConfirmModal } from "../components/dialogs";
 import type { DoneDisplay, Theme } from "../types";
 
 export default function Settings() {
@@ -166,11 +167,10 @@ export default function Settings() {
 
 function DebugSection() {
   const [status, setStatus] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const deleteDone = async () => {
-    if (!confirm("Delete every task marked done? This cannot be undone.")) {
-      return;
-    }
+    setConfirming(false);
     try {
       const deleted = await invoke<number>("tasks_delete_done");
       setStatus(`Deleted ${deleted} done task(s)`);
@@ -186,7 +186,7 @@ function DebugSection() {
       <div className="flex items-center gap-2">
         <button
           className="w-fit rounded-md border border-red-500/50 px-3 py-1 text-xs text-red-500 hover:bg-red-500/10"
-          onClick={() => void deleteDone()}
+          onClick={() => setConfirming(true)}
         >
           Delete all done tasks
         </button>
@@ -194,6 +194,14 @@ function DebugSection() {
           <span className="text-xs text-content-muted">{status}</span>
         )}
       </div>
+      {confirming && (
+        <ConfirmModal
+          title="Delete every task marked done?"
+          message="This cannot be undone."
+          onConfirm={() => void deleteDone()}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
     </section>
   );
 }

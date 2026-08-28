@@ -331,8 +331,24 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
     task_get(conn, id)
 }
 
+/// Soft delete: the row (and its subtasks) get archived_at set, every
+/// query filters them out, and task_restore can undo it. The engine
+/// permanently purges archived rows after 24h. The rule_runs ledger row
+/// survives either way, so a deleted generated instance never
+/// regenerates for the same period.
 pub fn task_delete(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute("DELETE FROM tasks WHERE id = ?1", [id])?;
+    conn.execute(
+        "UPDATE tasks SET archived_at = ?1 WHERE id = ?2 OR parent_task_id = ?2",
+        (Utc::now().to_rfc3339(), id),
+    )?;
+    Ok(())
+}
+
+pub fn task_restore(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE tasks SET archived_at = NULL WHERE id = ?1 OR parent_task_id = ?1",
+        [id],
+    )?;
     Ok(())
 }
 
@@ -447,8 +463,16 @@ mod tests {
         let snapshot = tasks_snapshot(&conn, "2026-08-28", "2026-08-29").unwrap();
         assert!(snapshot.iter().any(|t| t.id == sub.id));
 
+        // delete is soft: the pair disappears from the snapshot but can
+        // be restored as a whole within the undo window
         task_delete(&conn, parent.id).unwrap();
-        assert!(task_get(&conn, sub.id).is_err());
+        let after = tasks_snapshot(&conn, "2026-08-28", "2026-08-29").unwrap();
+        assert!(!after.iter().any(|t| t.id == parent.id || t.id == sub.id));
+
+        task_restore(&conn, parent.id).unwrap();
+        let restored = tasks_snapshot(&conn, "2026-08-28", "2026-08-29").unwrap();
+        assert!(restored.iter().any(|t| t.id == parent.id));
+        assert!(restored.iter().any(|t| t.id == sub.id));
     }
 
     #[test]

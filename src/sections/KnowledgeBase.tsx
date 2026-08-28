@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
 import MarkdownEditor from "../components/MarkdownEditor";
 import Icon from "../components/icons";
+import { ConfirmModal, PromptModal } from "../components/dialogs";
 
 interface KbNode {
   name: string;
@@ -182,11 +183,16 @@ export default function KnowledgeBase() {
     }, 800);
   };
 
-  const createFile = async () => {
-    const name = prompt("New note path (e.g. ideas/note):");
-    if (!name?.trim()) return;
+  type Dialog =
+    | { kind: "create" }
+    | { kind: "rename"; node: KbNode }
+    | { kind: "delete"; node: KbNode };
+  const [dialog, setDialog] = useState<Dialog | null>(null);
+
+  const createFile = async (name: string) => {
+    setDialog(null);
     try {
-      const path = await invoke<string>("kb_create", { path: name.trim() });
+      const path = await invoke<string>("kb_create", { path: name });
       await loadTree();
       await openFile(path);
     } catch (e) {
@@ -194,11 +200,10 @@ export default function KnowledgeBase() {
     }
   };
 
-  const renameFile = async (node: KbNode) => {
-    const to = prompt("Rename to:", node.path.replace(/\.md$/i, ""));
-    if (!to?.trim()) return;
+  const renameFile = async (node: KbNode, to: string) => {
+    setDialog(null);
     try {
-      await invoke("kb_rename", { from: node.path, to: to.trim() });
+      await invoke("kb_rename", { from: node.path, to });
       await loadTree();
       if (current?.path === node.path) setCurrent(null);
     } catch (e) {
@@ -207,7 +212,7 @@ export default function KnowledgeBase() {
   };
 
   const deleteFile = async (node: KbNode) => {
-    if (!confirm(`Delete ${node.path}?`)) return;
+    setDialog(null);
     try {
       await invoke("kb_delete", { path: node.path });
       await loadTree();
@@ -290,14 +295,14 @@ export default function KnowledgeBase() {
             <button
               className="hidden group-hover:block"
               title="Rename"
-              onClick={() => void renameFile(node)}
+              onClick={() => setDialog({ kind: "rename", node })}
             >
               <Icon name="pencil" className="h-3 w-3" />
             </button>
             <button
               className="hidden hover:text-red-500 group-hover:block"
               title="Delete"
-              onClick={() => void deleteFile(node)}
+              onClick={() => setDialog({ kind: "delete", node })}
             >
               <Icon name="trash" className="h-3 w-3" />
             </button>
@@ -328,7 +333,7 @@ export default function KnowledgeBase() {
               <button
                 className="rounded-md border border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
                 title="New note"
-                onClick={() => void createFile()}
+                onClick={() => setDialog({ kind: "create" })}
               >
                 +
               </button>
@@ -482,6 +487,32 @@ export default function KnowledgeBase() {
           </div>
         )}
       </div>
+      {dialog?.kind === "create" && (
+        <PromptModal
+          title="New note"
+          placeholder="Path, e.g. ideas/note"
+          submitLabel="Create"
+          onSubmit={(name) => void createFile(name)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "rename" && (
+        <PromptModal
+          title={`Rename ${dialog.node.path}`}
+          initial={dialog.node.path.replace(/\.md$/i, "")}
+          submitLabel="Rename"
+          onSubmit={(to) => void renameFile(dialog.node, to)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "delete" && (
+        <ConfirmModal
+          title={`Delete ${dialog.node.path}?`}
+          message="The file is removed from the folder. There is no undo."
+          onConfirm={() => void deleteFile(dialog.node)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
     </div>
   );
 }
