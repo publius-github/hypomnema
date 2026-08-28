@@ -1,11 +1,11 @@
 [package]
-name = "app-pkb"
-version = "0.5.1"
+name = "hypomnema"
+version = "0.6.0"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
 [lib]
-name = "app_pkb_lib"
+name = "hypomnema_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

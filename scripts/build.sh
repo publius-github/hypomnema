@@ -205,7 +205,7 @@ function report_artifacts() {
   printf "\n"
   log_info "function report_artifacts - list produced installer bundles"
   local bundle_dir="$REPO_ROOT/src-tauri/target/release/bundle"
-  local app_binary="$REPO_ROOT/src-tauri/target/release/app-pkb"
+  local app_binary="$REPO_ROOT/src-tauri/target/release/hypomnema"
   if [ -d "$bundle_dir" ]; then
     find "$bundle_dir" -maxdepth 2 -type f \
       \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) \
@@ -225,7 +225,7 @@ function report_artifacts() {
 }
 
 function main() {
-  log_info "function main - build app-pkb installer for the current platform"
+  log_info "function main - build Hypomnema installer for the current platform"
   resolve_repo_root
   install_frontend_dependencies
   build_bundle

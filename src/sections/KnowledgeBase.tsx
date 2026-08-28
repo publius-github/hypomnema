@@ -45,7 +45,12 @@ export default function KnowledgeBase() {
     [],
   );
   const [tree, setTree] = useState<KbNode[]>([]);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // folders start collapsed; the set tracks the ones the user opened
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [treeWidth, setTreeWidth] = useState(() => {
+    const stored = Number(localStorage.getItem("kb-tree-width"));
+    return stored >= 160 && stored <= 480 ? stored : 240;
+  });
   const [search, setSearch] = useState("");
   const [current, setCurrent] = useState<OpenDoc | null>(null);
   const [configErrors, setConfigErrors] = useState<
@@ -202,7 +207,7 @@ export default function KnowledgeBase() {
           <button
             className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium"
             onClick={() =>
-              setCollapsed((prev) => {
+              setExpanded((prev) => {
                 const next = new Set(prev);
                 if (next.has(node.path)) next.delete(node.path);
                 else next.add(node.path);
@@ -211,7 +216,7 @@ export default function KnowledgeBase() {
             }
           >
             <span className="text-[9px]">
-              {collapsed.has(node.path) ? "▸" : "▾"}
+              {expanded.has(node.path) ? "▾" : "▸"}
             </span>
             <span className="truncate">{node.name}</span>
           </button>
@@ -241,14 +246,17 @@ export default function KnowledgeBase() {
         )}
       </div>
       {node.is_dir &&
-        !collapsed.has(node.path) &&
+        expanded.has(node.path) &&
         node.children.map((child) => renderNode(child, depth + 1))}
     </div>
   );
 
   return (
     <div className="flex h-full">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-surface-alt/50">
+      <aside
+        className="flex shrink-0 flex-col border-r border-line bg-surface-alt/50"
+        style={{ width: treeWidth }}
+      >
         {kbPath ? (
           <>
             <div className="flex items-center gap-1 p-2">
@@ -316,6 +324,29 @@ export default function KnowledgeBase() {
         )}
       </aside>
 
+      <div
+        className="w-1 shrink-0 cursor-col-resize hover:bg-accent/40"
+        title="Drag to resize"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          const startX = e.clientX;
+          const startWidth = treeWidth;
+          const clamp = (x: number) => Math.min(480, Math.max(160, x));
+          const onMove = (ev: PointerEvent) =>
+            setTreeWidth(clamp(startWidth + ev.clientX - startX));
+          const onUp = (ev: PointerEvent) => {
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onUp);
+            localStorage.setItem(
+              "kb-tree-width",
+              String(clamp(startWidth + ev.clientX - startX)),
+            );
+          };
+          window.addEventListener("pointermove", onMove);
+          window.addEventListener("pointerup", onUp);
+        }}
+      />
+
       <div className="flex min-w-0 flex-1 flex-col">
         {current ? (
           <>
@@ -354,7 +385,13 @@ export default function KnowledgeBase() {
                 docKey={`${current.kind}:${current.path}`}
                 value={current.content}
                 onChange={scheduleSave}
-                plain={!current.path.toLowerCase().endsWith(".md")}
+                mode={
+                  current.path.toLowerCase().endsWith(".md")
+                    ? "markdown"
+                    : /\.ya?ml$/i.test(current.path)
+                      ? "yaml"
+                      : "plain"
+                }
                 showLineNumbers={current.kind === "config"}
               />
             </div>

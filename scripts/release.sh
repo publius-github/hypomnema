@@ -138,7 +138,7 @@ function bump_versions() {
     fs.writeFileSync(path, toml.replace(/^version = ".*"$/m, `version = "${process.argv[1]}"`));
   ' "$RELEASE_VERSION"
   if command -v cargo >/dev/null 2>&1; then
-    (cd src-tauri && cargo update --package app-pkb --quiet)
+    (cd src-tauri && cargo update --package hypomnema --quiet)
   else
     log_warn "cargo not found locally; Cargo.lock version sync will happen in CI"
   fi

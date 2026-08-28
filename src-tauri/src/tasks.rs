@@ -135,12 +135,25 @@ pub fn list_create(conn: &Connection, name: &str, color: Option<&str>, auto: boo
 }
 
 /// Returns the list with the given name, creating it if missing.
-/// Backs the `{List Name}` prefix of YAML items (req. 3).
+/// Backs the `{List Name}` prefix of YAML items (req. 3). An archived
+/// match is revived as an auto list: its tasks must keep grouping in
+/// the day columns, and the auto flag keeps it out of the list zone.
 pub fn list_ensure(conn: &Connection, name: &str) -> Result<List> {
     let existing = conn
         .query_row("SELECT * FROM lists WHERE name = ?1", [name], row_to_list)
         .optional()?;
     match existing {
+        Some(list) if list.archived => {
+            conn.execute(
+                "UPDATE lists SET archived = 0, auto = 1 WHERE id = ?1",
+                [list.id],
+            )?;
+            Ok(List {
+                archived: false,
+                auto: true,
+                ..list
+            })
+        }
         Some(list) => Ok(list),
         None => list_create(conn, name, None, true),
     }

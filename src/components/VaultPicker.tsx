@@ -17,7 +17,7 @@ export default function VaultPicker() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
-      <h1 className="text-2xl font-semibold">Welcome to app-pkb</h1>
+      <h1 className="text-2xl font-semibold">Welcome to Hypomnema</h1>
       <p className="max-w-md text-content-muted">
         Choose a vault folder. It will hold the task database, journal
         entries, and configuration files. Back up or sync this one folder to

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useAppStore } from "./store";
 import { todayISO } from "./lib/tasks";
 import type { AppConfig, ConfigError } from "./types";
@@ -23,6 +24,18 @@ export default function App() {
     void init();
     void import("./lib/updater").then((m) => m.checkForUpdates());
   }, [init]);
+
+  // keep the native titlebar (traffic lights / min-max-close strip) in
+  // sync with the app theme
+  const theme = useAppStore((s) => s.config?.theme);
+  useEffect(() => {
+    if (!theme) return;
+    getCurrentWindow()
+      .setTheme(theme === "light" ? "light" : "dark")
+      .catch(() => {
+        // theme permission missing or platform unsupported; cosmetic only
+      });
+  }, [theme]);
 
   // config watcher: backend reloaded YAML and re-ran the engine
   useEffect(() => {

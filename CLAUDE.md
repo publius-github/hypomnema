@@ -1,4 +1,4 @@
-# app-pkb
+# Hypomnema (repo: app-pkb)
 
 Local-first personal productivity app for Windows: weekly task planner, journal, and Markdown knowledge base in one window. Tauri 2 (Rust core) + React + TypeScript frontend. All data lives in a user-chosen vault folder: SQLite DB (`app.db`), `journal/`, and `config/` with per-feature YAML files (`recurring.yml`, `scheduled.yml`, `birthdays.yml`, `weekly-focus.yml`, `day-reminders.yml`, `day-schedule.yml`, `app.yml`). The Rust core owns all business logic (task generation engine, dedup via `rule_runs`, overdue carry-over, YAML parsing, watchers); the React layer is presentation only. See `IMPLEMENTATION_PLAN.md` for the full architecture, data model, and milestone history.
 

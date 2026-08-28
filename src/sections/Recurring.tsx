@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
-import { EditFormButtons } from "./Upcoming";
+import { DeleteRowButton, EditFormButtons } from "./Upcoming";
 import type { ConfigError, RecurringRule } from "../types";
 
 const WEEKDAYS = [
@@ -112,7 +112,12 @@ export default function Recurring() {
               onSave={(replacement) => void save(i, replacement)}
             />
           ) : (
-            <div key={i} className="group border-b border-line py-3">
+            <div
+              key={i}
+              className="group cursor-pointer border-b border-line py-3 hover:bg-line/20"
+              title="Click to edit"
+              onClick={() => setEditing(i)}
+            >
               <div className="flex items-center gap-3 text-sm">
                 <span className="shrink-0 rounded bg-line/40 px-2 py-0.5 font-mono text-xs">
                   {rule.schedule}
@@ -120,22 +125,12 @@ export default function Recurring() {
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {rule.description || "(no description)"}
                 </span>
-                <span className="hidden shrink-0 gap-1 group-hover:flex">
-                  <button
-                    className="rounded px-1.5 text-xs text-content-muted hover:text-accent"
-                    title="Edit"
-                    onClick={() => setEditing(i)}
-                  >
-                    &#9998;
-                  </button>
-                  <button
-                    className="rounded px-1.5 text-xs text-content-muted hover:text-red-500"
-                    title="Delete"
-                    onClick={() => void remove(i)}
-                  >
-                    &#215;
-                  </button>
-                </span>
+                <DeleteRowButton
+                  onDelete={(e) => {
+                    e.stopPropagation();
+                    void remove(i);
+                  }}
+                />
               </div>
               <ul className="mt-1 pl-1 text-sm text-content-muted">
                 {rule.items.map((item, j) => (

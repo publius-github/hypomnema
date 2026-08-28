@@ -11,6 +11,15 @@ export function formatMmDd(raw: string): string {
   return digits.length > 2 ? `${digits.slice(0, 2)}-${digits.slice(2)}` : digits;
 }
 
+// "20260830" -> "2026-08-30": typing digits fills the segments, the
+// hyphens appear on their own after the year and the month
+export function formatYmd(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+}
+
 export default function Upcoming() {
   const { runEngine, refresh } = useAppStore();
   const setError = useCallback(
@@ -103,7 +112,7 @@ function ScheduledTab({
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!date || !title.trim()) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title.trim()) return;
     try {
       await invoke("scheduled_add", {
         event: { date, title: title.trim(), time: time || null },
@@ -141,10 +150,10 @@ function ScheduledTab({
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <form className="flex gap-2" onSubmit={add}>
         <input
-          className="input"
-          type="date"
+          className="input w-32 font-mono"
+          placeholder="YYYY-MM-DD"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) => setDate(formatYmd(e.target.value))}
         />
         <input
           className="input min-w-0 flex-1"
@@ -180,7 +189,9 @@ function ScheduledTab({
           ) : (
             <div
               key={`${event.date}-${event.title}-${i}`}
-              className="group flex items-center gap-3 border-b border-line py-2 text-sm"
+              className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
+              title="Click to edit"
+              onClick={() => setEditing(i)}
             >
               <span className="w-24 shrink-0 font-mono text-content-muted">
                 {event.date}
@@ -191,9 +202,11 @@ function ScheduledTab({
                   {event.time}
                 </span>
               )}
-              <RowActions
-                onEdit={() => setEditing(i)}
-                onDelete={() => void remove(event)}
+              <DeleteRowButton
+                onDelete={(e) => {
+                  e.stopPropagation();
+                  void remove(event);
+                }}
               />
             </div>
           ),
@@ -221,15 +234,15 @@ function EventEditRow({
       className="flex items-center gap-2 border-b border-line py-2"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!date || !title.trim()) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title.trim()) return;
         onSave({ date, title: title.trim(), time: time || null });
       }}
     >
       <input
-        className="input"
-        type="date"
+        className="input w-32 font-mono"
+        placeholder="YYYY-MM-DD"
         value={date}
-        onChange={(e) => setDate(e.target.value)}
+        onChange={(e) => setDate(formatYmd(e.target.value))}
       />
       <input
         className="input min-w-0 flex-1"
@@ -356,7 +369,9 @@ function BirthdaysTab({
           ) : (
             <div
               key={`${b.name}-${i}`}
-              className="group flex items-center gap-3 border-b border-line py-2 text-sm"
+              className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
+              title="Click to edit"
+              onClick={() => setEditing(i)}
             >
               <span className="w-24 shrink-0 font-mono text-content-muted">
                 {b.next_occurrence}
@@ -370,9 +385,11 @@ function BirthdaysTab({
               <span className="text-xs text-content-muted">
                 {b.days_until === 0 ? "today" : `in ${b.days_until}d`}
               </span>
-              <RowActions
-                onEdit={() => setEditing(i)}
-                onDelete={() => void remove(b)}
+              <DeleteRowButton
+                onDelete={(e) => {
+                  e.stopPropagation();
+                  void remove(b);
+                }}
               />
             </div>
           ),
@@ -437,30 +454,19 @@ function BirthdayEditRow({
   );
 }
 
-function RowActions({
-  onEdit,
+export function DeleteRowButton({
   onDelete,
 }: {
-  onEdit: () => void;
-  onDelete: () => void;
+  onDelete: (e: React.MouseEvent) => void;
 }) {
   return (
-    <span className="hidden shrink-0 gap-1 group-hover:flex">
-      <button
-        className="rounded px-1.5 text-xs text-content-muted hover:text-accent"
-        title="Edit"
-        onClick={onEdit}
-      >
-        &#9998;
-      </button>
-      <button
-        className="rounded px-1.5 text-xs text-content-muted hover:text-red-500"
-        title="Delete"
-        onClick={onDelete}
-      >
-        &#215;
-      </button>
-    </span>
+    <button
+      className="hidden shrink-0 rounded px-1.5 text-xs text-content-muted hover:text-red-500 group-hover:block"
+      title="Delete"
+      onClick={onDelete}
+    >
+      &#215;
+    </button>
   );
 }
 

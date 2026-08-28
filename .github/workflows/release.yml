@@ -40,5 +40,5 @@ jobs:
         with:
           # __VERSION__ resolves to the app version, synced from VERSION
           tagName: v__VERSION__
-          releaseName: app-pkb v__VERSION__
+          releaseName: Hypomnema v__VERSION__
           releaseDraft: true

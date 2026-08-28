@@ -95,6 +95,11 @@ export default function TaskCard({
                 postponed
               </span>
             )}
+            {(task.origin === "scheduled" || task.origin === "birthday") && (
+              <span className="rounded bg-sky-500/15 px-1 font-medium text-sky-500">
+                exact date
+              </span>
+            )}
             {subtasks.length > 0 && (
               <button
                 className="hover:text-content"

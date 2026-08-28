@@ -458,7 +458,7 @@ fn kb_delete(state: State<AppState>, path: String) -> Result<()> {
     kb::delete(&kb_root(&state)?, &path)
 }
 
-/// Panics land in <app-config-dir>/app-pkb.log so field errors are
+/// Panics land in <app-config-dir>/hypomnema.log so field errors are
 /// diagnosable without a console (M7 error reporting).
 fn install_panic_logger(log_path: PathBuf) {
     std::panic::set_hook(Box::new(move |info| {
@@ -487,7 +487,7 @@ pub fn run() {
         .setup(|app| {
             if let Ok(dir) = app.path().app_config_dir() {
                 let _ = std::fs::create_dir_all(&dir);
-                install_panic_logger(dir.join("app-pkb.log"));
+                install_panic_logger(dir.join("hypomnema.log"));
             }
             Ok(())
         })
@@ -532,5 +532,5 @@ pub fn run() {
             config_file_set
         ])
         .run(tauri::generate_context!())
-        .expect("error while running app-pkb");
+        .expect("error while running hypomnema");
 }
