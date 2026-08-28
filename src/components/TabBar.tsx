@@ -15,11 +15,50 @@ const TABS: Record<string, { id: Section; label: string; icon: IconName }> = {
 
 const DEFAULT_ORDER = ["dashboard", "upcoming", "calendar", "journal", "kb"];
 
-// one shared shape for every rail button, so the highlight always
-// covers icon and label alike
-const railButton =
-  "flex h-12 w-[72px] flex-col items-center justify-center gap-0.5 rounded-lg transition-colors";
+// the highlight is a square around the icon; the label sits under it
+// and only changes color, so the selection reads compact
+const railButton = "group flex w-[72px] flex-col items-center gap-0.5 py-0.5";
+const railBox =
+  "flex h-10 w-12 items-center justify-center rounded-lg transition-colors";
 const railLabel = "max-w-full truncate px-0.5 text-[11px] leading-tight";
+
+function RailButton({
+  active = false,
+  danger = false,
+  accent = false,
+  title,
+  label,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  danger?: boolean;
+  accent?: boolean;
+  title: string;
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  const tone = danger
+    ? "text-danger"
+    : accent || active
+      ? "text-accent"
+      : "text-content-muted";
+  return (
+    <button className={railButton} title={title} onClick={onClick}>
+      <span
+        className={`${railBox} ${tone} ${
+          active
+            ? "bg-accent/15"
+            : "group-hover:bg-line/40 group-hover:text-content"
+        }`}
+      >
+        {children}
+      </span>
+      <span className={`${railLabel} ${tone}`}>{label}</span>
+    </button>
+  );
+}
 
 function SyncButton() {
   const { runEngine, refresh } = useAppStore();
@@ -45,23 +84,18 @@ function SyncButton() {
   };
 
   return (
-    <button
+    <RailButton
       title="Re-read config files and regenerate tasks"
+      label={syncing ? "..." : (result ?? "Sync")}
+      danger={result === "failed" || result === "config!"}
+      accent={Boolean(result) && result !== "failed" && result !== "config!"}
       onClick={() => void sync()}
-      className={`${railButton} ${
-        result === "failed" || result === "config!"
-          ? "text-danger"
-          : result
-            ? "text-accent"
-            : "text-content-muted hover:bg-line/40 hover:text-content"
-      }`}
     >
       <Icon
         name="sync"
         className={`h-[18px] w-[18px] ${syncing ? "animate-spin" : ""}`}
       />
-      <span className={railLabel}>{syncing ? "..." : (result ?? "Sync")}</span>
-    </button>
+    </RailButton>
   );
 }
 
@@ -75,28 +109,23 @@ export default function TabBar() {
         .map((id) => TABS[id])
         .filter(Boolean)
         .map((tab) => (
-          <button
+          <RailButton
             key={tab.id}
             title={tab.label}
+            label={tab.label}
+            active={section === tab.id}
             onClick={() => setSection(tab.id)}
-            className={`${railButton} ${
-              section === tab.id
-                ? "bg-accent/15 text-accent"
-                : "text-content-muted hover:bg-line/40 hover:text-content"
-            }`}
           >
             <Icon name={tab.icon} />
-            <span className={railLabel}>{tab.label}</span>
-          </button>
+          </RailButton>
         ))}
-      <button
+      <RailButton
         title="Search tasks (Ctrl+K)"
+        label="Search"
         onClick={() => useAppStore.getState().setSearchOpen(true)}
-        className={`${railButton} text-content-muted hover:bg-line/40 hover:text-content`}
       >
         <Icon name="search" />
-        <span className={railLabel}>Search</span>
-      </button>
+      </RailButton>
       <div className="flex-1" />
       <SyncButton />
       <button
@@ -106,31 +135,22 @@ export default function TabBar() {
             theme: config?.theme === "light" ? "dark" : "light",
           })
         }
-        className="flex h-12 w-[72px] items-center justify-center rounded-lg text-content-muted hover:bg-line/40 hover:text-content"
+        className="flex h-10 w-12 items-center justify-center rounded-lg text-content-muted hover:bg-line/40 hover:text-content"
       >
         <Icon name={config?.theme === "light" ? "moon" : "sun"} />
       </button>
-      <button
-        title="About"
-        onClick={() => setAboutOpen(true)}
-        className={`${railButton} text-content-muted hover:bg-line/40 hover:text-content`}
-      >
+      <RailButton title="About" label="About" onClick={() => setAboutOpen(true)}>
         <Icon name="info" />
-        <span className={railLabel}>About</span>
-      </button>
+      </RailButton>
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
-      <button
+      <RailButton
         title="Settings"
+        label="Settings"
+        active={section === "settings"}
         onClick={() => setSection("settings")}
-        className={`${railButton} ${
-          section === "settings"
-            ? "bg-accent/15 text-accent"
-            : "text-content-muted hover:bg-line/40 hover:text-content"
-        }`}
       >
         <Icon name="sliders" />
-        <span className={railLabel}>Settings</span>
-      </button>
+      </RailButton>
     </nav>
   );
 }

@@ -44,12 +44,6 @@ export default function TaskCard({
   const subtasks = [...subtasksRaw].sort(compareTasks);
   const done = task.status === "done";
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
-  // "08-30" within the current year, full ISO otherwise
-  const originShort = task.origin_date
-    ? task.origin_date.slice(0, 4) === String(new Date().getFullYear())
-      ? task.origin_date.slice(5)
-      : task.origin_date
-    : null;
   const tooltip = [
     task.title,
     listName ? `List: ${listName}` : null,
@@ -117,6 +111,14 @@ export default function TaskCard({
             </svg>
           )}
         </button>
+        {exactDate && task.origin_date && (
+          <span
+            className="shrink-0 rounded bg-info/15 px-1 text-[11px] font-medium text-info"
+            title={`Scheduled for ${task.origin_date}`}
+          >
+            {task.origin_date}
+          </span>
+        )}
         <div
           className={`min-w-0 flex-1 cursor-pointer truncate leading-snug ${
             done ? "text-content-muted line-through" : ""
@@ -127,24 +129,9 @@ export default function TaskCard({
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted">
           {task.time && <span>{task.time}</span>}
-          {exactDate && (
-            <span
-              className="rounded bg-info/15 px-1 font-medium text-info"
-              title={
-                task.origin_date
-                  ? `Scheduled for ${task.origin_date}`
-                  : "Exact date"
-              }
-            >
-              {originShort ?? "date"}
-            </span>
-          )}
           {task.overdue && !done && (
-            <span
-              className="rounded bg-danger/15 px-1 font-semibold text-danger"
-              title="Overdue"
-            >
-              !
+            <span className="rounded bg-danger/15 px-1 font-medium text-danger">
+              overdue
             </span>
           )}
           {task.status === "postponed" && (

@@ -54,22 +54,26 @@ describe("date helpers", () => {
 });
 
 describe("groupByCadence", () => {
-  it("orders groups once, daily, weekly, monthly, yearly", () => {
+  it("orders groups exact, once, daily, weekly, monthly, yearly", () => {
     const groups = groupByCadence([
       task({ id: 1, cadence: "yearly" }),
       task({ id: 2, cadence: "daily" }),
       task({ id: 3, cadence: null }),
       task({ id: 4, cadence: "weekly" }),
       task({ id: 5, cadence: "monthly" }),
+      task({ id: 6, origin: "scheduled" }),
+      task({ id: 7, origin: "birthday", cadence: "yearly" }),
     ]);
     expect(groups.map((g) => g.label)).toEqual([
+      "Exact date",
       null,
       "Daily",
       "Weekly",
       "Monthly",
       "Yearly",
     ]);
-    expect(groups.map((g) => g.tasks[0].id)).toEqual([3, 2, 4, 5, 1]);
+    expect(groups[0].tasks.map((t) => t.id)).toEqual([6, 7]);
+    expect(groups.slice(1).map((g) => g.tasks[0].id)).toEqual([3, 2, 4, 5, 1]);
   });
 
   it("skips empty groups and treats unknown cadence as one-off", () => {

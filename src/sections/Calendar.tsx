@@ -272,10 +272,10 @@ export default function Calendar() {
                 className="flex items-center gap-2 rounded-md border border-dashed border-line px-3 py-2 text-sm text-content-muted"
                 title="Not generated yet; appears as a task when the date nears"
               >
-                <span className="min-w-0 flex-1 truncate">{event.title}</span>
-                <span className="rounded bg-line/40 px-1.5 py-0.5 text-[11px]">
+                <span className="w-16 shrink-0 rounded bg-line/40 px-1.5 py-0.5 text-center text-[11px]">
                   {event.kind}
                 </span>
+                <span className="min-w-0 flex-1 truncate">{event.title}</span>
               </div>
             ))}
           </>

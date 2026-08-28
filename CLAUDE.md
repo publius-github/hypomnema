@@ -19,6 +19,10 @@ The `VERSION` file at the repo root is the single source of truth for the app ve
 
 This machine is for development and testing (lint, typecheck, unit tests, `npm run tauri dev`). Do not cut releases from here - the shipped Windows installer is built in CI (`release.yml` on a `v*` tag builds NSIS on a Windows runner).
 
+## Settings over hardcode
+
+Any behavior that can reasonably be parameterized must be exposed through Settings, not hardcoded: add a field to `AppConfig` (`src-tauri/src/config.rs` - default, `sanitized()` clamp, `settings_pairs()`), let ts-rs regenerate the binding via `cargo test`, and add a control in the matching Settings tab (`src/sections/Settings.tsx`). This applies to counts, sizes, horizons, visibility toggles, and layout proportions alike. Hardcode only true constants (protocol values, schema names) or things with no sane alternative value.
+
 ## Checks before committing
 
 - Frontend: `npm run lint && npm run typecheck && npm test && npm run build`.

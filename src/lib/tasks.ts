@@ -50,6 +50,7 @@ export interface CadenceGroup {
 }
 
 const CADENCE_GROUPS: { key: string; label: string | null }[] = [
+  { key: "exact", label: "Exact date" },
   { key: "once", label: null },
   { key: "daily", label: "Daily" },
   { key: "weekly", label: "Weekly" },
@@ -59,17 +60,20 @@ const CADENCE_GROUPS: { key: string; label: string | null }[] = [
 
 /**
  * Tasks of one day column, grouped by how often their rule fires.
- * One-off tasks (manual and exact dates) come first, then daily,
- * weekly, monthly, yearly - so the dailies are the block to clear and
+ * Exact-date items (scheduled events and birthdays, however rarely
+ * they recur) always sit on top, then manual one-offs, then daily,
+ * weekly, monthly, yearly - the dailies are the block to clear and
  * the rare ones sit below, safe to leave for later.
  */
 export function groupByCadence(tasks: Task[]): CadenceGroup[] {
   const buckets = new Map<string, Task[]>();
   for (const task of tasks) {
     const key =
-      task.cadence && CADENCE_GROUPS.some((g) => g.key === task.cadence)
-        ? task.cadence
-        : "once";
+      task.origin === "scheduled" || task.origin === "birthday"
+        ? "exact"
+        : task.cadence && CADENCE_GROUPS.some((g) => g.key === task.cadence)
+          ? task.cadence
+          : "once";
     const bucket = buckets.get(key);
     if (bucket) bucket.push(task);
     else buckets.set(key, [task]);
