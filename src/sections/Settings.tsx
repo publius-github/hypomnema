@@ -113,7 +113,7 @@ export default function Settings() {
       </label>
 
       <section className="flex flex-col gap-1">
-        <span className="text-sm font-medium">Knowledge Base folder</span>
+        <span className="text-sm font-medium">Notes folder</span>
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 select-text truncate text-sm text-content-muted">
             {config.kb_path || "Not set"}
@@ -149,14 +149,13 @@ export default function Settings() {
         <span className="text-sm font-medium">Config files</span>
         <p className="text-xs text-content-muted">
           recurring.yml, scheduled.yml and the other config files are edited
-          in the Knowledge Base under the Config group, with validation on
-          save.
+          in Notes under the Config group, with validation on save.
         </p>
         <button
           className="w-fit rounded-md border border-line px-3 py-1 text-xs hover:border-accent hover:text-accent"
           onClick={() => useAppStore.getState().setSection("kb")}
         >
-          Open in Knowledge Base
+          Open in Notes
         </button>
       </section>
 

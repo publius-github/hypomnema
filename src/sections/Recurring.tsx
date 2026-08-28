@@ -100,7 +100,7 @@ export default function Recurring() {
         {rules.length === 0 && (
           <p className="pt-6 text-center text-sm text-content-muted">
             No recurring rules yet. Add one above or edit recurring.yml
-            directly (Knowledge Base &gt; Config).
+            directly (Notes &gt; Config).
           </p>
         )}
         {rules.map((rule, i) =>

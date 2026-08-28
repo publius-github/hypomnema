@@ -9,7 +9,7 @@ const TABS: { id: Section; label: string; icon: string }[] = [
   { id: "recurring", label: "Recurring", icon: "↻" },
   { id: "calendar", label: "Calendar", icon: "▤" },
   { id: "journal", label: "Journal", icon: "✎" },
-  { id: "kb", label: "Knowledge Base", icon: "❖" },
+  { id: "kb", label: "Notes", icon: "❖" },
 ];
 
 export default function TabBar() {
