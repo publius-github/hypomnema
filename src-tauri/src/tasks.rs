@@ -11,6 +11,9 @@ pub struct List {
     pub sort_order: i64,
     pub color: Option<String>,
     pub archived: bool,
+    /// Created by the engine (a `{List}` prefix or Birthdays), not by
+    /// the user; hidden from the dashboard list zone while empty.
+    pub auto: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,6 +102,7 @@ fn row_to_list(row: &Row) -> rusqlite::Result<List> {
         sort_order: row.get("sort_order")?,
         color: row.get("color")?,
         archived: row.get::<_, i64>("archived")? != 0,
+        auto: row.get::<_, i64>("auto")? != 0,
     })
 }
 
@@ -111,7 +115,7 @@ pub fn lists_all(conn: &Connection) -> Result<Vec<List>> {
     Ok(lists)
 }
 
-pub fn list_create(conn: &Connection, name: &str, color: Option<&str>) -> Result<List> {
+pub fn list_create(conn: &Connection, name: &str, color: Option<&str>, auto: bool) -> Result<List> {
     let name = name.trim();
     if name.is_empty() {
         return Err(Error::State("list name cannot be empty".into()));
@@ -122,8 +126,8 @@ pub fn list_create(conn: &Connection, name: &str, color: Option<&str>) -> Result
         |row| row.get(0),
     )?;
     conn.execute(
-        "INSERT INTO lists (name, sort_order, color) VALUES (?1, ?2, ?3)",
-        (name, next, color),
+        "INSERT INTO lists (name, sort_order, color, auto) VALUES (?1, ?2, ?3, ?4)",
+        (name, next, color, auto as i64),
     )?;
     let id = conn.last_insert_rowid();
     conn.query_row("SELECT * FROM lists WHERE id = ?1", [id], row_to_list)
@@ -138,7 +142,7 @@ pub fn list_ensure(conn: &Connection, name: &str) -> Result<List> {
         .optional()?;
     match existing {
         Some(list) => Ok(list),
-        None => list_create(conn, name, None),
+        None => list_create(conn, name, None, true),
     }
 }
 
@@ -421,7 +425,7 @@ mod tests {
     #[test]
     fn patch_moves_between_day_and_list() {
         let conn = conn();
-        let list = list_create(&conn, "Inbox", None).unwrap();
+        let list = list_create(&conn, "Inbox", None, false).unwrap();
         let task = task_create(
             &conn,
             &NewTask {

@@ -74,13 +74,27 @@ export default function Dashboard() {
         </div>
 
         <div className="flex min-h-0 flex-[2] gap-3 overflow-x-auto border-t border-line pt-4">
-          {lists.map((list) => (
-            <ListColumn
-              key={list.id}
-              list={list}
-              onOpenTask={setEditingTaskId}
-            />
-          ))}
+          {lists
+            // engine-created lists ({List} prefixes, Birthdays) only
+            // group tasks inside day columns; they earn a backlog
+            // column only when something unscheduled lands in them
+            .filter(
+              (list) =>
+                !list.auto ||
+                tasks.some(
+                  (t) =>
+                    t.list_id === list.id &&
+                    !t.scheduled_date &&
+                    t.parent_task_id === null,
+                ),
+            )
+            .map((list) => (
+              <ListColumn
+                key={list.id}
+                list={list}
+                onOpenTask={setEditingTaskId}
+              />
+            ))}
           <NewListForm />
         </div>
       </div>

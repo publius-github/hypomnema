@@ -59,6 +59,10 @@ const MIGRATIONS: &[&str] = &[
         phrase_index INTEGER NOT NULL,
         PRIMARY KEY (iso_year, iso_week)
     );",
+    // 005: lists auto-created by the engine ({List} prefixes, Birthdays)
+    // are hidden from the dashboard list zone unless they hold
+    // unscheduled tasks
+    "ALTER TABLE lists ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

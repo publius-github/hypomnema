@@ -45,6 +45,7 @@ export default function KnowledgeBase() {
     [],
   );
   const [tree, setTree] = useState<KbNode[]>([]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [current, setCurrent] = useState<OpenDoc | null>(null);
   const [configErrors, setConfigErrors] = useState<
@@ -198,7 +199,22 @@ export default function KnowledgeBase() {
         style={{ paddingLeft: `${8 + depth * 14}px` }}
       >
         {node.is_dir ? (
-          <span className="truncate font-medium">{node.name}</span>
+          <button
+            className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium"
+            onClick={() =>
+              setCollapsed((prev) => {
+                const next = new Set(prev);
+                if (next.has(node.path)) next.delete(node.path);
+                else next.add(node.path);
+                return next;
+              })
+            }
+          >
+            <span className="text-[9px]">
+              {collapsed.has(node.path) ? "▸" : "▾"}
+            </span>
+            <span className="truncate">{node.name}</span>
+          </button>
         ) : (
           <>
             <button
@@ -224,7 +240,9 @@ export default function KnowledgeBase() {
           </>
         )}
       </div>
-      {node.is_dir && node.children.map((child) => renderNode(child, depth + 1))}
+      {node.is_dir &&
+        !collapsed.has(node.path) &&
+        node.children.map((child) => renderNode(child, depth + 1))}
     </div>
   );
 

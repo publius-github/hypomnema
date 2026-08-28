@@ -7,6 +7,7 @@ const TABS: { id: Section; label: string; icon: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "▦" },
   { id: "upcoming", label: "Upcoming", icon: "◷" },
   { id: "recurring", label: "Recurring", icon: "↻" },
+  { id: "calendar", label: "Calendar", icon: "▤" },
   { id: "journal", label: "Journal", icon: "✎" },
   { id: "kb", label: "Knowledge Base", icon: "❖" },
 ];
@@ -51,7 +52,18 @@ export default function TabBar() {
         onClick={() => setAboutOpen(true)}
         className="flex h-12 w-12 flex-col items-center justify-center rounded-lg text-lg text-content-muted transition-colors hover:bg-line/40 hover:text-content"
       >
-        <span aria-hidden>ⓘ</span>
+        <svg
+          viewBox="0 0 20 20"
+          className="h-[18px] w-[18px]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden
+        >
+          <circle cx="10" cy="10" r="8.25" />
+          <circle cx="10" cy="6.2" r="1" fill="currentColor" stroke="none" />
+          <path d="M10 9v5" strokeLinecap="round" strokeWidth="1.8" />
+        </svg>
         <span className="text-[9px] leading-tight">About</span>
       </button>
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}

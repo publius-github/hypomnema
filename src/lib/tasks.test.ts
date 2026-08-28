@@ -35,6 +35,7 @@ function list(overrides: Partial<List>): List {
     sort_order: 0,
     color: null,
     archived: false,
+    auto: false,
     ...overrides,
   };
 }

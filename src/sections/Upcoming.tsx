@@ -5,6 +5,12 @@ import type { BirthdayView, ConfigError, UpcomingEvent } from "../types";
 
 type SubTab = "scheduled" | "birthdays";
 
+// "0830" -> "08-30" while typing, so the hyphen never has to be typed
+export function formatMmDd(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  return digits.length > 2 ? `${digits.slice(0, 2)}-${digits.slice(2)}` : digits;
+}
+
 export default function Upcoming() {
   const { runEngine, refresh } = useAppStore();
   const setError = useCallback(
@@ -93,6 +99,7 @@ function ScheduledTab({
   const [date, setDate] = useState("");
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +111,26 @@ function ScheduledTab({
       setDate("");
       setTitle("");
       setTime("");
+      await onWrite();
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  const remove = async (event: UpcomingEvent) => {
+    if (!confirm(`Delete "${event.title}" (${event.date})?`)) return;
+    try {
+      await invoke("scheduled_edit", { original: event, replacement: null });
+      await onWrite();
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  const save = async (original: UpcomingEvent, replacement: UpcomingEvent) => {
+    try {
+      await invoke("scheduled_edit", { original, replacement });
+      setEditing(null);
       await onWrite();
     } catch (err) {
       setError(err);
@@ -142,22 +169,81 @@ function ScheduledTab({
             week grid, then become normal tasks.
           </p>
         )}
-        {events.map((event, i) => (
-          <div
-            key={`${event.date}-${event.title}-${i}`}
-            className="flex items-center gap-3 border-b border-line py-2 text-sm"
-          >
-            <span className="w-24 shrink-0 font-mono text-content-muted">
-              {event.date}
-            </span>
-            <span className="flex-1">{event.title}</span>
-            {event.time && (
-              <span className="text-xs text-content-muted">{event.time}</span>
-            )}
-          </div>
-        ))}
+        {events.map((event, i) =>
+          editing === i ? (
+            <EventEditRow
+              key={`edit-${i}`}
+              event={event}
+              onCancel={() => setEditing(null)}
+              onSave={(replacement) => void save(event, replacement)}
+            />
+          ) : (
+            <div
+              key={`${event.date}-${event.title}-${i}`}
+              className="group flex items-center gap-3 border-b border-line py-2 text-sm"
+            >
+              <span className="w-24 shrink-0 font-mono text-content-muted">
+                {event.date}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{event.title}</span>
+              {event.time && (
+                <span className="text-xs text-content-muted">
+                  {event.time}
+                </span>
+              )}
+              <RowActions
+                onEdit={() => setEditing(i)}
+                onDelete={() => void remove(event)}
+              />
+            </div>
+          ),
+        )}
       </div>
     </div>
+  );
+}
+
+function EventEditRow({
+  event,
+  onSave,
+  onCancel,
+}: {
+  event: UpcomingEvent;
+  onSave: (replacement: UpcomingEvent) => void;
+  onCancel: () => void;
+}) {
+  const [date, setDate] = useState(event.date);
+  const [title, setTitle] = useState(event.title);
+  const [time, setTime] = useState(event.time ?? "");
+
+  return (
+    <form
+      className="flex items-center gap-2 border-b border-line py-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!date || !title.trim()) return;
+        onSave({ date, title: title.trim(), time: time || null });
+      }}
+    >
+      <input
+        className="input"
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+      />
+      <input
+        className="input min-w-0 flex-1"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <input
+        className="input"
+        type="time"
+        value={time}
+        onChange={(e) => setTime(e.target.value)}
+      />
+      <EditFormButtons onCancel={onCancel} />
+    </form>
   );
 }
 
@@ -172,6 +258,7 @@ function BirthdaysTab({
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [year, setYear] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,6 +280,38 @@ function BirthdaysTab({
     }
   };
 
+  const entryOf = (b: BirthdayView) => ({
+    name: b.name,
+    date: b.date,
+    year: b.year,
+  });
+
+  const remove = async (b: BirthdayView) => {
+    if (!confirm(`Delete birthday "${b.name}"?`)) return;
+    try {
+      await invoke("birthday_edit", {
+        original: entryOf(b),
+        replacement: null,
+      });
+      await onWrite();
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  const save = async (
+    b: BirthdayView,
+    replacement: { name: string; date: string; year: number | null },
+  ) => {
+    try {
+      await invoke("birthday_edit", { original: entryOf(b), replacement });
+      setEditing(null);
+      await onWrite();
+    } catch (err) {
+      setError(err);
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <form className="flex gap-2" onSubmit={add}>
@@ -206,7 +325,7 @@ function BirthdaysTab({
           className="input w-24"
           placeholder="MM-DD"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) => setDate(formatMmDd(e.target.value))}
         />
         <input
           className="input w-24"
@@ -226,26 +345,141 @@ function BirthdaysTab({
             the Birthdays list.
           </p>
         )}
-        {birthdays.map((b, i) => (
-          <div
-            key={`${b.name}-${i}`}
-            className="flex items-center gap-3 border-b border-line py-2 text-sm"
-          >
-            <span className="w-24 shrink-0 font-mono text-content-muted">
-              {b.next_occurrence}
-            </span>
-            <span className="flex-1">
-              {b.name}
-              {b.turns !== null && (
-                <span className="text-content-muted"> (turns {b.turns})</span>
-              )}
-            </span>
-            <span className="text-xs text-content-muted">
-              {b.days_until === 0 ? "today" : `in ${b.days_until}d`}
-            </span>
-          </div>
-        ))}
+        {birthdays.map((b, i) =>
+          editing === i ? (
+            <BirthdayEditRow
+              key={`edit-${i}`}
+              birthday={b}
+              onCancel={() => setEditing(null)}
+              onSave={(replacement) => void save(b, replacement)}
+            />
+          ) : (
+            <div
+              key={`${b.name}-${i}`}
+              className="group flex items-center gap-3 border-b border-line py-2 text-sm"
+            >
+              <span className="w-24 shrink-0 font-mono text-content-muted">
+                {b.next_occurrence}
+              </span>
+              <span className="min-w-0 flex-1 truncate">
+                {b.name}
+                {b.turns !== null && (
+                  <span className="text-content-muted"> (turns {b.turns})</span>
+                )}
+              </span>
+              <span className="text-xs text-content-muted">
+                {b.days_until === 0 ? "today" : `in ${b.days_until}d`}
+              </span>
+              <RowActions
+                onEdit={() => setEditing(i)}
+                onDelete={() => void remove(b)}
+              />
+            </div>
+          ),
+        )}
       </div>
     </div>
+  );
+}
+
+function BirthdayEditRow({
+  birthday,
+  onSave,
+  onCancel,
+}: {
+  birthday: BirthdayView;
+  onSave: (replacement: {
+    name: string;
+    date: string;
+    year: number | null;
+  }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(birthday.name);
+  const [date, setDate] = useState(birthday.date);
+  const [year, setYear] = useState(
+    birthday.year !== null ? String(birthday.year) : "",
+  );
+
+  return (
+    <form
+      className="flex items-center gap-2 border-b border-line py-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim() || !/^\d{2}-\d{2}$/.test(date)) return;
+        onSave({
+          name: name.trim(),
+          date,
+          year: year ? Number(year) : null,
+        });
+      }}
+    >
+      <input
+        className="input min-w-0 flex-1"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <input
+        className="input w-24"
+        placeholder="MM-DD"
+        value={date}
+        onChange={(e) => setDate(formatMmDd(e.target.value))}
+      />
+      <input
+        className="input w-24"
+        type="number"
+        placeholder="Year"
+        value={year}
+        onChange={(e) => setYear(e.target.value)}
+      />
+      <EditFormButtons onCancel={onCancel} />
+    </form>
+  );
+}
+
+function RowActions({
+  onEdit,
+  onDelete,
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <span className="hidden shrink-0 gap-1 group-hover:flex">
+      <button
+        className="rounded px-1.5 text-xs text-content-muted hover:text-accent"
+        title="Edit"
+        onClick={onEdit}
+      >
+        &#9998;
+      </button>
+      <button
+        className="rounded px-1.5 text-xs text-content-muted hover:text-red-500"
+        title="Delete"
+        onClick={onDelete}
+      >
+        &#215;
+      </button>
+    </span>
+  );
+}
+
+export function EditFormButtons({ onCancel }: { onCancel: () => void }) {
+  return (
+    <span className="flex shrink-0 gap-1">
+      <button
+        type="submit"
+        className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-white"
+      >
+        Save
+      </button>
+      <button
+        type="button"
+        className="rounded-md border border-line px-3 py-1 text-xs text-content-muted hover:text-content"
+        onClick={onCancel}
+      >
+        Cancel
+      </button>
+    </span>
   );
 }

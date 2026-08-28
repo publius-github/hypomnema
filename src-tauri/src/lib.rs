@@ -139,7 +139,7 @@ fn lists_all(state: State<AppState>) -> Result<Vec<tasks::List>> {
 #[tauri::command]
 fn list_create(state: State<AppState>, name: String, color: Option<String>) -> Result<tasks::List> {
     with_conn(&state, |conn| {
-        tasks::list_create(conn, &name, color.as_deref())
+        tasks::list_create(conn, &name, color.as_deref(), false)
     })
 }
 
@@ -299,6 +299,45 @@ fn birthday_add(state: State<AppState>, entry: engine::BirthdayEntry) -> Result<
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
     engine::append_birthday(&vault.config_dir(), entry)
+}
+
+#[tauri::command]
+fn recurring_edit(
+    state: State<AppState>,
+    index: usize,
+    replacement: Option<engine::RecurringRule>,
+) -> Result<()> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    engine::edit_recurring(&vault.config_dir(), index, replacement)
+}
+
+#[tauri::command]
+fn scheduled_edit(
+    state: State<AppState>,
+    original: engine::ScheduledEvent,
+    replacement: Option<engine::ScheduledEvent>,
+) -> Result<()> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    engine::edit_scheduled(&vault.config_dir(), original, replacement)
+}
+
+#[tauri::command]
+fn birthday_edit(
+    state: State<AppState>,
+    original: engine::BirthdayEntry,
+    replacement: Option<engine::BirthdayEntry>,
+) -> Result<()> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    engine::edit_birthday(&vault.config_dir(), original, replacement)
 }
 
 const EDITABLE_CONFIG_FILES: &[&str] = &[
@@ -486,6 +525,9 @@ pub fn run() {
             recurring_add,
             scheduled_add,
             birthday_add,
+            recurring_edit,
+            scheduled_edit,
+            birthday_edit,
             config_file_get,
             config_file_set
         ])

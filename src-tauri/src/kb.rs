@@ -34,7 +34,7 @@ fn read_dir_sorted(dir: &Path) -> Result<Vec<fs::DirEntry>> {
     Ok(entries)
 }
 
-fn build_tree(root: &Path, dir: &Path) -> Result<Vec<KbNode>> {
+fn build_tree(root: &Path, dir: &Path, depth: usize) -> Result<Vec<KbNode>> {
     let mut dirs = Vec::new();
     let mut files = Vec::new();
     for entry in read_dir_sorted(dir)? {
@@ -55,9 +55,16 @@ fn build_tree(root: &Path, dir: &Path) -> Result<Vec<KbNode>> {
                 name,
                 path: rel,
                 is_dir: true,
-                children: build_tree(root, &path)?,
+                children: build_tree(root, &path, depth + 1)?,
             });
         } else {
+            // The KB root often doubles as the vault root, so service
+            // files there (app.db and friends) stay hidden: only .md
+            // notes surface at the top level, everything inside
+            // subfolders is shown
+            if depth == 0 && !name.to_lowercase().ends_with(".md") {
+                continue;
+            }
             files.push(KbNode {
                 name,
                 path: rel,
@@ -71,7 +78,7 @@ fn build_tree(root: &Path, dir: &Path) -> Result<Vec<KbNode>> {
 }
 
 /// The KB folder is never restructured by the app: the tree is read
-/// as-is; all non-hidden files are shown.
+/// as-is; all non-hidden files are shown (root level: .md only).
 pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
     if !root.is_dir() {
         return Err(Error::State(format!(
@@ -79,7 +86,7 @@ pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
             root.display()
         )));
     }
-    build_tree(root, root)
+    build_tree(root, root, 0)
 }
 
 pub fn read(root: &Path, rel: &str) -> Result<String> {
@@ -157,21 +164,22 @@ mod tests {
     }
 
     #[test]
-    fn tree_lists_all_files_dirs_first_and_skips_hidden() {
+    fn tree_hides_non_md_at_root_but_shows_them_in_subfolders() {
         let root = root("tree");
         fs::create_dir_all(root.join("b-notes")).unwrap();
         fs::write(root.join("b-notes").join("inner.md"), "x").unwrap();
+        fs::write(root.join("b-notes").join("data.txt"), "x").unwrap();
         fs::write(root.join("a.md"), "x").unwrap();
-        fs::write(root.join("notes.txt"), "x").unwrap();
+        fs::write(root.join("app.db"), "x").unwrap();
         fs::write(root.join(".hidden.md"), "x").unwrap();
 
         let nodes = tree(&root).unwrap();
-        assert_eq!(nodes.len(), 3);
+        assert_eq!(nodes.len(), 2);
         assert_eq!(nodes[0].name, "b-notes");
         assert!(nodes[0].is_dir);
-        assert_eq!(nodes[0].children[0].path, "b-notes/inner.md");
+        let children: Vec<&str> = nodes[0].children.iter().map(|n| n.name.as_str()).collect();
+        assert_eq!(children, vec!["data.txt", "inner.md"]);
         assert_eq!(nodes[1].name, "a.md");
-        assert_eq!(nodes[2].name, "notes.txt");
         let _ = fs::remove_dir_all(&root);
     }
 

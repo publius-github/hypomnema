@@ -16,6 +16,7 @@ export type Section =
   | "dashboard"
   | "upcoming"
   | "recurring"
+  | "calendar"
   | "journal"
   | "kb"
   | "settings";
@@ -81,6 +82,7 @@ export interface List {
   sort_order: number;
   color: string | null;
   archived: boolean;
+  auto: boolean;
 }
 
 export interface Task {

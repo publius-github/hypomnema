@@ -9,6 +9,7 @@ import VaultPicker from "./components/VaultPicker";
 import Dashboard from "./sections/Dashboard";
 import Upcoming from "./sections/Upcoming";
 import Recurring from "./sections/Recurring";
+import Calendar from "./sections/Calendar";
 import Journal from "./sections/Journal";
 import KnowledgeBase from "./sections/KnowledgeBase";
 import Settings from "./sections/Settings";
@@ -121,6 +122,7 @@ export default function App() {
         {section === "dashboard" && <Dashboard />}
         {section === "upcoming" && <Upcoming />}
         {section === "recurring" && <Recurring />}
+        {section === "calendar" && <Calendar />}
         {section === "journal" && <Journal />}
         {section === "kb" && <KnowledgeBase />}
         {section === "settings" && <Settings />}
