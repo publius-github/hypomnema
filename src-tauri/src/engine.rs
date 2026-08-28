@@ -266,16 +266,30 @@ fn run_recurring(
             }
         }
         let latest_missed = firings.iter().rfind(|f| f.date_naive() < today).copied();
-        let selected = latest_missed
-            .into_iter()
-            .chain(firings.iter().filter(|f| f.date_naive() >= today).copied());
-        for firing in selected {
-            let period_key = firing.format("%Y-%m-%dT%H:%M").to_string();
-            for item in &rule.items {
+        let current = || firings.iter().filter(|f| f.date_naive() >= today).copied();
+        for item in &rule.items {
+            let rule_key = fnv1a64(&format!("{}|{}|{}", rule.schedule, rule.description, item));
+            // Catch-up never reaches back past the day the engine first
+            // saw the item: a rule added today must not open as overdue,
+            // and later runs must not resurrect pre-sighting firings.
+            conn.execute(
+                "INSERT OR IGNORE INTO rule_seen (rule_key, first_seen) VALUES (?1, ?2)",
+                (&rule_key, now.to_rfc3339()),
+            )?;
+            let first_seen: String = conn.query_row(
+                "SELECT substr(first_seen, 1, 10) FROM rule_seen WHERE rule_key = ?1",
+                [&rule_key],
+                |row| row.get(0),
+            )?;
+            let selected = latest_missed
+                .into_iter()
+                .filter(|f| f.format("%Y-%m-%d").to_string() >= first_seen)
+                .chain(current());
+            for firing in selected {
                 let (list, title) = parse_item(item);
                 let generated = GeneratedTask {
-                    rule_key: fnv1a64(&format!("{}|{}|{}", rule.schedule, rule.description, item)),
-                    period_key: period_key.clone(),
+                    rule_key: rule_key.clone(),
+                    period_key: firing.format("%Y-%m-%dT%H:%M").to_string(),
                     title,
                     list_name: list,
                     scheduled_date: firing.format("%Y-%m-%d").to_string(),
@@ -318,6 +332,16 @@ fn run_recurring(
              WHERE origin = 'recurring' AND rule_key = ?1 AND scheduled_date > ?2",
             (key, &today_str),
         )?;
+    }
+    // Forget removed rules entirely, so re-adding the same rule later
+    // counts as new (no retroactive overdue from the removal gap).
+    let seen: Vec<String> = {
+        let mut stmt = conn.prepare("SELECT rule_key FROM rule_seen")?;
+        let keys = stmt.query_map([], |row| row.get(0))?;
+        keys.collect::<std::result::Result<_, _>>()?
+    };
+    for key in seen.iter().filter(|key| !active.contains(*key)) {
+        conn.execute("DELETE FROM rule_seen WHERE rule_key = ?1", [key])?;
     }
     Ok(())
 }
@@ -975,22 +999,23 @@ mod tests {
             "tasks:\n  - schedule: \"0 6 * * *\"\n    description: Daily\n    items:\n      - \"{Home} water plants\"\n",
         )
         .unwrap();
-        let now = at("2026-08-28", "12:00:00");
         let cfg = config(3, 7, 0);
 
-        let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        // missed firings 08-26/08-27 collapse into the latest (08-27);
-        // today 08-28 plus the future grid days 08-29..09-03 generate
-        // ahead of time: 1 + 1 + 6 = 8
-        assert_eq!(outcome.generated, 8);
+        // first sighting of the rule: today + 6 grid days, no catch-up
+        let outcome = run(&conn, &dir, &cfg, at("2026-08-25", "12:00:00")).unwrap();
+        assert_eq!(outcome.generated, 7);
         assert!(outcome.errors.is_empty());
 
         // second run: nothing new (restart scenario)
-        let outcome2 = run(&conn, &dir, &cfg, now).unwrap();
+        let outcome2 = run(&conn, &dir, &cfg, at("2026-08-25", "12:00:00")).unwrap();
         assert_eq!(outcome2.generated, 0);
-        assert_eq!(count_tasks(&conn), 8);
+        assert_eq!(count_tasks(&conn), 7);
 
-        // the collapsed missed instance carried over to today as overdue
+        // three days later: only the new grid days generate, and the
+        // past instances carry over to today as overdue
+        let outcome3 = run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(outcome3.generated, 3);
+        assert_eq!(outcome3.carried_over, 3);
         let overdue: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM tasks WHERE overdue = 1 AND scheduled_date = '2026-08-28'",
@@ -998,7 +1023,26 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(overdue, 1);
+        assert_eq!(overdue, 3);
+    }
+
+    #[test]
+    fn new_rule_starts_today_without_overdue() {
+        let (conn, dir) = setup("new-rule");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"fresh\"\n",
+        )
+        .unwrap();
+        // a 30-day catch-up window must not matter for a rule added today
+        let outcome = run(&conn, &dir, &config(30, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(outcome.generated, 7);
+        let overdue: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(overdue, 0);
     }
 
     #[test]
@@ -1009,18 +1053,16 @@ mod tests {
             "tasks:\n  - schedule: \"0 9 * * 1-5\"\n    description: Weekdays\n    items:\n      - \"standup\"\n",
         )
         .unwrap();
-        // 30-day catch-up, 2026-08-28 is a Friday
-        let outcome = run(&conn, &dir, &config(30, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
-        // one collapsed overdue (08-27) + today + future weekdays in the
-        // grid (08-31, 09-01..09-03); weekend days get nothing
-        assert_eq!(outcome.generated, 6);
+        // the rule is first seen on Monday 08-10 (weekdays 08-10..08-14)
+        let seeded = run(&conn, &dir, &config(1, 7, 0), at("2026-08-10", "12:00:00")).unwrap();
+        assert_eq!(seeded.generated, 5);
 
-        let overdue: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
-                r.get(0)
-            })
-            .unwrap();
-        assert_eq!(overdue, 1);
+        // two idle weeks later (Friday 08-28) with a 30-day catch-up:
+        // the missed weekdays collapse into one firing (08-27), plus
+        // today and the future grid weekdays; weekends get nothing
+        let outcome = run(&conn, &dir, &config(30, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(outcome.generated, 6);
+        assert_eq!(count_tasks(&conn), 11);
 
         let weekend: i64 = conn
             .query_row(
@@ -1100,10 +1142,10 @@ mod tests {
         )
         .unwrap();
         let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        // 8 firings (collapsed missed + today + 6 grid days); only the
-        // new item 'b' generates, 'a' stays deduped
-        assert_eq!(outcome.generated, 8);
-        assert_eq!(count_tasks(&conn), 16);
+        // the new item 'b' is unseen, so it starts from today: 7
+        // firings (today + 6 grid days); 'a' stays deduped
+        assert_eq!(outcome.generated, 7);
+        assert_eq!(count_tasks(&conn), 14);
     }
 
     #[test]
@@ -1142,22 +1184,16 @@ mod tests {
 
     #[test]
     fn cron_ignore_time_counts_missed_firings_by_date() {
-        // "0 0" cron a day ago: with day granularity it is one missed
-        // firing; with exact timing the midnight firing falls outside
-        // the [now - 1d 12:00] window and no overdue task appears
-        let now = at("2026-08-28", "12:00:00");
+        // seen rule, gap since 08-20, engine runs 08-28 12:00 with a
+        // 1-day catch-up: the missed 08-27 00:00 firing counts with day
+        // granularity but falls outside the exact [08-27 12:00] window
         let recurring = "tasks:\n  - schedule: \"0 0 * * *\"\n    items:\n      - \"x\"\n";
 
         let (conn, dir) = setup("ignore-time-on");
         fs::write(dir.join("recurring.yml"), recurring).unwrap();
-        let outcome = run(&conn, &dir, &config(1, 7, 0), now).unwrap();
+        run(&conn, &dir, &config(1, 7, 0), at("2026-08-20", "12:00:00")).unwrap();
+        let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(outcome.generated, 8);
-        let overdue: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
-                r.get(0)
-            })
-            .unwrap();
-        assert_eq!(overdue, 1);
 
         let (conn, dir) = setup("ignore-time-off");
         fs::write(dir.join("recurring.yml"), recurring).unwrap();
@@ -1165,14 +1201,9 @@ mod tests {
             cron_ignore_time: false,
             ..config(1, 7, 0)
         };
-        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        run(&conn, &dir, &cfg, at("2026-08-20", "12:00:00")).unwrap();
+        let outcome = run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(outcome.generated, 7);
-        let overdue: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tasks WHERE overdue = 1", [], |r| {
-                r.get(0)
-            })
-            .unwrap();
-        assert_eq!(overdue, 0);
     }
 
     #[test]
@@ -1186,10 +1217,9 @@ mod tests {
         let now = at("2026-08-28", "12:00:00");
         let cfg = config(1, 7, 0);
         run(&conn, &dir, &cfg, now).unwrap();
-        assert_eq!(count_tasks(&conn), 16);
+        assert_eq!(count_tasks(&conn), 14);
 
-        // drop item 'b': its future instances go; today's copies stay
-        // (the regular one and the carried-over overdue one)
+        // drop item 'b': its future instances go; today's copy stays
         fs::write(
             dir.join("recurring.yml"),
             "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"a\"\n",
@@ -1202,7 +1232,7 @@ mod tests {
                 r.get(0)
             })
             .unwrap();
-        assert_eq!(b_left, 2);
+        assert_eq!(b_left, 1);
         let b_future: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM tasks WHERE title = 'b' AND scheduled_date > '2026-08-28'",
@@ -1433,8 +1463,8 @@ mod tests {
         assert!(listed.errors.is_empty());
 
         let outcome = run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
-        // collapsed missed firing + today + 6 future grid days
-        assert_eq!(outcome.generated, 8);
+        // freshly added rule: today + 6 future grid days, no catch-up
+        assert_eq!(outcome.generated, 7);
     }
 
     #[test]
@@ -1562,12 +1592,16 @@ mod tests {
         .unwrap();
         let cfg = config(40, 7, 0);
 
-        // run on the 5th: missed 07-01 and 08-01 collapse into 08-01;
-        // again on the 20th: same period, nothing new
+        // first sighting on 08-05: no catch-up (08-01 predates the
+        // rule) and the next firing (09-01) is beyond the grid horizon
         let first = run(&conn, &dir, &cfg, at("2026-08-05", "09:00:00")).unwrap();
-        assert_eq!(first.generated, 1);
-        let outcome = run(&conn, &dir, &cfg, at("2026-08-20", "09:00:00")).unwrap();
-        assert_eq!(outcome.generated, 0);
+        assert_eq!(first.generated, 0);
+        // 09-03: the 09-01 firing was missed after the sighting and
+        // materializes once; a re-run generates nothing new
+        let outcome = run(&conn, &dir, &cfg, at("2026-09-03", "09:00:00")).unwrap();
+        assert_eq!(outcome.generated, 1);
+        let again = run(&conn, &dir, &cfg, at("2026-09-03", "09:00:00")).unwrap();
+        assert_eq!(again.generated, 0);
         assert_eq!(count_tasks(&conn), 1);
     }
 }

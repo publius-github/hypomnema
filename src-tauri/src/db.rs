@@ -63,6 +63,16 @@ const MIGRATIONS: &[&str] = &[
     // are hidden from the dashboard list zone unless they hold
     // unscheduled tasks
     "ALTER TABLE lists ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;",
+    // 006: when a recurring rule was first seen by the engine. Catch-up
+    // (missed firings -> overdue) applies only to rules that existed
+    // before; a freshly added rule starts from today. Seeded from the
+    // rule_runs ledger so pre-existing rules keep catching up.
+    "CREATE TABLE rule_seen (
+        rule_key TEXT PRIMARY KEY,
+        first_seen TEXT NOT NULL
+    );
+    INSERT INTO rule_seen (rule_key, first_seen)
+        SELECT rule_key, MIN(generated_at) FROM rule_runs GROUP BY rule_key;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
