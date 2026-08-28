@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
 import type { Task } from "../types";
+import TaskModal from "../components/TaskModal";
+import QuickAdd from "../components/QuickAdd";
 
 const MONTHS = [
   "January",
@@ -31,6 +33,10 @@ export default function Calendar() {
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)) - 1);
   const [selected, setSelected] = useState(today);
   const [monthTasks, setMonthTasks] = useState<Task[]>([]);
+  const [openTask, setOpenTask] = useState<Task | null>(null);
+  // any task mutation anywhere refreshes the month view
+  const storeTasks = useAppStore((s) => s.tasks);
+  const vaultVersion = useAppStore((s) => s.vaultVersion);
 
   const monthStart = iso(year, month, 1);
   const nextMonthStart =
@@ -59,7 +65,21 @@ export default function Calendar() {
     return () => {
       cancelled = true;
     };
-  }, [monthStart, nextMonthStart]);
+  }, [monthStart, nextMonthStart, storeTasks, vaultVersion]);
+
+  // keep the opened task fresh after edits made in the modal
+  useEffect(() => {
+    if (!openTask) return;
+    const live = monthTasks.find((t) => t.id === openTask.id);
+    if (live) {
+      setOpenTask(live);
+      return;
+    }
+    invoke<Task>("task_get", { id: openTask.id })
+      .then(setOpenTask)
+      .catch(() => setOpenTask(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthTasks]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -173,9 +193,10 @@ export default function Calendar() {
           </p>
         )}
         {selectedTasks.map((task) => (
-          <div
+          <button
             key={task.id}
-            className="flex items-center gap-2 rounded-md border border-line bg-surface-alt px-3 py-2 text-sm"
+            className="flex items-center gap-2 rounded-md border border-line bg-surface-alt px-3 py-2 text-left text-sm hover:border-accent/60"
+            onClick={() => setOpenTask(task)}
           >
             <span
               className={
@@ -207,9 +228,15 @@ export default function Calendar() {
                 {listName(task.list_id)}
               </span>
             )}
-          </div>
+          </button>
         ))}
+        <div className="pt-1">
+          <QuickAdd target={{ scheduled_date: selected }} />
+        </div>
       </div>
+      {openTask && (
+        <TaskModal task={openTask} onClose={() => setOpenTask(null)} />
+      )}
     </div>
   );
 }
