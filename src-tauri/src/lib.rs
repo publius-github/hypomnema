@@ -3,6 +3,7 @@ mod db;
 mod engine;
 mod error;
 mod journal;
+mod kb;
 mod tasks;
 mod vault;
 
@@ -21,6 +22,7 @@ use vault::Vault;
 struct AppState {
     vault: Mutex<Option<Vault>>,
     watcher: Mutex<Option<notify::RecommendedWatcher>>,
+    kb_watcher: Mutex<Option<(PathBuf, notify::RecommendedWatcher)>>,
 }
 
 fn app_config_dir(app: &AppHandle) -> Result<PathBuf> {
@@ -233,6 +235,82 @@ fn journal_template_set(state: State<AppState>, content: String) -> Result<()> {
     with_vault_root(&state, |root| journal::save_template(root, &content))
 }
 
+fn kb_root(state: &State<AppState>) -> Result<PathBuf> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    if vault.config.kb_path.trim().is_empty() {
+        return Err(Error::State("KB folder is not configured".into()));
+    }
+    Ok(PathBuf::from(vault.config.kb_path.trim()))
+}
+
+/// (Re)arms the KB watcher when the tree is loaded, so external edits
+/// refresh the UI. Replaced when the KB path changes in settings.
+fn ensure_kb_watcher(app: &AppHandle, state: &State<AppState>, root: &Path) -> Result<()> {
+    let mut guard = state.kb_watcher.lock().unwrap();
+    if let Some((watched, _)) = guard.as_ref() {
+        if watched == root {
+            return Ok(());
+        }
+    }
+    let (tx, rx) = mpsc::channel::<()>();
+    let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+        if event.is_ok() {
+            let _ = tx.send(());
+        }
+    })
+    .map_err(|e| Error::State(format!("cannot start KB watcher: {e}")))?;
+    watcher
+        .watch(root, RecursiveMode::Recursive)
+        .map_err(|e| Error::State(format!("cannot watch KB folder: {e}")))?;
+    *guard = Some((root.to_path_buf(), watcher));
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        while rx.recv().is_ok() {
+            std::thread::sleep(Duration::from_millis(400));
+            while rx.try_recv().is_ok() {}
+            let _ = app.emit("kb-updated", ());
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn kb_tree(app: AppHandle, state: State<AppState>) -> Result<Vec<kb::KbNode>> {
+    let root = kb_root(&state)?;
+    let tree = kb::tree(&root)?;
+    ensure_kb_watcher(&app, &state, &root)?;
+    Ok(tree)
+}
+
+#[tauri::command]
+fn kb_read(state: State<AppState>, path: String) -> Result<String> {
+    kb::read(&kb_root(&state)?, &path)
+}
+
+#[tauri::command]
+fn kb_write(state: State<AppState>, path: String, content: String) -> Result<()> {
+    kb::write(&kb_root(&state)?, &path, &content)
+}
+
+#[tauri::command]
+fn kb_create(state: State<AppState>, path: String) -> Result<String> {
+    kb::create(&kb_root(&state)?, &path)
+}
+
+#[tauri::command]
+fn kb_rename(state: State<AppState>, from: String, to: String) -> Result<()> {
+    kb::rename(&kb_root(&state)?, &from, &to)
+}
+
+#[tauri::command]
+fn kb_delete(state: State<AppState>, path: String) -> Result<()> {
+    kb::delete(&kb_root(&state)?, &path)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -256,7 +334,13 @@ pub fn run() {
             journal_save,
             journal_list,
             journal_template_get,
-            journal_template_set
+            journal_template_set,
+            kb_tree,
+            kb_read,
+            kb_write,
+            kb_create,
+            kb_rename,
+            kb_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running app-pkb");
