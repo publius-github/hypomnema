@@ -411,6 +411,7 @@ function SubtaskRow({ sub }: { sub: Task }) {
       <input
         type="checkbox"
         className="mt-1"
+        style={{ accentColor: "var(--color-done)" }}
         checked={sub.status === "done"}
         onChange={() =>
           void updateTask(sub.id, {

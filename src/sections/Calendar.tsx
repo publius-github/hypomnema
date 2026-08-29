@@ -274,11 +274,16 @@ export default function Calendar() {
           >
             <span
               className={
-                task.status === "done"
-                  ? "text-accent"
-                  : task.status === "postponed"
-                    ? "text-warn"
+                task.status === "postponed"
+                  ? "text-warn"
+                  : task.status === "done"
+                    ? ""
                     : "text-content-muted"
+              }
+              style={
+                task.status === "done"
+                  ? { color: "var(--color-done)" }
+                  : undefined
               }
             >
               {task.status === "done"

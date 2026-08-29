@@ -17,6 +17,9 @@
   --color-danger: 220 38 38;
   --color-warn: 217 119 6;
   --color-info: 2 132 199;
+  /* checked (done) checkboxes; config-driven via done_color, this is
+     only the pre-config fallback */
+  --color-done: #22c55e;
   /* markdown token colors per the VS Code Light+ spec (light_vs.json):
      heading #800000, bold #000080, italic #800080, inline raw #800000,
      link/checkbox text = string #a31515, quote/comment #008000,

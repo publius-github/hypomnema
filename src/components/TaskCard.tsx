@@ -14,10 +14,16 @@ import {
 } from "../lib/tasks";
 import type { Task } from "../types";
 
+// done takes the configurable checkbox color via the --color-done var
 const STATUS_BUTTON: Record<Task["status"], string> = {
   todo: "border-content-muted text-content-muted",
-  done: "border-accent bg-accent text-white",
+  done: "text-white",
   postponed: "border-warn bg-warn text-white",
+};
+
+const DONE_BUTTON_STYLE = {
+  backgroundColor: "var(--color-done)",
+  borderColor: "var(--color-done)",
 };
 
 function TaskCard({
@@ -113,14 +119,30 @@ function TaskCard({
           />
         )}
         <button
-          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[11px] ${STATUS_BUTTON[task.status]}`}
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${STATUS_BUTTON[task.status]}`}
+          style={done ? DONE_BUTTON_STYLE : undefined}
           title={`Status: ${task.status} (click: ${nextStatus(task.status)})`}
           onClick={(e) => {
             e.stopPropagation();
             cycleStatus();
           }}
         >
-          {done && "✓"}
+          {/* an SVG check sits dead-center; the ✓ glyph rode on its
+              font baseline and looked shifted inside the box */}
+          {done && (
+            <svg
+              viewBox="0 0 12 12"
+              className="h-3 w-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M2.5 6.5l2.5 2.5l4.5 -5" />
+            </svg>
+          )}
           {task.status === "postponed" && (
             <svg
               viewBox="0 0 12 12"
@@ -253,6 +275,7 @@ function TaskCard({
               <input
                 type="checkbox"
                 className="mt-0.5"
+                style={{ accentColor: "var(--color-done)" }}
                 checked={sub.status === "done"}
                 onChange={() =>
                   void updateTask(sub.id, {

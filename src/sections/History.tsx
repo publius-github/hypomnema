@@ -239,7 +239,7 @@ export default function History() {
                 className="flex items-center gap-2 rounded-md border border-line bg-surface-alt px-3 py-1.5 text-left text-sm hover:border-accent/60"
                 onClick={() => setOpenTask(task)}
               >
-                <span className="text-accent">✓</span>
+                <span style={{ color: "var(--color-done)" }}>✓</span>
                 <span className="min-w-0 flex-1 truncate text-content-muted line-through">
                   {task.title}
                 </span>

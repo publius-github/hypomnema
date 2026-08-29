@@ -213,6 +213,14 @@ export default function AppearanceTab() {
           />
         </div>
 
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Done checkbox color</span>
+          <ColorPicker
+            value={config.done_color}
+            onChange={(color) => void updateConfig({ done_color: color })}
+          />
+        </div>
+
         <section className="flex flex-col gap-2">
           <span className="text-sm font-medium">Vertical spacing, px</span>
           <div className="flex flex-wrap gap-4">

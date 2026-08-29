@@ -74,6 +74,10 @@ cadence_color_exact: string,
  */
 category_color: string, 
 /**
+ * Checked (done) checkboxes on task cards and subtasks.
+ */
+done_color: string, 
+/**
  * Vertical gap between task cards inside a column, px.
  * (New numeric keys replace the old cadence_group_gap/category_gap
  * booleans; stale keys in app.yml are ignored by serde.)

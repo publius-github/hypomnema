@@ -116,6 +116,9 @@ function applyTheme(config: AppConfig | null) {
     if (triplet) root.style.setProperty(name, triplet);
     else root.style.removeProperty(name);
   }
+  // done checkboxes (cards, subtasks, calendar status marks)
+  if (config?.done_color) root.style.setProperty("--color-done", config.done_color);
+  else root.style.removeProperty("--color-done");
   // markdown color preset: named presets and custom colors override the
   // per-theme stylesheet defaults ("vscode" preset = no overrides)
   const md = config ? resolveMdColors(config) : null;

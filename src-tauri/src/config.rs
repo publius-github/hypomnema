@@ -65,6 +65,8 @@ pub struct AppConfig {
     pub cadence_color_exact: String,
     /// Category/list label chips on day cards.
     pub category_color: String,
+    /// Checked (done) checkboxes on task cards and subtasks.
+    pub done_color: String,
     /// Vertical gap between task cards inside a column, px.
     /// (New numeric keys replace the old cadence_group_gap/category_gap
     /// booleans; stale keys in app.yml are ignored by serde.)
@@ -150,6 +152,7 @@ impl Default for AppConfig {
             cadence_color_yearly: "#f59e0b".into(),
             cadence_color_exact: "#0ea5e9".into(),
             category_color: "#3b82f6".into(),
+            done_color: "#22c55e".into(),
             task_gap: 6,
             section_gap: 12,
             category_block_gap: 12,
@@ -254,6 +257,7 @@ impl AppConfig {
         );
         sanitize_color(&mut self.cadence_color_exact, defaults.cadence_color_exact);
         sanitize_color(&mut self.category_color, defaults.category_color);
+        sanitize_color(&mut self.done_color, defaults.done_color);
         sanitize_color(&mut self.md_color_heading, defaults.md_color_heading);
         sanitize_color(&mut self.md_color_bold, defaults.md_color_bold);
         sanitize_color(&mut self.md_color_italic, defaults.md_color_italic);
@@ -353,6 +357,7 @@ impl AppConfig {
             ("cadence_color_yearly", self.cadence_color_yearly.clone()),
             ("cadence_color_exact", self.cadence_color_exact.clone()),
             ("category_color", self.category_color.clone()),
+            ("done_color", self.done_color.clone()),
             ("task_gap", self.task_gap.to_string()),
             ("section_gap", self.section_gap.to_string()),
             ("category_block_gap", self.category_block_gap.to_string()),
