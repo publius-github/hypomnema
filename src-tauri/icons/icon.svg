@@ -4,10 +4,10 @@
   <!-- mid-tone frame and bright strokes: must stay readable on a dark
        Windows taskbar as well as a light one -->
   <g transform="translate(-204.8 -204.8) scale(5.6)">
-    <rect x="46" y="40" width="164" height="176" rx="22" fill="#5D74B4"/>
-    <rect x="64" y="58" width="128" height="140" rx="12" fill="#141C33"/>
-    <line x1="86" y1="96" x2="170" y2="96" stroke="#9FB2E0" stroke-width="11" stroke-linecap="round"/>
-    <line x1="86" y1="124" x2="128" y2="124" stroke="#9FB2E0" stroke-width="11" stroke-linecap="round"/>
-    <polyline points="86,158 110,180 172,118" fill="none" stroke="#71A8FF" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="46" y="40" width="164" height="176" rx="22" fill="#6B82C4"/>
+    <rect x="64" y="58" width="128" height="140" rx="12" fill="#26335C"/>
+    <line x1="86" y1="96" x2="170" y2="96" stroke="#B4C4EC" stroke-width="11" stroke-linecap="round"/>
+    <line x1="86" y1="124" x2="128" y2="124" stroke="#B4C4EC" stroke-width="11" stroke-linecap="round"/>
+    <polyline points="86,158 110,180 172,118" fill="none" stroke="#7FB1FF" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>
