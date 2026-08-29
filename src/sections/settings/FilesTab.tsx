@@ -50,7 +50,7 @@ export default function FilesTab() {
           <span className="text-sm font-medium">Journal template</span>
           <p className="text-xs text-content-muted">
             The template for new journal entries lives in
-            config/templates/journal.md.
+            .hypomnema/config/templates/journal.md.
           </p>
           <button
             className="btn-ghost w-fit px-3 py-1 text-xs"
@@ -76,11 +76,12 @@ export default function FilesTab() {
               Mirror tasks to Markdown files
             </span>
             <span className="text-xs text-content-muted">
-              Keeps vault/tasks/ in two-way sync: one file per list plus
-              scheduled.md with the dated tasks. Edit them in any editor
-              for bulk changes; lines without a ^id become new tasks,
-              deleting a line deletes the task. Only manual tasks are
-              mirrored - generated ones are edited via config/*.yml.
+              Keeps vault/.hypomnema/tasks/ in two-way sync: one file per
+              list plus scheduled.md with the dated tasks. Edit them in
+              any editor for bulk changes; lines without a ^id become new
+              tasks, deleting a line deletes the task. Only manual tasks
+              are mirrored - generated ones are edited via the config
+              YAML files.
             </span>
           </span>
         </label>

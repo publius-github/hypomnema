@@ -35,6 +35,61 @@ const CONFIG_SAMPLES: &[(&str, &str)] = &[
     ),
 ];
 
+/// All working files live under this hidden folder in the vault root,
+/// like the .git of a repository: the user's own content (journal/,
+/// notes) stays at the top level, the app's machinery does not.
+pub const WORK_DIR: &str = ".hypomnema";
+
+pub fn work_dir(root: &Path) -> PathBuf {
+    root.join(WORK_DIR)
+}
+
+/// User configs: recurring.yml, scheduled.yml, birthdays.yml and the
+/// other content-bearing files (plus pack subfolders and templates/).
+pub fn config_dir(root: &Path) -> PathBuf {
+    work_dir(root).join("config")
+}
+
+/// App settings (app.yml) - deliberately a different folder from the
+/// user configs above.
+pub fn settings_file(root: &Path) -> PathBuf {
+    work_dir(root).join("settings").join("app.yml")
+}
+
+pub fn db_path(root: &Path) -> PathBuf {
+    work_dir(root).join("app.db")
+}
+
+/// The bulk-editable Markdown task mirror.
+pub fn tasks_dir(root: &Path) -> PathBuf {
+    work_dir(root).join("tasks")
+}
+
+/// One-time move of the pre-0.32 flat layout (app.db, config/, backups/,
+/// tasks/ in the vault root) into .hypomnema/, and of app.yml out of the
+/// user configs into settings/. Every step is skipped when the source is
+/// gone or the target already exists, so a half-done move just resumes.
+fn migrate_layout(root: &Path) -> Result<()> {
+    let work = work_dir(root);
+    let move_item = |from: PathBuf, to: PathBuf| {
+        if from.exists() && !to.exists() {
+            if let Some(parent) = to.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::rename(&from, &to);
+        }
+    };
+    for name in ["app.db", "app.db-wal", "app.db-shm"] {
+        move_item(root.join(name), work.join(name));
+    }
+    move_item(root.join("config"), work.join("config"));
+    move_item(root.join("backups"), work.join("backups"));
+    move_item(root.join("tasks"), work.join("tasks"));
+    // settings split away from the user configs
+    move_item(work.join("config").join("app.yml"), settings_file(root));
+    Ok(())
+}
+
 pub struct Vault {
     pub root: PathBuf,
     pub config: AppConfig,
@@ -55,25 +110,22 @@ impl Vault {
             )));
         }
 
-        fs::create_dir_all(root.join("config"))?;
-        fs::create_dir_all(root.join("journal").join("templates"))?;
-
-        let template = root.join("journal").join("templates").join("daily.md");
-        if !template.exists() {
-            fs::write(&template, crate::journal::DEFAULT_TEMPLATE)?;
-        }
+        migrate_layout(root)?;
+        let config_dir = config_dir(root);
+        fs::create_dir_all(&config_dir)?;
+        fs::create_dir_all(config_dir.join("templates"))?;
+        fs::create_dir_all(root.join("journal"))?;
 
         for (file, sample) in CONFIG_SAMPLES {
-            let path = root.join("config").join(file);
+            let path = config_dir.join(file);
             if !path.exists() {
                 fs::write(&path, sample)?;
             }
         }
 
-        let (config, config_error) =
-            AppConfig::load_or_default(&root.join("config").join("app.yml"));
+        let (config, config_error) = AppConfig::load_or_default(&settings_file(root));
 
-        let conn = db::open(&root.join("app.db"))?;
+        let conn = db::open(&db_path(root))?;
         db::migrate(&conn)?;
         db::mirror_settings(&conn, &config)?;
         // Daily snapshot before the first engine pass of the day, so it
@@ -91,7 +143,7 @@ impl Vault {
 
     pub fn save_config(&mut self, config: AppConfig) -> Result<()> {
         let config = config.sanitized();
-        config.save(&self.root.join("config").join("app.yml"))?;
+        config.save(&settings_file(&self.root))?;
         db::mirror_settings(&self.conn, &config)?;
         self.config = config;
         self.config_error = None;
@@ -99,13 +151,13 @@ impl Vault {
     }
 
     pub fn config_dir(&self) -> PathBuf {
-        self.root.join("config")
+        config_dir(&self.root)
     }
 
     /// Re-reads app.yml (e.g. after an external edit) and refreshes the
     /// settings mirror. app.yml is the source of truth (req. 23).
     pub fn reload_config(&mut self) -> Result<()> {
-        let path = self.config_dir().join("app.yml");
+        let path = settings_file(&self.root);
         if !path.exists() {
             return Ok(());
         }
@@ -184,18 +236,53 @@ mod tests {
         let root = temp_dir("vault-open");
 
         let vault = Vault::open(&root).unwrap();
-        assert!(root.join("config").join("app.yml").exists());
-        assert!(root
-            .join("journal")
-            .join("templates")
-            .join("daily.md")
-            .exists());
-        assert!(root.join("app.db").exists());
+        assert!(settings_file(&root).exists());
+        assert!(config_dir(&root).join("recurring.yml").exists());
+        assert!(db_path(&root).exists());
+        assert!(root.join("journal").is_dir());
         assert_eq!(vault.config, AppConfig::default());
         drop(vault);
 
         let reopened = Vault::open(&root).unwrap();
         assert_eq!(reopened.config, AppConfig::default());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn old_flat_layout_migrates_into_the_work_dir() {
+        let root = temp_dir("vault-migrate");
+        // pre-0.32 layout: everything sat in the vault root
+        fs::create_dir_all(root.join("config").join("templates")).unwrap();
+        fs::write(root.join("config").join("app.yml"), "grid_columns: 9\n").unwrap();
+        fs::write(root.join("config").join("recurring.yml"), "tasks: []\n").unwrap();
+        fs::create_dir_all(root.join("backups").join("db")).unwrap();
+        fs::write(root.join("backups").join("db").join("app-x.db"), "x").unwrap();
+        fs::create_dir_all(root.join("tasks")).unwrap();
+        fs::write(root.join("tasks").join("scheduled.md"), "m").unwrap();
+        {
+            let conn = db::open(&root.join("app.db")).unwrap();
+            db::migrate(&conn).unwrap();
+        }
+
+        let vault = Vault::open(&root).unwrap();
+        assert_eq!(vault.config.grid_columns, 9);
+        assert!(settings_file(&root).exists());
+        assert_eq!(
+            fs::read_to_string(config_dir(&root).join("recurring.yml")).unwrap(),
+            "tasks: []\n"
+        );
+        assert!(db_path(&root).exists());
+        assert!(work_dir(&root)
+            .join("backups")
+            .join("db")
+            .join("app-x.db")
+            .exists());
+        assert!(work_dir(&root).join("tasks").join("scheduled.md").exists());
+        // nothing of the old layout is left behind
+        assert!(!root.join("app.db").exists());
+        assert!(!root.join("config").exists());
+        assert!(!root.join("backups").exists());
+        assert!(!root.join("tasks").exists());
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -208,7 +295,7 @@ mod tests {
         config.grid_columns = 10;
         vault.save_config(config).unwrap();
 
-        let (reloaded, _) = AppConfig::load_or_default(&root.join("config").join("app.yml"));
+        let (reloaded, _) = AppConfig::load_or_default(&settings_file(&root));
         assert_eq!(reloaded.grid_columns, 10);
 
         let mirrored: String = vault

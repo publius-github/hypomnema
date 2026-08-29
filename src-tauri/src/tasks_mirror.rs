@@ -1,4 +1,4 @@
-//! Two-way text mirror of the manual tasks under `<vault>/tasks/`:
+//! Two-way text mirror of the manual tasks under `<vault>/.hypomnema/tasks/`:
 //! one Markdown file per list (its backlog) plus `scheduled.md` with the
 //! dated tasks from today onward, grouped by date. The files are meant
 //! for bulk editing: the app rewrites them after every change, and a
@@ -22,13 +22,10 @@ use rusqlite::Connection;
 use crate::error::{Error, Result};
 use crate::tasks::{self, NewTask, Task, TaskPatch};
 
-/// Directory under the vault root holding the mirror files.
-pub const DIR: &str = "tasks";
-
 const SCHEDULED_MARKER: &str = "<!-- hypomnema:scheduled -->";
 const LIST_MARKER_PREFIX: &str = "<!-- hypomnema:list:";
 
-const FORMAT_HELP: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [>] = postponed; an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. The trailing ^id is the sync key: keep it when editing a line, leave it out on new lines, and deleting a whole line deletes that task. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in config/ instead. -->";
+const FORMAT_HELP: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [>] = postponed; an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. The trailing ^id is the sync key: keep it when editing a line, leave it out on new lines, and deleting a whole line deletes that task. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
 
 fn list_marker(id: i64) -> String {
     format!("{LIST_MARKER_PREFIX}{id} -->")

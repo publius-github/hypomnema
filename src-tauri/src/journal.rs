@@ -56,21 +56,24 @@ fn entry_path(vault: &Path, date: &str) -> Result<PathBuf> {
         .join(format!("{}.md", parsed.format("%Y-%m-%d"))))
 }
 
-/// The template lives in config/templates/ so it shows up under the
+/// The template lives in <configs>/templates/ so it shows up under the
 /// Config group in Notes; older locations (config/journal-template.md
-/// and journal/templates/daily.md) are moved over on first access.
+/// and journal/templates/daily.md) are moved over on first access, and
+/// a vault that never had a template gets the default written out so
+/// there is a file to edit.
 fn template_path(vault: &Path) -> PathBuf {
-    let new = vault.join("config").join("templates").join("journal.md");
+    let config_dir = crate::vault::config_dir(vault);
+    let new = config_dir.join("templates").join("journal.md");
     let legacy = [
-        vault.join("config").join("journal-template.md"),
+        config_dir.join("journal-template.md"),
         vault.join("journal").join("templates").join("daily.md"),
     ];
     if !new.exists() {
+        let _ = fs::create_dir_all(config_dir.join("templates"));
         for old in legacy {
             if !old.exists() {
                 continue;
             }
-            let _ = fs::create_dir_all(vault.join("config").join("templates"));
             if fs::rename(&old, &new).is_err() {
                 if let Ok(content) = fs::read_to_string(&old) {
                     if crate::vault::write_atomic(&new, &content).is_ok() {
@@ -79,6 +82,9 @@ fn template_path(vault: &Path) -> PathBuf {
                 }
             }
             break;
+        }
+        if !new.exists() {
+            let _ = fs::write(&new, DEFAULT_TEMPLATE);
         }
     }
     new
@@ -222,13 +228,15 @@ mod tests {
 
         assert_eq!(read_template(&vault).unwrap(), "# {{date}}\n");
         assert!(!oldest.exists());
-        let target = vault.join("config").join("templates").join("journal.md");
+        let target = crate::vault::config_dir(&vault)
+            .join("templates")
+            .join("journal.md");
         assert!(target.exists());
 
         // the intermediate config/journal-template.md location migrates
         // the same way
         fs::remove_file(&target).unwrap();
-        let mid = vault.join("config").join("journal-template.md");
+        let mid = crate::vault::config_dir(&vault).join("journal-template.md");
         fs::write(&mid, "mid\n").unwrap();
         assert_eq!(read_template(&vault).unwrap(), "mid\n");
         assert!(!mid.exists());

@@ -65,9 +65,10 @@ fn app_config_dir(app: &AppHandle) -> Result<PathBuf> {
         .map_err(|e| Error::State(format!("cannot resolve app config dir: {e}")))
 }
 
-/// Watches <vault>/config and, after a debounce, reloads app.yml, runs
-/// the engine, and notifies the frontend (req. 18, safe reload per 19).
-fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
+/// Watches the user configs and the app settings folder and, after a
+/// debounce, reloads app.yml, runs the engine, and notifies the
+/// frontend (req. 18, safe reload per 19).
+fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
     let (tx, rx) = mpsc::channel::<()>();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if let Ok(event) = event {
@@ -79,8 +80,15 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
     .map_err(|e| Error::State(format!("cannot start config watcher: {e}")))?;
     // recursive: YAML task packs in subfolders merge into the config
     watcher
-        .watch(config_dir, RecursiveMode::Recursive)
+        .watch(&vault::config_dir(root), RecursiveMode::Recursive)
         .map_err(|e| Error::State(format!("cannot watch config dir: {e}")))?;
+    // app.yml lives apart from the user configs; watch its folder too
+    if let Some(settings_dir) = vault::settings_file(root).parent() {
+        let _ = std::fs::create_dir_all(settings_dir);
+        watcher
+            .watch(settings_dir, RecursiveMode::NonRecursive)
+            .map_err(|e| Error::State(format!("cannot watch settings dir: {e}")))?;
+    }
 
     let state = app.state::<AppState>();
     *state.watcher.lock().unwrap() = Some(watcher);
@@ -114,15 +122,19 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
             let written = state.mirror_written.clone();
             let outcome = {
                 let _pass = engine_lock.lock().unwrap();
-                db::open(&root.join("app.db")).and_then(|conn| {
-                    let outcome =
-                        engine::run(&conn, &root.join("config"), &config, chrono::Local::now())?;
+                db::open(&vault::db_path(&root)).and_then(|conn| {
+                    let outcome = engine::run(
+                        &conn,
+                        &vault::config_dir(&root),
+                        &config,
+                        chrono::Local::now(),
+                    )?;
                     // the pass may have moved manual tasks (overdue
                     // carry-over), so the text mirror must follow
                     if config.tasks_mirror {
                         if let Ok(files) = tasks_mirror::export(
                             &conn,
-                            &root.join(tasks_mirror::DIR),
+                            &vault::tasks_dir(&root),
                             &today_string(),
                             &Default::default(),
                         ) {
@@ -165,7 +177,7 @@ fn mirror_export_with(
     }
     if let Ok(files) = tasks_mirror::export(
         &vault.conn,
-        &vault.root.join(tasks_mirror::DIR),
+        &vault::tasks_dir(&vault.root),
         &today_string(),
         &Default::default(),
     ) {
@@ -221,14 +233,14 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
             let engine_lock = state.engine_lock.clone();
             let written = state.mirror_written.clone();
             let today = today_string();
-            let dir = root.join(tasks_mirror::DIR);
+            let dir = vault::tasks_dir(&root);
             let mut errors: Vec<config_files::ConfigError> = Vec::new();
             let mut changed = false;
             {
                 // the engine also writes tasks; imports must not
                 // interleave with a running pass
                 let _pass = engine_lock.lock().unwrap();
-                let Ok(conn) = db::open(&root.join("app.db")) else {
+                let Ok(conn) = db::open(&vault::db_path(&root)) else {
                     continue;
                 };
                 let mut failed: std::collections::HashSet<PathBuf> =
@@ -290,15 +302,14 @@ fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Resu
     let vault = Vault::open(root)?;
     journal::ensure_template_location(root);
     let config = vault.config.clone();
-    let config_dir = vault.config_dir();
     *state.vault.lock().unwrap() = Some(vault);
     // Always rebind: re-selecting a vault must watch the NEW config dir.
     // Replacing the watcher drops the old one, which closes its channel
     // and lets the old debounce thread exit.
-    start_config_watcher(app.clone(), &config_dir)?;
+    start_config_watcher(app.clone(), root)?;
     if config.tasks_mirror {
         mirror_export(state);
-        let _ = start_tasks_watcher(app.clone(), &root.join(tasks_mirror::DIR));
+        let _ = start_tasks_watcher(app.clone(), &vault::tasks_dir(root));
     } else {
         *state.tasks_watcher.lock().unwrap() = None;
     }
@@ -349,7 +360,7 @@ async fn config_set(app: AppHandle, state: State<'_, AppState>, config: AppConfi
     // the task mirror toggle takes effect immediately
     if mirror_now && !mirror_was {
         mirror_export(&state);
-        let _ = start_tasks_watcher(app, &root.join(tasks_mirror::DIR));
+        let _ = start_tasks_watcher(app, &vault::tasks_dir(&root));
     } else if !mirror_now && mirror_was {
         // dropping the watcher closes its channel and ends the thread;
         // the files stay on disk but are no longer read or written

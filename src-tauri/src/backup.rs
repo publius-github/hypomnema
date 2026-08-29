@@ -1,4 +1,4 @@
-//! Vault backups under <vault>/backups/: one consistent daily snapshot
+//! Vault backups under <vault>/.hypomnema/backups/: one consistent daily snapshot
 //! of app.db (VACUUM INTO) plus a copy of every config YAML about to be
 //! rewritten programmatically. Both rotate by count (config.backup_keep,
 //! 0 disables). Backups are a best-effort safety net: callers must not
@@ -24,7 +24,7 @@ pub fn backup_db_daily(
     if keep == 0 {
         return Ok(None);
     }
-    let dir = root.join("backups").join("db");
+    let dir = crate::vault::work_dir(root).join("backups").join("db");
     fs::create_dir_all(&dir)?;
     let target = dir.join(format!("app-{}.db", now.format("%Y-%m-%d")));
     if target.exists() {
@@ -51,10 +51,12 @@ pub fn backup_config_file(
     if !source.exists() {
         return Ok(());
     }
-    let Some(vault_root) = config_dir.parent() else {
+    // the config dir sits inside the work dir, so backups land next to
+    // it in <work dir>/backups/config
+    let Some(work_dir) = config_dir.parent() else {
         return Ok(());
     };
-    let dir = vault_root.join("backups").join("config");
+    let dir = work_dir.join("backups").join("config");
     fs::create_dir_all(&dir)?;
     let flat = file.replace(['/', '\\'], "__");
     let prefix = format!("{flat}.");
@@ -118,7 +120,7 @@ mod tests {
 
         backup_db_daily(&conn, &root, 2, local("2026-08-30 10:00:00")).unwrap();
         backup_db_daily(&conn, &root, 2, local("2026-08-31 10:00:00")).unwrap();
-        let dir = root.join("backups").join("db");
+        let dir = crate::vault::work_dir(&root).join("backups").join("db");
         let mut names: Vec<String> = fs::read_dir(&dir)
             .unwrap()
             .flatten()
@@ -143,7 +145,7 @@ mod tests {
         db::migrate(&conn).unwrap();
         let made = backup_db_daily(&conn, &root, 0, local("2026-08-29 10:00:00")).unwrap();
         assert!(made.is_none());
-        assert!(!root.join("backups").exists());
+        assert!(!crate::vault::work_dir(&root).join("backups").exists());
         let _ = fs::remove_dir_all(&root);
     }
 
