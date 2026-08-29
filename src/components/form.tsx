@@ -1,0 +1,210 @@
+import { useRef, useState, type ReactNode } from "react";
+
+// Shared settings form primitives (also usable elsewhere): committed
+// inputs, toggle rows, and the palette color picker.
+
+// swatch palette for the cadence/category colors; mid-tone hues that
+// read on both themes (same family as the manual task colors)
+const PALETTE = [
+  "#6b7280",
+  "#9ca3af",
+  "#78716c",
+  "#a8a29e",
+  "#ef4444",
+  "#f87171",
+  "#f97316",
+  "#fb923c",
+  "#f59e0b",
+  "#eab308",
+  "#84cc16",
+  "#22c55e",
+  "#4ade80",
+  "#10b981",
+  "#14b8a6",
+  "#06b6d4",
+  "#0ea5e9",
+  "#3b82f6",
+  "#60a5fa",
+  "#6366f1",
+  "#8b5cf6",
+  "#a855f7",
+  "#d946ef",
+  "#ec4899",
+];
+
+/**
+ * Commits on blur/Enter only. Retention drives a hard, non-undoable
+ * prune on the Rust side, and the config watcher applies a saved value
+ * within half a second - committing per keystroke would prune against
+ * the "3" of a half-typed "30".
+ */
+export function NumberInput({
+  value,
+  min,
+  onCommit,
+}: {
+  value: number;
+  min: number;
+  onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+  const cancelled = useRef(false);
+
+  const commit = () => {
+    setEditing(false);
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
+    const n = Math.max(min, Number(draft) || 0);
+    if (n !== value) onCommit(n);
+  };
+
+  return (
+    <input
+      className="input"
+      type="number"
+      min={min}
+      value={editing ? draft : String(value)}
+      onFocus={() => {
+        setDraft(String(value));
+        setEditing(true);
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          cancelled.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
+/** Color swatch button opening a grid of predefined palette colors. */
+export function ColorPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (color: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        className="h-6 w-10 rounded-md border border-line"
+        style={{ backgroundColor: value }}
+        title={value}
+        onClick={() => setOpen((v) => !v)}
+      />
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-7 z-20 grid w-max grid-cols-6 gap-1.5 rounded-md border border-line bg-surface-alt p-2 shadow-lg">
+            {PALETTE.map((color) => (
+              <button
+                key={color}
+                className={`h-6 w-6 rounded border-2 ${
+                  value === color
+                    ? "border-content"
+                    : "border-transparent hover:border-content-muted"
+                }`}
+                style={{ backgroundColor: color }}
+                title={color}
+                onClick={() => {
+                  onChange(color);
+                  setOpen(false);
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function Toggle({
+  checked,
+  label,
+  hint,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  hint: string;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-2">
+      <input
+        type="checkbox"
+        className="mt-0.5"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="flex flex-col">
+        <span className="text-sm font-medium">{label}</span>
+        <span className="text-xs text-content-muted">{hint}</span>
+      </span>
+    </label>
+  );
+}
+
+/** Text setting committed on blur/Enter, like NumberInput. */
+export function TextInput({
+  value,
+  placeholder,
+  onCommit,
+}: {
+  value: string;
+  placeholder?: string;
+  onCommit: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [editing, setEditing] = useState(false);
+
+  return (
+    <input
+      className="input"
+      placeholder={placeholder}
+      value={editing ? draft : value}
+      onFocus={() => {
+        setDraft(value);
+        setEditing(true);
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        setEditing(false);
+        const trimmed = draft.trim();
+        if (trimmed !== value) onCommit(trimmed);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setDraft(value);
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
+export function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-sm font-medium">{label}</span>
+      {children}
+    </label>
+  );
+}

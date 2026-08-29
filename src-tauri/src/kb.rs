@@ -208,14 +208,50 @@ pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {
     Ok(())
 }
 
+/// Deleting moves the file or folder into .trash/ inside the KB root
+/// (dot-prefixed, so the tree hides it): notes are primary user data
+/// and a mistaken delete must be recoverable in the file manager.
+/// Trash entries older than 30 days are pruned on the next delete.
 pub fn delete(root: &Path, rel: &str) -> Result<()> {
     let path = resolve(root, rel)?;
-    if path.is_dir() {
-        fs::remove_dir_all(path)?;
-    } else {
-        fs::remove_file(path)?;
+    if !path.exists() {
+        return Err(Error::State(format!("no such file: {rel}")));
     }
+    let trash = root.join(".trash");
+    fs::create_dir_all(&trash)?;
+    let flat = rel.replace(['/', '\\'], "__");
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let mut target = trash.join(format!("{stamp}-{flat}"));
+    let mut n = 1;
+    while target.exists() {
+        target = trash.join(format!("{stamp}-{n}-{flat}"));
+        n += 1;
+    }
+    fs::rename(&path, &target)?;
+    prune_trash(&trash);
     Ok(())
+}
+
+/// Best effort: trash cleanup must never fail the delete itself.
+fn prune_trash(trash: &Path) {
+    let cutoff = (chrono::Local::now() - chrono::Duration::days(30))
+        .format("%Y%m%d-%H%M%S")
+        .to_string();
+    let Ok(entries) = fs::read_dir(trash) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        // names start with the timestamp, so a string compare orders them
+        if name.as_str() < cutoff.as_str() {
+            let path = entry.path();
+            let _ = if path.is_dir() {
+                fs::remove_dir_all(&path)
+            } else {
+                fs::remove_file(&path)
+            };
+        }
+    }
 }
 
 #[cfg(test)]
@@ -278,6 +314,16 @@ mod tests {
         create(&root, "notes/deep/inner").unwrap();
         delete(&root, "notes").unwrap();
         assert!(!root.join("notes").exists());
+
+        // deletes land in .trash (recoverable), which the tree hides
+        let trashed: Vec<String> = fs::read_dir(root.join(".trash"))
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(trashed.iter().any(|n| n.ends_with("notes__renamed.md")));
+        assert!(trashed.iter().any(|n| n.ends_with("-notes")));
+        assert!(tree(&root).unwrap().is_empty());
         let _ = fs::remove_dir_all(&root);
     }
 

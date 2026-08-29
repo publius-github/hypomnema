@@ -419,6 +419,22 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
     task_get(conn, id)
 }
 
+/// Rewrites sort_order for the given tasks of a list to match the given
+/// order (drag-to-reorder inside a list column). One transaction; ids
+/// not belonging to the list are ignored.
+pub fn list_reorder(conn: &Connection, list_id: i64, ordered_ids: &[i64]) -> Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut stmt =
+            tx.prepare("UPDATE tasks SET sort_order = ?1 WHERE id = ?2 AND list_id = ?3")?;
+        for (index, id) in ordered_ids.iter().enumerate() {
+            stmt.execute((index as i64, id, list_id))?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
 /// Soft delete: the row (and its subtasks) get archived_at set, every
 /// query filters them out, and task_restore can undo it. The engine
 /// permanently purges archived rows after 24h. The rule_runs ledger row
@@ -587,6 +603,42 @@ mod tests {
         assert!(ids.contains(&in_window.id));
         assert!(ids.contains(&unscheduled.id));
         assert_eq!(ids.len(), 2);
+    }
+
+    #[test]
+    fn list_reorder_rewrites_sort_order_within_the_list_only() {
+        let conn = conn();
+        let list = list_create(&conn, "Inbox", None, false).unwrap();
+        let other = list_create(&conn, "Other", None, false).unwrap();
+        let make = |list_id: i64, title: &str| {
+            task_create(
+                &conn,
+                &NewTask {
+                    title: title.into(),
+                    list_id: Some(list_id),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+        let a = make(list.id, "a");
+        let b = make(list.id, "b");
+        let c = make(list.id, "c");
+        let foreign = make(other.id, "x");
+
+        // move c to the front; the foreign id in the payload is ignored
+        list_reorder(&conn, list.id, &[c.id, a.id, b.id, foreign.id]).unwrap();
+        let order: Vec<(i64, i64)> = {
+            let mut stmt = conn
+                .prepare("SELECT id, sort_order FROM tasks WHERE list_id = ?1 ORDER BY sort_order")
+                .unwrap();
+            let rows = stmt
+                .query_map([list.id], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap();
+            rows.collect::<rusqlite::Result<_>>().unwrap()
+        };
+        assert_eq!(order, vec![(c.id, 0), (a.id, 1), (b.id, 2)]);
+        assert_eq!(task_get(&conn, foreign.id).unwrap().sort_order, 0);
     }
 
     #[test]

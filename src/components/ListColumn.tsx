@@ -1,4 +1,10 @@
 import { useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { memo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
@@ -128,19 +134,58 @@ function ListColumn({
         )}
         {rest.length > 0 && (
           // double gap after the priority block, so the starred tasks
-          // read as their own section
+          // read as their own section; the plain backlog block is
+          // drag-sortable (times still pin tasks to the top)
           <div
             className={`flex flex-col gap-1.5 ${
               prioritized.length > 0 ? "mt-3" : ""
             }`}
           >
-            {rest.map(card)}
+            <SortableContext
+              items={rest.map((t) => `task:${t.id}`)}
+              strategy={verticalListSortingStrategy}
+            >
+              {rest.map((task) => (
+                <SortableCard key={task.id} task={task} onOpenTask={onOpenTask} />
+              ))}
+            </SortableContext>
           </div>
         )}
         {section("Postponed", postponed)}
         {section("Done", done)}
         <QuickAdd target={{ list_id: list.id }} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Sortable wrapper owning the drag registration for a backlog card:
+ * dragging reorders within the column, and dropping on a day column or
+ * another list still moves the task (handled in Dashboard.onDragEnd).
+ * Generated tasks stay non-draggable.
+ */
+function SortableCard({
+  task,
+  onOpenTask,
+}: {
+  task: Task;
+  onOpenTask: (id: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({
+      id: `task:${task.id}`,
+      disabled: task.origin !== "manual",
+    });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={isDragging ? "opacity-30" : ""}
+      {...attributes}
+      {...listeners}
+    >
+      <TaskCard task={task} onOpen={onOpenTask} showList={false} inert />
     </div>
   );
 }

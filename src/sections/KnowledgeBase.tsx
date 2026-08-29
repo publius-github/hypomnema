@@ -583,8 +583,8 @@ export default function KnowledgeBase() {
           title={`Delete ${dialog.node.path}?`}
           message={
             dialog.node.is_dir
-              ? "The folder and everything inside it is removed. There is no undo."
-              : "The file is removed from the folder. There is no undo."
+              ? "The folder and everything inside it moves to .trash inside the notes folder (kept for 30 days)."
+              : "The file moves to .trash inside the notes folder (kept for 30 days)."
           }
           onConfirm={() => void deleteFile(dialog.node)}
           onCancel={() => setDialog(null)}

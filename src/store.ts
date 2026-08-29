@@ -12,7 +12,7 @@ import type {
   Task,
   TaskPatch,
 } from "./types";
-import { addDaysISO, todayISO } from "./lib/tasks";
+import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
 
 interface AppState {
   loaded: boolean;
@@ -71,6 +71,9 @@ interface AppState {
   refresh: () => Promise<void>;
   createTask: (task: NewTask) => Promise<void>;
   updateTask: (id: number, patch: TaskPatch) => Promise<void>;
+  /// drag-to-reorder inside a list column; dropping onto a task of a
+  /// different list moves the task there instead
+  reorderTask: (activeId: number, overId: number) => Promise<void>;
   deleteTask: (id: number) => Promise<void>;
   createList: (name: string) => Promise<void>;
   renameList: (id: number, name: string) => Promise<void>;
@@ -218,6 +221,52 @@ export const useAppStore = create<AppState>((set, get) => ({
           : s.tasks,
         error: String(e),
       }));
+    }
+  },
+
+  reorderTask: async (activeId, overId) => {
+    const state = get();
+    const active = state.tasks.find((t) => t.id === activeId);
+    const over = state.tasks.find((t) => t.id === overId);
+    if (!active || !over || activeId === overId) return;
+    if (over.list_id === null) return;
+    if (active.list_id !== over.list_id) {
+      // dropped onto a card of another list: move, order comes later
+      await get().updateTask(activeId, {
+        list_id: over.list_id,
+        scheduled_date: null,
+      });
+      return;
+    }
+    // the same visible order the list column renders (times pin first)
+    const column = state.tasks
+      .filter(
+        (t) =>
+          t.list_id === active.list_id &&
+          t.parent_task_id === null &&
+          (t.scheduled_date === null || t.priority),
+      )
+      .sort(compareTasks);
+    const ids = column.map((t) => t.id);
+    const from = ids.indexOf(activeId);
+    const to = ids.indexOf(overId);
+    if (from < 0 || to < 0 || from === to) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, activeId);
+    const orderOf = new Map(ids.map((id, index) => [id, index]));
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        orderOf.has(t.id) ? { ...t, sort_order: orderOf.get(t.id)! } : t,
+      ),
+    }));
+    try {
+      await invoke("tasks_reorder", {
+        listId: active.list_id,
+        orderedIds: ids,
+      });
+    } catch (e) {
+      set({ error: String(e) });
+      await get().refresh();
     }
   },
 

@@ -99,6 +99,12 @@ export default function Dashboard() {
         list_id: listId,
         scheduled_date: null,
       });
+    } else if (target.startsWith("task:")) {
+      // dropped onto a backlog card: reorder within the list, or move
+      // into that card's list when it is a different one
+      void useAppStore
+        .getState()
+        .reorderTask(taskId, Number(target.slice(5)));
     }
   };
 

@@ -25,12 +25,15 @@ function TaskCard({
   overlay = false,
   onOpen,
   showList = true,
+  inert = false,
 }: {
   task: Task;
   overlay?: boolean;
   onOpen?: (id: number) => void;
   /** off inside a list column, where the list is the column itself */
   showList?: boolean;
+  /** the card registers no drag of its own (a sortable wrapper does) */
+  inert?: boolean;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -47,10 +50,13 @@ function TaskCard({
   );
   const [expanded, setExpanded] = useState(false);
   // generated tasks mirror their config file: dragging them to another
-  // day or list would silently diverge from it, so they don't drag
+  // day or list would silently diverge from it, so they don't drag.
+  // An inert card must not claim the shared task id: its sortable
+  // wrapper owns it.
+  const passive = overlay || inert;
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `task:${task.id}`,
-    disabled: overlay || task.origin !== "manual",
+    id: passive ? `task-static:${task.id}` : `task:${task.id}`,
+    disabled: passive || task.origin !== "manual",
   });
 
   const subtasksDoneLast = useAppStore(
@@ -92,9 +98,9 @@ function TaskCard({
 
   return (
     <div
-      ref={overlay ? undefined : setNodeRef}
-      {...(overlay ? {} : attributes)}
-      {...(overlay ? {} : listeners)}
+      ref={passive ? undefined : setNodeRef}
+      {...(passive ? {} : attributes)}
+      {...(passive ? {} : listeners)}
       className={`group rounded-md border border-line bg-surface-alt text-sm shadow-sm ${
         isDragging ? "opacity-30" : ""
       } ${overlay ? "shadow-lg" : ""}`}

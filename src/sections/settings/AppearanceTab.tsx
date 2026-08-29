@@ -1,0 +1,175 @@
+import { ColorPicker, Field, NumberInput, TextInput, Toggle } from "../../components/form";
+import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
+import type { DoneDisplay, Theme } from "../../types";
+import { useAppStore } from "../../store";
+
+export default function AppearanceTab() {
+  const config = useAppStore((s) => s.config);
+  const updateConfig = useAppStore((s) => s.updateConfig);
+  const move = (
+    key: "section_order" | "cadence_group_order",
+    index: number,
+    delta: number,
+  ) => {
+    if (!config) return;
+    const order = [...config[key]];
+    const target = index + delta;
+    if (target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    void updateConfig({ [key]: order });
+  };
+  if (!config) return null;
+
+  return (
+    <>
+
+        <Field label="Theme">
+          <select
+            className="input"
+            value={config.theme}
+            onChange={(e) =>
+              void updateConfig({ theme: e.target.value as Theme })
+            }
+          >
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </Field>
+
+        <Field label="Done tasks display">
+          <select
+            className="input"
+            value={config.done_display}
+            onChange={(e) =>
+              void updateConfig({
+                done_display: e.target.value as DoneDisplay,
+              })
+            }
+          >
+            <option value="inline">Inline with active tasks</option>
+            <option value="separate">Separate block per day</option>
+          </select>
+        </Field>
+
+        <Field label="Hold before a done/postponed task moves to its section, seconds (0 = immediately)">
+          <NumberInput
+            value={config.done_hold_seconds}
+            min={0}
+            onCommit={(n) =>
+              void updateConfig({ done_hold_seconds: Math.min(30, n) })
+            }
+          />
+        </Field>
+
+        <Field label="UI font (empty = system default)">
+          <TextInput
+            value={config.ui_font}
+            placeholder="e.g. Segoe UI"
+            onCommit={(v) => void updateConfig({ ui_font: v })}
+          />
+        </Field>
+
+        <Field label="Editor font (Journal, Notes, config files)">
+          <TextInput
+            value={config.editor_font}
+            placeholder="Consolas"
+            onCommit={(v) => void updateConfig({ editor_font: v })}
+          />
+        </Field>
+
+        <Toggle
+          checked={config.day_header_centered}
+          label="Center day headers"
+          hint="Weekday and date centered on top of each day column."
+          onChange={(v) => void updateConfig({ day_header_centered: v })}
+        />
+
+        <Toggle
+          checked={config.cadence_colors}
+          label="Color tasks by cadence"
+          hint="Daily, weekly, monthly, yearly and exact-date tasks get a color stripe on the card (the same stripe a manual task color uses; a manual color wins)."
+          onChange={(v) => void updateConfig({ cadence_colors: v })}
+        />
+        {config.cadence_colors && (
+          <div className="flex flex-col gap-2 pl-6">
+            {(
+              [
+                ["Daily", "cadence_color_daily"],
+                ["Weekly", "cadence_color_weekly"],
+                ["Monthly", "cadence_color_monthly"],
+                ["Yearly", "cadence_color_yearly"],
+                ["Exact date", "cadence_color_exact"],
+              ] as const
+            ).map(([label, key]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-24 text-xs text-content-muted">
+                  {label}
+                </span>
+                <ColorPicker
+                  value={config[key]}
+                  onChange={(color) => void updateConfig({ [key]: color })}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Category label color</span>
+          <ColorPicker
+            value={config.category_color}
+            onChange={(color) => void updateConfig({ category_color: color })}
+          />
+        </div>
+
+        <Toggle
+          checked={config.cadence_group_gap}
+          label="Extra spacing between cadence groups"
+          hint="A wider gap before each group header in the day columns."
+          onChange={(v) => void updateConfig({ cadence_group_gap: v })}
+        />
+
+        <Toggle
+          checked={config.category_gap}
+          label="Extra spacing between category blocks"
+          hint="Inside a section, tasks group by their category ({X} prefix or list) alphabetically with a wider gap between the blocks."
+          onChange={(v) => void updateConfig({ category_gap: v })}
+        />
+
+        <section className="flex flex-col gap-1">
+          <span className="text-sm font-medium">Day column sections</span>
+          <span className="text-xs text-content-muted">
+            Order of the sections inside a day column.
+          </span>
+          <div className="flex flex-col gap-1">
+            {config.cadence_group_order.map((id, i) => (
+              <div
+                key={id}
+                className="flex items-center gap-2 rounded-md border border-line px-3 py-1 text-sm"
+              >
+                <span className="min-w-0 flex-1">
+                  {CADENCE_GROUP_LABELS[id] ?? id}
+                </span>
+                <button
+                  className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
+                  disabled={i === 0}
+                  title="Move up"
+                  onClick={() => move("cadence_group_order", i, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
+                  disabled={i === config.cadence_group_order.length - 1}
+                  title="Move down"
+                  onClick={() => move("cadence_group_order", i, 1)}
+                >
+                  ↓
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+    </>
+  );
+}

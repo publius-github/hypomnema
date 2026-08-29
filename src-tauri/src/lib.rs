@@ -257,6 +257,17 @@ async fn tasks_delete_done(state: State<'_, AppState>) -> Result<usize> {
 }
 
 #[tauri::command]
+async fn tasks_reorder(
+    state: State<'_, AppState>,
+    list_id: i64,
+    ordered_ids: Vec<i64>,
+) -> Result<()> {
+    with_conn(&state, |conn| {
+        tasks::list_reorder(conn, list_id, &ordered_ids)
+    })
+}
+
+#[tauri::command]
 async fn engine_run(state: State<'_, AppState>) -> Result<engine::EngineOutcome> {
     // taken before the vault lock is held for the pass; the watcher
     // thread takes only the engine lock while running, so there is no
@@ -689,6 +700,7 @@ pub fn run() {
             task_update,
             task_delete,
             tasks_delete_done,
+            tasks_reorder,
             engine_run,
             upcoming_events,
             journal_open,
