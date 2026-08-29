@@ -156,8 +156,18 @@ pub(crate) fn load_extras<T: serde::de::DeserializeOwned>(
             .strip_prefix(dir)
             .map(|p| p.to_string_lossy().replace('\\', "/"))
             .unwrap_or_else(|_| path.to_string_lossy().into_owned());
-        let Ok(raw) = fs::read_to_string(&path) else {
-            continue;
+        let raw = match fs::read_to_string(&path) {
+            Ok(raw) => raw,
+            // an unreadable pack silently vanishing from generation
+            // would look like the user deleted its rules
+            Err(e) => {
+                errors.push(ConfigError {
+                    file: name,
+                    line: None,
+                    message: format!("cannot read file: {e}"),
+                });
+                continue;
+            }
         };
         let value: serde_yaml::Value = match serde_yaml::from_str(&raw) {
             Ok(value) => value,

@@ -774,8 +774,11 @@ pub fn run(
     // One transaction for the whole pass: a crash between the ledger
     // insert and the task insert would otherwise mark a period as
     // generated without ever creating its task - unrecoverable, since
-    // dedup then refuses to regenerate it.
-    let tx = conn.unchecked_transaction()?;
+    // dedup then refuses to regenerate it. IMMEDIATE takes the write
+    // lock up front: the watcher thread runs passes on its own
+    // connection, and a DEFERRED transaction that reads first would die
+    // with SQLITE_BUSY_SNAPSHOT instead of waiting out busy_timeout.
+    let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)?;
     // birthdays generated before the cadence column existed
     conn.execute(
         "UPDATE tasks SET cadence = 'yearly' WHERE origin = 'birthday' AND cadence IS NULL",

@@ -1,23 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use chrono::Local;
 use rusqlite::Connection;
 
 use crate::config::AppConfig;
 use crate::db;
 use crate::error::{Error, Result};
-
-const DEFAULT_JOURNAL_TEMPLATE: &str = "\
-# {{date}}
-
-## What I did today
-
-## What was hard
-
-## What I am grateful for
-
-## Focus for tomorrow
-";
 
 const CONFIG_SAMPLES: &[(&str, &str)] = &[
     (
@@ -71,7 +60,7 @@ impl Vault {
 
         let template = root.join("journal").join("templates").join("daily.md");
         if !template.exists() {
-            fs::write(&template, DEFAULT_JOURNAL_TEMPLATE)?;
+            fs::write(&template, crate::journal::DEFAULT_TEMPLATE)?;
         }
 
         for (file, sample) in CONFIG_SAMPLES {
@@ -87,6 +76,10 @@ impl Vault {
         let conn = db::open(&root.join("app.db"))?;
         db::migrate(&conn)?;
         db::mirror_settings(&conn, &config)?;
+        // Daily snapshot before the first engine pass of the day, so it
+        // captures yesterday's end state. Best effort: a failed backup
+        // must not make the vault unopenable.
+        let _ = crate::backup::backup_db_daily(&conn, root, config.backup_keep, Local::now());
 
         Ok(Self {
             root: root.to_path_buf(),

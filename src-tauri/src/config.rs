@@ -74,6 +74,10 @@ pub struct AppConfig {
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
     pub subtasks_done_last: bool,
+    /// How many backup copies to keep, both daily app.db snapshots and
+    /// per-file config copies made before programmatic rewrites, under
+    /// <vault>/backups/. 0 disables backups entirely.
+    pub backup_keep: u32,
 }
 
 pub const SECTIONS: &[&str] = &["dashboard", "upcoming", "calendar", "journal", "kb"];
@@ -116,6 +120,7 @@ impl Default for AppConfig {
             category_gap: true,
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
+            backup_keep: 14,
         }
     }
 }
@@ -164,6 +169,7 @@ impl AppConfig {
         self.calendar_yearly_years = self.calendar_yearly_years.min(5);
         self.calendar_dates_years = self.calendar_dates_years.min(5);
         self.done_hold_seconds = self.done_hold_seconds.min(30);
+        self.backup_keep = self.backup_keep.min(365);
         self.ui_font = self.ui_font.trim().to_string();
         self.editor_font = self.editor_font.trim().to_string();
         // hex colors land in inline styles; anything malformed falls
@@ -275,6 +281,7 @@ impl AppConfig {
             ("category_gap", self.category_gap.to_string()),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
+            ("backup_keep", self.backup_keep.to_string()),
         ]
     }
 }
@@ -336,6 +343,25 @@ mod tests {
             config.section_order,
             vec!["kb", "dashboard", "upcoming", "calendar", "journal"]
         );
+    }
+
+    /// AppConfig fields must be mirrored in settings_pairs by hand;
+    /// this pins the two together so a new field cannot silently skip
+    /// the settings mirror.
+    #[test]
+    fn settings_pairs_covers_every_field() {
+        let config = AppConfig::default();
+        let yaml = serde_yaml::to_value(&config).unwrap();
+        let mapping = yaml.as_mapping().unwrap();
+        let pairs = config.settings_pairs();
+        for key in mapping.keys() {
+            let key = key.as_str().unwrap();
+            assert!(
+                pairs.iter().any(|(k, _)| *k == key),
+                "settings_pairs is missing '{key}'"
+            );
+        }
+        assert_eq!(pairs.len(), mapping.len());
     }
 
     #[test]

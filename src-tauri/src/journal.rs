@@ -6,6 +6,18 @@ use serde::Serialize;
 
 use crate::error::{Error, Result};
 
+pub(crate) const DEFAULT_TEMPLATE: &str = "\
+# {{date}}
+
+## What I did today
+
+## What was hard
+
+## What I am grateful for
+
+## Focus for tomorrow
+";
+
 #[derive(Debug, Serialize, ts_rs::TS)]
 #[ts(export, export_to = "../../src/bindings/")]
 pub struct JournalEntry {
@@ -80,8 +92,7 @@ pub fn open_entry(vault: &Path, date: &str) -> Result<JournalEntry> {
             date,
         });
     }
-    let template = fs::read_to_string(template_path(vault)).unwrap_or_default();
-    let content = template.replace("{{date}}", &date);
+    let content = read_template(vault)?.replace("{{date}}", &date);
     Ok(JournalEntry { date, content })
 }
 
@@ -122,8 +133,16 @@ pub fn list_entries(vault: &Path) -> Result<Vec<String>> {
     Ok(dates)
 }
 
+/// A missing template falls back to the built-in default; any other
+/// read failure (permissions, a sync client holding the file) is a real
+/// error - swallowing it here would show an empty template that a
+/// subsequent save then writes over the actual file.
 pub fn read_template(vault: &Path) -> Result<String> {
-    Ok(fs::read_to_string(template_path(vault)).unwrap_or_default())
+    match fs::read_to_string(template_path(vault)) {
+        Ok(content) => Ok(content),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(DEFAULT_TEMPLATE.into()),
+        Err(e) => Err(Error::State(format!("cannot read journal template: {e}"))),
+    }
 }
 
 pub fn save_template(vault: &Path, content: &str) -> Result<()> {

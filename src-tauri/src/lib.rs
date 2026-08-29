@@ -1,3 +1,4 @@
+mod backup;
 mod config;
 mod config_files;
 mod db;
@@ -11,7 +12,7 @@ mod vault;
 mod views;
 
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
 use notify::{RecursiveMode, Watcher};
@@ -26,6 +27,27 @@ struct AppState {
     vault: Mutex<Option<Vault>>,
     watcher: Mutex<Option<notify::RecommendedWatcher>>,
     kb_watcher: Mutex<Option<(PathBuf, notify::RecommendedWatcher)>>,
+    /// Serializes engine passes: the config watcher runs them on its own
+    /// DB connection, and two concurrent passes would interleave their
+    /// dedup/reconcile statements (and can hit SQLITE_BUSY under WAL).
+    engine_lock: Arc<Mutex<()>>,
+}
+
+/// Shared filter for both filesystem watchers: access events carry no
+/// content change, and `.<name>.tmp` files are our own write_atomic
+/// staging - reacting to them would run an engine pass per save twice.
+fn watch_event_is_relevant(event: &notify::Event) -> bool {
+    if matches!(event.kind, notify::EventKind::Access(_)) {
+        return false;
+    }
+    let only_tmp = !event.paths.is_empty()
+        && event.paths.iter().all(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(|name| name.starts_with('.') && name.ends_with(".tmp"))
+                .unwrap_or(false)
+        });
+    !only_tmp
 }
 
 fn app_config_dir(app: &AppHandle) -> Result<PathBuf> {
@@ -39,8 +61,10 @@ fn app_config_dir(app: &AppHandle) -> Result<PathBuf> {
 fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
     let (tx, rx) = mpsc::channel::<()>();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-        if event.is_ok() {
-            let _ = tx.send(());
+        if let Ok(event) = event {
+            if watch_event_is_relevant(&event) {
+                let _ = tx.send(());
+            }
         }
     })
     .map_err(|e| Error::State(format!("cannot start config watcher: {e}")))?;
@@ -77,9 +101,13 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
             let Some((root, config, config_error)) = snapshot else {
                 continue;
             };
-            let outcome = db::open(&root.join("app.db")).and_then(|conn| {
-                engine::run(&conn, &root.join("config"), &config, chrono::Local::now())
-            });
+            let engine_lock = state.engine_lock.clone();
+            let outcome = {
+                let _pass = engine_lock.lock().unwrap();
+                db::open(&root.join("app.db")).and_then(|conn| {
+                    engine::run(&conn, &root.join("config"), &config, chrono::Local::now())
+                })
+            };
             let mut errors = outcome.map(|o| o.errors).unwrap_or_default();
             if let Some(msg) = config_error {
                 errors.push(config_files::ConfigError {
@@ -230,6 +258,11 @@ async fn tasks_delete_done(state: State<'_, AppState>) -> Result<usize> {
 
 #[tauri::command]
 async fn engine_run(state: State<'_, AppState>) -> Result<engine::EngineOutcome> {
+    // taken before the vault lock is held for the pass; the watcher
+    // thread takes only the engine lock while running, so there is no
+    // lock-order cycle
+    let engine_lock = state.engine_lock.clone();
+    let _pass = engine_lock.lock().unwrap();
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -358,6 +391,7 @@ async fn recurring_add(
     state: State<'_, AppState>,
     rule: config_files::RecurringRule,
 ) -> Result<()> {
+    backup_config(&state, "recurring.yml");
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -370,6 +404,7 @@ async fn scheduled_add(
     state: State<'_, AppState>,
     event: config_files::ScheduledEvent,
 ) -> Result<()> {
+    backup_config(&state, "scheduled.yml");
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -382,6 +417,7 @@ async fn birthday_add(
     state: State<'_, AppState>,
     entry: config_files::BirthdayEntry,
 ) -> Result<()> {
+    backup_config(&state, "birthdays.yml");
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -395,6 +431,7 @@ async fn recurring_edit(
     index: usize,
     replacement: Option<config_files::RecurringRule>,
 ) -> Result<()> {
+    backup_config(&state, "recurring.yml");
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -408,6 +445,7 @@ async fn scheduled_edit(
     original: config_files::ScheduledEvent,
     replacement: Option<config_files::ScheduledEvent>,
 ) -> Result<()> {
+    backup_config(&state, "scheduled.yml");
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -421,6 +459,7 @@ async fn birthday_edit(
     original: config_files::BirthdayEntry,
     replacement: Option<config_files::BirthdayEntry>,
 ) -> Result<()> {
+    backup_config(&state, "birthdays.yml");
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
@@ -452,7 +491,13 @@ fn editable_config_path(state: &State<'_, AppState>, file: &str) -> Result<PathB
 #[tauri::command]
 async fn config_file_get(state: State<'_, AppState>, file: String) -> Result<String> {
     let path = editable_config_path(&state, &file)?;
-    Ok(std::fs::read_to_string(path).unwrap_or_default())
+    // A read failure must surface: showing the file as empty would let
+    // the next save in the editor overwrite the real content.
+    match std::fs::read_to_string(path) {
+        Ok(content) => Ok(content),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(Error::State(format!("cannot read {file}: {e}"))),
+    }
 }
 
 /// Validates and, when valid, writes the config file. Invalid content is
@@ -466,9 +511,24 @@ async fn config_file_set(
     let path = editable_config_path(&state, &file)?;
     let errors = config_files::validate_config_content(&file, &content);
     if errors.is_empty() {
+        backup_config(&state, &file);
         vault::write_atomic(&path, &content)?;
     }
     Ok(errors)
+}
+
+/// Copies the file aside before a programmatic rewrite. Best effort by
+/// design: a failing backup must not block the edit itself.
+fn backup_config(state: &State<'_, AppState>, file: &str) {
+    let guard = state.vault.lock().unwrap();
+    if let Some(vault) = guard.as_ref() {
+        let _ = backup::backup_config_file(
+            &vault.config_dir(),
+            file,
+            vault.config.backup_keep,
+            chrono::Local::now(),
+        );
+    }
 }
 
 fn kb_root(state: &State<'_, AppState>) -> Result<PathBuf> {
@@ -493,8 +553,10 @@ fn ensure_kb_watcher(app: &AppHandle, state: &State<'_, AppState>, root: &Path) 
     }
     let (tx, rx) = mpsc::channel::<()>();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-        if event.is_ok() {
-            let _ = tx.send(());
+        if let Ok(event) = event {
+            if watch_event_is_relevant(&event) {
+                let _ = tx.send(());
+            }
         }
     })
     .map_err(|e| Error::State(format!("cannot start KB watcher: {e}")))?;

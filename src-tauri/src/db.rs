@@ -3,7 +3,7 @@ use std::path::Path;
 use rusqlite::Connection;
 
 use crate::config::AppConfig;
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 const MIGRATIONS: &[&str] = &[
     // 001: settings mirror of config/app.yml
@@ -101,6 +101,17 @@ pub fn open(path: &Path) -> Result<Connection> {
 
 pub fn migrate(conn: &Connection) -> Result<()> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    // A vault touched by a newer build would otherwise open here and
+    // fail later with an opaque row-mapping error - or worse, write
+    // rows the newer schema does not expect.
+    let latest = MIGRATIONS.len() as i64;
+    if version > latest {
+        return Err(Error::State(format!(
+            "this vault was created by a newer version of the app \
+             (database schema {version}, this build supports {latest}); \
+             update the app instead of downgrading"
+        )));
+    }
     for (idx, migration) in MIGRATIONS.iter().enumerate() {
         let target = (idx + 1) as i64;
         if version < target {
@@ -118,13 +129,19 @@ pub fn migrate(conn: &Connection) -> Result<()> {
 }
 
 pub fn mirror_settings(conn: &Connection, config: &AppConfig) -> Result<()> {
-    let mut stmt = conn.prepare(
-        "INSERT INTO settings (key, value) VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    )?;
-    for (key, value) in config.settings_pairs() {
-        stmt.execute((key, value))?;
+    // one transaction so a crash mid-loop never leaves the mirror half
+    // old, half new
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut stmt = tx.prepare(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )?;
+        for (key, value) in config.settings_pairs() {
+            stmt.execute((key, value))?;
+        }
     }
+    tx.commit()?;
     Ok(())
 }
 
@@ -146,6 +163,14 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, MIGRATIONS.len() as i64);
+    }
+
+    #[test]
+    fn newer_schema_is_refused_instead_of_half_opened() {
+        let conn = memory_db();
+        conn.pragma_update(None, "user_version", 999).unwrap();
+        let err = migrate(&conn).unwrap_err();
+        assert!(err.to_string().contains("newer version"));
     }
 
     #[test]

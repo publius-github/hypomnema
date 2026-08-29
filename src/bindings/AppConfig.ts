@@ -89,4 +89,10 @@ cadence_group_order: Array<string>,
 /**
  * Done subtasks sink to the bottom of their subtask list.
  */
-subtasks_done_last: boolean, };
+subtasks_done_last: boolean, 
+/**
+ * How many backup copies to keep, both daily app.db snapshots and
+ * per-file config copies made before programmatic rewrites, under
+ * <vault>/backups/. 0 disables backups entirely.
+ */
+backup_keep: number, };

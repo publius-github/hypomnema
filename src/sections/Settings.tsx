@@ -722,6 +722,8 @@ function TextInput({
 }
 
 function MaintenanceSection() {
+  const config = useAppStore((s) => s.config);
+  const updateConfig = useAppStore((s) => s.updateConfig);
   const [status, setStatus] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [archived, setArchived] = useState<List[]>([]);
@@ -760,7 +762,21 @@ function MaintenanceSection() {
   };
 
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex flex-col gap-4">
+      {config && (
+        <Field label="Backups to keep (0 = disabled)">
+          <NumberInput
+            value={config.backup_keep}
+            min={0}
+            onCommit={(n) => void updateConfig({ backup_keep: n })}
+          />
+          <span className="text-xs text-content-muted">
+            Daily snapshots of the task database plus a copy of each config
+            file before the app rewrites it, stored under backups/ in the
+            vault.
+          </span>
+        </Field>
+      )}
       <div className="flex items-center gap-2">
         <button
           className="btn-danger w-fit px-3 py-1 text-xs"
