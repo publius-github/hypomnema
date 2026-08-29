@@ -326,7 +326,7 @@ export default function KnowledgeBase() {
         className={`group flex items-center gap-1 rounded px-2 py-0.5 text-sm ${
           !node.is_dir && current?.path === node.path
             ? "bg-accent/15 text-accent"
-            : "text-content-muted hover:bg-line/40 hover:text-content"
+            : "text-content hover:bg-line/40"
         }`}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
       >
@@ -419,10 +419,10 @@ export default function KnowledgeBase() {
                       className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
                       onClick={() => void openFile(hit.path)}
                     >
-                      <span className="block truncate text-sm text-content-muted hover:text-content">
+                      <span className="block truncate text-sm text-content">
                         {displayName(hit.name)}
                       </span>
-                      <span className="block truncate text-[11px] text-content-muted/70">
+                      <span className="block truncate text-[11px] text-content-muted">
                         {hit.line}: {hit.preview}
                       </span>
                     </button>
@@ -456,7 +456,7 @@ export default function KnowledgeBase() {
               className={`block w-full truncate rounded px-2 py-0.5 text-left text-sm ${
                 current?.kind === "config" && current.path === file
                   ? "bg-accent/15 text-accent"
-                  : "text-content-muted hover:bg-line/40 hover:text-content"
+                  : "text-content hover:bg-line/40"
               }`}
               onClick={() => void openConfig(file)}
             >
@@ -502,7 +502,7 @@ export default function KnowledgeBase() {
         {current ? (
           <>
             <div className="flex items-center justify-between border-b border-line px-4 py-2 text-sm">
-              <span className="truncate font-medium">
+              <span className="truncate text-base font-semibold">
                 {current.kind === "config"
                   ? `config/${current.path}`
                   : current.path}

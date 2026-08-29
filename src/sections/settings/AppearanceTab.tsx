@@ -122,19 +122,44 @@ export default function AppearanceTab() {
           />
         </div>
 
-        <Toggle
-          checked={config.cadence_group_gap}
-          label="Extra spacing between cadence groups"
-          hint="A wider gap before each group header in the day columns."
-          onChange={(v) => void updateConfig({ cadence_group_gap: v })}
-        />
-
-        <Toggle
-          checked={config.category_gap}
-          label="Extra spacing between category blocks"
-          hint="Inside a section, tasks group by their category ({X} prefix or list) alphabetically with a wider gap between the blocks."
-          onChange={(v) => void updateConfig({ category_gap: v })}
-        />
+        <section className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Vertical spacing, px</span>
+          <div className="flex flex-wrap gap-4">
+            <label className="flex w-40 flex-col gap-1">
+              <span className="text-xs text-content-muted">Between tasks</span>
+              <NumberInput
+                value={config.task_gap}
+                min={0}
+                onCommit={(n) => void updateConfig({ task_gap: n })}
+              />
+            </label>
+            <label className="flex w-40 flex-col gap-1">
+              <span className="text-xs text-content-muted">
+                Between sections
+              </span>
+              <NumberInput
+                value={config.section_gap}
+                min={0}
+                onCommit={(n) => void updateConfig({ section_gap: n })}
+              />
+            </label>
+            <label className="flex w-40 flex-col gap-1">
+              <span className="text-xs text-content-muted">
+                Between category blocks
+              </span>
+              <NumberInput
+                value={config.category_block_gap}
+                min={0}
+                onCommit={(n) => void updateConfig({ category_block_gap: n })}
+              />
+            </label>
+          </div>
+          <span className="text-xs text-content-muted">
+            Sections are the cadence groups plus Postponed and Done;
+            category blocks group tasks by their {"{X}"} prefix or list
+            inside a section.
+          </span>
+        </section>
 
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Day column sections</span>

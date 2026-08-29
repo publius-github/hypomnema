@@ -78,9 +78,17 @@ function DayColumn({
   // the card stripes), framing the section like the priority label does
   const groupColor = (key: string): string | null => cadenceColor(config, key);
 
+  // configurable vertical rhythm: cards, sections, category blocks
+  const taskGap = config?.task_gap ?? 6;
+  const sectionGap = config?.section_gap ?? 12;
+  const categoryGap = config?.category_block_gap ?? 12;
+
   const section = (label: string, items: Task[]) =>
     items.length > 0 && (
-      <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
+      <div
+        className="flex flex-col border-t border-line pt-1.5"
+        style={{ rowGap: taskGap, marginTop: sectionGap }}
+      >
         <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
           {label}
         </div>
@@ -126,15 +134,20 @@ function DayColumn({
           )}
         </div>
       )}
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2"
+        style={{ rowGap: taskGap }}
+      >
         {groups.map((group, i) => (
           <div
             key={group.key}
-            className={`flex flex-col gap-1.5 ${
-              // double gap before every group after the first, so the
-              // cadence blocks read as separate sections
-              (config?.cadence_group_gap ?? true) && i > 0 ? "mt-3" : ""
-            }`}
+            className="flex flex-col"
+            // extra gap before every group after the first, so the
+            // cadence blocks read as separate sections
+            style={{
+              rowGap: taskGap,
+              marginTop: i > 0 ? sectionGap : undefined,
+            }}
           >
             <div
               className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
@@ -153,11 +166,13 @@ function DayColumn({
               // a wider gap where one category block ends and the next
               // begins (tasks are pre-sorted by category)
               const gapBefore =
-                (config?.category_gap ?? true) &&
                 j > 0 &&
                 taskCategory(task) !== taskCategory(group.tasks[j - 1]);
               return (
-                <div key={task.id} className={gapBefore ? "mt-3" : ""}>
+                <div
+                  key={task.id}
+                  style={gapBefore ? { marginTop: categoryGap } : undefined}
+                >
                   <TaskCard task={task} onOpen={onOpenTask} />
                 </div>
               );

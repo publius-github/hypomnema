@@ -39,8 +39,8 @@ export type EditorMode = "markdown" | "yaml" | "plain";
 
 // Live-preview-lite: markdown syntax rendered in place (headings sized,
 // emphasis styled, code monospaced) while the source stays editable.
-// Token colors follow VS Code (Dark+/Light+ via the --md-* theme vars)
-// so the structure of a note reads at a glance.
+// Token colors follow the VS Code Dark+/Light+ specs (dark_vs.json /
+// light_vs.json markup rules) via the --md-* theme vars in styles.css.
 const markdownHighlight = HighlightStyle.define([
   { tag: tags.heading1, fontSize: "1.5em", fontWeight: "700", color: "var(--md-heading)" },
   { tag: tags.heading2, fontSize: "1.3em", fontWeight: "700", color: "var(--md-heading)" },
@@ -50,8 +50,10 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.strong, fontWeight: "700", color: "var(--md-bold)" },
   { tag: tags.emphasis, fontStyle: "italic", color: "var(--md-italic)" },
   { tag: tags.strikethrough, textDecoration: "line-through", color: "rgb(var(--color-content-muted))" },
+  // link/checkbox text takes the string color per the VS Code spec;
+  // the URL itself has no color rule there, only the underline
   { tag: tags.link, color: "var(--md-link)" },
-  { tag: tags.url, color: "var(--md-link)", opacity: "0.8", textDecoration: "underline" },
+  { tag: tags.url, textDecoration: "underline", opacity: "0.8" },
   {
     tag: tags.monospace,
     fontFamily: "var(--editor-font)",
@@ -63,8 +65,10 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.contentSeparator, color: "var(--md-marker)" },
   { tag: tags.quote, color: "var(--md-quote)", fontStyle: "italic" },
   // tags.list covers whole list items in lezer-markdown, so it stays
-  // uncolored - only the marks (processingInstruction) get the gray
-  { tag: tags.atom, color: "var(--md-marker)" },
+  // uncolored - only the marks (processingInstruction) get the list
+  // punctuation color. Task markers ([x] checkboxes) are atoms and take
+  // the string color, matching VS Code.
+  { tag: tags.atom, color: "var(--md-link)" },
   { tag: tags.comment, color: "var(--md-quote)", fontStyle: "italic" },
   { tag: tags.escape, color: "var(--md-code)" },
 ]);
@@ -108,7 +112,7 @@ const editorTheme = EditorView.theme({
   },
   ".cm-gutters": {
     backgroundColor: "transparent",
-    color: "rgb(var(--color-content-muted) / 0.5)",
+    color: "rgb(var(--color-content-muted) / 0.7)",
     border: "none",
   },
   ".cm-activeLineGutter": {

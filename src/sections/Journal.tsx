@@ -142,7 +142,7 @@ export default function Journal() {
               className={`block w-full rounded px-2 py-1 text-left text-sm ${
                 doc?.date === date
                   ? "bg-accent/15 text-accent"
-                  : "text-content-muted hover:bg-line/40 hover:text-content"
+                  : "text-content hover:bg-line/40"
               }`}
               onClick={() => void openEntry(date)}
             >
@@ -157,9 +157,7 @@ export default function Journal() {
         {doc ? (
           <>
             <div className="flex items-center justify-between border-b border-line px-4 py-2 text-sm">
-              <span className="font-medium">
-                {doc.date}
-              </span>
+              <span className="text-base font-semibold">{doc.date}</span>
               <span className="text-xs text-content-muted">
                 {saved ? "Saved" : "Saving..."}
               </span>

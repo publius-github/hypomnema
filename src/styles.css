@@ -8,22 +8,26 @@
   --color-surface: 244 246 248;
   --color-surface-alt: 255 255 255;
   --color-content: 23 26 31;
-  --color-content-muted: 100 108 120;
+  /* the single secondary text tone: readable, just quieter than
+     --color-content; never dim it further with opacity modifiers */
+  --color-content-muted: 88 96 108;
   --color-accent: 37 99 235;
   --color-line: 218 223 230;
   /* semantic roles: overdue/errors, postponed/warnings, exact-date/info */
   --color-danger: 220 38 38;
   --color-warn: 217 119 6;
   --color-info: 2 132 199;
-  /* markdown token colors, VS Code Light+ inspired with varied hues */
+  /* markdown token colors per the VS Code Light+ spec (light_vs.json):
+     heading #800000, bold #000080, italic #800080, inline raw #800000,
+     link/checkbox text = string #a31515, quote/comment #008000,
+     list/quote punctuation #0451a5 */
   --md-heading: #800000;
-  --md-bold: #795e26;
-  --md-italic: #a626a4;
-  --md-code: #a31515;
-  --md-link: #0451a5;
+  --md-bold: #000080;
+  --md-italic: #800080;
+  --md-code: #800000;
+  --md-link: #a31515;
   --md-quote: #008000;
-  --md-marker: #6a737d;
-  --md-list: #0451a5;
+  --md-marker: #0451a5;
 }
 
 .dark {
@@ -31,23 +35,23 @@
   --color-surface: 18 20 24;
   --color-surface-alt: 28 31 37;
   --color-content: 230 233 238;
-  --color-content-muted: 140 148 160;
+  --color-content-muted: 168 176 188;
   --color-accent: 96 145 255;
   --color-line: 52 57 66;
   --color-danger: 248 113 113;
   --color-warn: 251 191 36;
   --color-info: 56 189 248;
-  /* markdown token colors, VS Code Dark+ inspired but with varied hues
-     per role - headings blue, bold warm, italics purple, code orange,
-     quotes green - so the page never reads as one blue wall */
+  /* markdown token colors per the VS Code Dark+ spec (dark_vs.json):
+     heading/bold #569cd6, italic #c586c0, inline raw #ce9178,
+     link/checkbox text = string #ce9178, quote/comment #6a9955,
+     list punctuation #6796e6 */
   --md-heading: #569cd6;
-  --md-bold: #e5c07b;
+  --md-bold: #569cd6;
   --md-italic: #c586c0;
   --md-code: #ce9178;
-  --md-link: #4fc1ff;
+  --md-link: #ce9178;
   --md-quote: #6a9955;
-  --md-marker: #7f848e;
-  --md-list: #6796e6;
+  --md-marker: #6796e6;
 }
 
 html,

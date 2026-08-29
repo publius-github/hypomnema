@@ -225,7 +225,7 @@ export default function Calendar() {
                   </span>
                 ) : (
                   projected > 0 && (
-                    <span className="text-[11px] leading-none text-content-muted/60">
+                    <span className="text-[11px] leading-none text-content-muted">
                       +{projected}
                     </span>
                   )

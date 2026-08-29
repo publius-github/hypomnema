@@ -74,14 +74,20 @@ cadence_color_exact: string,
  */
 category_color: string, 
 /**
- * Extra vertical spacing before each cadence group in day columns.
+ * Vertical gap between task cards inside a column, px.
+ * (New numeric keys replace the old cadence_group_gap/category_gap
+ * booleans; stale keys in app.yml are ignored by serde.)
  */
-cadence_group_gap: boolean, 
+task_gap: number, 
 /**
- * Extra vertical spacing between {Category} blocks inside a
- * section of a day column.
+ * Vertical gap before each section of a column (cadence groups,
+ * Postponed, Done), px.
  */
-category_gap: boolean, 
+section_gap: number, 
+/**
+ * Vertical gap between {Category} blocks inside a section, px.
+ */
+category_block_gap: number, 
 /**
  * Order of the cadence sections inside a day column.
  */

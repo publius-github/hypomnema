@@ -53,12 +53,19 @@ function ListColumn({
   const prioritized = active.filter((t) => t.priority);
   const rest = active.filter((t) => !t.priority);
 
+  // configurable vertical rhythm, same tokens the day columns use
+  const taskGap = config?.task_gap ?? 6;
+  const sectionGap = config?.section_gap ?? 12;
+
   const card = (task: Task) => (
     <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
   );
   const section = (label: string, items: Task[]) =>
     items.length > 0 && (
-      <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
+      <div
+        className="flex flex-col border-t border-line pt-1.5"
+        style={{ rowGap: taskGap, marginTop: sectionGap }}
+      >
         <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
           {label}
         </div>
@@ -122,9 +129,12 @@ function ListColumn({
           onCancel={() => setConfirmArchive(false)}
         />
       )}
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2"
+        style={{ rowGap: taskGap }}
+      >
         {prioritized.length > 0 && (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col" style={{ rowGap: taskGap }}>
             <div className="flex items-center gap-1.5 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warn">
               <span>Priority</span>
               <span className="h-px flex-1 bg-warn/30" />
@@ -133,13 +143,15 @@ function ListColumn({
           </div>
         )}
         {rest.length > 0 && (
-          // double gap after the priority block, so the starred tasks
+          // section gap after the priority block, so the starred tasks
           // read as their own section; the plain backlog block is
           // drag-sortable (times still pin tasks to the top)
           <div
-            className={`flex flex-col gap-1.5 ${
-              prioritized.length > 0 ? "mt-3" : ""
-            }`}
+            className="flex flex-col"
+            style={{
+              rowGap: taskGap,
+              marginTop: prioritized.length > 0 ? sectionGap : undefined,
+            }}
           >
             <SortableContext
               items={rest.map((t) => `task:${t.id}`)}

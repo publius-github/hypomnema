@@ -65,11 +65,15 @@ pub struct AppConfig {
     pub cadence_color_exact: String,
     /// Category/list label chips on day cards.
     pub category_color: String,
-    /// Extra vertical spacing before each cadence group in day columns.
-    pub cadence_group_gap: bool,
-    /// Extra vertical spacing between {Category} blocks inside a
-    /// section of a day column.
-    pub category_gap: bool,
+    /// Vertical gap between task cards inside a column, px.
+    /// (New numeric keys replace the old cadence_group_gap/category_gap
+    /// booleans; stale keys in app.yml are ignored by serde.)
+    pub task_gap: u32,
+    /// Vertical gap before each section of a column (cadence groups,
+    /// Postponed, Done), px.
+    pub section_gap: u32,
+    /// Vertical gap between {Category} blocks inside a section, px.
+    pub category_block_gap: u32,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -126,8 +130,9 @@ impl Default for AppConfig {
             cadence_color_yearly: "#f59e0b".into(),
             cadence_color_exact: "#0ea5e9".into(),
             category_color: "#3b82f6".into(),
-            cadence_group_gap: true,
-            category_gap: true,
+            task_gap: 6,
+            section_gap: 12,
+            category_block_gap: 12,
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
@@ -181,6 +186,9 @@ impl AppConfig {
         self.calendar_dates_years = self.calendar_dates_years.min(5);
         self.done_hold_seconds = self.done_hold_seconds.min(30);
         self.backup_keep = self.backup_keep.min(365);
+        self.task_gap = self.task_gap.min(48);
+        self.section_gap = self.section_gap.min(48);
+        self.category_block_gap = self.category_block_gap.min(48);
         self.ui_font = self.ui_font.trim().to_string();
         self.editor_font = self.editor_font.trim().to_string();
         // hex colors land in inline styles; anything malformed falls
@@ -288,8 +296,9 @@ impl AppConfig {
             ("cadence_color_yearly", self.cadence_color_yearly.clone()),
             ("cadence_color_exact", self.cadence_color_exact.clone()),
             ("category_color", self.category_color.clone()),
-            ("cadence_group_gap", self.cadence_group_gap.to_string()),
-            ("category_gap", self.category_gap.to_string()),
+            ("task_gap", self.task_gap.to_string()),
+            ("section_gap", self.section_gap.to_string()),
+            ("category_block_gap", self.category_block_gap.to_string()),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),

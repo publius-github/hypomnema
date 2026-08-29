@@ -84,7 +84,11 @@ export function NumberInput({
   );
 }
 
-/** Color swatch button opening a grid of predefined palette colors. */
+/**
+ * Color swatch button opening a grid of predefined palette colors, with
+ * a custom-color row (native picker with sliders) below the grid for
+ * when the palette is not enough.
+ */
 export function ColorPicker({
   value,
   onChange,
@@ -104,23 +108,36 @@ export function ColorPicker({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-7 z-20 grid w-max grid-cols-6 gap-1.5 rounded-md border border-line bg-surface-alt p-2 shadow-lg">
-            {PALETTE.map((color) => (
-              <button
-                key={color}
-                className={`h-6 w-6 rounded border-2 ${
-                  value === color
-                    ? "border-content"
-                    : "border-transparent hover:border-content-muted"
-                }`}
-                style={{ backgroundColor: color }}
-                title={color}
-                onClick={() => {
-                  onChange(color);
-                  setOpen(false);
-                }}
+          <div className="absolute left-0 top-7 z-20 w-max rounded-md border border-line bg-surface-alt p-2 shadow-lg">
+            <div className="grid grid-cols-6 gap-1.5">
+              {PALETTE.map((color) => (
+                <button
+                  key={color}
+                  className={`h-6 w-6 rounded border-2 ${
+                    value === color
+                      ? "border-content"
+                      : "border-transparent hover:border-content-muted"
+                  }`}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                  onClick={() => {
+                    onChange(color);
+                    setOpen(false);
+                  }}
+                />
+              ))}
+            </div>
+            <label className="mt-2 flex cursor-pointer items-center gap-2 border-t border-line pt-2 text-xs text-content-muted hover:text-content">
+              <input
+                type="color"
+                className="h-6 w-8 cursor-pointer rounded border border-line bg-transparent p-0"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
               />
-            ))}
+              <span>
+                Custom {value}
+              </span>
+            </label>
           </div>
         </>
       )}
