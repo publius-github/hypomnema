@@ -724,6 +724,16 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
          WHERE overdue = 1 AND (cadence = 'daily' OR priority = 1)",
         [],
     )?;
+    // A daily belongs to its own firing day, always: an instance moved
+    // off it (older app versions carried dailies over) goes back home.
+    conn.execute(
+        "UPDATE tasks SET scheduled_date = origin_date
+         WHERE origin = 'recurring' AND cadence = 'daily'
+           AND status != 'done' AND archived_at IS NULL
+           AND origin_date IS NOT NULL
+           AND scheduled_date != origin_date",
+        [],
+    )?;
     Ok((moved, deduped))
 }
 
@@ -769,6 +779,12 @@ pub fn run(
     // birthdays generated before the cadence column existed
     conn.execute(
         "UPDATE tasks SET cadence = 'yearly' WHERE origin = 'birthday' AND cadence IS NULL",
+        [],
+    )?;
+    // priority is a manual-task concept: generated tasks mirror their
+    // config and are pinned by their rule, not by a star
+    conn.execute(
+        "UPDATE tasks SET priority = 0 WHERE priority = 1 AND origin != 'manual'",
         [],
     )?;
     // origin_date backfill for tasks generated before migration 009:
@@ -1223,6 +1239,65 @@ mod tests {
             rows.collect::<std::result::Result<_, _>>().unwrap()
         };
         assert_eq!(today_rows, vec![("2026-08-31".to_string(), 0)]);
+    }
+
+    #[test]
+    fn carried_over_daily_returns_to_its_own_day() {
+        let (conn, dir) = setup("daily-home");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 9 * * 1-5\"\n    items:\n      - \"standup\"\n",
+        )
+        .unwrap();
+        let cfg = config(3, 7, 0);
+        // Friday 08-28: the weekday rule generates Friday's instance
+        run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
+
+        // an older app version carried the unfinished daily to Saturday
+        conn.execute(
+            "UPDATE tasks SET scheduled_date = '2026-08-29'
+             WHERE scheduled_date = '2026-08-28'",
+            [],
+        )
+        .unwrap();
+        run(&conn, &dir, &cfg, at("2026-08-29", "12:00:00")).unwrap();
+        let friday: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE scheduled_date = '2026-08-28'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(friday, 1);
+        let saturday: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE scheduled_date = '2026-08-29'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(saturday, 0);
+    }
+
+    #[test]
+    fn generated_tasks_lose_the_priority_flag() {
+        let (conn, dir) = setup("generated-priority");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"water\"\n",
+        )
+        .unwrap();
+        let cfg = config(1, 3, 0);
+        let now = at("2026-08-28", "12:00:00");
+        run(&conn, &dir, &cfg, now).unwrap();
+        conn.execute("UPDATE tasks SET priority = 1", []).unwrap();
+        run(&conn, &dir, &cfg, now).unwrap();
+        let starred: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks WHERE priority = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(starred, 0);
     }
 
     #[test]

@@ -70,6 +70,10 @@ cadence_color_daily: string, cadence_color_weekly: string, cadence_color_monthly
  */
 cadence_color_exact: string, 
 /**
+ * Category/list label chips on day cards.
+ */
+category_color: string, 
+/**
  * Extra vertical spacing before each cadence group in day columns.
  */
 cadence_group_gap: boolean, 

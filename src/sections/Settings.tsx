@@ -14,20 +14,32 @@ const SECTION_LABELS: Record<string, string> = {
   kb: "Notes",
 };
 
-// swatch palette for the cadence colors; mid-tone hues that read on
-// both themes (same family as the manual task colors)
+// swatch palette for the cadence/category colors; mid-tone hues that
+// read on both themes (same family as the manual task colors)
 const PALETTE = [
+  "#6b7280",
   "#9ca3af",
+  "#78716c",
+  "#a8a29e",
   "#ef4444",
+  "#f87171",
   "#f97316",
+  "#fb923c",
   "#f59e0b",
   "#eab308",
+  "#84cc16",
   "#22c55e",
+  "#4ade80",
+  "#10b981",
   "#14b8a6",
+  "#06b6d4",
   "#0ea5e9",
   "#3b82f6",
+  "#60a5fa",
+  "#6366f1",
   "#8b5cf6",
   "#a855f7",
+  "#d946ef",
   "#ec4899",
 ];
 
@@ -161,28 +173,25 @@ export default function Settings() {
               ] as const
             ).map(([label, key]) => (
               <div key={key} className="flex items-center gap-2">
-                <span className="w-20 text-xs text-content-muted">
+                <span className="w-24 text-xs text-content-muted">
                   {label}
                 </span>
-                <div className="flex flex-wrap gap-1">
-                  {PALETTE.map((color) => (
-                    <button
-                      key={color}
-                      className={`h-5 w-5 rounded-full border-2 ${
-                        config[key] === color
-                          ? "border-content"
-                          : "border-transparent hover:border-content-muted"
-                      }`}
-                      style={{ backgroundColor: color }}
-                      title={color}
-                      onClick={() => void updateConfig({ [key]: color })}
-                    />
-                  ))}
-                </div>
+                <ColorPicker
+                  value={config[key]}
+                  onChange={(color) => void updateConfig({ [key]: color })}
+                />
               </div>
             ))}
           </div>
         )}
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Category label color</span>
+          <ColorPicker
+            value={config.category_color}
+            onChange={(color) => void updateConfig({ category_color: color })}
+          />
+        </div>
 
         <Toggle
           checked={config.cadence_group_gap}
@@ -599,6 +608,50 @@ function NumberInput({
         }
       }}
     />
+  );
+}
+
+/** Color swatch button opening a grid of predefined palette colors. */
+function ColorPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (color: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        className="h-6 w-10 rounded-md border border-line"
+        style={{ backgroundColor: value }}
+        title={value}
+        onClick={() => setOpen((v) => !v)}
+      />
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-7 z-20 grid w-max grid-cols-6 gap-1.5 rounded-md border border-line bg-surface-alt p-2 shadow-lg">
+            {PALETTE.map((color) => (
+              <button
+                key={color}
+                className={`h-6 w-6 rounded border-2 ${
+                  value === color
+                    ? "border-content"
+                    : "border-transparent hover:border-content-muted"
+                }`}
+                style={{ backgroundColor: color }}
+                title={color}
+                onClick={() => {
+                  onChange(color);
+                  setOpen(false);
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

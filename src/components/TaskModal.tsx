@@ -239,26 +239,28 @@ export default function TaskModal({
         </div>
 
         <div className="flex items-center gap-4">
-          <label
-            className="flex items-center gap-1.5 text-sm"
-            title="Priority pins the task to today's column; it never gets the overdue mark"
-          >
-            <input
-              type="checkbox"
-              checked={task.priority}
-              onChange={(e) =>
-                void updateTask(
-                  task.id,
-                  priorityPatch(
-                    task,
-                    e.target.checked,
-                    useAppStore.getState().today,
-                  ),
-                )
-              }
-            />
-            <span className="text-warn">★</span> Priority
-          </label>
+          {!generated && (
+            <label
+              className="flex items-center gap-1.5 text-sm"
+              title="Priority pins the task to today's column; it never gets the overdue mark"
+            >
+              <input
+                type="checkbox"
+                checked={task.priority}
+                onChange={(e) =>
+                  void updateTask(
+                    task.id,
+                    priorityPatch(
+                      task,
+                      e.target.checked,
+                      useAppStore.getState().today,
+                    ),
+                  )
+                }
+              />
+              <span className="text-warn">★</span> Priority
+            </label>
+          )}
           <span className="text-xs text-content-muted">Color</span>
           {COLORS.map((c) => (
             <button

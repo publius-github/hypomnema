@@ -61,8 +61,10 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.processingInstruction, color: "var(--md-marker)" },
   { tag: tags.contentSeparator, color: "var(--md-marker)" },
   { tag: tags.quote, color: "var(--md-quote)", fontStyle: "italic" },
-  { tag: tags.list, color: "var(--md-list)" },
-  { tag: tags.atom, color: "var(--md-list)" },
+  // tags.list covers whole list items in lezer-markdown, so it stays
+  // uncolored - only the marks (processingInstruction) get the gray
+  { tag: tags.atom, color: "var(--md-marker)" },
+  { tag: tags.comment, color: "var(--md-quote)", fontStyle: "italic" },
   { tag: tags.escape, color: "var(--md-code)" },
 ]);
 

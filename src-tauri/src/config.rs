@@ -63,6 +63,8 @@ pub struct AppConfig {
     pub cadence_color_yearly: String,
     /// Exact-date tasks (scheduled events and birthdays).
     pub cadence_color_exact: String,
+    /// Category/list label chips on day cards.
+    pub category_color: String,
     /// Extra vertical spacing before each cadence group in day columns.
     pub cadence_group_gap: bool,
     /// Extra vertical spacing between {Category} blocks inside a
@@ -109,6 +111,7 @@ impl Default for AppConfig {
             cadence_color_monthly: "#a855f7".into(),
             cadence_color_yearly: "#f59e0b".into(),
             cadence_color_exact: "#0ea5e9".into(),
+            category_color: "#3b82f6".into(),
             cadence_group_gap: true,
             category_gap: true,
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
@@ -189,6 +192,7 @@ impl AppConfig {
             defaults.cadence_color_yearly,
         );
         sanitize_color(&mut self.cadence_color_exact, defaults.cadence_color_exact);
+        sanitize_color(&mut self.category_color, defaults.category_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -266,6 +270,7 @@ impl AppConfig {
             ("cadence_color_monthly", self.cadence_color_monthly.clone()),
             ("cadence_color_yearly", self.cadence_color_yearly.clone()),
             ("cadence_color_exact", self.cadence_color_exact.clone()),
+            ("category_color", self.category_color.clone()),
             ("cadence_group_gap", self.cadence_group_gap.to_string()),
             ("category_gap", self.category_gap.to_string()),
             ("cadence_group_order", self.cadence_group_order.join(",")),

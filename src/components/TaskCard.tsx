@@ -83,6 +83,13 @@ export default function TaskCard({
     }
   });
   const stripe = task.color ?? cadenceColor;
+  const categoryColor = useAppStore(
+    (s) => s.config?.category_color ?? "#3b82f6",
+  );
+  const chipStyle = {
+    color: categoryColor,
+    backgroundColor: `${categoryColor}26`,
+  };
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
   const tooltip = [
     task.title,
@@ -148,13 +155,17 @@ export default function TaskCard({
         {showList && listName && (
           // the list IS the category for engine-generated tasks, so it
           // reads as loud as the {Category} chip
-          <span className="shrink-0 rounded bg-accent/20 px-1 text-[11px] font-semibold text-accent">
+          <span
+            className="shrink-0 rounded px-1 text-[11px] font-semibold"
+            style={chipStyle}
+          >
             {listName}
           </span>
         )}
         {category && (
           <span
-            className="shrink-0 rounded bg-accent/20 px-1 text-[11px] font-semibold text-accent"
+            className="shrink-0 rounded px-1 text-[11px] font-semibold"
+            style={chipStyle}
             title={`Category: ${category}`}
           >
             {category}
@@ -190,6 +201,9 @@ export default function TaskCard({
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted">
           {!overlay &&
+            // priority is a manual-task concept (custom lists and the
+            // General section); generated tasks mirror their config
+            task.origin === "manual" &&
             // in a day column priority reads as a loud yellow label; in
             // a list column it stays a star toggle
             (task.priority && showList ? (
