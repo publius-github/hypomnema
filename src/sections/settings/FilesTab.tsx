@@ -19,6 +19,12 @@ export default function FilesTab() {
 
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Notes folder</span>
+          <p className="text-xs text-content-muted">
+            A .hypomnemaignore file in this folder hides files from the
+            Notes tree, gitignore-style: one pattern per line, e.g.
+            *.db, drafts/ (folders end with /), sub/file.md; # starts a
+            comment.
+          </p>
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 select-text truncate text-sm text-content-muted">
               {config.kb_path || "Not set"}

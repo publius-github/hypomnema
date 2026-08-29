@@ -96,6 +96,13 @@ pub struct AppConfig {
     /// Overrides for the two text tones, hex; empty = theme default.
     pub content_color: String,
     pub content_muted_color: String,
+    /// Weekly focus line on top of the dashboard; empty = accent color.
+    pub weekly_focus_color: String,
+    /// Day reminders inside the day columns; empty = secondary tone.
+    pub reminder_color: String,
+    /// Weekday + date header of a day column (Today stays accent);
+    /// empty = main text color.
+    pub day_header_color: String,
     /// Markdown editor color scheme: a named preset, or "custom" using
     /// the md_color_* values below.
     #[ts(type = "\"vscode\" | \"monokai\" | \"one-dark\" | \"github\" | \"custom\"")]
@@ -167,6 +174,9 @@ impl Default for AppConfig {
             ui_font_size: 16,
             content_color: String::new(),
             content_muted_color: String::new(),
+            weekly_focus_color: String::new(),
+            reminder_color: String::new(),
+            day_header_color: String::new(),
             md_preset: "vscode".into(),
             // custom starts from the Dark+ values
             md_color_heading: "#569cd6".into(),
@@ -283,6 +293,9 @@ impl AppConfig {
         };
         sanitize_optional_color(&mut self.content_color);
         sanitize_optional_color(&mut self.content_muted_color);
+        sanitize_optional_color(&mut self.weekly_focus_color);
+        sanitize_optional_color(&mut self.reminder_color);
+        sanitize_optional_color(&mut self.day_header_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -373,6 +386,9 @@ impl AppConfig {
             ("ui_font_size", self.ui_font_size.to_string()),
             ("content_color", self.content_color.clone()),
             ("content_muted_color", self.content_muted_color.clone()),
+            ("weekly_focus_color", self.weekly_focus_color.clone()),
+            ("reminder_color", self.reminder_color.clone()),
+            ("day_header_color", self.day_header_color.clone()),
             ("md_preset", self.md_preset.clone()),
             ("md_color_heading", self.md_color_heading.clone()),
             ("md_color_bold", self.md_color_bold.clone()),

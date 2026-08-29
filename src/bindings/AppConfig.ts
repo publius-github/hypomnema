@@ -126,6 +126,19 @@ ui_font_size: number,
  */
 content_color: string, content_muted_color: string, 
 /**
+ * Weekly focus line on top of the dashboard; empty = accent color.
+ */
+weekly_focus_color: string, 
+/**
+ * Day reminders inside the day columns; empty = secondary tone.
+ */
+reminder_color: string, 
+/**
+ * Weekday + date header of a day column (Today stays accent);
+ * empty = main text color.
+ */
+day_header_color: string, 
+/**
  * Markdown editor color scheme: a named preset, or "custom" using
  * the md_color_* values below.
  */

@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" fill="#0E1526"/>
-  <g transform="scale(4)">
+  <!-- transparent canvas: the tablet fills the frame so the icon reads
+       at taskbar size instead of floating on a dark square -->
+  <g transform="translate(-204.8 -204.8) scale(5.6)">
     <rect x="46" y="40" width="164" height="176" rx="22" fill="#1C2740"/>
     <rect x="64" y="58" width="128" height="140" rx="12" fill="#0A101F"/>
     <line x1="86" y1="96" x2="170" y2="96" stroke="#4E608A" stroke-width="11" stroke-linecap="round"/>

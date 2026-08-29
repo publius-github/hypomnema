@@ -24,10 +24,12 @@ const DEFAULT_ORDER = [
 ];
 
 // the highlight is a square around the icon; the label sits under it
-// and only changes color, so the selection reads compact
+// and only changes color, so the selection reads compact.
+// px sizes on purpose: the rail must not scale with the configurable
+// base font size (rem-based sizes do)
 const railButton = "group flex w-[60px] flex-col items-center gap-0.5 py-0.5";
 const railBox =
-  "flex h-9 w-9 items-center justify-center rounded-lg transition-colors";
+  "flex h-[36px] w-[36px] items-center justify-center rounded-lg transition-colors";
 const railLabel = "max-w-full truncate px-0.5 text-[11px] leading-tight";
 
 function RailButton({
@@ -116,7 +118,7 @@ export default function TabBar() {
   const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
-    <nav className="flex w-16 flex-col items-center gap-1 border-r border-line bg-surface-alt py-3">
+    <nav className="flex w-[64px] flex-col items-center gap-1 border-r border-line bg-surface-alt py-3">
       {(config?.section_order ?? DEFAULT_ORDER)
         .map((id) => TABS[id])
         .filter(Boolean)
@@ -147,7 +149,7 @@ export default function TabBar() {
             theme: config?.theme === "light" ? "dark" : "light",
           })
         }
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-content/80 hover:bg-line/40 hover:text-content"
+        className="flex h-[36px] w-[36px] items-center justify-center rounded-lg text-content/80 hover:bg-line/40 hover:text-content"
       >
         <Icon name={config?.theme === "light" ? "moon" : "sun"} />
       </button>

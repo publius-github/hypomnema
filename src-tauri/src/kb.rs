@@ -30,13 +30,82 @@ fn resolve(root: &Path, rel: &str) -> Result<PathBuf> {
     Ok(root.join(rel_path))
 }
 
+/// Name of the gitignore-like file at the KB root listing files and
+/// folders to hide from the Notes tree (and thus from search).
+pub const IGNORE_FILE: &str = ".hypomnemaignore";
+
+/// Loads the ignore patterns: one per line, `#` comments and blank
+/// lines skipped.
+fn load_ignore(root: &Path) -> Vec<String> {
+    fs::read_to_string(root.join(IGNORE_FILE))
+        .map(|content| {
+            content
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Simple wildcard match: `*` spans any run of characters, `?` exactly
+/// one. Enough for `*.db`-style rules without pulling in a glob crate.
+fn glob_match(pattern: &str, text: &str) -> bool {
+    let p: Vec<char> = pattern.chars().collect();
+    let t: Vec<char> = text.chars().collect();
+    // iterative matcher with backtracking over the last `*`
+    let (mut pi, mut ti) = (0usize, 0usize);
+    let (mut star, mut mark) = (usize::MAX, 0usize);
+    while ti < t.len() {
+        if pi < p.len() && (p[pi] == '?' || p[pi] == t[ti]) {
+            pi += 1;
+            ti += 1;
+        } else if pi < p.len() && p[pi] == '*' {
+            star = pi;
+            mark = ti;
+            pi += 1;
+        } else if star != usize::MAX {
+            pi = star + 1;
+            mark += 1;
+            ti = mark;
+        } else {
+            return false;
+        }
+    }
+    while pi < p.len() && p[pi] == '*' {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+/// Gitignore-flavored subset: a pattern with `/` matches the path
+/// relative to the KB root, one without matches the file or folder
+/// name anywhere; a trailing `/` restricts the rule to folders.
+fn is_ignored(patterns: &[String], name: &str, rel: &str, is_dir: bool) -> bool {
+    patterns.iter().any(|raw| {
+        let (pattern, dir_only) = match raw.strip_suffix('/') {
+            Some(p) => (p, true),
+            None => (raw.as_str(), false),
+        };
+        if dir_only && !is_dir {
+            return false;
+        }
+        if pattern.contains('/') {
+            glob_match(pattern.trim_start_matches('/'), rel)
+        } else {
+            glob_match(pattern, name)
+        }
+    })
+}
+
 fn read_dir_sorted(dir: &Path) -> Result<Vec<fs::DirEntry>> {
     let mut entries: Vec<fs::DirEntry> = fs::read_dir(dir)?.collect::<std::io::Result<_>>()?;
     entries.sort_by_key(|e| e.file_name().to_string_lossy().to_lowercase());
     Ok(entries)
 }
 
-fn build_tree(root: &Path, dir: &Path, depth: usize) -> Result<Vec<KbNode>> {
+fn build_tree(root: &Path, dir: &Path, depth: usize, ignore: &[String]) -> Result<Vec<KbNode>> {
     let mut dirs = Vec::new();
     let mut files = Vec::new();
     for entry in read_dir_sorted(dir)? {
@@ -52,12 +121,16 @@ fn build_tree(root: &Path, dir: &Path, depth: usize) -> Result<Vec<KbNode>> {
             .map(|c| c.as_os_str().to_string_lossy())
             .collect::<Vec<_>>()
             .join("/");
-        if entry.file_type()?.is_dir() {
+        let is_dir = entry.file_type()?.is_dir();
+        if is_ignored(ignore, &name, &rel, is_dir) {
+            continue;
+        }
+        if is_dir {
             dirs.push(KbNode {
                 name,
                 path: rel,
                 is_dir: true,
-                children: build_tree(root, &path, depth + 1)?,
+                children: build_tree(root, &path, depth + 1, ignore)?,
             });
         } else {
             // The KB root often doubles as the vault root, so service
@@ -80,7 +153,8 @@ fn build_tree(root: &Path, dir: &Path, depth: usize) -> Result<Vec<KbNode>> {
 }
 
 /// The KB folder is never restructured by the app: the tree is read
-/// as-is; all non-hidden files are shown (root level: .md only).
+/// as-is; all non-hidden files are shown (root level: .md only) minus
+/// whatever .hypomnemaignore at the KB root filters out.
 pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
     if !root.is_dir() {
         return Err(Error::State(format!(
@@ -88,7 +162,8 @@ pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
             root.display()
         )));
     }
-    build_tree(root, root, 0)
+    let ignore = load_ignore(root);
+    build_tree(root, root, 0, &ignore)
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -263,6 +338,42 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn ignore_file_hides_patterns_from_the_tree() {
+        let root = root("ignore");
+        fs::write(root.join("note.md"), "x").unwrap();
+        fs::create_dir_all(root.join("sub")).unwrap();
+        fs::write(root.join("sub/data.db"), "x").unwrap();
+        fs::write(root.join("sub/keep.md"), "x").unwrap();
+        fs::write(root.join("sub/draft.md"), "x").unwrap();
+        fs::create_dir_all(root.join("secret")).unwrap();
+        fs::write(root.join("secret/inside.md"), "x").unwrap();
+        fs::write(
+            root.join(IGNORE_FILE),
+            "# service files\n*.db\nsecret/\nsub/draft.md\n",
+        )
+        .unwrap();
+
+        let tree = tree(&root).unwrap();
+        let names: Vec<&str> = tree.iter().map(|n| n.name.as_str()).collect();
+        assert!(names.contains(&"note.md"));
+        assert!(!names.contains(&"secret"));
+        let sub = tree.iter().find(|n| n.name == "sub").unwrap();
+        let sub_names: Vec<&str> = sub.children.iter().map(|n| n.name.as_str()).collect();
+        assert_eq!(sub_names, vec!["keep.md"]);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn glob_match_covers_stars_and_question_marks() {
+        assert!(glob_match("*.db", "app.db"));
+        assert!(!glob_match("*.db", "app.dbx"));
+        assert!(glob_match("draft-?.md", "draft-1.md"));
+        assert!(glob_match("sub/*.md", "sub/x.md"));
+        assert!(glob_match("*", "anything"));
+        assert!(!glob_match("a*c", "ab"));
     }
 
     #[test]

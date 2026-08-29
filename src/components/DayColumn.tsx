@@ -112,6 +112,13 @@ function DayColumn({
         className={`truncate px-2.5 py-2 text-base font-semibold ${
           config?.day_header_centered ? "text-center" : ""
         } ${isToday ? "text-accent" : "text-content"}`}
+        // configurable header color; Today keeps the accent so the
+        // current column stays recognizable
+        style={
+          !isToday && config?.day_header_color
+            ? { color: config.day_header_color }
+            : undefined
+        }
         title={dayLabel(date, today)}
       >
         {dayLabel(date, today)}
@@ -119,7 +126,15 @@ function DayColumn({
       {(reminders.length > 0 || schedule) && (
         <div className="flex flex-col gap-0.5 px-2.5 pb-1.5 text-[11px] text-content-muted">
           {reminders.map((text, i) => (
-            <div key={i} className="italic">
+            <div
+              key={i}
+              className="italic"
+              style={
+                config?.reminder_color
+                  ? { color: config.reminder_color }
+                  : undefined
+              }
+            >
               {text}
             </div>
           ))}

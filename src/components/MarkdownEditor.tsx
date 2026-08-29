@@ -117,7 +117,14 @@ const plainBrackets = ViewPlugin.fromClass(
       this.decorations = bracketDecorations(view);
     }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
+      // the syntax tree finishes parsing asynchronously after the doc
+      // opens - without the tree comparison the initial build sees an
+      // empty tree and the brackets keep their token colors
+      if (
+        update.docChanged ||
+        update.viewportChanged ||
+        syntaxTree(update.state) !== syntaxTree(update.startState)
+      ) {
         this.decorations = bracketDecorations(update.view);
       }
     }

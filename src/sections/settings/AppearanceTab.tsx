@@ -4,12 +4,16 @@ import { MD_PRESET_LABELS, MD_TOKENS } from "../../lib/mdPresets";
 import type { AppConfig, DoneDisplay, Theme } from "../../types";
 import { useAppStore } from "../../store";
 
-// the stylesheet defaults for the two text tones, per theme; shown in
-// the pickers while no override is set
-const TONE_DEFAULTS = {
-  dark: { content: "#e6e9ee", muted: "#a8b0bc" },
-  light: { content: "#171a1f", muted: "#58606c" },
-};
+// overridable text colors: [label, config key, dark default, light
+// default] - the defaults are the stylesheet values, shown in the
+// picker while no override is set
+const TEXT_COLOR_ROWS = [
+  ["Main text", "content_color", "#e6e9ee", "#171a1f"],
+  ["Secondary text", "content_muted_color", "#a8b0bc", "#58606c"],
+  ["Weekly focus", "weekly_focus_color", "#6091ff", "#2563eb"],
+  ["Day reminders", "reminder_color", "#a8b0bc", "#58606c"],
+  ["Day header (weekday, date)", "day_header_color", "#e6e9ee", "#171a1f"],
+] as const;
 
 export default function AppearanceTab() {
   const config = useAppStore((s) => s.config);
@@ -95,17 +99,11 @@ export default function AppearanceTab() {
 
         <section className="flex flex-col gap-2">
           <span className="text-sm font-medium">Text colors</span>
-          {(
-            [
-              ["Main text", "content_color", "content"],
-              ["Secondary text", "content_muted_color", "muted"],
-            ] as const
-          ).map(([label, key, tone]) => {
-            const fallback =
-              TONE_DEFAULTS[config.theme === "light" ? "light" : "dark"][tone];
+          {TEXT_COLOR_ROWS.map(([label, key, darkHex, lightHex]) => {
+            const fallback = config.theme === "light" ? lightHex : darkHex;
             return (
               <div key={key} className="flex items-center gap-2">
-                <span className="w-32 text-xs text-content-muted">{label}</span>
+                <span className="w-48 text-xs text-content-muted">{label}</span>
                 <ColorPicker
                   value={config[key] || fallback}
                   onChange={(color) => void updateConfig({ [key]: color })}

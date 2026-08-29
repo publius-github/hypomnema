@@ -131,10 +131,9 @@ function ListColumn({
           onCancel={() => setConfirmArchive(false)}
         />
       )}
-      <div
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2"
-        style={{ rowGap: taskGap }}
-      >
+      {/* no internal scrollbar: a long list grows past the viewport and
+          the dashboard page scrollbar reaches it */}
+      <div className="flex flex-1 flex-col px-2 pb-2" style={{ rowGap: taskGap }}>
         {prioritized.length > 0 && (
           <div className="flex flex-col" style={{ rowGap: taskGap }}>
             <div className="flex items-center gap-1.5 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warn">
