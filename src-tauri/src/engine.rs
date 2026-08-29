@@ -649,6 +649,38 @@ fn run_birthdays(
 /// Returns (carried_over, deduped).
 fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
     let today_str = today.format("%Y-%m-%d").to_string();
+    // Safety nets against duplicate recurring instances that older app
+    // versions could leave behind: (a) the same (rule, period)
+    // materialized twice - keep the oldest row; (b) an ancient row
+    // without a rule key sitting next to a keyed instance of the same
+    // title and day.
+    let mut deduped = conn.execute(
+        "DELETE FROM tasks
+         WHERE origin = 'recurring' AND status != 'done'
+           AND archived_at IS NULL AND parent_task_id IS NULL
+           AND rule_key IS NOT NULL
+           AND EXISTS (SELECT 1 FROM tasks twin
+                       WHERE twin.id < tasks.id
+                         AND twin.rule_key = tasks.rule_key
+                         AND twin.period_key = tasks.period_key
+                         AND twin.archived_at IS NULL)",
+        [],
+    )?;
+    deduped += conn.execute(
+        "DELETE FROM tasks
+         WHERE origin = 'recurring' AND status = 'todo'
+           AND archived_at IS NULL AND parent_task_id IS NULL
+           AND rule_key IS NULL
+           AND EXISTS (SELECT 1 FROM tasks keyed
+                       WHERE keyed.id != tasks.id
+                         AND keyed.origin = 'recurring'
+                         AND keyed.rule_key IS NOT NULL
+                         AND keyed.archived_at IS NULL
+                         AND keyed.title = tasks.title
+                         AND COALESCE(keyed.scheduled_date, '')
+                             = COALESCE(tasks.scheduled_date, ''))",
+        [],
+    )?;
     // Priority tasks ride along to today but never get the overdue
     // mark: priority already says "do this now", the extra red label
     // adds nothing.
@@ -668,7 +700,7 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
     // whose next firing has already arrived, would otherwise sit next
     // to each other as duplicates. The copy kept is today's own firing
     // (overdue = 0) when it exists, otherwise the newest overdue copy.
-    let deduped = conn.execute(
+    deduped += conn.execute(
         "DELETE FROM tasks
          WHERE origin = 'recurring' AND status != 'done'
            AND archived_at IS NULL
@@ -1191,6 +1223,39 @@ mod tests {
             rows.collect::<std::result::Result<_, _>>().unwrap()
         };
         assert_eq!(today_rows, vec![("2026-08-31".to_string(), 0)]);
+    }
+
+    #[test]
+    fn stale_duplicate_rows_are_cleaned_up() {
+        let (conn, dir) = setup("stale-dupes");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 9 * * 1\"\n    description: Mondays\n    items:\n      - \"{Home} review\"\n",
+        )
+        .unwrap();
+        let cfg = config(3, 7, 0);
+        // Monday 08-24: one instance generated
+        run(&conn, &dir, &cfg, at("2026-08-24", "12:00:00")).unwrap();
+
+        // simulate leftovers from older versions: the same (rule, period)
+        // row inserted twice, plus an ancient keyless copy of the task
+        conn.execute(
+            "INSERT INTO tasks (title, scheduled_date, origin, rule_key, period_key, created_at)
+             SELECT title, scheduled_date, origin, rule_key, period_key, created_at FROM tasks",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (title, scheduled_date, origin, created_at)
+             SELECT title, scheduled_date, origin, created_at FROM tasks LIMIT 1",
+            [],
+        )
+        .unwrap();
+        assert_eq!(count_tasks(&conn), 3);
+
+        let outcome = run(&conn, &dir, &cfg, at("2026-08-24", "13:00:00")).unwrap();
+        assert!(outcome.removed >= 2);
+        assert_eq!(count_tasks(&conn), 1);
     }
 
     #[test]

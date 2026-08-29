@@ -14,6 +14,23 @@ const SECTION_LABELS: Record<string, string> = {
   kb: "Notes",
 };
 
+// swatch palette for the cadence colors; mid-tone hues that read on
+// both themes (same family as the manual task colors)
+const PALETTE = [
+  "#9ca3af",
+  "#ef4444",
+  "#f97316",
+  "#f59e0b",
+  "#eab308",
+  "#22c55e",
+  "#14b8a6",
+  "#0ea5e9",
+  "#3b82f6",
+  "#8b5cf6",
+  "#a855f7",
+  "#ec4899",
+];
+
 const TABS = [
   { id: "appearance", label: "Appearance" },
   { id: "planner", label: "Planner" },
@@ -133,7 +150,7 @@ export default function Settings() {
           onChange={(v) => void updateConfig({ cadence_colors: v })}
         />
         {config.cadence_colors && (
-          <div className="flex flex-wrap gap-4 pl-6">
+          <div className="flex flex-col gap-2 pl-6">
             {(
               [
                 ["Daily", "cadence_color_daily"],
@@ -143,17 +160,26 @@ export default function Settings() {
                 ["Exact date", "cadence_color_exact"],
               ] as const
             ).map(([label, key]) => (
-              <label key={key} className="flex items-center gap-1.5 text-xs">
-                <input
-                  type="color"
-                  className="h-6 w-8 cursor-pointer rounded border border-line bg-transparent"
-                  value={config[key]}
-                  onChange={(e) =>
-                    void updateConfig({ [key]: e.target.value })
-                  }
-                />
-                {label}
-              </label>
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-20 text-xs text-content-muted">
+                  {label}
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {PALETTE.map((color) => (
+                    <button
+                      key={color}
+                      className={`h-5 w-5 rounded-full border-2 ${
+                        config[key] === color
+                          ? "border-content"
+                          : "border-transparent hover:border-content-muted"
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                      onClick={() => void updateConfig({ [key]: color })}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}

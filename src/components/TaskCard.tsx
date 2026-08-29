@@ -152,7 +152,7 @@ export default function TaskCard({
         )}
         {category && (
           <span
-            className="shrink-0 rounded bg-accent/10 px-1 text-[11px] text-accent"
+            className="shrink-0 rounded bg-accent/20 px-1 text-[11px] font-semibold text-accent"
             title={`Category: ${category}`}
           >
             {category}

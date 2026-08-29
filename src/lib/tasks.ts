@@ -142,8 +142,20 @@ export function groupByCadence(
     .map((key) => ({
       key,
       label: CADENCE_GROUP_LABELS[key],
-      tasks: buckets.get(key)!.sort(compareTasks),
+      // {Category} blocks stick together alphabetically (uncategorized
+      // tasks first), so the day column can render a gap between them
+      tasks: buckets.get(key)!.sort((a, b) => {
+        const ca = splitCategory(a.title).category ?? "";
+        const cb = splitCategory(b.title).category ?? "";
+        if (ca !== cb) return ca < cb ? -1 : 1;
+        return compareTasks(a, b);
+      }),
     }));
+}
+
+/** Category label of a task title, for grouping ({X} prefix). */
+export function categoryOf(title: string): string | null {
+  return splitCategory(title).category;
 }
 
 export function compareTasks(a: Task, b: Task): number {

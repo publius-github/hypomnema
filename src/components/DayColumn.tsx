@@ -1,7 +1,13 @@
 import { useDroppable } from "@dnd-kit/core";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { currentAndNextBlock, dayLabel, groupByCadence, splitDone } from "../lib/tasks";
+import {
+  categoryOf,
+  currentAndNextBlock,
+  dayLabel,
+  groupByCadence,
+  splitDone,
+} from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import type { Task } from "../types";
@@ -46,6 +52,26 @@ export default function DayColumn({
   );
   const groups = groupByCadence(active, config?.cadence_group_order);
   const isToday = date === today;
+
+  // the section plate takes its cadence color (same palette that colors
+  // the card stripes), framing the section like the priority label does
+  const groupColor = (key: string): string | null => {
+    if (!config?.cadence_colors) return null;
+    switch (key) {
+      case "exact":
+        return config.cadence_color_exact;
+      case "daily":
+        return config.cadence_color_daily;
+      case "weekly":
+        return config.cadence_color_weekly;
+      case "monthly":
+        return config.cadence_color_monthly;
+      case "yearly":
+        return config.cadence_color_yearly;
+      default:
+        return null;
+    }
+  };
 
   const section = (label: string, items: Task[]) =>
     items.length > 0 && (
@@ -105,13 +131,34 @@ export default function DayColumn({
               (config?.cadence_group_gap ?? true) && i > 0 ? "mt-3" : ""
             }`}
           >
-            <div className="flex items-center gap-1.5 rounded bg-line/40 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-content">
+            <div
+              className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
+                groupColor(group.key) ? "" : "bg-line/40 text-content"
+              }`}
+              style={
+                groupColor(group.key)
+                  ? {
+                      color: groupColor(group.key)!,
+                      backgroundColor: `${groupColor(group.key)}26`,
+                    }
+                  : undefined
+              }
+            >
               <span>{group.label}</span>
-              <span className="h-px flex-1 bg-content/25" />
+              <span className="h-px flex-1 bg-current opacity-30" />
             </div>
-            {group.tasks.map((task) => (
-              <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
-            ))}
+            {group.tasks.map((task, j) => {
+              // a wider gap where one {Category} block ends and the
+              // next begins (tasks are pre-sorted by category)
+              const cat = categoryOf(task.title);
+              const gapBefore =
+                j > 0 && cat !== categoryOf(group.tasks[j - 1].title);
+              return (
+                <div key={task.id} className={gapBefore ? "mt-3" : ""}>
+                  <TaskCard task={task} onOpen={onOpenTask} />
+                </div>
+              );
+            })}
           </div>
         ))}
         {section("Postponed", postponed)}

@@ -327,9 +327,10 @@ function ListZone({
         ))}
       </div>
       {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
-      {/* one shared scrollbar for the button and the list index, the
-          same way a long list column scrolls as a whole */}
-      <div className="flex min-h-0 shrink-0 flex-col gap-3 overflow-y-auto">
+      {/* the button and the index scroll as one, with the scrollbar
+          hidden - wheel/trackpad scrolling still works, but no extra
+          thumb appears next to the list columns */}
+      <div className="flex min-h-0 shrink-0 flex-col gap-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <NewListForm />
         {visible.length > perPage && (
           <div className="flex w-40 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">

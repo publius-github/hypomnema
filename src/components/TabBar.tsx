@@ -43,7 +43,7 @@ function RailButton({
     ? "text-danger"
     : accent || active
       ? "text-accent"
-      : "text-content-muted";
+      : "text-content/80";
   return (
     <button className={railButton} title={title} onClick={onClick}>
       <span
@@ -135,7 +135,7 @@ export default function TabBar() {
             theme: config?.theme === "light" ? "dark" : "light",
           })
         }
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-content-muted hover:bg-line/40 hover:text-content"
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-content/80 hover:bg-line/40 hover:text-content"
       >
         <Icon name={config?.theme === "light" ? "moon" : "sun"} />
       </button>

@@ -85,7 +85,7 @@ export default function ListColumn({
           </form>
         ) : (
           <button
-            className="flex-1 truncate text-left text-xs font-semibold uppercase tracking-wide text-content-muted hover:text-content"
+            className="flex-1 truncate text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
             onDoubleClick={() => {
               setName(list.name);
               setEditing(true);
@@ -117,14 +117,24 @@ export default function ListColumn({
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
         {prioritized.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5 rounded bg-warn/10 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-warn">
+            <div className="flex items-center gap-1.5 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warn">
               <span>Priority</span>
               <span className="h-px flex-1 bg-warn/30" />
             </div>
             {prioritized.map(card)}
           </div>
         )}
-        {rest.map(card)}
+        {rest.length > 0 && (
+          // double gap after the priority block, so the starred tasks
+          // read as their own section
+          <div
+            className={`flex flex-col gap-1.5 ${
+              prioritized.length > 0 ? "mt-3" : ""
+            }`}
+          >
+            {rest.map(card)}
+          </div>
+        )}
         {section("Postponed", postponed)}
         {section("Done", done)}
         <QuickAdd target={{ list_id: list.id }} />
