@@ -60,6 +60,29 @@ export default function FilesTab() {
           <input
             type="checkbox"
             className="mt-0.5"
+            checked={config.tasks_mirror}
+            onChange={(e) =>
+              void updateConfig({ tasks_mirror: e.target.checked })
+            }
+          />
+          <span className="flex flex-col">
+            <span className="text-sm font-medium">
+              Mirror tasks to Markdown files
+            </span>
+            <span className="text-xs text-content-muted">
+              Keeps vault/tasks/ in two-way sync: one file per list plus
+              scheduled.md with the dated tasks. Edit them in any editor
+              for bulk changes; lines without a ^id become new tasks,
+              deleting a line deletes the task. Only manual tasks are
+              mirrored - generated ones are edited via config/*.yml.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
             checked={config.kb_line_numbers}
             onChange={(e) =>
               void updateConfig({ kb_line_numbers: e.target.checked })

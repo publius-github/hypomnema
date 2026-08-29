@@ -87,6 +87,9 @@ pub struct AppConfig {
     /// OS notifications for timed tasks coming due (in-app toasts always
     /// show); useful when the window is minimized or behind others.
     pub notify_system: bool,
+    /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
+    /// (one file per list + scheduled.md) for bulk editing in any editor.
+    pub tasks_mirror: bool,
     /// Base UI font size in px (the browser default is 16; every text
     /// size in the app scales from it).
     pub ui_font_size: u32,
@@ -160,6 +163,7 @@ impl Default for AppConfig {
             subtasks_done_last: true,
             backup_keep: 14,
             notify_system: true,
+            tasks_mirror: true,
             ui_font_size: 16,
             content_color: String::new(),
             content_muted_color: String::new(),
@@ -365,6 +369,7 @@ impl AppConfig {
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
             ("notify_system", self.notify_system.to_string()),
+            ("tasks_mirror", self.tasks_mirror.to_string()),
             ("ui_font_size", self.ui_font_size.to_string()),
             ("content_color", self.content_color.clone()),
             ("content_muted_color", self.content_muted_color.clone()),

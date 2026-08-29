@@ -291,6 +291,33 @@ pub fn tasks_search(conn: &Connection, query: &str) -> Result<Vec<Task>> {
     Ok(tasks)
 }
 
+/// All live manual top-level tasks - the source set of the text mirror
+/// (backlog per list + scheduled days).
+pub fn manual_parent_tasks(conn: &Connection) -> Result<Vec<Task>> {
+    let mut stmt = conn.prepare(
+        "SELECT * FROM tasks
+         WHERE archived_at IS NULL AND origin = 'manual' AND parent_task_id IS NULL
+         ORDER BY sort_order, id",
+    )?;
+    let tasks = stmt
+        .query_map([], row_to_task)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(tasks)
+}
+
+/// All live subtasks, ordered like the UI lists them under a parent.
+pub fn subtasks_all(conn: &Connection) -> Result<Vec<Task>> {
+    let mut stmt = conn.prepare(
+        "SELECT * FROM tasks
+         WHERE archived_at IS NULL AND parent_task_id IS NOT NULL
+         ORDER BY sort_order, id",
+    )?;
+    let tasks = stmt
+        .query_map([], row_to_task)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(tasks)
+}
+
 pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
     let title = new.title.trim().to_string();
     if title.is_empty() {

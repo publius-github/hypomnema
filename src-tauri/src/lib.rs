@@ -8,9 +8,11 @@ mod journal;
 mod kb;
 mod reminders;
 mod tasks;
+mod tasks_mirror;
 mod vault;
 mod views;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
@@ -31,6 +33,13 @@ struct AppState {
     /// DB connection, and two concurrent passes would interleave their
     /// dedup/reconcile statements (and can hit SQLITE_BUSY under WAL).
     engine_lock: Arc<Mutex<()>>,
+    /// Watcher over <vault>/tasks/ importing outside edits of the task
+    /// mirror files.
+    tasks_watcher: Mutex<Option<notify::RecommendedWatcher>>,
+    /// Content of every mirror file as we last wrote it: the tasks
+    /// watcher skips files that still match, so our own exports never
+    /// trigger an import round-trip.
+    mirror_written: Arc<Mutex<HashMap<PathBuf, String>>>,
 }
 
 /// Shared filter for both filesystem watchers: access events carry no
@@ -102,10 +111,25 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
                 continue;
             };
             let engine_lock = state.engine_lock.clone();
+            let written = state.mirror_written.clone();
             let outcome = {
                 let _pass = engine_lock.lock().unwrap();
                 db::open(&root.join("app.db")).and_then(|conn| {
-                    engine::run(&conn, &root.join("config"), &config, chrono::Local::now())
+                    let outcome =
+                        engine::run(&conn, &root.join("config"), &config, chrono::Local::now())?;
+                    // the pass may have moved manual tasks (overdue
+                    // carry-over), so the text mirror must follow
+                    if config.tasks_mirror {
+                        if let Ok(files) = tasks_mirror::export(
+                            &conn,
+                            &root.join(tasks_mirror::DIR),
+                            &today_string(),
+                            &Default::default(),
+                        ) {
+                            *written.lock().unwrap() = files.into_iter().collect();
+                        }
+                    }
+                    Ok(outcome)
                 })
             };
             let mut errors = outcome.map(|o| o.errors).unwrap_or_default();
@@ -122,6 +146,146 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+fn today_string() -> String {
+    chrono::Local::now()
+        .date_naive()
+        .format("%Y-%m-%d")
+        .to_string()
+}
+
+/// Rewrites the task mirror files after a database change. Best effort
+/// by design: a failing export must not fail the command that made the
+/// change - the next successful export catches the files up.
+fn mirror_export_with(
+    vault: &Vault,
+    written: &Arc<Mutex<std::collections::HashMap<PathBuf, String>>>,
+) {
+    if !vault.config.tasks_mirror {
+        return;
+    }
+    if let Ok(files) = tasks_mirror::export(
+        &vault.conn,
+        &vault.root.join(tasks_mirror::DIR),
+        &today_string(),
+        &Default::default(),
+    ) {
+        *written.lock().unwrap() = files.into_iter().collect();
+    }
+}
+
+fn mirror_export(state: &State<'_, AppState>) {
+    let guard = state.vault.lock().unwrap();
+    if let Some(vault) = guard.as_ref() {
+        mirror_export_with(vault, &state.mirror_written);
+    }
+}
+
+/// Watches <vault>/tasks and, after a debounce, imports outside edits of
+/// the mirror files, then re-exports to normalize them (assign ids to
+/// new lines, restore deleted managed files).
+fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
+    let _ = std::fs::create_dir_all(tasks_dir);
+    let (tx, rx) = mpsc::channel::<()>();
+    let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+        if let Ok(event) = event {
+            if watch_event_is_relevant(&event) {
+                let _ = tx.send(());
+            }
+        }
+    })
+    .map_err(|e| Error::State(format!("cannot start tasks watcher: {e}")))?;
+    watcher
+        .watch(tasks_dir, RecursiveMode::NonRecursive)
+        .map_err(|e| Error::State(format!("cannot watch tasks dir: {e}")))?;
+    let state = app.state::<AppState>();
+    *state.tasks_watcher.lock().unwrap() = Some(watcher);
+
+    std::thread::spawn(move || {
+        while rx.recv().is_ok() {
+            std::thread::sleep(Duration::from_millis(500));
+            while rx.try_recv().is_ok() {}
+
+            let state = app.state::<AppState>();
+            let snapshot = {
+                let guard = state.vault.lock().unwrap();
+                guard
+                    .as_ref()
+                    .map(|vault| (vault.root.clone(), vault.config.tasks_mirror))
+            };
+            let Some((root, enabled)) = snapshot else {
+                continue;
+            };
+            if !enabled {
+                continue;
+            }
+            let engine_lock = state.engine_lock.clone();
+            let written = state.mirror_written.clone();
+            let today = today_string();
+            let dir = root.join(tasks_mirror::DIR);
+            let mut errors: Vec<config_files::ConfigError> = Vec::new();
+            let mut changed = false;
+            {
+                // the engine also writes tasks; imports must not
+                // interleave with a running pass
+                let _pass = engine_lock.lock().unwrap();
+                let Ok(conn) = db::open(&root.join("app.db")) else {
+                    continue;
+                };
+                let mut failed: std::collections::HashSet<PathBuf> =
+                    std::collections::HashSet::new();
+                let entries = std::fs::read_dir(&dir)
+                    .map(|it| it.flatten().collect::<Vec<_>>())
+                    .unwrap_or_default();
+                for entry in entries {
+                    let path = entry.path();
+                    let name = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    if path.extension().and_then(|e| e.to_str()) != Some("md")
+                        || name.starts_with('.')
+                    {
+                        continue;
+                    }
+                    let Ok(content) = std::fs::read_to_string(&path) else {
+                        continue;
+                    };
+                    let same = written
+                        .lock()
+                        .unwrap()
+                        .get(&path)
+                        .map(|c| *c == content)
+                        .unwrap_or(false);
+                    if same {
+                        continue;
+                    }
+                    match tasks_mirror::import_file(&conn, &path, &content, &today) {
+                        Ok(applied) => changed |= applied,
+                        Err(e) => {
+                            // the broken file stays untouched (skipped
+                            // below) so the user can fix it in place
+                            failed.insert(path);
+                            errors.push(config_files::ConfigError {
+                                file: format!("tasks/{name}"),
+                                line: None,
+                                message: e.to_string(),
+                            });
+                        }
+                    }
+                }
+                if let Ok(files) = tasks_mirror::export(&conn, &dir, &today, &failed) {
+                    *written.lock().unwrap() = files.into_iter().collect();
+                }
+            }
+            if changed || !errors.is_empty() {
+                let _ = app.emit("vault-updated", errors);
+            }
+        }
+    });
+    Ok(())
+}
+
 fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<AppConfig> {
     let vault = Vault::open(root)?;
     journal::ensure_template_location(root);
@@ -132,6 +296,12 @@ fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Resu
     // Replacing the watcher drops the old one, which closes its channel
     // and lets the old debounce thread exit.
     start_config_watcher(app.clone(), &config_dir)?;
+    if config.tasks_mirror {
+        mirror_export(state);
+        let _ = start_tasks_watcher(app.clone(), &root.join(tasks_mirror::DIR));
+    } else {
+        *state.tasks_watcher.lock().unwrap() = None;
+    }
     Ok(config)
 }
 
@@ -166,12 +336,26 @@ async fn config_get(state: State<'_, AppState>) -> Result<AppConfig> {
 }
 
 #[tauri::command]
-async fn config_set(state: State<'_, AppState>, config: AppConfig) -> Result<()> {
-    let mut guard = state.vault.lock().unwrap();
-    let vault = guard
-        .as_mut()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
-    vault.save_config(config)
+async fn config_set(app: AppHandle, state: State<'_, AppState>, config: AppConfig) -> Result<()> {
+    let (root, mirror_was, mirror_now) = {
+        let mut guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_mut()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let was = vault.config.tasks_mirror;
+        vault.save_config(config)?;
+        (vault.root.clone(), was, vault.config.tasks_mirror)
+    };
+    // the task mirror toggle takes effect immediately
+    if mirror_now && !mirror_was {
+        mirror_export(&state);
+        let _ = start_tasks_watcher(app, &root.join(tasks_mirror::DIR));
+    } else if !mirror_now && mirror_was {
+        // dropping the watcher closes its channel and ends the thread;
+        // the files stay on disk but are no longer read or written
+        *state.tasks_watcher.lock().unwrap() = None;
+    }
+    Ok(())
 }
 
 fn with_conn<T>(
@@ -196,19 +380,25 @@ async fn list_create(
     name: String,
     color: Option<String>,
 ) -> Result<tasks::List> {
-    with_conn(&state, |conn| {
+    let list = with_conn(&state, |conn| {
         tasks::list_create(conn, &name, color.as_deref(), false)
-    })
+    })?;
+    mirror_export(&state);
+    Ok(list)
 }
 
 #[tauri::command]
 async fn list_rename(state: State<'_, AppState>, id: i64, name: String) -> Result<()> {
-    with_conn(&state, |conn| tasks::list_rename(conn, id, &name))
+    with_conn(&state, |conn| tasks::list_rename(conn, id, &name))?;
+    mirror_export(&state);
+    Ok(())
 }
 
 #[tauri::command]
 async fn list_archive(state: State<'_, AppState>, id: i64) -> Result<()> {
-    with_conn(&state, |conn| tasks::list_archive(conn, id))
+    with_conn(&state, |conn| tasks::list_archive(conn, id))?;
+    mirror_export(&state);
+    Ok(())
 }
 
 #[tauri::command]
@@ -218,7 +408,9 @@ async fn lists_archived(state: State<'_, AppState>) -> Result<Vec<tasks::List>> 
 
 #[tauri::command]
 async fn list_unarchive(state: State<'_, AppState>, id: i64) -> Result<()> {
-    with_conn(&state, |conn| tasks::list_unarchive(conn, id))
+    with_conn(&state, |conn| tasks::list_unarchive(conn, id))?;
+    mirror_export(&state);
+    Ok(())
 }
 
 #[tauri::command]
@@ -234,7 +426,9 @@ async fn tasks_snapshot(
 
 #[tauri::command]
 async fn task_create(state: State<'_, AppState>, new: tasks::NewTask) -> Result<tasks::Task> {
-    with_conn(&state, |conn| tasks::task_create(conn, &new))
+    let task = with_conn(&state, |conn| tasks::task_create(conn, &new))?;
+    mirror_export(&state);
+    Ok(task)
 }
 
 #[tauri::command]
@@ -243,17 +437,23 @@ async fn task_update(
     id: i64,
     patch: tasks::TaskPatch,
 ) -> Result<tasks::Task> {
-    with_conn(&state, |conn| tasks::task_update(conn, id, &patch))
+    let task = with_conn(&state, |conn| tasks::task_update(conn, id, &patch))?;
+    mirror_export(&state);
+    Ok(task)
 }
 
 #[tauri::command]
 async fn task_delete(state: State<'_, AppState>, id: i64) -> Result<()> {
-    with_conn(&state, |conn| tasks::task_delete(conn, id))
+    with_conn(&state, |conn| tasks::task_delete(conn, id))?;
+    mirror_export(&state);
+    Ok(())
 }
 
 #[tauri::command]
 async fn tasks_delete_done(state: State<'_, AppState>) -> Result<usize> {
-    with_conn(&state, tasks::tasks_delete_done)
+    let count = with_conn(&state, tasks::tasks_delete_done)?;
+    mirror_export(&state);
+    Ok(count)
 }
 
 #[tauri::command]
@@ -264,7 +464,9 @@ async fn tasks_reorder(
 ) -> Result<()> {
     with_conn(&state, |conn| {
         tasks::list_reorder(conn, list_id, &ordered_ids)
-    })
+    })?;
+    mirror_export(&state);
+    Ok(())
 }
 
 #[tauri::command]
@@ -291,6 +493,9 @@ async fn engine_run(state: State<'_, AppState>) -> Result<engine::EngineOutcome>
             message: msg.clone(),
         });
     }
+    // the pass may have created/moved tasks; keep the text mirror fresh
+    // (inline: the vault guard is still held, mirror_export would deadlock)
+    mirror_export_with(vault, &state.mirror_written);
     Ok(outcome)
 }
 
@@ -646,7 +851,9 @@ async fn task_get(state: State<'_, AppState>, id: i64) -> Result<tasks::Task> {
 
 #[tauri::command]
 async fn task_restore(state: State<'_, AppState>, id: i64) -> Result<()> {
-    with_conn(&state, |conn| tasks::task_restore(conn, id))
+    with_conn(&state, |conn| tasks::task_restore(conn, id))?;
+    mirror_export(&state);
+    Ok(())
 }
 
 /// Panics land in <app-config-dir>/hypomnema.log so field errors are
