@@ -115,10 +115,10 @@ export default function Dashboard() {
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveTaskId(null)}
     >
-      {/* min-h-full instead of h-full: a long All-lists index may push
-          the page taller than the viewport, and then the main window
-          scrollbar takes over (columns keep their internal scrolling) */}
-      <div className="flex min-h-full flex-col gap-3 p-4">
+      {/* fixed to the viewport: the day grid always keeps its split
+          share of the height, and long content scrolls inside its own
+          column (a growing page used to squash the grid to nothing) */}
+      <div className="flex h-full flex-col gap-3 p-4">
         <div className="relative flex min-h-[24px] items-center">
           <div className="flex items-center gap-1">
             <button
@@ -206,12 +206,13 @@ export default function Dashboard() {
             </span>
           </div>
         )}
-        <div ref={zonesRef} className="flex flex-1 flex-col">
+        <div ref={zonesRef} className="flex min-h-0 flex-1 flex-col">
           <div
             className="grid min-h-0 gap-3 overflow-x-auto"
             style={{
               flex: `${splitDraft ?? config.dashboard_split} 1 0px`,
               gridTemplateColumns: `repeat(${dates.length}, minmax(200px, 1fr))`,
+              gridTemplateRows: "minmax(0, 1fr)",
             }}
           >
             {dates.map((date) => (
@@ -326,7 +327,7 @@ function ListZone({
 
   return (
     <div
-      className="flex items-stretch gap-2 pt-1"
+      className="flex min-h-0 items-stretch gap-2 pt-1"
       style={{ flex: `${100 - split} 1 0px` }}
     >
       {visible.length > perPage && arrow(-1, off === 0, "Previous lists")}
@@ -334,6 +335,7 @@ function ListZone({
         className="grid min-h-0 min-w-0 flex-1 gap-3"
         style={{
           gridTemplateColumns: `repeat(${Math.max(page.length, 1)}, minmax(0, 1fr))`,
+          gridTemplateRows: "minmax(0, 1fr)",
         }}
       >
         {page.map((list) => (
@@ -341,13 +343,12 @@ function ListZone({
         ))}
       </div>
       {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
-      {/* never collapsed and never scrolls on its own: the index shows
-          at full length, and when it is taller than the viewport the
-          whole dashboard page scrolls via the main scrollbar */}
-      <div className="flex shrink-0 flex-col gap-3">
+      {/* the index scrolls internally when taller than the zone, so it
+          never grows the page (the day grid keeps its height) */}
+      <div className="flex min-h-0 shrink-0 flex-col gap-3">
         <NewListForm />
         {visible.length > perPage && (
-          <div className="flex w-40 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
+          <div className="flex min-h-0 w-40 flex-col gap-0.5 overflow-y-auto rounded-lg border border-line bg-surface-alt/50 p-1.5">
             <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
               All lists
             </div>

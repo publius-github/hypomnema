@@ -167,6 +167,44 @@ pub struct OutlookEvent {
     pub kind: String,
 }
 
+/// A display label for the day-of-week field of a cron schedule, when
+/// the rule pins concrete weekdays ("0 9 * * SAT#1" -> "SAT1",
+/// "0 9 * * 1-5" -> "MON-FRI"). Wildcards and steps return None.
+pub(crate) fn weekday_label(schedule: &str) -> Option<String> {
+    let field = schedule.split_whitespace().last()?;
+    if field.contains('*') || field == "?" || field.is_empty() {
+        return None;
+    }
+    fn map_days(part: &str) -> String {
+        const NAMES: [&str; 8] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+        let mut out = String::new();
+        for token in part.split_inclusive([',', '-', '/']) {
+            let (name, sep) = match token.char_indices().last() {
+                Some((i, c)) if matches!(c, ',' | '-' | '/') => (&token[..i], Some(c)),
+                _ => (token, None),
+            };
+            match name.parse::<usize>() {
+                Ok(n) if n < NAMES.len() => out.push_str(NAMES[n]),
+                _ => out.push_str(&name.to_uppercase()),
+            }
+            if let Some(c) = sep {
+                out.push(c);
+            }
+        }
+        out
+    }
+    // "SAT#1" / "6#1": the nth-occurrence number stays a number
+    let (days, nth) = match field.split_once('#') {
+        Some((days, nth)) => (days, Some(nth)),
+        None => (field, None),
+    };
+    let mut label = map_days(days);
+    if let Some(nth) = nth {
+        label.push_str(nth);
+    }
+    Some(label)
+}
+
 /// Calendar projection: occurrences that lie beyond the grid horizon
 /// (so no task exists yet) but inside the per-cadence outlook window
 /// from the config. Nothing is generated; this is a read-only preview.
@@ -208,6 +246,9 @@ pub fn calendar_outlook(
                 continue;
             };
             let cadence = cadence_of(&cron, now);
+            // rules pinned to concrete weekdays carry a [SAT1]-style
+            // marker so a projected entry says which weekday rule it is
+            let dow = weekday_label(&rule.schedule);
             let cap = match cadence {
                 "daily" => today + Duration::days(i64::from(config.calendar_daily_days)),
                 "weekly" => today + Duration::days(i64::from(config.calendar_weekly_weeks) * 7),
@@ -231,6 +272,10 @@ pub fn calendar_outlook(
                 let date_str = date.format("%Y-%m-%d").to_string();
                 for item in &rule.items {
                     let (_, title) = parse_item(item);
+                    let title = match &dow {
+                        Some(label) => format!("[{label}] {title}"),
+                        None => title,
+                    };
                     events.push(OutlookEvent {
                         date: date_str.clone(),
                         title,
@@ -426,6 +471,17 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use std::fs;
+
+    #[test]
+    fn weekday_label_only_for_concrete_days() {
+        assert_eq!(weekday_label("0 9 * * SAT#1").as_deref(), Some("SAT1"));
+        assert_eq!(weekday_label("0 9 * * 6#1").as_deref(), Some("SAT1"));
+        assert_eq!(weekday_label("0 9 * * 1-5").as_deref(), Some("MON-FRI"));
+        assert_eq!(weekday_label("0 9 * * mon,fri").as_deref(), Some("MON,FRI"));
+        assert_eq!(weekday_label("0 9 * * *"), None);
+        assert_eq!(weekday_label("0 9 1 * ?"), None);
+        assert_eq!(weekday_label("0 9 * * */2"), None);
+    }
 
     #[test]
     fn daily_streaks_count_consecutive_done_instances() {

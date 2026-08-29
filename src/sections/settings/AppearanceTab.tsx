@@ -1,7 +1,15 @@
 import { ColorPicker, Field, NumberInput, TextInput, Toggle } from "../../components/form";
 import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
-import type { DoneDisplay, Theme } from "../../types";
+import { MD_PRESET_LABELS, MD_TOKENS } from "../../lib/mdPresets";
+import type { AppConfig, DoneDisplay, Theme } from "../../types";
 import { useAppStore } from "../../store";
+
+// the stylesheet defaults for the two text tones, per theme; shown in
+// the pickers while no override is set
+const TONE_DEFAULTS = {
+  dark: { content: "#e6e9ee", muted: "#a8b0bc" },
+  light: { content: "#171a1f", muted: "#58606c" },
+};
 
 export default function AppearanceTab() {
   const config = useAppStore((s) => s.config);
@@ -76,6 +84,89 @@ export default function AppearanceTab() {
             onCommit={(v) => void updateConfig({ editor_font: v })}
           />
         </Field>
+
+        <Field label="Base font size, px (16 = default; every text size scales from it)">
+          <NumberInput
+            value={config.ui_font_size}
+            min={10}
+            onCommit={(n) => void updateConfig({ ui_font_size: Math.min(28, n) })}
+          />
+        </Field>
+
+        <section className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Text colors</span>
+          {(
+            [
+              ["Main text", "content_color", "content"],
+              ["Secondary text", "content_muted_color", "muted"],
+            ] as const
+          ).map(([label, key, tone]) => {
+            const fallback =
+              TONE_DEFAULTS[config.theme === "light" ? "light" : "dark"][tone];
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-32 text-xs text-content-muted">{label}</span>
+                <ColorPicker
+                  value={config[key] || fallback}
+                  onChange={(color) => void updateConfig({ [key]: color })}
+                />
+                {config[key] ? (
+                  <button
+                    className="text-xs text-content-muted hover:text-content"
+                    onClick={() => void updateConfig({ [key]: "" })}
+                  >
+                    reset to theme default
+                  </button>
+                ) : (
+                  <span className="text-xs text-content-muted">
+                    theme default
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Markdown colors</span>
+          <select
+            className="input w-64"
+            value={config.md_preset}
+            onChange={(e) =>
+              void updateConfig({
+                md_preset: e.target.value as AppConfig["md_preset"],
+              })
+            }
+          >
+            {Object.entries(MD_PRESET_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          {config.md_preset === "custom" && (
+            <div className="flex flex-col gap-2 pl-6">
+              {MD_TOKENS.map(({ key, label }) => {
+                const field = `md_color_${key}` as const;
+                return (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="w-40 text-xs text-content-muted">
+                      {label}
+                    </span>
+                    <ColorPicker
+                      value={config[field]}
+                      onChange={(color) => void updateConfig({ [field]: color })}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <span className="text-xs text-content-muted">
+            Token colors in the Journal/Notes editor. Custom keeps its own
+            seven colors and applies them on both themes.
+          </span>
+        </section>
 
         <Toggle
           checked={config.day_header_centered}

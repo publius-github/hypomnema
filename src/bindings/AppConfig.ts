@@ -106,4 +106,22 @@ backup_keep: number,
  * OS notifications for timed tasks coming due (in-app toasts always
  * show); useful when the window is minimized or behind others.
  */
-notify_system: boolean, };
+notify_system: boolean, 
+/**
+ * Base UI font size in px (the browser default is 16; every text
+ * size in the app scales from it).
+ */
+ui_font_size: number, 
+/**
+ * Overrides for the two text tones, hex; empty = theme default.
+ */
+content_color: string, content_muted_color: string, 
+/**
+ * Markdown editor color scheme: a named preset, or "custom" using
+ * the md_color_* values below.
+ */
+md_preset: "vscode" | "monokai" | "one-dark" | "github" | "custom", 
+/**
+ * Custom markdown token colors (used when md_preset = custom).
+ */
+md_color_heading: string, md_color_bold: string, md_color_italic: string, md_color_code: string, md_color_link: string, md_color_quote: string, md_color_marker: string, };

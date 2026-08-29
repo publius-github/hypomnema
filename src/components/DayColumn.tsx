@@ -83,14 +83,17 @@ function DayColumn({
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.category_block_gap ?? 12;
 
+  // Postponed/Done headers use the same plate style as the cadence
+  // group headers, so every section label reads with the same weight
   const section = (label: string, items: Task[]) =>
     items.length > 0 && (
       <div
-        className="flex flex-col border-t border-line pt-1.5"
+        className="flex flex-col"
         style={{ rowGap: taskGap, marginTop: sectionGap }}
       >
-        <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
-          {label}
+        <div className="flex items-center gap-1.5 rounded bg-line/40 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-content">
+          <span>{label}</span>
+          <span className="h-px flex-1 bg-current opacity-30" />
         </div>
         {items.map((task) => (
           <TaskCard key={task.id} task={task} onOpen={onOpenTask} />

@@ -60,14 +60,16 @@ function ListColumn({
   const card = (task: Task) => (
     <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
   );
+  // same plate style as the day-column section headers
   const section = (label: string, items: Task[]) =>
     items.length > 0 && (
       <div
-        className="flex flex-col border-t border-line pt-1.5"
+        className="flex flex-col"
         style={{ rowGap: taskGap, marginTop: sectionGap }}
       >
-        <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
-          {label}
+        <div className="flex items-center gap-1.5 rounded bg-line/40 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-content">
+          <span>{label}</span>
+          <span className="h-px flex-1 bg-current opacity-30" />
         </div>
         {items.map(card)}
       </div>

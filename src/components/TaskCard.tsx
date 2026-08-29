@@ -264,8 +264,11 @@ function TaskCard({
                 className={
                   sub.status === "done"
                     ? "text-content-muted line-through"
-                    : ""
+                    : sub.status === "postponed"
+                      ? "text-warn"
+                      : ""
                 }
+                title={sub.status === "postponed" ? "Postponed" : undefined}
               >
                 {sub.title}
               </span>

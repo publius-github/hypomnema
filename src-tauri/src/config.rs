@@ -85,7 +85,27 @@ pub struct AppConfig {
     /// OS notifications for timed tasks coming due (in-app toasts always
     /// show); useful when the window is minimized or behind others.
     pub notify_system: bool,
+    /// Base UI font size in px (the browser default is 16; every text
+    /// size in the app scales from it).
+    pub ui_font_size: u32,
+    /// Overrides for the two text tones, hex; empty = theme default.
+    pub content_color: String,
+    pub content_muted_color: String,
+    /// Markdown editor color scheme: a named preset, or "custom" using
+    /// the md_color_* values below.
+    #[ts(type = "\"vscode\" | \"monokai\" | \"one-dark\" | \"github\" | \"custom\"")]
+    pub md_preset: String,
+    /// Custom markdown token colors (used when md_preset = custom).
+    pub md_color_heading: String,
+    pub md_color_bold: String,
+    pub md_color_italic: String,
+    pub md_color_code: String,
+    pub md_color_link: String,
+    pub md_color_quote: String,
+    pub md_color_marker: String,
 }
+
+pub const MD_PRESETS: &[&str] = &["vscode", "monokai", "one-dark", "github", "custom"];
 
 pub const SECTIONS: &[&str] = &[
     "dashboard",
@@ -137,6 +157,18 @@ impl Default for AppConfig {
             subtasks_done_last: true,
             backup_keep: 14,
             notify_system: true,
+            ui_font_size: 16,
+            content_color: String::new(),
+            content_muted_color: String::new(),
+            md_preset: "vscode".into(),
+            // custom starts from the Dark+ values
+            md_color_heading: "#569cd6".into(),
+            md_color_bold: "#569cd6".into(),
+            md_color_italic: "#c586c0".into(),
+            md_color_code: "#ce9178".into(),
+            md_color_link: "#ce9178".into(),
+            md_color_quote: "#6a9955".into(),
+            md_color_marker: "#6796e6".into(),
         }
     }
 }
@@ -186,6 +218,10 @@ impl AppConfig {
         self.calendar_dates_years = self.calendar_dates_years.min(5);
         self.done_hold_seconds = self.done_hold_seconds.min(30);
         self.backup_keep = self.backup_keep.min(365);
+        self.ui_font_size = self.ui_font_size.clamp(10, 28);
+        if !MD_PRESETS.contains(&self.md_preset.as_str()) {
+            self.md_preset = "vscode".into();
+        }
         self.task_gap = self.task_gap.min(48);
         self.section_gap = self.section_gap.min(48);
         self.category_block_gap = self.category_block_gap.min(48);
@@ -218,6 +254,27 @@ impl AppConfig {
         );
         sanitize_color(&mut self.cadence_color_exact, defaults.cadence_color_exact);
         sanitize_color(&mut self.category_color, defaults.category_color);
+        sanitize_color(&mut self.md_color_heading, defaults.md_color_heading);
+        sanitize_color(&mut self.md_color_bold, defaults.md_color_bold);
+        sanitize_color(&mut self.md_color_italic, defaults.md_color_italic);
+        sanitize_color(&mut self.md_color_code, defaults.md_color_code);
+        sanitize_color(&mut self.md_color_link, defaults.md_color_link);
+        sanitize_color(&mut self.md_color_quote, defaults.md_color_quote);
+        sanitize_color(&mut self.md_color_marker, defaults.md_color_marker);
+        // text tone overrides: empty means "theme default", anything
+        // else must be a well-formed hex color
+        let sanitize_optional_color = |value: &mut String| {
+            *value = value.trim().to_lowercase();
+            if !value.is_empty()
+                && !(value.len() == 7
+                    && value.starts_with('#')
+                    && value[1..].chars().all(|c| c.is_ascii_hexdigit()))
+            {
+                value.clear();
+            }
+        };
+        sanitize_optional_color(&mut self.content_color);
+        sanitize_optional_color(&mut self.content_muted_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -303,6 +360,17 @@ impl AppConfig {
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
             ("notify_system", self.notify_system.to_string()),
+            ("ui_font_size", self.ui_font_size.to_string()),
+            ("content_color", self.content_color.clone()),
+            ("content_muted_color", self.content_muted_color.clone()),
+            ("md_preset", self.md_preset.clone()),
+            ("md_color_heading", self.md_color_heading.clone()),
+            ("md_color_bold", self.md_color_bold.clone()),
+            ("md_color_italic", self.md_color_italic.clone()),
+            ("md_color_code", self.md_color_code.clone()),
+            ("md_color_link", self.md_color_link.clone()),
+            ("md_color_quote", self.md_color_quote.clone()),
+            ("md_color_marker", self.md_color_marker.clone()),
         ]
     }
 }

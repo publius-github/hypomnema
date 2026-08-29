@@ -13,6 +13,7 @@ import type {
   TaskPatch,
 } from "./types";
 import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
+import { MD_TOKENS, resolveMdColors } from "./lib/mdPresets";
 
 interface AppState {
   loaded: boolean;
@@ -80,11 +81,18 @@ interface AppState {
   archiveList: (id: number) => Promise<void>;
 }
 
+/** "#a1b2c3" -> "161 178 195" (the space-separated form the theme
+ *  tokens use, so opacity modifiers keep working). */
+function hexToTriplet(hex: string): string | null {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return null;
+  return [1, 3, 5]
+    .map((i) => parseInt(hex.slice(i, i + 2), 16))
+    .join(" ");
+}
+
 function applyTheme(config: AppConfig | null) {
-  document.documentElement.classList.toggle(
-    "dark",
-    config?.theme !== "light",
-  );
+  const root = document.documentElement;
+  root.classList.toggle("dark", config?.theme !== "light");
   // fonts are config-driven: the UI font overrides the stylesheet
   // default, the editor font feeds CodeMirror through a CSS variable
   const ui = config?.ui_font.trim() ?? "";
@@ -92,10 +100,29 @@ function applyTheme(config: AppConfig | null) {
     ? `"${ui}", system-ui, -apple-system, "Segoe UI", sans-serif`
     : "";
   const editor = config?.editor_font.trim() || "Consolas";
-  document.documentElement.style.setProperty(
+  root.style.setProperty(
     "--editor-font",
     `"${editor}", ui-monospace, SFMono-Regular, Consolas, monospace`,
   );
+  // every text size derives from the root font size (rem-based tokens)
+  const size = config?.ui_font_size ?? 16;
+  root.style.fontSize = size === 16 ? "" : `${size}px`;
+  // text tone overrides; empty config value = theme default
+  for (const [name, value] of [
+    ["--color-content", config?.content_color],
+    ["--color-content-muted", config?.content_muted_color],
+  ] as const) {
+    const triplet = value ? hexToTriplet(value) : null;
+    if (triplet) root.style.setProperty(name, triplet);
+    else root.style.removeProperty(name);
+  }
+  // markdown color preset: named presets and custom colors override the
+  // per-theme stylesheet defaults ("vscode" preset = no overrides)
+  const md = config ? resolveMdColors(config) : null;
+  for (const { key } of MD_TOKENS) {
+    if (md) root.style.setProperty(`--md-${key}`, md[key]);
+    else root.style.removeProperty(`--md-${key}`);
+  }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({

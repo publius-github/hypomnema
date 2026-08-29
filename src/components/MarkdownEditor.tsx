@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
-import { EditorState, type Extension } from "@codemirror/state";
+import { EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
+  Decoration,
   EditorView,
+  ViewPlugin,
   crosshairCursor,
   drawSelection,
   dropCursor,
@@ -10,6 +12,8 @@ import {
   lineNumbers,
   rectangularSelection,
   type Command,
+  type DecorationSet,
+  type ViewUpdate,
 } from "@codemirror/view";
 import {
   defaultKeymap,
@@ -27,6 +31,7 @@ import {
   HighlightStyle,
   bracketMatching,
   syntaxHighlighting,
+  syntaxTree,
 } from "@codemirror/language";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { tags } from "@lezer/highlight";
@@ -73,6 +78,53 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.escape, color: "var(--md-code)" },
 ]);
 
+// The square brackets of links, wiki links and checkboxes stay in the
+// default text color - only the content between them takes the token
+// color. The bracket characters have no tag of their own (LinkMark
+// shares processingInstruction with every other mark; a TaskMarker is
+// one atom node), so they are re-colored with a decoration over the
+// syntax tree.
+const bracketMark = Decoration.mark({ class: "cm-md-bracket" });
+
+function bracketDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const { from, to } of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from,
+      to,
+      enter: (node) => {
+        if (node.name === "LinkMark") {
+          const text = view.state.doc.sliceString(node.from, node.to);
+          for (let i = 0; i < text.length; i++) {
+            if (text[i] === "[" || text[i] === "]") {
+              builder.add(node.from + i, node.from + i + 1, bracketMark);
+            }
+          }
+        } else if (node.name === "TaskMarker" && node.to - node.from >= 2) {
+          builder.add(node.from, node.from + 1, bracketMark);
+          builder.add(node.to - 1, node.to, bracketMark);
+        }
+      },
+    });
+  }
+  return builder.finish();
+}
+
+const plainBrackets = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = bracketDecorations(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = bracketDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
 // IDE-style YAML colors; fixed mid-tone hues stay readable on both the
 // dark and the light background
 const yamlHighlight = HighlightStyle.define([
@@ -102,6 +154,9 @@ const editorTheme = EditorView.theme({
     padding: "12px 0",
   },
   ".cm-cursor": { borderLeftColor: "rgb(var(--color-accent))" },
+  // the two-class selector outweighs the single-class token color the
+  // highlighter puts on the same span
+  ".cm-content .cm-md-bracket": { color: "rgb(var(--color-content))" },
   "&.cm-focused": { outline: "none" },
   ".cm-line": { padding: "0 12px" },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
@@ -225,6 +280,7 @@ function modeExtensions(mode: EditorMode): Extension[] {
       return [
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(markdownHighlight),
+        plainBrackets,
         markdownLinter(),
       ];
     case "yaml":

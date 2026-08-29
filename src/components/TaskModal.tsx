@@ -343,9 +343,8 @@ export default function TaskModal({
 
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-content-muted">Subtasks</span>
-          {subtasks.map((sub) => (
-            <SubtaskRow key={sub.id} sub={sub} />
-          ))}
+          {/* the add field sits above the rows: with a long subtask
+              list it stays in view instead of scrolling away */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -365,6 +364,9 @@ export default function TaskModal({
               onChange={(e) => setSubtaskTitle(e.target.value)}
             />
           </form>
+          {subtasks.map((sub) => (
+            <SubtaskRow key={sub.id} sub={sub} />
+          ))}
         </div>
 
         <div className="flex justify-between border-t border-line pt-3">
@@ -441,7 +443,11 @@ function SubtaskRow({ sub }: { sub: Task }) {
       ) : (
         <span
           className={`flex-1 cursor-text ${
-            sub.status === "done" ? "text-content-muted line-through" : ""
+            sub.status === "done"
+              ? "text-content-muted line-through"
+              : sub.status === "postponed"
+                ? "text-warn"
+                : ""
           }`}
           title="Click to edit"
           onClick={() => {
@@ -452,6 +458,21 @@ function SubtaskRow({ sub }: { sub: Task }) {
           {sub.title}
         </span>
       )}
+      <button
+        className={`text-xs ${
+          sub.status === "postponed"
+            ? "text-warn"
+            : "text-content-muted hover:text-warn"
+        }`}
+        title={sub.status === "postponed" ? "Back to To Do" : "Postpone"}
+        onClick={() =>
+          void updateTask(sub.id, {
+            status: sub.status === "postponed" ? "todo" : "postponed",
+          })
+        }
+      >
+        →
+      </button>
       <button
         className="text-xs text-content-muted hover:text-danger"
         onClick={() => void deleteTask(sub.id)}
