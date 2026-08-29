@@ -38,24 +38,32 @@ export type EditorMode = "markdown" | "yaml" | "plain";
 
 // Live-preview-lite: markdown syntax rendered in place (headings sized,
 // emphasis styled, code monospaced) while the source stays editable.
+// Token colors follow VS Code (Dark+/Light+ via the --md-* theme vars)
+// so the structure of a note reads at a glance.
 const markdownHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.5em", fontWeight: "700" },
-  { tag: tags.heading2, fontSize: "1.3em", fontWeight: "700" },
-  { tag: tags.heading3, fontSize: "1.15em", fontWeight: "600" },
-  { tag: tags.heading4, fontWeight: "600" },
-  { tag: tags.strong, fontWeight: "700" },
+  { tag: tags.heading1, fontSize: "1.5em", fontWeight: "700", color: "var(--md-heading)" },
+  { tag: tags.heading2, fontSize: "1.3em", fontWeight: "700", color: "var(--md-heading)" },
+  { tag: tags.heading3, fontSize: "1.15em", fontWeight: "600", color: "var(--md-heading)" },
+  { tag: tags.heading4, fontWeight: "600", color: "var(--md-heading)" },
+  { tag: tags.heading, fontWeight: "600", color: "var(--md-heading)" },
+  { tag: tags.strong, fontWeight: "700", color: "var(--md-bold)" },
   { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.strikethrough, textDecoration: "line-through" },
-  { tag: tags.link, color: "rgb(var(--color-accent))" },
-  { tag: tags.url, color: "rgb(var(--color-accent))", opacity: "0.8" },
+  { tag: tags.strikethrough, textDecoration: "line-through", color: "rgb(var(--color-content-muted))" },
+  { tag: tags.link, color: "var(--md-link)" },
+  { tag: tags.url, color: "var(--md-link)", opacity: "0.8", textDecoration: "underline" },
   {
     tag: tags.monospace,
     fontFamily: "var(--editor-font)",
     fontSize: "0.9em",
+    color: "var(--md-code)",
   },
-  { tag: tags.processingInstruction, color: "rgb(var(--color-content-muted))" },
-  { tag: tags.quote, color: "rgb(var(--color-content-muted))", fontStyle: "italic" },
-  { tag: tags.list, color: "rgb(var(--color-content))" },
+  { tag: tags.labelName, color: "var(--md-code)" },
+  { tag: tags.processingInstruction, color: "var(--md-marker)" },
+  { tag: tags.contentSeparator, color: "var(--md-heading)" },
+  { tag: tags.quote, color: "var(--md-quote)", fontStyle: "italic" },
+  { tag: tags.list, color: "var(--md-marker)" },
+  { tag: tags.atom, color: "var(--md-marker)" },
+  { tag: tags.escape, color: "var(--md-code)" },
 ]);
 
 // IDE-style YAML colors; fixed mid-tone hues stay readable on both the

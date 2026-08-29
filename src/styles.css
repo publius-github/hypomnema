@@ -15,6 +15,13 @@
   --color-danger: 220 38 38;
   --color-warn: 217 119 6;
   --color-info: 2 132 199;
+  /* markdown token colors, VS Code Light+ style */
+  --md-heading: #800000;
+  --md-bold: #000080;
+  --md-code: #a31515;
+  --md-link: #0451a5;
+  --md-quote: #008000;
+  --md-marker: #0451a5;
 }
 
 .dark {
@@ -28,6 +35,13 @@
   --color-danger: 248 113 113;
   --color-warn: 251 191 36;
   --color-info: 56 189 248;
+  /* markdown token colors, VS Code Dark+ style */
+  --md-heading: #569cd6;
+  --md-bold: #569cd6;
+  --md-code: #ce9178;
+  --md-link: #3794ff;
+  --md-quote: #6a9955;
+  --md-marker: #6796e6;
 }
 
 html,
