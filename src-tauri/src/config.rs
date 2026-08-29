@@ -65,11 +65,15 @@ pub struct AppConfig {
     pub cadence_color_exact: String,
     /// Extra vertical spacing before each cadence group in day columns.
     pub cadence_group_gap: bool,
+    /// Order of the cadence sections inside a day column.
+    pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
     pub subtasks_done_last: bool,
 }
 
 pub const SECTIONS: &[&str] = &["dashboard", "upcoming", "calendar", "journal", "kb"];
+
+pub const CADENCE_GROUPS: &[&str] = &["exact", "general", "daily", "weekly", "monthly", "yearly"];
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -103,6 +107,7 @@ impl Default for AppConfig {
             cadence_color_yearly: "#f59e0b".into(),
             cadence_color_exact: "#0ea5e9".into(),
             cadence_group_gap: true,
+            cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
         }
     }
@@ -180,20 +185,24 @@ impl AppConfig {
             defaults.cadence_color_yearly,
         );
         sanitize_color(&mut self.cadence_color_exact, defaults.cadence_color_exact);
-        // unknown names are dropped, missing sections come back in their
-        // default position, so a typo can never lose a tab
-        let mut order: Vec<String> = Vec::new();
-        for name in &self.section_order {
-            if SECTIONS.contains(&name.as_str()) && !order.contains(name) {
-                order.push(name.clone());
+        // unknown names are dropped, missing entries come back in their
+        // default position, so a typo can never lose a tab or a group
+        let sanitize_order = |input: &[String], known: &[&str]| {
+            let mut order: Vec<String> = Vec::new();
+            for name in input {
+                if known.contains(&name.as_str()) && !order.contains(name) {
+                    order.push(name.clone());
+                }
             }
-        }
-        for name in SECTIONS {
-            if !order.iter().any(|o| o == name) {
-                order.push((*name).to_string());
+            for name in known {
+                if !order.iter().any(|o| o == name) {
+                    order.push((*name).to_string());
+                }
             }
-        }
-        self.section_order = order;
+            order
+        };
+        self.section_order = sanitize_order(&self.section_order, SECTIONS);
+        self.cadence_group_order = sanitize_order(&self.cadence_group_order, CADENCE_GROUPS);
         self
     }
 
@@ -254,6 +263,7 @@ impl AppConfig {
             ("cadence_color_yearly", self.cadence_color_yearly.clone()),
             ("cadence_color_exact", self.cadence_color_exact.clone()),
             ("cadence_group_gap", self.cadence_group_gap.to_string()),
+            ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
         ]
     }

@@ -115,7 +115,7 @@ describe("date helpers", () => {
 });
 
 describe("groupByCadence", () => {
-  it("orders groups exact, once, daily, weekly, monthly, yearly", () => {
+  it("orders groups exact, general, daily, weekly, monthly, yearly", () => {
     const groups = groupByCadence([
       task({ id: 1, cadence: "yearly" }),
       task({ id: 2, cadence: "daily" }),
@@ -127,7 +127,7 @@ describe("groupByCadence", () => {
     ]);
     expect(groups.map((g) => g.label)).toEqual([
       "Exact date",
-      null,
+      "General",
       "Daily",
       "Weekly",
       "Monthly",
@@ -137,12 +137,24 @@ describe("groupByCadence", () => {
     expect(groups.slice(1).map((g) => g.tasks[0].id)).toEqual([3, 2, 4, 5, 1]);
   });
 
-  it("skips empty groups and treats unknown cadence as one-off", () => {
+  it("skips empty groups and puts manual/unknown-cadence tasks in General", () => {
     const groups = groupByCadence([
       task({ id: 1, cadence: "hourly" }),
       task({ id: 2, cadence: "daily" }),
     ]);
-    expect(groups.map((g) => g.key)).toEqual(["once", "daily"]);
+    expect(groups.map((g) => g.key)).toEqual(["general", "daily"]);
+  });
+
+  it("respects a custom section order and ignores junk in it", () => {
+    const groups = groupByCadence(
+      [
+        task({ id: 1, cadence: "daily" }),
+        task({ id: 2 }),
+        task({ id: 3, origin: "scheduled" }),
+      ],
+      ["daily", "typo", "general"],
+    );
+    expect(groups.map((g) => g.key)).toEqual(["daily", "general", "exact"]);
   });
 
   it("sorts timed tasks first inside a group, by time then sort_order", () => {

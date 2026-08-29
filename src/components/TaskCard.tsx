@@ -175,33 +175,50 @@ export default function TaskCard({
           {text}
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted">
-          {!overlay && (
-            <button
-              className={`${
-                task.priority
-                  ? "text-warn"
-                  : "opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
-              }`}
-              title={
-                task.priority
-                  ? "Remove priority"
-                  : "Priority: pin to today's column"
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                void updateTask(
-                  task.id,
-                  priorityPatch(
-                    task,
-                    !task.priority,
-                    useAppStore.getState().today,
-                  ),
-                );
-              }}
-            >
-              {task.priority ? "★" : "☆"}
-            </button>
-          )}
+          {!overlay &&
+            // in a day column priority reads as a loud yellow label; in
+            // a list column it stays a star toggle
+            (task.priority && showList ? (
+              <button
+                className="rounded bg-warn/15 px-1 font-semibold uppercase text-warn"
+                title="Remove priority"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void updateTask(
+                    task.id,
+                    priorityPatch(task, false, useAppStore.getState().today),
+                  );
+                }}
+              >
+                priority
+              </button>
+            ) : (
+              <button
+                className={`text-base leading-none ${
+                  task.priority
+                    ? "text-warn"
+                    : "opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
+                }`}
+                title={
+                  task.priority
+                    ? "Remove priority"
+                    : "Priority: pin to today's column"
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void updateTask(
+                    task.id,
+                    priorityPatch(
+                      task,
+                      !task.priority,
+                      useAppStore.getState().today,
+                    ),
+                  );
+                }}
+              >
+                {task.priority ? "★" : "☆"}
+              </button>
+            ))}
           {task.time && <span>{task.time}</span>}
           {task.overdue && !done && (
             <span className="rounded bg-danger/15 px-1 font-medium text-danger">

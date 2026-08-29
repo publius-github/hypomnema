@@ -44,7 +44,7 @@ export default function DayColumn({
     config?.done_display ?? "inline",
     new Set(hold),
   );
-  const groups = groupByCadence(active);
+  const groups = groupByCadence(active, config?.cadence_group_order);
   const isToday = date === today;
 
   const section = (label: string, items: Task[]) =>
@@ -105,12 +105,10 @@ export default function DayColumn({
               (config?.cadence_group_gap ?? true) && i > 0 ? "mt-3" : ""
             }`}
           >
-            {group.label && (
-              <div className="flex items-center gap-1.5 rounded bg-line/25 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-content-muted">
-                <span>{group.label}</span>
-                <span className="h-px flex-1 bg-line" />
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 rounded bg-line/40 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-content">
+              <span>{group.label}</span>
+              <span className="h-px flex-1 bg-content/25" />
+            </div>
             {group.tasks.map((task) => (
               <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
             ))}

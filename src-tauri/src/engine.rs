@@ -649,25 +649,6 @@ fn run_birthdays(
 /// Returns (carried_over, deduped).
 fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
     let today_str = today.format("%Y-%m-%d").to_string();
-    // A missed recurring firing whose next firing has already arrived is
-    // not separate work: today's own instance represents the rule, and
-    // the stale copy would only sit next to it as an overdue duplicate.
-    let deduped = conn.execute(
-        "DELETE FROM tasks
-         WHERE origin = 'recurring' AND status != 'done'
-           AND archived_at IS NULL
-           AND parent_task_id IS NULL
-           AND rule_key IS NOT NULL
-           AND (cadence IS NULL OR cadence != 'daily')
-           AND (scheduled_date < ?1 OR (overdue = 1 AND scheduled_date = ?1))
-           AND EXISTS (SELECT 1 FROM tasks live
-                       WHERE live.id != tasks.id
-                         AND live.rule_key = tasks.rule_key
-                         AND live.archived_at IS NULL
-                         AND live.overdue = 0
-                         AND live.scheduled_date = ?1)",
-        [&today_str],
-    )?;
     // Priority tasks ride along to today but never get the overdue
     // mark: priority already says "do this now", the extra red label
     // adds nothing.
@@ -680,7 +661,29 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
            AND scheduled_date IS NOT NULL
            AND scheduled_date < ?1
            AND (cadence IS NULL OR cadence != 'daily')",
-        [today.format("%Y-%m-%d").to_string()],
+        [&today_str],
+    )?;
+    // One rule = at most one open overdue copy on today. Several missed
+    // firings carried over across different runs, or a missed firing
+    // whose next firing has already arrived, would otherwise sit next
+    // to each other as duplicates. The copy kept is today's own firing
+    // (overdue = 0) when it exists, otherwise the newest overdue copy.
+    let deduped = conn.execute(
+        "DELETE FROM tasks
+         WHERE origin = 'recurring' AND status != 'done'
+           AND archived_at IS NULL
+           AND parent_task_id IS NULL
+           AND rule_key IS NOT NULL
+           AND (cadence IS NULL OR cadence != 'daily')
+           AND scheduled_date = ?1 AND overdue = 1
+           AND EXISTS (SELECT 1 FROM tasks live
+                       WHERE live.id != tasks.id
+                         AND live.rule_key = tasks.rule_key
+                         AND live.archived_at IS NULL
+                         AND live.scheduled_date = ?1
+                         AND (live.overdue = 0
+                              OR (live.status != 'done' AND live.id > tasks.id)))",
+        [&today_str],
     )?;
     // dailies carried over by earlier versions and tasks starred after
     // being carried over drop the overdue mark
@@ -1132,11 +1135,13 @@ mod tests {
 
         // three idle weeks later (Friday 08-28) with a 30-day catch-up:
         // the missed Mondays (08-17, 08-24) collapse into one firing
-        // (08-24), plus the upcoming grid Monday 08-31
+        // (08-24), plus the upcoming grid Monday 08-31. The seeded 08-10
+        // copy and the 08-24 copy both carry over, then collapse into a
+        // single overdue task - one rule never shows duplicates.
         let outcome = run(&conn, &dir, &config(30, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(outcome.generated, 2);
-        assert_eq!(count_tasks(&conn), 3);
         assert_eq!(outcome.carried_over, 2);
+        assert_eq!(count_tasks(&conn), 2);
 
         let overdue_today: i64 = conn
             .query_row(
@@ -1145,7 +1150,7 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(overdue_today, 2);
+        assert_eq!(overdue_today, 1);
 
         let monday: i64 = conn
             .query_row(
@@ -1172,9 +1177,8 @@ mod tests {
         assert_eq!(seeded.generated, 1);
 
         // next Monday: today's own firing arrives; the missed 08-24 copy
-        // must not carry over as an overdue duplicate next to it
+        // is carried in and then dropped as a duplicate next to it
         let outcome = run(&conn, &dir, &cfg, at("2026-08-31", "12:00:00")).unwrap();
-        assert_eq!(outcome.carried_over, 0);
         assert!(outcome.removed >= 1);
         let today_rows: Vec<(String, i64)> = {
             let mut stmt = conn

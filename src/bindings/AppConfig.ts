@@ -74,6 +74,10 @@ cadence_color_exact: string,
  */
 cadence_group_gap: boolean, 
 /**
+ * Order of the cadence sections inside a day column.
+ */
+cadence_group_order: Array<string>, 
+/**
  * Done subtasks sink to the bottom of their subtask list.
  */
 subtasks_done_last: boolean, };

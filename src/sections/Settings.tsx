@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
 import { ConfirmModal } from "../components/dialogs";
+import { CADENCE_GROUP_LABELS } from "../lib/tasks";
 import type { DoneDisplay, List, Theme } from "../types";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -29,13 +30,19 @@ export default function Settings() {
 
   if (!config) return null;
 
-  const moveSection = (index: number, delta: number) => {
-    const order = [...config.section_order];
+  const move = (
+    key: "section_order" | "cadence_group_order",
+    index: number,
+    delta: number,
+  ) => {
+    const order = [...config[key]];
     const target = index + delta;
     if (target < 0 || target >= order.length) return;
     [order[index], order[target]] = [order[target], order[index]];
-    void updateConfig({ section_order: order });
+    void updateConfig({ [key]: order });
   };
+  const moveSection = (index: number, delta: number) =>
+    move("section_order", index, delta);
 
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
@@ -157,6 +164,41 @@ export default function Settings() {
           hint="A wider gap before each group header in the day columns."
           onChange={(v) => void updateConfig({ cadence_group_gap: v })}
         />
+
+        <section className="flex flex-col gap-1">
+          <span className="text-sm font-medium">Day column sections</span>
+          <span className="text-xs text-content-muted">
+            Order of the sections inside a day column.
+          </span>
+          <div className="flex flex-col gap-1">
+            {config.cadence_group_order.map((id, i) => (
+              <div
+                key={id}
+                className="flex items-center gap-2 rounded-md border border-line px-3 py-1 text-sm"
+              >
+                <span className="min-w-0 flex-1">
+                  {CADENCE_GROUP_LABELS[id] ?? id}
+                </span>
+                <button
+                  className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
+                  disabled={i === 0}
+                  title="Move up"
+                  onClick={() => move("cadence_group_order", i, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
+                  disabled={i === config.cadence_group_order.length - 1}
+                  title="Move down"
+                  onClick={() => move("cadence_group_order", i, 1)}
+                >
+                  ↓
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
         </>
       )}
 

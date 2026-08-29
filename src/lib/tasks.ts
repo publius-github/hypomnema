@@ -92,45 +92,58 @@ export function weekdayShort(dateISO: string): string {
 
 export interface CadenceGroup {
   key: string;
-  /** null for the unlabeled one-off group at the top */
-  label: string | null;
+  label: string;
   tasks: Task[];
 }
 
-const CADENCE_GROUPS: { key: string; label: string | null }[] = [
-  { key: "exact", label: "Exact date" },
-  { key: "once", label: null },
-  { key: "daily", label: "Daily" },
-  { key: "weekly", label: "Weekly" },
-  { key: "monthly", label: "Monthly" },
-  { key: "yearly", label: "Yearly" },
-];
+export const CADENCE_GROUP_LABELS: Record<string, string> = {
+  exact: "Exact date",
+  general: "General",
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  yearly: "Yearly",
+};
+
+export const DEFAULT_CADENCE_ORDER = Object.keys(CADENCE_GROUP_LABELS);
+
+const CADENCE_KEYS = new Set(["daily", "weekly", "monthly", "yearly"]);
 
 /**
- * Tasks of one day column, grouped by how often their rule fires.
- * Exact-date items (scheduled events and birthdays, however rarely
- * they recur) always sit on top, then manual one-offs, then daily,
- * weekly, monthly, yearly - the dailies are the block to clear and
- * the rare ones sit below, safe to leave for later.
+ * Tasks of one day column, grouped into sections: exact-date items
+ * (scheduled events and birthdays), General (manual one-offs, priority
+ * pins, anything without a rule cadence), then the rule cadences. The
+ * section order is user-configurable (Settings > Appearance) and
+ * arrives via `order`; unknown names are dropped and missing ones are
+ * appended in default position, mirroring the Rust-side sanitizing.
  */
-export function groupByCadence(tasks: Task[]): CadenceGroup[] {
+export function groupByCadence(
+  tasks: Task[],
+  order: string[] = DEFAULT_CADENCE_ORDER,
+): CadenceGroup[] {
   const buckets = new Map<string, Task[]>();
   for (const task of tasks) {
     const key =
       task.origin === "scheduled" || task.origin === "birthday"
         ? "exact"
-        : task.cadence && CADENCE_GROUPS.some((g) => g.key === task.cadence)
+        : task.cadence && CADENCE_KEYS.has(task.cadence)
           ? task.cadence
-          : "once";
+          : "general";
     const bucket = buckets.get(key);
     if (bucket) bucket.push(task);
     else buckets.set(key, [task]);
   }
-  return CADENCE_GROUPS.filter((g) => buckets.has(g.key)).map((g) => ({
-    key: g.key,
-    label: g.label,
-    tasks: buckets.get(g.key)!.sort(compareTasks),
-  }));
+  const sequence = [
+    ...order.filter((key, i) => key in CADENCE_GROUP_LABELS && order.indexOf(key) === i),
+    ...DEFAULT_CADENCE_ORDER.filter((key) => !order.includes(key)),
+  ];
+  return sequence
+    .filter((key) => buckets.has(key))
+    .map((key) => ({
+      key,
+      label: CADENCE_GROUP_LABELS[key],
+      tasks: buckets.get(key)!.sort(compareTasks),
+    }));
 }
 
 export function compareTasks(a: Task, b: Task): number {
