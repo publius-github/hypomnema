@@ -30,12 +30,6 @@ function flattenFiles(nodes: KbNode[]): KbNode[] {
   return nodes.flatMap((n) => (n.is_dir ? flattenFiles(n.children) : [n]));
 }
 
-// .md is the default note type and stays hidden; anything else shows
-// its extension so non-standard files are recognizable
-function displayName(name: string): string {
-  return name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
-}
-
 export default function KnowledgeBase() {
   const config = useAppStore((s) => s.config);
   const updateConfig = useAppStore((s) => s.updateConfig);
@@ -356,7 +350,7 @@ export default function KnowledgeBase() {
               className="flex-1 truncate text-left"
               onClick={() => void openFile(node.path)}
             >
-              {displayName(node.name)}
+              {node.name}
             </button>
             <button
               className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
@@ -420,7 +414,7 @@ export default function KnowledgeBase() {
                       onClick={() => void openFile(hit.path)}
                     >
                       <span className="block truncate text-sm text-content">
-                        {displayName(hit.name)}
+                        {hit.name}
                       </span>
                       <span className="block truncate text-[11px] text-content-muted">
                         {hit.line}: {hit.preview}
@@ -563,7 +557,7 @@ export default function KnowledgeBase() {
       {dialog?.kind === "create" && (
         <PromptModal
           title="New note"
-          placeholder="Path, e.g. ideas/note"
+          placeholder="Path, e.g. ideas/note (.md is added unless you give an extension)"
           submitLabel="Create"
           onSubmit={(name) => void createFile(name)}
           onCancel={() => setDialog(null)}
@@ -572,7 +566,7 @@ export default function KnowledgeBase() {
       {dialog?.kind === "rename" && (
         <PromptModal
           title={`Rename ${dialog.node.path}`}
-          initial={dialog.node.path.replace(/\.md$/i, "")}
+          initial={dialog.node.path}
           submitLabel="Rename"
           onSubmit={(to) => void renameFile(dialog.node, to)}
           onCancel={() => setDialog(null)}

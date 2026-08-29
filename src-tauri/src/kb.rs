@@ -105,14 +105,16 @@ fn read_dir_sorted(dir: &Path) -> Result<Vec<fs::DirEntry>> {
     Ok(entries)
 }
 
-fn build_tree(root: &Path, dir: &Path, depth: usize, ignore: &[String]) -> Result<Vec<KbNode>> {
+fn build_tree(root: &Path, dir: &Path, ignore: &[String]) -> Result<Vec<KbNode>> {
     let mut dirs = Vec::new();
     let mut files = Vec::new();
     for entry in read_dir_sorted(dir)? {
         let name = entry.file_name().to_string_lossy().into_owned();
-        // dotfiles stay hidden, except the ignore file itself at the
-        // root - it must be editable from the Notes tree
-        if name.starts_with('.') && !(depth == 0 && name == IGNORE_FILE) {
+        // the tree shows everything (dotfiles and .hypomnema included);
+        // hiding is the user's call via .hypomnemaignore. Only our own
+        // write_atomic staging files stay out - they exist for
+        // milliseconds and would make the tree flicker.
+        if name.starts_with('.') && name.ends_with(".tmp") {
             continue;
         }
         let path = entry.path();
@@ -132,16 +134,9 @@ fn build_tree(root: &Path, dir: &Path, depth: usize, ignore: &[String]) -> Resul
                 name,
                 path: rel,
                 is_dir: true,
-                children: build_tree(root, &path, depth + 1, ignore)?,
+                children: build_tree(root, &path, ignore)?,
             });
         } else {
-            // The KB root often doubles as the vault root, so service
-            // files there (app.db and friends) stay hidden: only .md
-            // notes surface at the top level, everything inside
-            // subfolders is shown
-            if depth == 0 && !name.to_lowercase().ends_with(".md") && name != IGNORE_FILE {
-                continue;
-            }
             files.push(KbNode {
                 name,
                 path: rel,
@@ -155,8 +150,9 @@ fn build_tree(root: &Path, dir: &Path, depth: usize, ignore: &[String]) -> Resul
 }
 
 /// The KB folder is never restructured by the app: the tree is read
-/// as-is; all non-hidden files are shown (root level: .md only) minus
-/// whatever .hypomnemaignore at the KB root filters out.
+/// as-is and shows every file and folder (dotfiles and .hypomnema
+/// included) minus whatever .hypomnemaignore at the KB root filters
+/// out - hiding is entirely the user's call.
 pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
     if !root.is_dir() {
         return Err(Error::State(format!(
@@ -165,7 +161,7 @@ pub fn tree(root: &Path) -> Result<Vec<KbNode>> {
         )));
     }
     let ignore = load_ignore(root);
-    build_tree(root, root, 0, &ignore)
+    build_tree(root, root, &ignore)
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -381,7 +377,7 @@ mod tests {
     }
 
     #[test]
-    fn tree_hides_non_md_at_root_but_shows_them_in_subfolders() {
+    fn tree_shows_everything_except_atomic_tmp_files() {
         let root = root("tree");
         fs::create_dir_all(root.join("b-notes")).unwrap();
         fs::write(root.join("b-notes").join("inner.md"), "x").unwrap();
@@ -389,14 +385,15 @@ mod tests {
         fs::write(root.join("a.md"), "x").unwrap();
         fs::write(root.join("app.db"), "x").unwrap();
         fs::write(root.join(".hidden.md"), "x").unwrap();
+        fs::write(root.join(".a.md.tmp"), "x").unwrap();
 
         let nodes = tree(&root).unwrap();
-        assert_eq!(nodes.len(), 2);
-        assert_eq!(nodes[0].name, "b-notes");
-        assert!(nodes[0].is_dir);
+        let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
+        // dotfiles, .db and everything else show; hiding is done via
+        // the ignore file only. Our write_atomic staging never shows.
+        assert_eq!(names, vec!["b-notes", ".hidden.md", "a.md", "app.db"]);
         let children: Vec<&str> = nodes[0].children.iter().map(|n| n.name.as_str()).collect();
         assert_eq!(children, vec!["data.txt", "inner.md"]);
-        assert_eq!(nodes[1].name, "a.md");
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -438,7 +435,13 @@ mod tests {
             .collect();
         assert!(trashed.iter().any(|n| n.ends_with("notes__renamed.md")));
         assert!(trashed.iter().any(|n| n.ends_with("-notes")));
-        assert!(tree(&root).unwrap().is_empty());
+        // .trash now shows in the tree like everything else; only the
+        // ignore file hides it
+        let names: Vec<String> = tree(&root).unwrap().into_iter().map(|n| n.name).collect();
+        assert_eq!(names, vec![".trash".to_string()]);
+        fs::write(root.join(IGNORE_FILE), ".trash/\n").unwrap();
+        let names: Vec<String> = tree(&root).unwrap().into_iter().map(|n| n.name).collect();
+        assert_eq!(names, vec![IGNORE_FILE.to_string()]);
         let _ = fs::remove_dir_all(&root);
     }
 
