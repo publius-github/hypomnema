@@ -151,7 +151,7 @@ const yamlHighlight = HighlightStyle.define([
 const editorTheme = EditorView.theme({
   "&": {
     height: "100%",
-    fontSize: "14px",
+    fontSize: "var(--editor-font-size, 14px)",
     backgroundColor: "transparent",
     color: "rgb(var(--color-content))",
   },
@@ -217,7 +217,8 @@ const editorTheme = EditorView.theme({
 const monoTheme = EditorView.theme({
   ".cm-content": {
     fontFamily: "var(--editor-font)",
-    fontSize: "13px",
+    // config files read a hair smaller than prose
+    fontSize: "calc(var(--editor-font-size, 14px) - 1px)",
   },
 });
 

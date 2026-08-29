@@ -47,6 +47,11 @@ ui_font: string,
  */
 editor_font: string, 
 /**
+ * Editor font size in px (Journal/Notes/config files); independent
+ * of ui_font_size, which drives the rest of the UI.
+ */
+editor_font_size: number, 
+/**
  * Seconds a task just marked done/postponed stays in place before
  * moving to its section, leaving room to fix a misclick (0 = move
  * immediately). Only matters with done_display = separate.

@@ -110,7 +110,9 @@ fn build_tree(root: &Path, dir: &Path, depth: usize, ignore: &[String]) -> Resul
     let mut files = Vec::new();
     for entry in read_dir_sorted(dir)? {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.') {
+        // dotfiles stay hidden, except the ignore file itself at the
+        // root - it must be editable from the Notes tree
+        if name.starts_with('.') && !(depth == 0 && name == IGNORE_FILE) {
             continue;
         }
         let path = entry.path();
@@ -137,7 +139,7 @@ fn build_tree(root: &Path, dir: &Path, depth: usize, ignore: &[String]) -> Resul
             // files there (app.db and friends) stay hidden: only .md
             // notes surface at the top level, everything inside
             // subfolders is shown
-            if depth == 0 && !name.to_lowercase().ends_with(".md") {
+            if depth == 0 && !name.to_lowercase().ends_with(".md") && name != IGNORE_FILE {
                 continue;
             }
             files.push(KbNode {
@@ -359,6 +361,8 @@ mod tests {
         let tree = tree(&root).unwrap();
         let names: Vec<&str> = tree.iter().map(|n| n.name.as_str()).collect();
         assert!(names.contains(&"note.md"));
+        // the ignore file itself is editable from the tree
+        assert!(names.contains(&IGNORE_FILE));
         assert!(!names.contains(&"secret"));
         let sub = tree.iter().find(|n| n.name == "sub").unwrap();
         let sub_names: Vec<&str> = sub.children.iter().map(|n| n.name.as_str()).collect();

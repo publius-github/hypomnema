@@ -47,6 +47,9 @@ pub struct AppConfig {
     pub ui_font: String,
     /// Editor font family for Journal/Notes/config files.
     pub editor_font: String,
+    /// Editor font size in px (Journal/Notes/config files); independent
+    /// of ui_font_size, which drives the rest of the UI.
+    pub editor_font_size: u32,
     /// Seconds a task just marked done/postponed stays in place before
     /// moving to its section, leaving room to fix a misclick (0 = move
     /// immediately). Only matters with done_display = separate.
@@ -156,6 +159,7 @@ impl Default for AppConfig {
             calendar_dates_years: 1,
             ui_font: String::new(),
             editor_font: "Consolas".into(),
+            editor_font_size: 14,
             done_hold_seconds: 3,
             day_header_centered: false,
             cadence_colors: true,
@@ -240,6 +244,7 @@ impl AppConfig {
         self.done_hold_seconds = self.done_hold_seconds.min(30);
         self.backup_keep = self.backup_keep.min(365);
         self.ui_font_size = self.ui_font_size.clamp(10, 28);
+        self.editor_font_size = self.editor_font_size.clamp(10, 28);
         if !MD_PRESETS.contains(&self.md_preset.as_str()) {
             self.md_preset = "vscode".into();
         }
@@ -369,6 +374,7 @@ impl AppConfig {
             ),
             ("ui_font", self.ui_font.clone()),
             ("editor_font", self.editor_font.clone()),
+            ("editor_font_size", self.editor_font_size.to_string()),
             ("done_hold_seconds", self.done_hold_seconds.to_string()),
             ("day_header_centered", self.day_header_centered.to_string()),
             ("cadence_colors", self.cadence_colors.to_string()),

@@ -97,6 +97,16 @@ export default function AppearanceTab() {
           />
         </Field>
 
+        <Field label="Editor font size, px (Journal, Notes, config files)">
+          <NumberInput
+            value={config.editor_font_size}
+            min={10}
+            onCommit={(n) =>
+              void updateConfig({ editor_font_size: Math.min(28, n) })
+            }
+          />
+        </Field>
+
         <section className="flex flex-col gap-2">
           <span className="text-sm font-medium">Text colors</span>
           {TEXT_COLOR_ROWS.map(([label, key, darkHex, lightHex]) => {
