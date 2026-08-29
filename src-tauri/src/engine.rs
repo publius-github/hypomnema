@@ -978,6 +978,43 @@ mod tests {
     }
 
     #[test]
+    fn dow_label_backfills_existing_instances() {
+        let (conn, dir) = setup("dow-backfill");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 9 * * SAT#1\"\n    description: FirstSat\n    items:\n      - \"{Home} monthly chores\"\n",
+        )
+        .unwrap();
+        // grid wide enough to reach the first Saturday of September
+        let cfg = config(7, 14, 0);
+        // first pass generates instances (pretend it ran on an old
+        // version: wipe the labels the way a migrated vault has them)
+        run(&conn, &dir, &cfg, at("2026-08-25", "12:00:00")).unwrap();
+        conn.execute("UPDATE tasks SET dow_label = NULL", [])
+            .unwrap();
+
+        // the next pass re-stamps every instance of the rule
+        run(&conn, &dir, &cfg, at("2026-08-25", "13:00:00")).unwrap();
+        let (total, labeled): (i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(dow_label) FROM tasks WHERE origin = 'recurring'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert!(total > 0, "rule generated no instances");
+        assert_eq!(total, labeled, "some instances missed the backfill");
+        let label: String = conn
+            .query_row(
+                "SELECT DISTINCT dow_label FROM tasks WHERE origin = 'recurring'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(label, "SAT1");
+    }
+
+    #[test]
     fn weekday_pinned_cron_sets_dow_label() {
         let (conn, dir) = setup("dow");
         fs::write(
