@@ -25,12 +25,12 @@ const DEFAULT_ORDER = [
 
 // the highlight is a square around the icon; the label sits under it
 // and only changes color, so the selection reads compact.
-// px sizes on purpose: the rail must not scale with the configurable
-// base font size (rem-based sizes do)
-const railButton = "group flex w-[60px] flex-col items-center gap-0.5 py-0.5";
+// px everywhere on purpose (sizes, gaps, paddings): the rail must not
+// move or scale with the configurable base font size (rem values do)
+const railButton = "group flex w-[60px] flex-col items-center gap-[2px] py-[2px]";
 const railBox =
   "flex h-[36px] w-[36px] items-center justify-center rounded-lg transition-colors";
-const railLabel = "max-w-full truncate px-0.5 text-[11px] leading-tight";
+const railLabel = "max-w-full truncate px-[2px] text-[11px] leading-[14px]";
 
 function RailButton({
   active = false,
@@ -118,7 +118,7 @@ export default function TabBar() {
   const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
-    <nav className="flex w-[64px] flex-col items-center gap-1 border-r border-line bg-surface-alt py-3">
+    <nav className="flex w-[64px] flex-col items-center gap-[4px] border-r border-line bg-surface-alt py-[12px]">
       {(config?.section_order ?? DEFAULT_ORDER)
         .map((id) => TABS[id])
         .filter(Boolean)

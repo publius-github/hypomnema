@@ -1661,7 +1661,7 @@ dependencies = [
 
 [[package]]
 name = "hypomnema"
-version = "0.32.3"
+version = "0.32.4"
 dependencies = [
  "chrono",
  "croner",
