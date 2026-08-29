@@ -96,6 +96,7 @@ fn start_config_watcher(app: AppHandle, config_dir: &Path) -> Result<()> {
 
 fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<AppConfig> {
     let vault = Vault::open(root)?;
+    journal::ensure_template_location(root);
     let config = vault.config.clone();
     let config_dir = vault.config_dir();
     *state.vault.lock().unwrap() = Some(vault);

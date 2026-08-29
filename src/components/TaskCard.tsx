@@ -62,6 +62,27 @@ export default function TaskCard({
   const done = task.status === "done";
   // a {Category} prefix is a pure text label rendered as a chip
   const { category, text } = splitCategory(task.title);
+  // cadence coloring reuses the manual color stripe; a manual color wins
+  const cadenceColor = useAppStore((s) => {
+    const c = s.config;
+    if (!c?.cadence_colors) return null;
+    if (task.origin === "scheduled" || task.origin === "birthday") {
+      return c.cadence_color_exact;
+    }
+    switch (task.cadence) {
+      case "daily":
+        return c.cadence_color_daily;
+      case "weekly":
+        return c.cadence_color_weekly;
+      case "monthly":
+        return c.cadence_color_monthly;
+      case "yearly":
+        return c.cadence_color_yearly;
+      default:
+        return null;
+    }
+  });
+  const stripe = task.color ?? cadenceColor;
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
   const tooltip = [
     task.title,
@@ -93,10 +114,10 @@ export default function TaskCard({
       } ${overlay ? "shadow-lg" : ""}`}
     >
       <div className="flex items-center gap-2 px-2 py-1" title={tooltip}>
-        {task.color && (
+        {stripe && (
           <span
             className="h-4 w-1 shrink-0 rounded"
-            style={{ backgroundColor: task.color }}
+            style={{ backgroundColor: stripe }}
           />
         )}
         <button

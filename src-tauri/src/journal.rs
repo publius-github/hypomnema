@@ -51,6 +51,13 @@ fn template_path(vault: &Path) -> PathBuf {
     new
 }
 
+/// Runs the template migration (see template_path) at vault open, so
+/// the old journal/templates/daily.md moves to config/ even when the
+/// template itself is never opened in this session.
+pub fn ensure_template_location(vault: &Path) {
+    let _ = template_path(vault);
+}
+
 /// Opens the entry for the date. A missing entry is served from the
 /// template ({{date}} substituted) WITHOUT creating the file: merely
 /// looking at a day must not litter the journal with untouched entries.

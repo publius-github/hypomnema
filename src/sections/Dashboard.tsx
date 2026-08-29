@@ -291,7 +291,7 @@ function ListZone({
       tasks.some(
         (t) =>
           t.list_id === list.id &&
-          !t.scheduled_date &&
+          (!t.scheduled_date || t.priority) &&
           t.parent_task_id === null,
       ),
   );
@@ -327,10 +327,12 @@ function ListZone({
         ))}
       </div>
       {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
-      <div className="flex min-h-0 shrink-0 flex-col gap-3">
+      {/* one shared scrollbar for the button and the list index, the
+          same way a long list column scrolls as a whole */}
+      <div className="flex min-h-0 shrink-0 flex-col gap-3 overflow-y-auto">
         <NewListForm />
         {visible.length > perPage && (
-          <div className="flex min-h-0 w-40 flex-1 flex-col gap-0.5 overflow-y-auto rounded-lg border border-line bg-surface-alt/50 p-1.5">
+          <div className="flex w-40 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
             <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
               All lists
             </div>

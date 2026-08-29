@@ -57,9 +57,18 @@ done_hold_seconds: number,
  */
 day_header_centered: boolean, 
 /**
- * Color the cadence group headers (daily/weekly/...) in day columns.
+ * Color task cards by their rule cadence (the same color stripe a
+ * task gets from a manual color; a manual color wins).
  */
 cadence_colors: boolean, 
+/**
+ * Stripe colors per cadence, hex.
+ */
+cadence_color_daily: string, cadence_color_weekly: string, cadence_color_monthly: string, cadence_color_yearly: string, 
+/**
+ * Exact-date tasks (scheduled events and birthdays).
+ */
+cadence_color_exact: string, 
 /**
  * Extra vertical spacing before each cadence group in day columns.
  */

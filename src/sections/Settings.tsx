@@ -121,10 +121,35 @@ export default function Settings() {
 
         <Toggle
           checked={config.cadence_colors}
-          label="Color cadence groups"
-          hint="Daily, Weekly, Monthly, Yearly and Exact date headers each get their own color in the day columns."
+          label="Color tasks by cadence"
+          hint="Daily, weekly, monthly, yearly and exact-date tasks get a color stripe on the card (the same stripe a manual task color uses; a manual color wins)."
           onChange={(v) => void updateConfig({ cadence_colors: v })}
         />
+        {config.cadence_colors && (
+          <div className="flex flex-wrap gap-4 pl-6">
+            {(
+              [
+                ["Daily", "cadence_color_daily"],
+                ["Weekly", "cadence_color_weekly"],
+                ["Monthly", "cadence_color_monthly"],
+                ["Yearly", "cadence_color_yearly"],
+                ["Exact date", "cadence_color_exact"],
+              ] as const
+            ).map(([label, key]) => (
+              <label key={key} className="flex items-center gap-1.5 text-xs">
+                <input
+                  type="color"
+                  className="h-6 w-8 cursor-pointer rounded border border-line bg-transparent"
+                  value={config[key]}
+                  onChange={(e) =>
+                    void updateConfig({ [key]: e.target.value })
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        )}
 
         <Toggle
           checked={config.cadence_group_gap}

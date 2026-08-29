@@ -58,9 +58,10 @@ export function splitCategory(title: string): {
 }
 
 /**
- * Starring a task pulls it into today's column (it keeps its list);
- * un-starring a manual list task sends it back to its list column.
- * Priority tasks are exempt from the overdue mark (engine side).
+ * Starring a task pins it to today's column while it KEEPS showing in
+ * its list (one row shown in two places, so closing it anywhere closes
+ * it everywhere); un-starring a manual list task makes it list-only
+ * again. Priority tasks are exempt from the overdue mark (engine side).
  */
 export function priorityPatch(
   task: Task,

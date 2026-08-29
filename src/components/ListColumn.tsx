@@ -25,11 +25,14 @@ export default function ListColumn({
   const [name, setName] = useState(list.name);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
+  // a starred task lives in BOTH places: pinned to today's column and
+  // still here in its list - one row, so closing it anywhere closes it
+  // everywhere
   const listTasks = tasks
     .filter(
       (t) =>
         t.list_id === list.id &&
-        t.scheduled_date === null &&
+        (t.scheduled_date === null || t.priority) &&
         t.parent_task_id === null,
     )
     .sort(compareTasks);

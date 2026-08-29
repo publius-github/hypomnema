@@ -53,8 +53,16 @@ pub struct AppConfig {
     pub done_hold_seconds: u32,
     /// Center the day headers on the dashboard grid.
     pub day_header_centered: bool,
-    /// Color the cadence group headers (daily/weekly/...) in day columns.
+    /// Color task cards by their rule cadence (the same color stripe a
+    /// task gets from a manual color; a manual color wins).
     pub cadence_colors: bool,
+    /// Stripe colors per cadence, hex.
+    pub cadence_color_daily: String,
+    pub cadence_color_weekly: String,
+    pub cadence_color_monthly: String,
+    pub cadence_color_yearly: String,
+    /// Exact-date tasks (scheduled events and birthdays).
+    pub cadence_color_exact: String,
     /// Extra vertical spacing before each cadence group in day columns.
     pub cadence_group_gap: bool,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -89,6 +97,11 @@ impl Default for AppConfig {
             done_hold_seconds: 3,
             day_header_centered: false,
             cadence_colors: true,
+            cadence_color_daily: "#9ca3af".into(),
+            cadence_color_weekly: "#3b82f6".into(),
+            cadence_color_monthly: "#a855f7".into(),
+            cadence_color_yearly: "#f59e0b".into(),
+            cadence_color_exact: "#0ea5e9".into(),
             cadence_group_gap: true,
             subtasks_done_last: true,
         }
@@ -141,6 +154,32 @@ impl AppConfig {
         self.done_hold_seconds = self.done_hold_seconds.min(30);
         self.ui_font = self.ui_font.trim().to_string();
         self.editor_font = self.editor_font.trim().to_string();
+        // hex colors land in inline styles; anything malformed falls
+        // back to the default so no arbitrary string reaches the DOM
+        let defaults = Self::default();
+        let sanitize_color = |value: &mut String, default: String| {
+            *value = value.trim().to_lowercase();
+            if !(value.len() == 7
+                && value.starts_with('#')
+                && value[1..].chars().all(|c| c.is_ascii_hexdigit()))
+            {
+                *value = default;
+            }
+        };
+        sanitize_color(&mut self.cadence_color_daily, defaults.cadence_color_daily);
+        sanitize_color(
+            &mut self.cadence_color_weekly,
+            defaults.cadence_color_weekly,
+        );
+        sanitize_color(
+            &mut self.cadence_color_monthly,
+            defaults.cadence_color_monthly,
+        );
+        sanitize_color(
+            &mut self.cadence_color_yearly,
+            defaults.cadence_color_yearly,
+        );
+        sanitize_color(&mut self.cadence_color_exact, defaults.cadence_color_exact);
         // unknown names are dropped, missing sections come back in their
         // default position, so a typo can never lose a tab
         let mut order: Vec<String> = Vec::new();
@@ -209,6 +248,11 @@ impl AppConfig {
             ("done_hold_seconds", self.done_hold_seconds.to_string()),
             ("day_header_centered", self.day_header_centered.to_string()),
             ("cadence_colors", self.cadence_colors.to_string()),
+            ("cadence_color_daily", self.cadence_color_daily.clone()),
+            ("cadence_color_weekly", self.cadence_color_weekly.clone()),
+            ("cadence_color_monthly", self.cadence_color_monthly.clone()),
+            ("cadence_color_yearly", self.cadence_color_yearly.clone()),
+            ("cadence_color_exact", self.cadence_color_exact.clone()),
             ("cadence_group_gap", self.cadence_group_gap.to_string()),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
         ]
