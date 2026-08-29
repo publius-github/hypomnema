@@ -31,7 +31,11 @@ export default function QuickAdd({ target }: { target: Partial<NewTask> }) {
     >
       <input
         className="input w-full py-1 text-xs"
-        placeholder="Task title, or {List} title"
+        placeholder={
+          // inside a list column the task always lands in that list; the
+          // {List} routing prefix works only for day/date targets
+          target.list_id != null ? "Task title" : "Task title, or {List} title"
+        }
         value={title}
         autoFocus
         onChange={(e) => setTitle(e.target.value)}

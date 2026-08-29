@@ -1,12 +1,12 @@
 import type { ScheduleBlock, Task, TaskStatus } from "../types";
 
-// The checkbox toggles between open and done only - a double-click on
-// a done task must not accidentally postpone it. Postponing is its own
-// action (the arrow button / the modal).
+// The checkbox cycles todo -> done -> postponed -> todo: postponing is
+// one extra click on a just-completed task (the done-hold delay keeps
+// it in place long enough to make that click).
 export const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
   todo: "done",
-  done: "todo",
-  postponed: "done",
+  done: "postponed",
+  postponed: "todo",
 };
 
 export function nextStatus(status: TaskStatus): TaskStatus {
@@ -32,13 +32,20 @@ export function gridDates(start: string, columns: number): string[] {
 }
 
 export function dayLabel(dateISO: string, today: string): string {
-  if (dateISO === today) return "Today";
   const [y, m, d] = dateISO.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-US", {
+  const weekday = new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+  return dateISO === today
+    ? `${weekday} ${dateISO} [Today]`
+    : `${weekday} ${dateISO}`;
+}
+
+/** Short weekday of an ISO date, for exact-date chips ("Sat"). */
+export function weekdayShort(dateISO: string): string {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
     weekday: "short",
-    month: "short",
-    day: "numeric",
   });
 }
 
@@ -97,6 +104,7 @@ export function compareTasks(a: Task, b: Task): number {
 
 export interface DoneSplit {
   active: Task[];
+  postponed: Task[];
   done: Task[];
 }
 
@@ -126,11 +134,23 @@ export function currentAndNextBlock(
   return { current, next };
 }
 
-/** Done display mode (req. 15): inline keeps done in place, separate splits. */
-export function splitDone(tasks: Task[], mode: string): DoneSplit {
-  if (mode !== "separate") return { active: tasks, done: [] };
+/**
+ * Done display mode (req. 15): inline keeps everything in place,
+ * separate splits postponed and done into their own bottom sections
+ * (Postponed above Done). Tasks in `hold` were just clicked: they stay
+ * in the active block for a few seconds so a misclick can be fixed
+ * before the card flies away.
+ */
+export function splitDone(
+  tasks: Task[],
+  mode: string,
+  hold?: ReadonlySet<number>,
+): DoneSplit {
+  if (mode !== "separate") return { active: tasks, postponed: [], done: [] };
+  const held = (t: Task) => hold?.has(t.id) ?? false;
   return {
-    active: tasks.filter((t) => t.status !== "done"),
-    done: tasks.filter((t) => t.status === "done"),
+    active: tasks.filter((t) => t.status === "todo" || held(t)),
+    postponed: tasks.filter((t) => t.status === "postponed" && !held(t)),
+    done: tasks.filter((t) => t.status === "done" && !held(t)),
   };
 }

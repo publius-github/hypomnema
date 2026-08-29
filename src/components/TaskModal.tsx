@@ -6,6 +6,12 @@ import type { Task, TaskStatus } from "../types";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
 
+const ORIGIN_CONFIG: Record<string, string> = {
+  recurring: "recurring.yml",
+  scheduled: "scheduled.yml",
+  birthday: "birthdays.yml",
+};
+
 export default function TaskModal({
   task,
   onClose,
@@ -14,9 +20,15 @@ export default function TaskModal({
   onClose: () => void;
 }) {
   const { tasks, lists, updateTask, deleteTask, createTask } = useAppStore();
+  // generated tasks mirror their config file exactly: title, text, date
+  // and list are locked here - the config is the only place to change
+  // them. Status, priority and color stay local to the instance.
+  const generated = task.origin !== "manual";
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description_md);
-  const [preview, setPreview] = useState(task.description_md.length > 0);
+  const [preview, setPreview] = useState(
+    generated || task.description_md.length > 0,
+  );
   const [subtaskTitle, setSubtaskTitle] = useState("");
 
   const subtasks = tasks
@@ -24,6 +36,7 @@ export default function TaskModal({
     .sort(compareTasks);
 
   const commitTitle = () => {
+    if (generated) return;
     const trimmed = title.trim();
     if (trimmed && trimmed !== task.title) {
       void updateTask(task.id, { title: trimmed });
@@ -31,6 +44,7 @@ export default function TaskModal({
   };
 
   const commitDescription = () => {
+    if (generated) return;
     if (description !== task.description_md) {
       void updateTask(task.id, { description_md: description });
     }
@@ -74,6 +88,7 @@ export default function TaskModal({
     baseDescription: task.description_md,
   };
   useEffect(() => {
+    if (generated) return;
     return () => {
       if (closedRef.current) return;
       const p = pendingRef.current;
@@ -102,8 +117,11 @@ export default function TaskModal({
       >
         <div className="flex items-start gap-3">
           <input
-            className="input flex-1 text-base font-medium"
+            className={`input flex-1 text-base font-medium ${
+              generated ? "opacity-70" : ""
+            }`}
             value={title}
+            readOnly={generated}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={commitTitle}
           />
@@ -114,6 +132,25 @@ export default function TaskModal({
             ×
           </button>
         </div>
+
+        {generated && (
+          <div className="rounded-md border border-info/40 bg-info/10 px-3 py-2 text-xs text-info">
+            Generated from{" "}
+            <button
+              className="font-medium underline"
+              onClick={() => {
+                closedRef.current = true;
+                onClose();
+                useAppStore
+                  .getState()
+                  .openConfigFile(ORIGIN_CONFIG[task.origin] ?? "recurring.yml");
+              }}
+            >
+              {ORIGIN_CONFIG[task.origin] ?? "config"}
+            </button>
+            . Title, text, date and list follow the config; edit it there.
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 text-sm">
           <label className="flex flex-col gap-1">
@@ -137,6 +174,7 @@ export default function TaskModal({
             <select
               className="input"
               value={task.list_id ?? ""}
+              disabled={generated}
               onChange={(e) =>
                 void updateTask(task.id, {
                   list_id: e.target.value === "" ? null : Number(e.target.value),
@@ -157,6 +195,7 @@ export default function TaskModal({
               className="input"
               type="date"
               value={task.scheduled_date ?? ""}
+              disabled={generated}
               onChange={(e) =>
                 void updateTask(task.id, {
                   scheduled_date: e.target.value || null,
@@ -170,6 +209,7 @@ export default function TaskModal({
               className="input"
               type="time"
               value={task.time ?? ""}
+              disabled={generated}
               onChange={(e) =>
                 void updateTask(task.id, { time: e.target.value || null })
               }
@@ -177,7 +217,17 @@ export default function TaskModal({
           </label>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1.5 text-sm">
+            <input
+              type="checkbox"
+              checked={task.priority}
+              onChange={(e) =>
+                void updateTask(task.id, { priority: e.target.checked })
+              }
+            />
+            <span className="text-warn">★</span> Priority
+          </label>
           <span className="text-xs text-content-muted">Color</span>
           {COLORS.map((c) => (
             <button
@@ -202,20 +252,22 @@ export default function TaskModal({
             <span className="text-xs text-content-muted">
               Description (Markdown)
             </span>
-            <button
-              className="text-xs text-accent"
-              onClick={() => {
-                if (!preview) commitDescription();
-                setPreview((v) => !v);
-              }}
-            >
-              {preview ? "Edit" : "Preview"}
-            </button>
+            {!generated && (
+              <button
+                className="text-xs text-accent"
+                onClick={() => {
+                  if (!preview) commitDescription();
+                  setPreview((v) => !v);
+                }}
+              >
+                {preview ? "Edit" : "Preview"}
+              </button>
+            )}
           </div>
           {preview ? (
             <div
               className="prose-sm min-h-[80px] max-w-none select-text rounded-md border border-line bg-surface-alt px-3 py-2 text-sm [&_a]:text-accent [&_code]:rounded [&_code]:bg-line/50 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-4 [&_ol_li]:list-decimal [&_p]:my-1 [&_ul_li]:list-disc"
-              onDoubleClick={() => setPreview(false)}
+              onDoubleClick={() => !generated && setPreview(false)}
             >
               <ReactMarkdown>{description || "*No description*"}</ReactMarkdown>
             </div>
@@ -232,32 +284,7 @@ export default function TaskModal({
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-content-muted">Subtasks</span>
           {subtasks.map((sub) => (
-            <div key={sub.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={sub.status === "done"}
-                onChange={() =>
-                  void updateTask(sub.id, {
-                    status: sub.status === "done" ? "todo" : "done",
-                  })
-                }
-              />
-              <span
-                className={`flex-1 ${
-                  sub.status === "done"
-                    ? "text-content-muted line-through"
-                    : ""
-                }`}
-              >
-                {sub.title}
-              </span>
-              <button
-                className="text-xs text-content-muted hover:text-danger"
-                onClick={() => void deleteTask(sub.id)}
-              >
-                ×
-              </button>
-            </div>
+            <SubtaskRow key={sub.id} sub={sub} />
           ))}
           <form
             onSubmit={(e) => {
@@ -299,6 +326,77 @@ export default function TaskModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SubtaskRow({ sub }: { sub: Task }) {
+  const { updateTask, deleteTask } = useAppStore();
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(sub.title);
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = title.trim();
+    if (trimmed && trimmed !== sub.title) {
+      void updateTask(sub.id, { title: trimmed });
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <input
+        type="checkbox"
+        className="mt-1"
+        checked={sub.status === "done"}
+        onChange={() =>
+          void updateTask(sub.id, {
+            status: sub.status === "done" ? "todo" : "done",
+          })
+        }
+      />
+      {editing ? (
+        <form
+          className="flex-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            commit();
+          }}
+        >
+          <input
+            className="input w-full py-0.5 text-sm"
+            value={title}
+            autoFocus
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setTitle(sub.title);
+                setEditing(false);
+              }
+            }}
+          />
+        </form>
+      ) : (
+        <span
+          className={`flex-1 cursor-text ${
+            sub.status === "done" ? "text-content-muted line-through" : ""
+          }`}
+          title="Click to edit"
+          onClick={() => {
+            setTitle(sub.title);
+            setEditing(true);
+          }}
+        >
+          {sub.title}
+        </span>
+      )}
+      <button
+        className="text-xs text-content-muted hover:text-danger"
+        onClick={() => void deleteTask(sub.id)}
+      >
+        ×
+      </button>
     </div>
   );
 }

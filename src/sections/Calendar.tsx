@@ -22,6 +22,25 @@ const MONTHS = [
 ];
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// one dot per kind of thing happening that day: rule cadences, exact
+// dates and birthdays each get a stable color
+const KIND_DOT: Record<string, string> = {
+  daily: "bg-zinc-400",
+  weekly: "bg-blue-400",
+  monthly: "bg-violet-400",
+  yearly: "bg-amber-400",
+  date: "bg-sky-400",
+  birthday: "bg-pink-400",
+  once: "bg-emerald-400",
+};
+const KIND_ORDER = Object.keys(KIND_DOT);
+
+function taskKind(task: Task): string {
+  if (task.origin === "scheduled") return "date";
+  if (task.origin === "birthday") return "birthday";
+  return task.cadence && task.cadence in KIND_DOT ? task.cadence : "once";
+}
+
 function iso(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
@@ -174,11 +193,16 @@ export default function Calendar() {
             const doneCount = dayTasks.filter(
               (t) => t.status === "done",
             ).length;
+            const kinds = new Set<string>([
+              ...dayTasks.map(taskKind),
+              ...(outlookByDate.get(date) ?? []).map((e) => e.kind),
+            ]);
+            const dots = KIND_ORDER.filter((k) => kinds.has(k)).slice(0, 5);
             return (
               <button
                 key={date}
                 onClick={() => setSelected(date)}
-                className={`flex h-12 flex-col items-center justify-center rounded-md border text-sm ${
+                className={`flex h-14 flex-col items-center justify-center gap-0.5 rounded-md border text-sm ${
                   selected === date
                     ? "border-accent bg-accent/15 text-accent"
                     : date === today
@@ -206,9 +230,28 @@ export default function Calendar() {
                     </span>
                   )
                 )}
+                {dots.length > 0 && (
+                  <span className="flex gap-0.5">
+                    {dots.map((k) => (
+                      <span
+                        key={k}
+                        title={k}
+                        className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[k]}`}
+                      />
+                    ))}
+                  </span>
+                )}
               </button>
             );
           })}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-content-muted">
+          {KIND_ORDER.map((k) => (
+            <span key={k} className="flex items-center gap-1">
+              <span className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[k]}`} />
+              {k}
+            </span>
+          ))}
         </div>
         <p className="text-xs text-content-muted">
           Done one-off tasks may be pruned by retention; pruned days show

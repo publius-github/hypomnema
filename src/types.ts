@@ -61,4 +61,5 @@ export interface TaskPatch {
   status?: TaskStatus;
   color?: string | null;
   sort_order?: number;
+  priority?: boolean;
 }

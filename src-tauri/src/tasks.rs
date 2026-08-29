@@ -48,6 +48,8 @@ pub struct Task {
     /// The date a generated task was originally scheduled for; unlike
     /// scheduled_date it survives overdue carry-over.
     pub origin_date: Option<String>,
+    /// Priority tasks sit in their own group on top of a list column.
+    pub priority: bool,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -78,6 +80,7 @@ pub struct TaskPatch {
     #[serde(default, with = "double_option")]
     pub color: Option<Option<String>>,
     pub sort_order: Option<i64>,
+    pub priority: Option<bool>,
 }
 
 mod double_option {
@@ -126,6 +129,7 @@ fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
         origin: row.get("origin")?,
         cadence: row.get("cadence")?,
         origin_date: row.get("origin_date")?,
+        priority: row.get::<_, i64>("priority")? != 0,
     })
 }
 
@@ -285,12 +289,13 @@ pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
     if title.is_empty() {
         return Err(Error::State("task title cannot be empty".into()));
     }
-    // Same {List Name} prefix syntax as the YAML items: an explicit
-    // prefix in a typed title wins over the target list and creates the
-    // list on the fly, exactly like the engine does. Subtasks live
-    // under their parent and keep the braces literally.
+    // Same {List Name} prefix syntax as the YAML items: a typed prefix
+    // routes the task and creates the list on the fly, exactly like the
+    // engine does - but only when no target list was given. Adding
+    // straight into a list column must land in that list; rerouting from
+    // there is a modal/drag action. Subtasks keep the braces literally.
     let mut list_id = new.list_id;
-    if new.parent_task_id.is_none() {
+    if new.parent_task_id.is_none() && new.list_id.is_none() {
         let (list, rest) = crate::engine::parse_item(&title);
         if let Some(list) = list {
             list_id = Some(list_ensure(conn, &list)?.id);
@@ -390,6 +395,12 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
             (sort_order, id),
         )?;
     }
+    if let Some(priority) = patch.priority {
+        conn.execute(
+            "UPDATE tasks SET priority = ?1 WHERE id = ?2",
+            (priority as i64, id),
+        )?;
+    }
     tx.commit()?;
     task_get(conn, id)
 }
@@ -471,6 +482,44 @@ mod tests {
         )
         .unwrap();
         assert_eq!(sub.title, "{not a list} step");
+
+        // an explicit target list wins: no rerouting via the prefix
+        let target = list_create(&conn, "Inbox", None, false).unwrap();
+        let direct = task_create(
+            &conn,
+            &NewTask {
+                title: "{05 Finance} stays here".into(),
+                list_id: Some(target.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(direct.list_id, Some(target.id));
+        assert_eq!(direct.title, "{05 Finance} stays here");
+    }
+
+    #[test]
+    fn priority_flag_toggles_via_patch() {
+        let conn = conn();
+        let task = task_create(
+            &conn,
+            &NewTask {
+                title: "p".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(!task.priority);
+        let starred = task_update(
+            &conn,
+            task.id,
+            &TaskPatch {
+                priority: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(starred.priority);
     }
 
     #[test]

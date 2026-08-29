@@ -84,6 +84,9 @@ const MIGRATIONS: &[&str] = &[
     // Carry-over rewrites scheduled_date, and for an exact-date task
     // the original date is the information the user planned around.
     "ALTER TABLE tasks ADD COLUMN origin_date TEXT;",
+    // 010: user-set priority flag; priority tasks float to the top of
+    // their list column in a dedicated group.
+    "ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

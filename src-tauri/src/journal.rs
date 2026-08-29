@@ -51,8 +51,10 @@ fn template_path(vault: &Path) -> PathBuf {
     new
 }
 
-/// Opens the entry for the date, instantiating it from the template on
-/// first open ({{date}} placeholder is substituted).
+/// Opens the entry for the date. A missing entry is served from the
+/// template ({{date}} substituted) WITHOUT creating the file: merely
+/// looking at a day must not litter the journal with untouched entries.
+/// The file appears on the first actual edit (save_entry).
 pub fn open_entry(vault: &Path, date: &str) -> Result<JournalEntry> {
     let date = normalize_date(date)?;
     let path = entry_path(vault, &date)?;
@@ -64,10 +66,6 @@ pub fn open_entry(vault: &Path, date: &str) -> Result<JournalEntry> {
     }
     let template = fs::read_to_string(template_path(vault)).unwrap_or_default();
     let content = template.replace("{{date}}", &date);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    crate::vault::write_atomic(&path, &content)?;
     Ok(JournalEntry { date, content })
 }
 
@@ -145,20 +143,27 @@ mod tests {
     }
 
     #[test]
-    fn first_open_instantiates_template_with_date() {
+    fn first_open_serves_template_without_creating_file() {
         let vault = vault("open");
         fs::write(template_path(&vault), "# {{date}}\n\n## What I did today\n").unwrap();
 
         let entry = open_entry(&vault, "2026-08-28").unwrap();
         assert!(entry.content.starts_with("# 2026-08-28"));
+        // no file until something is actually written
+        assert!(!vault
+            .join("journal")
+            .join("2026")
+            .join("2026-08-28.md")
+            .exists());
+        assert!(list_entries(&vault).unwrap().is_empty());
+
+        // the first edit creates the file; reopen returns the saved text
+        save_entry(&vault, "2026-08-28", "edited").unwrap();
         assert!(vault
             .join("journal")
             .join("2026")
             .join("2026-08-28.md")
             .exists());
-
-        // second open returns the saved file, not a fresh template copy
-        save_entry(&vault, "2026-08-28", "edited").unwrap();
         let reopened = open_entry(&vault, "2026-08-28").unwrap();
         assert_eq!(reopened.content, "edited");
         let _ = fs::remove_dir_all(&vault);

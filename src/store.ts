@@ -49,6 +49,10 @@ interface AppState {
   setSection: (section: Section) => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
+  /// ids of tasks just marked done/postponed via the checkbox; they stay
+  /// in the active block until the hold expires (done_hold_seconds)
+  statusHold: number[];
+  holdStatus: (id: number) => void;
   /// last soft-deleted task, restorable until the toast expires
   undo: { message: string; taskId: number } | null;
   undoDelete: () => Promise<void>;
@@ -67,6 +71,17 @@ function applyTheme(config: AppConfig | null) {
   document.documentElement.classList.toggle(
     "dark",
     config?.theme !== "light",
+  );
+  // fonts are config-driven: the UI font overrides the stylesheet
+  // default, the editor font feeds CodeMirror through a CSS variable
+  const ui = config?.ui_font.trim() ?? "";
+  document.body.style.fontFamily = ui
+    ? `"${ui}", system-ui, -apple-system, "Segoe UI", sans-serif`
+    : "";
+  const editor = config?.editor_font.trim() || "Consolas";
+  document.documentElement.style.setProperty(
+    "--editor-font",
+    `"${editor}", ui-monospace, SFMono-Regular, Consolas, monospace`,
   );
 }
 
@@ -274,6 +289,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   setKbCurrent: (doc) => set({ kbCurrent: doc }),
   searchOpen: false,
   setSearchOpen: (searchOpen) => set({ searchOpen }),
+  statusHold: [],
+  holdStatus: (id) => {
+    const seconds = get().config?.done_hold_seconds ?? 0;
+    if (seconds <= 0) return;
+    set((s) => ({
+      statusHold: s.statusHold.includes(id)
+        ? s.statusHold
+        : [...s.statusHold, id],
+    }));
+    setTimeout(() => {
+      set((s) => ({ statusHold: s.statusHold.filter((h) => h !== id) }));
+    }, seconds * 1000);
+  },
   undo: null,
   clearError: () => set({ error: null }),
 }));

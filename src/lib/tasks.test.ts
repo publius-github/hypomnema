@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   addDaysISO,
   currentAndNextBlock,
+  dayLabel,
   gridDates,
   groupByCadence,
   nextStatus,
   splitDone,
+  weekdayShort,
 } from "./tasks";
 import type { ScheduleBlock, Task } from "../types";
 
@@ -27,15 +29,26 @@ function task(overrides: Partial<Task>): Task {
     origin: "manual",
     cadence: null,
     origin_date: null,
+    priority: false,
     ...overrides,
   };
 }
 
 describe("nextStatus", () => {
-  it("toggles open and done; a postponed task completes on click", () => {
+  it("cycles todo -> done -> postponed -> todo", () => {
     expect(nextStatus("todo")).toBe("done");
-    expect(nextStatus("done")).toBe("todo");
-    expect(nextStatus("postponed")).toBe("done");
+    expect(nextStatus("done")).toBe("postponed");
+    expect(nextStatus("postponed")).toBe("todo");
+  });
+});
+
+describe("dayLabel", () => {
+  it("writes the full weekday, the ISO date and a Today marker", () => {
+    expect(dayLabel("2026-08-29", "2026-08-29")).toBe(
+      "Saturday 2026-08-29 [Today]",
+    );
+    expect(dayLabel("2026-08-31", "2026-08-29")).toBe("Monday 2026-08-31");
+    expect(weekdayShort("2026-08-29")).toBe("Sat");
   });
 });
 
@@ -128,17 +141,31 @@ describe("splitDone", () => {
   const tasks = [
     task({ id: 1, status: "done" }),
     task({ id: 2, status: "todo" }),
+    task({ id: 3, status: "postponed" }),
   ];
 
-  it("keeps done inline by default", () => {
-    const { active, done } = splitDone(tasks, "inline");
-    expect(active).toHaveLength(2);
+  it("keeps everything inline by default", () => {
+    const { active, postponed, done } = splitDone(tasks, "inline");
+    expect(active).toHaveLength(3);
+    expect(postponed).toHaveLength(0);
     expect(done).toHaveLength(0);
   });
 
-  it("separates done tasks in separate mode", () => {
-    const { active, done } = splitDone(tasks, "separate");
+  it("separates postponed and done in separate mode", () => {
+    const { active, postponed, done } = splitDone(tasks, "separate");
     expect(active.map((t) => t.id)).toEqual([2]);
+    expect(postponed.map((t) => t.id)).toEqual([3]);
     expect(done.map((t) => t.id)).toEqual([1]);
+  });
+
+  it("keeps just-clicked tasks in the active block while held", () => {
+    const { active, postponed, done } = splitDone(
+      tasks,
+      "separate",
+      new Set([1, 3]),
+    );
+    expect(active.map((t) => t.id)).toEqual([1, 2, 3]);
+    expect(postponed).toHaveLength(0);
+    expect(done).toHaveLength(0);
   });
 });

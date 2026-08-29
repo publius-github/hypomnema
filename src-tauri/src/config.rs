@@ -44,6 +44,14 @@ pub struct AppConfig {
     pub calendar_monthly_months: u32,
     pub calendar_yearly_years: u32,
     pub calendar_dates_years: u32,
+    /// UI font family (empty = system default stack).
+    pub ui_font: String,
+    /// Editor font family for Journal/Notes/config files.
+    pub editor_font: String,
+    /// Seconds a task just marked done/postponed stays in place before
+    /// moving to its section, leaving room to fix a misclick (0 = move
+    /// immediately). Only matters with done_display = separate.
+    pub done_hold_seconds: u32,
 }
 
 pub const SECTIONS: &[&str] = &["dashboard", "upcoming", "calendar", "journal", "kb"];
@@ -70,6 +78,9 @@ impl Default for AppConfig {
             calendar_monthly_months: 3,
             calendar_yearly_years: 1,
             calendar_dates_years: 1,
+            ui_font: String::new(),
+            editor_font: "Consolas".into(),
+            done_hold_seconds: 3,
         }
     }
 }
@@ -117,6 +128,9 @@ impl AppConfig {
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
         self.calendar_yearly_years = self.calendar_yearly_years.min(5);
         self.calendar_dates_years = self.calendar_dates_years.min(5);
+        self.done_hold_seconds = self.done_hold_seconds.min(30);
+        self.ui_font = self.ui_font.trim().to_string();
+        self.editor_font = self.editor_font.trim().to_string();
         // unknown names are dropped, missing sections come back in their
         // default position, so a typo can never lose a tab
         let mut order: Vec<String> = Vec::new();
@@ -181,6 +195,9 @@ impl AppConfig {
                 "calendar_dates_years",
                 self.calendar_dates_years.to_string(),
             ),
+            ("ui_font", self.ui_font.clone()),
+            ("editor_font", self.editor_font.clone()),
+            ("done_hold_seconds", self.done_hold_seconds.to_string()),
         ]
     }
 }

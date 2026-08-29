@@ -2,7 +2,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { addDaysISO, compareTasks, nextStatus } from "../lib/tasks";
+import { compareTasks, nextStatus, weekdayShort } from "../lib/tasks";
 import type { Task } from "../types";
 
 const STATUS_BUTTON: Record<Task["status"], string> = {
@@ -26,6 +26,7 @@ export default function TaskCard({
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
   const updateTask = useAppStore((s) => s.updateTask);
+  const holdStatus = useAppStore((s) => s.holdStatus);
   const subtasksRaw = useAppStore(
     useShallow((s) => s.tasks.filter((t) => t.parent_task_id === task.id)),
   );
@@ -36,9 +37,11 @@ export default function TaskCard({
       : (s.lists.find((l) => l.id === task.list_id)?.name ?? null),
   );
   const [expanded, setExpanded] = useState(false);
+  // generated tasks mirror their config file: dragging them to another
+  // day or list would silently diverge from it, so they don't drag
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `task:${task.id}`,
-    disabled: overlay,
+    disabled: overlay || task.origin !== "manual",
   });
 
   const subtasks = [...subtasksRaw].sort(compareTasks);
@@ -56,18 +59,12 @@ export default function TaskCard({
     .filter(Boolean)
     .join("\n");
 
-  // postpone = move one day forward with the postponed mark, counted
-  // from the task's own day (or today for a stale date)
-  const postpone = () => {
-    const today = useAppStore.getState().today;
-    const base =
-      task.scheduled_date && task.scheduled_date > today
-        ? task.scheduled_date
-        : today;
-    void updateTask(task.id, {
-      scheduled_date: addDaysISO(base, 1),
-      status: "postponed",
-    });
+  const cycleStatus = () => {
+    const next = nextStatus(task.status);
+    void updateTask(task.id, { status: next });
+    // hold a just-completed/postponed card in place for a moment so the
+    // next checkbox click (or a fix of a misclick) is still possible
+    if (next !== "todo") holdStatus(task.id);
   };
 
   return (
@@ -79,7 +76,7 @@ export default function TaskCard({
         isDragging ? "opacity-30" : ""
       } ${overlay ? "shadow-lg" : ""}`}
     >
-      <div className="flex items-center gap-2 p-2" title={tooltip}>
+      <div className="flex items-center gap-2 px-2 py-1" title={tooltip}>
         {task.color && (
           <span
             className="h-4 w-1 shrink-0 rounded"
@@ -88,10 +85,10 @@ export default function TaskCard({
         )}
         <button
           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[11px] ${STATUS_BUTTON[task.status]}`}
-          title={`Status: ${task.status}`}
+          title={`Status: ${task.status} (click: ${nextStatus(task.status)})`}
           onClick={(e) => {
             e.stopPropagation();
-            void updateTask(task.id, { status: nextStatus(task.status) });
+            cycleStatus();
           }}
         >
           {done && "✓"}
@@ -111,12 +108,22 @@ export default function TaskCard({
             </svg>
           )}
         </button>
+        {task.priority && !overlay && (
+          <span className="shrink-0 text-[11px] text-warn" title="Priority">
+            ★
+          </span>
+        )}
+        {showList && listName && (
+          <span className="max-w-[72px] shrink-0 truncate rounded bg-line/40 px-1 text-[11px] text-content-muted">
+            {listName}
+          </span>
+        )}
         {exactDate && task.origin_date && (
           <span
             className="shrink-0 rounded bg-info/15 px-1 text-[11px] font-medium text-info"
             title={`Scheduled for ${task.origin_date}`}
           >
-            {task.origin_date}
+            {weekdayShort(task.origin_date)} {task.origin_date}
           </span>
         )}
         <div
@@ -134,19 +141,6 @@ export default function TaskCard({
               overdue
             </span>
           )}
-          {task.status === "postponed" && (
-            <span
-              className="rounded bg-warn/15 px-1 font-medium text-warn"
-              title="Postponed"
-            >
-              →
-            </span>
-          )}
-          {showList && listName && (
-            <span className="max-w-[72px] truncate rounded bg-line/40 px-1">
-              {listName}
-            </span>
-          )}
           {subtasks.length > 0 && (
             <button
               className="hover:text-content"
@@ -161,38 +155,14 @@ export default function TaskCard({
             </button>
           )}
         </div>
-        {!overlay && !done && task.scheduled_date && (
-          <button
-            className="shrink-0 text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
-            title="Postpone to the next day"
-            onClick={(e) => {
-              e.stopPropagation();
-              postpone();
-            }}
-          >
-            <svg
-              viewBox="0 0 16 16"
-              className="h-3.5 w-3.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M2 8h9" />
-              <path d="M8 4.5 11.5 8 8 11.5" />
-              <path d="M14 3.5v9" />
-            </svg>
-          </button>
-        )}
       </div>
       {expanded && subtasks.length > 0 && (
         <div className="flex flex-col gap-1 border-t border-line px-2 py-1.5 pl-7">
           {subtasks.map((sub) => (
-            <label key={sub.id} className="flex items-center gap-1.5 text-xs">
+            <label key={sub.id} className="flex items-start gap-1.5 text-xs">
               <input
                 type="checkbox"
+                className="mt-0.5"
                 checked={sub.status === "done"}
                 onChange={() =>
                   void updateTask(sub.id, {

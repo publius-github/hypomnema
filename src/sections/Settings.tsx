@@ -85,6 +85,32 @@ export default function Settings() {
             <option value="separate">Separate block per day</option>
           </select>
         </Field>
+
+        <Field label="Hold before a done/postponed task moves to its section, seconds (0 = immediately)">
+          <NumberInput
+            value={config.done_hold_seconds}
+            min={0}
+            onCommit={(n) =>
+              void updateConfig({ done_hold_seconds: Math.min(30, n) })
+            }
+          />
+        </Field>
+
+        <Field label="UI font (empty = system default)">
+          <TextInput
+            value={config.ui_font}
+            placeholder="e.g. Segoe UI"
+            onCommit={(v) => void updateConfig({ ui_font: v })}
+          />
+        </Field>
+
+        <Field label="Editor font (Journal, Notes, config files)">
+          <TextInput
+            value={config.editor_font}
+            placeholder="Consolas"
+            onCommit={(v) => void updateConfig({ editor_font: v })}
+          />
+        </Field>
         </>
       )}
 
@@ -441,6 +467,45 @@ function NumberInput({
         if (e.key === "Enter") e.currentTarget.blur();
         if (e.key === "Escape") {
           cancelled.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
+/** Text setting committed on blur/Enter, like NumberInput. */
+function TextInput({
+  value,
+  placeholder,
+  onCommit,
+}: {
+  value: string;
+  placeholder?: string;
+  onCommit: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [editing, setEditing] = useState(false);
+
+  return (
+    <input
+      className="input"
+      placeholder={placeholder}
+      value={editing ? draft : value}
+      onFocus={() => {
+        setDraft(value);
+        setEditing(true);
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        setEditing(false);
+        const trimmed = draft.trim();
+        if (trimmed !== value) onCommit(trimmed);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setDraft(value);
           e.currentTarget.blur();
         }
       }}

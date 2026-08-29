@@ -1,8 +1,10 @@
 import { useDroppable } from "@dnd-kit/core";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { currentAndNextBlock, dayLabel, groupByCadence, splitDone } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
+import type { Task } from "../types";
 
 export default function DayColumn({
   date,
@@ -17,6 +19,7 @@ export default function DayColumn({
   const today = useAppStore((s) => s.today);
   const tasks = useAppStore((s) => s.tasks);
   const dashboard = useAppStore((s) => s.dashboard);
+  const hold = useAppStore(useShallow((s) => s.statusHold));
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
 
   const reminders =
@@ -36,9 +39,25 @@ export default function DayColumn({
       t.parent_task_id === null &&
       !(hideDailies && t.cadence === "daily"),
   );
-  const { active, done } = splitDone(dayTasks, config?.done_display ?? "inline");
+  const { active, postponed, done } = splitDone(
+    dayTasks,
+    config?.done_display ?? "inline",
+    new Set(hold),
+  );
   const groups = groupByCadence(active);
   const isToday = date === today;
+
+  const section = (label: string, items: Task[]) =>
+    items.length > 0 && (
+      <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
+          {label}
+        </div>
+        {items.map((task) => (
+          <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
+        ))}
+      </div>
+    );
 
   return (
     <div
@@ -48,9 +67,10 @@ export default function DayColumn({
       } ${isToday ? "bg-accent/5" : "bg-surface-alt/50"}`}
     >
       <div
-        className={`px-2.5 py-2 text-xs font-semibold uppercase tracking-wide ${
-          isToday ? "text-accent" : "text-content-muted"
+        className={`truncate px-2.5 py-2 text-sm font-semibold ${
+          isToday ? "text-accent" : "text-content"
         }`}
+        title={dayLabel(date, today)}
       >
         {dayLabel(date, today)}
       </div>
@@ -79,7 +99,7 @@ export default function DayColumn({
         {groups.map((group) => (
           <div key={group.key} className="flex flex-col gap-1.5">
             {group.label && (
-              <div className="flex items-center gap-1.5 pt-1 text-[11px] font-medium uppercase tracking-wider text-content-muted">
+              <div className="mt-1 flex items-center gap-1.5 rounded bg-line/25 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-content-muted">
                 <span>{group.label}</span>
                 <span className="h-px flex-1 bg-line" />
               </div>
@@ -89,16 +109,8 @@ export default function DayColumn({
             ))}
           </div>
         ))}
-        {done.length > 0 && (
-          <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
-              Done
-            </div>
-            {done.map((task) => (
-              <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
-            ))}
-          </div>
-        )}
+        {section("Postponed", postponed)}
+        {section("Done", done)}
         <QuickAdd target={{ scheduled_date: date }} />
       </div>
     </div>

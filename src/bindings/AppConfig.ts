@@ -37,4 +37,18 @@ dashboard_split: number,
  * How far ahead the Calendar projects not-yet-materialized firings,
  * per rule cadence, plus scheduled dates and birthdays.
  */
-calendar_daily_days: number, calendar_weekly_weeks: number, calendar_monthly_months: number, calendar_yearly_years: number, calendar_dates_years: number, };
+calendar_daily_days: number, calendar_weekly_weeks: number, calendar_monthly_months: number, calendar_yearly_years: number, calendar_dates_years: number, 
+/**
+ * UI font family (empty = system default stack).
+ */
+ui_font: string, 
+/**
+ * Editor font family for Journal/Notes/config files.
+ */
+editor_font: string, 
+/**
+ * Seconds a task just marked done/postponed stays in place before
+ * moving to its section, leaving room to fix a misclick (0 = move
+ * immediately). Only matters with done_display = separate.
+ */
+done_hold_seconds: number, };

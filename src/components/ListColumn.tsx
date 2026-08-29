@@ -1,11 +1,12 @@
 import { useDroppable } from "@dnd-kit/core";
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { compareTasks, splitDone } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import { ConfirmModal } from "./dialogs";
-import type { List } from "../types";
+import type { List, Task } from "../types";
 
 export default function ListColumn({
   list,
@@ -18,6 +19,7 @@ export default function ListColumn({
   const tasks = useAppStore((s) => s.tasks);
   const renameList = useAppStore((s) => s.renameList);
   const archiveList = useAppStore((s) => s.archiveList);
+  const hold = useAppStore(useShallow((s) => s.statusHold));
   const { setNodeRef, isOver } = useDroppable({ id: `list:${list.id}` });
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(list.name);
@@ -31,10 +33,27 @@ export default function ListColumn({
         t.parent_task_id === null,
     )
     .sort(compareTasks);
-  const { active, done } = splitDone(
+  const { active, postponed, done } = splitDone(
     listTasks,
     config?.done_display ?? "inline",
+    new Set(hold),
   );
+  // priority tasks jump the queue: their own group on top of the column
+  const prioritized = active.filter((t) => t.priority);
+  const rest = active.filter((t) => !t.priority);
+
+  const card = (task: Task) => (
+    <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
+  );
+  const section = (label: string, items: Task[]) =>
+    items.length > 0 && (
+      <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
+          {label}
+        </div>
+        {items.map(card)}
+      </div>
+    );
 
   return (
     <div
@@ -93,19 +112,18 @@ export default function ListColumn({
         />
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
-        {active.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
-        ))}
-        {done.length > 0 && (
-          <div className="flex flex-col gap-1.5 border-t border-line pt-1.5">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-content-muted">
-              Done
+        {prioritized.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 rounded bg-warn/10 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-warn">
+              <span>Priority</span>
+              <span className="h-px flex-1 bg-warn/30" />
             </div>
-            {done.map((task) => (
-              <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
-            ))}
+            {prioritized.map(card)}
           </div>
         )}
+        {rest.map(card)}
+        {section("Postponed", postponed)}
+        {section("Done", done)}
         <QuickAdd target={{ list_id: list.id }} />
       </div>
     </div>

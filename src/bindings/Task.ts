@@ -10,4 +10,8 @@ cadence: string | null,
  * The date a generated task was originally scheduled for; unlike
  * scheduled_date it survives overdue carry-over.
  */
-origin_date: string | null, };
+origin_date: string | null, 
+/**
+ * Priority tasks sit in their own group on top of a list column.
+ */
+priority: boolean, };

@@ -326,6 +326,30 @@ function ListZone({
         ))}
       </div>
       {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
+      {visible.length > perPage && (
+        <div className="flex w-32 shrink-0 flex-col gap-0.5 overflow-y-auto rounded-lg border border-line bg-surface-alt/50 p-1.5">
+          <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+            All lists
+          </div>
+          {visible.map((list, i) => {
+            const onPage = i >= off && i < off + perPage;
+            return (
+              <button
+                key={list.id}
+                className={`truncate rounded px-1.5 py-0.5 text-left text-xs ${
+                  onPage
+                    ? "bg-accent/15 text-accent"
+                    : "text-content-muted hover:bg-line/40 hover:text-content"
+                }`}
+                title={`Jump to "${list.name}"`}
+                onClick={() => setOffset(Math.min(i, maxOffset))}
+              >
+                {list.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <NewListForm />
     </div>
   );

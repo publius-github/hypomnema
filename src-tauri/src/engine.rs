@@ -397,10 +397,11 @@ fn run_recurring(
     }
 
     // Reconcile with the config: a rule or item removed from
-    // recurring.yml takes its not-yet-reached instances with it.
-    // Today's and past instances (incl. overdue carry-overs) stay,
-    // and a broken file never reaches this point, so the last valid
-    // state is preserved.
+    // recurring.yml takes its future instances and today's still-open
+    // ones (incl. overdue carry-overs) with it - the config is the
+    // source of truth for what recurring work exists. Completed
+    // instances stay as history, and a broken file never reaches this
+    // point, so the last valid state is preserved.
     if root_transient {
         // reconciling against a momentarily empty/missing root file
         // would wipe its rules' future tasks and rule_seen entries
@@ -423,7 +424,9 @@ fn run_recurring(
     for key in existing.iter().filter(|key| !active.contains(*key)) {
         outcome.removed += conn.execute(
             "DELETE FROM tasks
-             WHERE origin = 'recurring' AND rule_key = ?1 AND scheduled_date > ?2",
+             WHERE origin = 'recurring' AND rule_key = ?1
+               AND (scheduled_date > ?2
+                    OR (scheduled_date = ?2 AND status != 'done'))",
             (key, &today_str),
         )?;
         // Editing a rule re-identifies it: the new key regenerated
@@ -622,6 +625,17 @@ fn run_birthdays(
             };
             if insert_generated(conn, &generated, now)? {
                 outcome.generated += 1;
+            } else {
+                // a year added to (or fixed on) an existing entry must
+                // reach the already-generated instance: without this the
+                // "(turns N)" part never appears on it
+                conn.execute(
+                    "UPDATE tasks SET title = ?1
+                     WHERE rule_key = ?2 AND period_key = ?3
+                       AND status != 'done' AND archived_at IS NULL
+                       AND title != ?1",
+                    (&generated.title, &generated.rule_key, &generated.period_key),
+                )?;
             }
         }
     }
@@ -632,7 +646,28 @@ fn run_birthdays(
 /// today moves to today and keeps an overdue mark until completed.
 /// Daily-cadence tasks are exempt: a daily is never overdue, today has
 /// its own instance - a missed one just stays unchecked in its day.
-fn carry_over(conn: &Connection, today: NaiveDate) -> Result<usize> {
+/// Returns (carried_over, deduped).
+fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
+    let today_str = today.format("%Y-%m-%d").to_string();
+    // A missed recurring firing whose next firing has already arrived is
+    // not separate work: today's own instance represents the rule, and
+    // the stale copy would only sit next to it as an overdue duplicate.
+    let deduped = conn.execute(
+        "DELETE FROM tasks
+         WHERE origin = 'recurring' AND status != 'done'
+           AND archived_at IS NULL
+           AND parent_task_id IS NULL
+           AND rule_key IS NOT NULL
+           AND (cadence IS NULL OR cadence != 'daily')
+           AND (scheduled_date < ?1 OR (overdue = 1 AND scheduled_date = ?1))
+           AND EXISTS (SELECT 1 FROM tasks live
+                       WHERE live.id != tasks.id
+                         AND live.rule_key = tasks.rule_key
+                         AND live.archived_at IS NULL
+                         AND live.overdue = 0
+                         AND live.scheduled_date = ?1)",
+        [&today_str],
+    )?;
     let moved = conn.execute(
         "UPDATE tasks SET scheduled_date = ?1, overdue = 1
          WHERE status != 'done'
@@ -648,7 +683,7 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<usize> {
         "UPDATE tasks SET overdue = 0 WHERE overdue = 1 AND cadence = 'daily'",
         [],
     )?;
-    Ok(moved)
+    Ok((moved, deduped))
 }
 
 /// Retention pruning (req. 9): with retention_days > 0, done tasks
@@ -719,7 +754,9 @@ pub fn run(
         now,
         &mut outcome,
     )?;
-    outcome.carried_over = carry_over(conn, today)?;
+    let (carried_over, deduped) = carry_over(conn, today)?;
+    outcome.carried_over = carried_over;
+    outcome.removed += deduped;
     outcome.pruned = prune(conn, config.retention_days, now)?;
     // Soft-deleted tasks past their undo window are purged for good.
     // Generated tasks are the exception: their archived row doubles as a
@@ -959,10 +996,11 @@ mod tests {
         let first = run(&conn, &dir, &cfg, at("2026-08-25", "12:00:00")).unwrap();
         assert_eq!(first.generated, 3);
 
-        // rule removed: the future instances go, their ledger rows stay
+        // rule removed: the future instances and today's open one go,
+        // their ledger rows stay
         fs::write(dir.join("recurring.yml"), "tasks: []\n").unwrap();
         let removed = run(&conn, &dir, &cfg, at("2026-08-25", "13:00:00")).unwrap();
-        assert_eq!(removed.removed, 2);
+        assert_eq!(removed.removed, 3);
         conn.execute("UPDATE tasks SET status = 'done'", [])
             .unwrap();
 
@@ -1066,10 +1104,11 @@ mod tests {
         assert_eq!(run(&conn, &dir, &cfg, now).unwrap().removed, 0);
         assert_eq!(count_tasks(&conn), before);
 
-        // an explicit empty list is intentional and still reconciles
+        // an explicit empty list is intentional and still reconciles:
+        // future instances and today's open one are removed
         fs::write(dir.join("recurring.yml"), "tasks: []\n").unwrap();
         let explicit = run(&conn, &dir, &cfg, now).unwrap();
-        assert_eq!(explicit.removed, 2);
+        assert_eq!(explicit.removed, 3);
     }
 
     #[test]
@@ -1110,6 +1149,67 @@ mod tests {
             )
             .unwrap();
         assert_eq!(monday, 1);
+    }
+
+    #[test]
+    fn missed_firing_is_dropped_when_todays_firing_exists() {
+        let (conn, dir) = setup("dedup-next");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 9 * * 1\"\n    description: Mondays\n    items:\n      - \"weekly review\"\n",
+        )
+        .unwrap();
+        let cfg = config(30, 7, 0);
+        // seeded Monday 08-24: one instance for that day (+ grid 08-31? no,
+        // horizon 08-30), so exactly one task exists and stays open
+        let seeded = run(&conn, &dir, &cfg, at("2026-08-24", "12:00:00")).unwrap();
+        assert_eq!(seeded.generated, 1);
+
+        // next Monday: today's own firing arrives; the missed 08-24 copy
+        // must not carry over as an overdue duplicate next to it
+        let outcome = run(&conn, &dir, &cfg, at("2026-08-31", "12:00:00")).unwrap();
+        assert_eq!(outcome.carried_over, 0);
+        assert!(outcome.removed >= 1);
+        let today_rows: Vec<(String, i64)> = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT scheduled_date, overdue FROM tasks
+                     WHERE archived_at IS NULL ORDER BY scheduled_date",
+                )
+                .unwrap();
+            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+            rows.collect::<std::result::Result<_, _>>().unwrap()
+        };
+        assert_eq!(today_rows, vec![("2026-08-31".to_string(), 0)]);
+    }
+
+    #[test]
+    fn birthday_title_updates_when_year_added() {
+        let (conn, dir) = setup("bday-title");
+        fs::write(
+            dir.join("birthdays.yml"),
+            "birthdays:\n  - name: \"Jane\"\n    date: \"08-29\"\n",
+        )
+        .unwrap();
+        let cfg = config(3, 7, 0);
+        let now = at("2026-08-28", "12:00:00");
+        run(&conn, &dir, &cfg, now).unwrap();
+        let title: String = conn
+            .query_row("SELECT title FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(title, "Birthday: Jane");
+
+        // the year added later must reach the already-generated instance
+        fs::write(
+            dir.join("birthdays.yml"),
+            "birthdays:\n  - name: \"Jane\"\n    date: \"08-29\"\n    year: 1990\n",
+        )
+        .unwrap();
+        run(&conn, &dir, &cfg, now).unwrap();
+        let updated: String = conn
+            .query_row("SELECT title FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(updated, "Birthday: Jane (turns 36)");
     }
 
     #[test]
@@ -1381,11 +1481,11 @@ mod tests {
         let outcome = run(&conn, &dir, &cfg, now).unwrap();
         assert_eq!(outcome.generated, 6);
 
-        // removing the pack file reconciles its future tasks away while
-        // the root rule keeps everything
+        // removing the pack file reconciles its tasks (today's open one
+        // included) away while the root rule keeps everything
         fs::remove_file(dir.join("packs").join("extra.yml")).unwrap();
         let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        assert_eq!(outcome.removed, 2);
+        assert_eq!(outcome.removed, 3);
         let pack_left: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM tasks WHERE title = 'pack task'",
@@ -1393,7 +1493,7 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(pack_left, 1);
+        assert_eq!(pack_left, 0);
         let root_left: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM tasks WHERE title = 'root task'",
@@ -1405,7 +1505,7 @@ mod tests {
     }
 
     #[test]
-    fn removed_rule_takes_future_instances_but_keeps_today() {
+    fn removed_rule_takes_open_instances_keeps_done_history() {
         let (conn, dir) = setup("reconcile");
         fs::write(
             dir.join("recurring.yml"),
@@ -1417,20 +1517,21 @@ mod tests {
         run(&conn, &dir, &cfg, now).unwrap();
         assert_eq!(count_tasks(&conn), 14);
 
-        // drop item 'b': its future instances go; today's copy stays
+        // drop item 'b': all its open instances go, today's included -
+        // the config is the source of truth for recurring work
         fs::write(
             dir.join("recurring.yml"),
             "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"a\"\n",
         )
         .unwrap();
         let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        assert_eq!(outcome.removed, 6);
+        assert_eq!(outcome.removed, 7);
         let b_left: i64 = conn
             .query_row("SELECT COUNT(*) FROM tasks WHERE title = 'b'", [], |r| {
                 r.get(0)
             })
             .unwrap();
-        assert_eq!(b_left, 1);
+        assert_eq!(b_left, 0);
         let b_future: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM tasks WHERE title = 'b' AND scheduled_date > '2026-08-28'",

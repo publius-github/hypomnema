@@ -1,11 +1,33 @@
 import { useEffect, useRef } from "react";
 import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import {
+  EditorView,
+  crosshairCursor,
+  drawSelection,
+  dropCursor,
+  highlightActiveLineGutter,
+  keymap,
+  lineNumbers,
+  rectangularSelection,
+  type Command,
+} from "@codemirror/view";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentLess,
+  indentMore,
+} from "@codemirror/commands";
+import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
+import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { languages } from "@codemirror/language-data";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import {
+  HighlightStyle,
+  bracketMatching,
+  syntaxHighlighting,
+} from "@codemirror/language";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { tags } from "@lezer/highlight";
 import { parseDocument } from "yaml";
@@ -26,7 +48,7 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.url, color: "rgb(var(--color-accent))", opacity: "0.8" },
   {
     tag: tags.monospace,
-    fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+    fontFamily: "var(--editor-font)",
     fontSize: "0.9em",
   },
   { tag: tags.processingInstruction, color: "rgb(var(--color-content-muted))" },
@@ -48,6 +70,8 @@ const yamlHighlight = HighlightStyle.define([
   { tag: tags.punctuation, color: "rgb(var(--color-content-muted))" },
 ]);
 
+// the editor font is config-driven (Settings > Appearance) and arrives
+// through the --editor-font CSS variable set in the store
 const editorTheme = EditorView.theme({
   "&": {
     height: "100%",
@@ -56,7 +80,7 @@ const editorTheme = EditorView.theme({
     color: "rgb(var(--color-content))",
   },
   ".cm-content": {
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    fontFamily: "var(--editor-font)",
     caretColor: "rgb(var(--color-accent))",
     padding: "12px 0",
   },
@@ -66,21 +90,39 @@ const editorTheme = EditorView.theme({
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
     backgroundColor: "rgb(var(--color-accent) / 0.25) !important",
   },
+  ".cm-selectionMatch": {
+    backgroundColor: "rgb(var(--color-accent) / 0.15)",
+  },
   ".cm-gutters": {
     backgroundColor: "transparent",
     color: "rgb(var(--color-content-muted) / 0.5)",
     border: "none",
+  },
+  ".cm-activeLineGutter": {
+    backgroundColor: "transparent",
+    color: "rgb(var(--color-content))",
   },
   ".cm-tooltip": {
     backgroundColor: "rgb(var(--color-surface-alt))",
     color: "rgb(var(--color-content))",
     border: "1px solid rgb(var(--color-line))",
   },
+  ".cm-panels": {
+    backgroundColor: "rgb(var(--color-surface-alt))",
+    color: "rgb(var(--color-content))",
+    borderColor: "rgb(var(--color-line))",
+  },
+  ".cm-panels input, .cm-panels button": {
+    backgroundColor: "transparent",
+    color: "rgb(var(--color-content))",
+    border: "1px solid rgb(var(--color-line))",
+    borderRadius: "4px",
+  },
 });
 
 const monoTheme = EditorView.theme({
   ".cm-content": {
-    fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+    fontFamily: "var(--editor-font)",
     fontSize: "13px",
   },
 });
@@ -102,24 +144,31 @@ function yamlLinter() {
   });
 }
 
-// Markdown cannot really be "invalid", so the linter flags the two
-// mistakes that visibly break rendering: an unclosed code fence and a
-// heading marker glued to its text (#Title).
+// Markdown cannot really be "invalid", so the linter flags the
+// formatting mistakes that visibly break or degrade rendering:
+// unclosed code fences, glued heading/list markers, a heading without
+// a blank line above it, and stray trailing whitespace.
 function markdownLinter() {
   return linter((view): Diagnostic[] => {
     const diagnostics: Diagnostic[] = [];
     const doc = view.state.doc;
     let lastFenceLine: { from: number; to: number } | null = null;
     let openFences = 0;
+    let prevText = "";
     for (let i = 1; i <= doc.lines; i++) {
       const line = doc.line(i);
       if (/^\s*(```|~~~)/.test(line.text)) {
         openFences += 1;
         lastFenceLine = { from: line.from, to: line.to };
+        prevText = line.text;
         continue;
       }
+      if (openFences % 2 === 1) {
+        prevText = line.text;
+        continue; // inside a code fence: anything goes
+      }
       const badHeading = line.text.match(/^(#{1,6})(?=[^#\s])/);
-      if (badHeading && openFences % 2 === 0) {
+      if (badHeading) {
         diagnostics.push({
           from: line.from,
           to: line.from + badHeading[1].length + 1,
@@ -127,6 +176,34 @@ function markdownLinter() {
           message: "Heading marker needs a space: '# Title', not '#Title'",
         });
       }
+      if (/^#{1,6}\s/.test(line.text) && i > 1 && prevText.trim() !== "") {
+        diagnostics.push({
+          from: line.from,
+          to: Math.min(line.from + line.text.length, line.to),
+          severity: "warning",
+          message: "Heading should be preceded by a blank line",
+        });
+      }
+      const badList = line.text.match(/^(\s*)-(?=[^\s-])/);
+      if (badList) {
+        diagnostics.push({
+          from: line.from + badList[1].length,
+          to: line.from + badList[1].length + 2,
+          severity: "warning",
+          message: "List marker needs a space: '- item', not '-item'",
+        });
+      }
+      const trailing = line.text.match(/([ \t]+)$/);
+      // exactly two trailing spaces are a markdown hard line break
+      if (trailing && trailing[1] !== "  " && line.text.trim() !== "") {
+        diagnostics.push({
+          from: line.to - trailing[1].length,
+          to: line.to,
+          severity: "warning",
+          message: "Trailing whitespace (two spaces = hard break, anything else is noise)",
+        });
+      }
+      prevText = line.text;
     }
     if (openFences % 2 === 1 && lastFenceLine) {
       diagnostics.push({
@@ -139,6 +216,74 @@ function markdownLinter() {
     return diagnostics;
   });
 }
+
+/**
+ * Reformats the markdown table around the cursor: every column padded
+ * to its widest cell, separator rows rebuilt keeping their alignment
+ * colons. Returns false when the cursor is not inside a table.
+ */
+function formatTableAt(view: EditorView): boolean {
+  const { state } = view;
+  const doc = state.doc;
+  const cursorLine = doc.lineAt(state.selection.main.head);
+  const isTableLine = (text: string) => /^\s*\|/.test(text);
+  if (!isTableLine(cursorLine.text)) return false;
+
+  let first = cursorLine.number;
+  while (first > 1 && isTableLine(doc.line(first - 1).text)) first -= 1;
+  let last = cursorLine.number;
+  while (last < doc.lines && isTableLine(doc.line(last + 1).text)) last += 1;
+
+  const rows: string[][] = [];
+  for (let i = first; i <= last; i++) {
+    const text = doc.line(i).text.trim();
+    const inner = text.replace(/^\|/, "").replace(/\|$/, "");
+    rows.push(inner.split("|").map((c) => c.trim()));
+  }
+  const isSeparator = (cells: string[]) =>
+    cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
+  const columns = Math.max(...rows.map((r) => r.length));
+  const widths = Array.from({ length: columns }, (_, col) =>
+    Math.max(
+      3,
+      ...rows
+        .filter((r) => !isSeparator(r))
+        .map((r) => (r[col] ?? "").length),
+    ),
+  );
+  const formatted = rows
+    .map((cells) => {
+      const padded = Array.from({ length: columns }, (_, col) => {
+        const cell = cells[col] ?? "";
+        if (isSeparator(cells)) {
+          const left = cell.startsWith(":");
+          const right = cell.endsWith(":");
+          const dashes = "-".repeat(
+            Math.max(1, widths[col] - (left ? 1 : 0) - (right ? 1 : 0)),
+          );
+          return `${left ? ":" : ""}${dashes}${right ? ":" : ""}`.padEnd(
+            widths[col],
+            "-",
+          );
+        }
+        return cell.padEnd(widths[col]);
+      });
+      return `| ${padded.join(" | ")} |`;
+    })
+    .join("\n");
+
+  const from = doc.line(first).from;
+  const to = doc.line(last).to;
+  const current = doc.sliceString(from, to);
+  if (current === formatted) return true; // already aligned; swallow Tab
+  view.dispatch({ changes: { from, to, insert: formatted } });
+  return true;
+}
+
+// Tab aligns the table under the cursor, otherwise indents (IDE
+// behavior); Escape stays free so keyboard users can leave the editor
+const tabTableOrIndent: Command = (view) =>
+  formatTableAt(view) || indentMore(view);
 
 function modeExtensions(mode: EditorMode): Extension[] {
   switch (mode) {
@@ -189,11 +334,30 @@ export default function MarkdownEditor({
       doc: value,
       extensions: [
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        // IDE-grade editing: multiple cursors (Alt-click), rectangular
+        // selection (Alt-drag), bracket pairs, search panel (Ctrl-F),
+        // line moves (Alt-Up/Down from defaultKeymap)
+        EditorState.allowMultipleSelections.of(true),
+        drawSelection(),
+        dropCursor(),
+        rectangularSelection(),
+        crosshairCursor(),
+        bracketMatching(),
+        closeBrackets(),
+        highlightSelectionMatches(),
+        keymap.of([
+          { key: "Tab", run: tabTableOrIndent, shift: indentLess },
+          ...closeBracketsKeymap,
+          ...defaultKeymap,
+          ...searchKeymap,
+          ...historyKeymap,
+        ]),
         EditorView.lineWrapping,
         editorTheme,
         ...modeExtensions(mode),
-        ...(showLineNumbers ? [lineNumbers()] : []),
+        ...(showLineNumbers
+          ? [lineNumbers(), highlightActiveLineGutter()]
+          : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             const content = update.state.doc.toString();
