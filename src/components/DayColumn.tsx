@@ -112,10 +112,10 @@ function DayColumn({
         className={`truncate px-2.5 py-2 text-base font-semibold ${
           config?.day_header_centered ? "text-center" : ""
         } ${isToday ? "text-accent" : "text-content"}`}
-        // configurable header color; Today keeps the accent so the
-        // current column stays recognizable
+        // configurable header color, Today included; without an
+        // override Today keeps the accent
         style={
-          !isToday && config?.day_header_color
+          config?.day_header_color
             ? { color: config.day_header_color }
             : undefined
         }

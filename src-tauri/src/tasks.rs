@@ -54,6 +54,9 @@ pub struct Task {
     /// which rule and period produced this instance).
     pub rule_key: Option<String>,
     pub period_key: Option<String>,
+    /// "[SAT1]"-style marker for recurring rules whose cron pins
+    /// concrete weekdays; None for everything else.
+    pub dow_label: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -136,6 +139,7 @@ fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
         priority: row.get::<_, i64>("priority")? != 0,
         rule_key: row.get("rule_key")?,
         period_key: row.get("period_key")?,
+        dow_label: row.get("dow_label")?,
     })
 }
 

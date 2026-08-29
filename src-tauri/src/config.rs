@@ -90,6 +90,9 @@ pub struct AppConfig {
     /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
     /// (one file per list + scheduled.md) for bulk editing in any editor.
     pub tasks_mirror: bool,
+    /// Show a [SAT1]-style marker before recurring tasks whose cron
+    /// pins concrete weekdays.
+    pub cron_weekday_labels: bool,
     /// Base UI font size in px (the browser default is 16; every text
     /// size in the app scales from it).
     pub ui_font_size: u32,
@@ -100,8 +103,8 @@ pub struct AppConfig {
     pub weekly_focus_color: String,
     /// Day reminders inside the day columns; empty = secondary tone.
     pub reminder_color: String,
-    /// Weekday + date header of a day column (Today stays accent);
-    /// empty = main text color.
+    /// Weekday + date header of a day column, Today included; empty =
+    /// main text color (and the accent on Today).
     pub day_header_color: String,
     /// Markdown editor color scheme: a named preset, or "custom" using
     /// the md_color_* values below.
@@ -171,6 +174,7 @@ impl Default for AppConfig {
             backup_keep: 14,
             notify_system: true,
             tasks_mirror: true,
+            cron_weekday_labels: true,
             ui_font_size: 16,
             content_color: String::new(),
             content_muted_color: String::new(),
@@ -383,6 +387,7 @@ impl AppConfig {
             ("backup_keep", self.backup_keep.to_string()),
             ("notify_system", self.notify_system.to_string()),
             ("tasks_mirror", self.tasks_mirror.to_string()),
+            ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
             ("ui_font_size", self.ui_font_size.to_string()),
             ("content_color", self.content_color.clone()),
             ("content_muted_color", self.content_muted_color.clone()),

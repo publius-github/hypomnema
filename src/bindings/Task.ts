@@ -19,4 +19,9 @@ priority: boolean,
  * Provenance of a generated task (diagnostics in the task dialog:
  * which rule and period produced this instance).
  */
-rule_key: string | null, period_key: string | null, };
+rule_key: string | null, period_key: string | null, 
+/**
+ * "[SAT1]"-style marker for recurring rules whose cron pins
+ * concrete weekdays; None for everything else.
+ */
+dow_label: string | null, };

@@ -248,7 +248,11 @@ pub fn calendar_outlook(
             let cadence = cadence_of(&cron, now);
             // rules pinned to concrete weekdays carry a [SAT1]-style
             // marker so a projected entry says which weekday rule it is
-            let dow = weekday_label(&rule.schedule);
+            let dow = if config.cron_weekday_labels {
+                weekday_label(&rule.schedule)
+            } else {
+                None
+            };
             let cap = match cadence {
                 "daily" => today + Duration::days(i64::from(config.calendar_daily_days)),
                 "weekly" => today + Duration::days(i64::from(config.calendar_weekly_weeks) * 7),

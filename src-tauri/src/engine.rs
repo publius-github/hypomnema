@@ -77,6 +77,8 @@ struct GeneratedTask<'a> {
     time: Option<&'a str>,
     origin: &'static str,
     cadence: Option<&'static str>,
+    /// Weekday marker of the generating cron ("SAT1"); recurring only.
+    dow_label: Option<String>,
 }
 
 /// Buckets a cron by how often it actually fires over the next year:
@@ -126,11 +128,11 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
     conn.execute(
         "INSERT INTO tasks (title, list_id, scheduled_date, time, sort_order,
                             created_at, origin, rule_key, period_key, cadence,
-                            origin_date)
+                            origin_date, dow_label)
          VALUES (?1, ?2, ?3, ?4,
                  (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tasks
                   WHERE scheduled_date = ?3),
-                 ?5, ?6, ?7, ?8, ?9, ?3)",
+                 ?5, ?6, ?7, ?8, ?9, ?3, ?10)",
         (
             &task.title,
             list_id,
@@ -141,6 +143,7 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
             &task.rule_key,
             &task.period_key,
             task.cadence,
+            &task.dow_label,
         ),
     )?;
     Ok(true)
@@ -326,6 +329,9 @@ fn generate_recurring(
             continue;
         }
         let cadence = cadence_of(&cron, now);
+        // rules pinned to concrete weekdays carry a [SAT1]-style marker
+        // shown before the task title
+        let dow_label = crate::views::weekday_label(&rule.schedule);
         // A missed daily is not overdue work - today has its own
         // instance anyway - so daily-cadence rules skip catch-up.
         let latest_missed = if cadence == "daily" {
@@ -342,6 +348,13 @@ fn generate_recurring(
                 "UPDATE tasks SET cadence = ?1
                  WHERE rule_key = ?2 AND (cadence IS NULL OR cadence != ?1)",
                 (cadence, &rule_key),
+            )?;
+            // same idea for the weekday marker: existing instances
+            // (incl. pre-migration ones) follow the rule's current cron
+            conn.execute(
+                "UPDATE tasks SET dow_label = ?1
+                 WHERE rule_key = ?2 AND dow_label IS NOT ?1",
+                (&dow_label, &rule_key),
             )?;
             // Catch-up never reaches back past the day the engine first
             // saw the item: a rule added today must not open as overdue,
@@ -390,6 +403,7 @@ fn generate_recurring(
                     time: None,
                     origin: "recurring",
                     cadence: Some(cadence),
+                    dow_label: dow_label.clone(),
                 };
                 let inserted = insert_generated(conn, &generated, now)?
                     || (firing.date_naive() >= today
@@ -562,6 +576,7 @@ fn run_scheduled(
             time: event.time.as_deref(),
             origin: "scheduled",
             cadence: None,
+            dow_label: None,
         };
         if insert_generated(conn, &generated, now)? {
             outcome.generated += 1;
@@ -642,6 +657,7 @@ fn run_birthdays(
                 time: None,
                 origin: "birthday",
                 cadence: Some("yearly"),
+                dow_label: None,
             };
             if insert_generated(conn, &generated, now)? {
                 outcome.generated += 1;
@@ -959,6 +975,35 @@ mod tests {
         );
         assert_eq!(parse_item("no prefix"), (None, "no prefix".into()));
         assert_eq!(parse_item("{} empty"), (None, "{} empty".into()));
+    }
+
+    #[test]
+    fn weekday_pinned_cron_sets_dow_label() {
+        let (conn, dir) = setup("dow");
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 9 * * 6\"\n    description: Sat\n    items:\n      - \"weekly review\"\n  - schedule: \"0 6 * * *\"\n    description: Daily\n    items:\n      - \"water plants\"\n",
+        )
+        .unwrap();
+        let cfg = config(7, 7, 0);
+        run(&conn, &dir, &cfg, at("2026-08-25", "12:00:00")).unwrap();
+
+        let sat: Option<String> = conn
+            .query_row(
+                "SELECT dow_label FROM tasks WHERE title = 'weekly review' LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(sat.as_deref(), Some("SAT"));
+        let daily: Option<String> = conn
+            .query_row(
+                "SELECT dow_label FROM tasks WHERE title = 'water plants' LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(daily, None);
     }
 
     #[test]

@@ -117,6 +117,11 @@ notify_system: boolean,
  */
 tasks_mirror: boolean, 
 /**
+ * Show a [SAT1]-style marker before recurring tasks whose cron
+ * pins concrete weekdays.
+ */
+cron_weekday_labels: boolean, 
+/**
  * Base UI font size in px (the browser default is 16; every text
  * size in the app scales from it).
  */
@@ -134,8 +139,8 @@ weekly_focus_color: string,
  */
 reminder_color: string, 
 /**
- * Weekday + date header of a day column (Today stays accent);
- * empty = main text color.
+ * Weekday + date header of a day column, Today included; empty =
+ * main text color (and the accent on Today).
  */
 day_header_color: string, 
 /**

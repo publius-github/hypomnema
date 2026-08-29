@@ -47,6 +47,7 @@ function iso(year: number, month: number, day: number): string {
 
 export default function Calendar() {
   const lists = useAppStore((s) => s.lists);
+  const dowLabels = useAppStore((s) => s.config?.cron_weekday_labels ?? true);
   const today = todayISO();
   const [year, setYear] = useState(() => Number(today.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)) - 1);
@@ -297,6 +298,7 @@ export default function Calendar() {
                 task.status === "done" ? "text-content-muted line-through" : ""
               }`}
             >
+              {task.dow_label && dowLabels && `[${task.dow_label}] `}
               {task.title}
             </span>
             {task.time && (

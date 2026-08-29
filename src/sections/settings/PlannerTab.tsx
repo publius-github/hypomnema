@@ -116,6 +116,13 @@ export default function PlannerTab() {
         />
 
         <Toggle
+          checked={config.cron_weekday_labels}
+          label="Weekday marker from cron on tasks"
+          hint="Recurring tasks whose cron pins concrete weekdays show a [SAT1]-style marker before the title (dashboard, calendar and projections)."
+          onChange={(v) => void updateConfig({ cron_weekday_labels: v })}
+        />
+
+        <Toggle
           checked={config.subtasks_done_last}
           label="Done subtasks sink to the bottom"
           hint="Checked subtasks move below the open ones in the card and the task dialog."

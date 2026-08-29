@@ -1,11 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- transparent canvas: the tablet fills the frame so the icon reads
        at taskbar size instead of floating on a dark square -->
+  <!-- mid-tone frame and bright strokes: must stay readable on a dark
+       Windows taskbar as well as a light one -->
   <g transform="translate(-204.8 -204.8) scale(5.6)">
-    <rect x="46" y="40" width="164" height="176" rx="22" fill="#1C2740"/>
-    <rect x="64" y="58" width="128" height="140" rx="12" fill="#0A101F"/>
-    <line x1="86" y1="96" x2="170" y2="96" stroke="#4E608A" stroke-width="11" stroke-linecap="round"/>
-    <line x1="86" y1="124" x2="128" y2="124" stroke="#4E608A" stroke-width="11" stroke-linecap="round"/>
-    <polyline points="86,158 110,180 172,118" fill="none" stroke="#6091FF" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="46" y="40" width="164" height="176" rx="22" fill="#5D74B4"/>
+    <rect x="64" y="58" width="128" height="140" rx="12" fill="#141C33"/>
+    <line x1="86" y1="96" x2="170" y2="96" stroke="#9FB2E0" stroke-width="11" stroke-linecap="round"/>
+    <line x1="86" y1="124" x2="128" y2="124" stroke="#9FB2E0" stroke-width="11" stroke-linecap="round"/>
+    <polyline points="86,158 110,180 172,118" fill="none" stroke="#71A8FF" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>

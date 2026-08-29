@@ -37,6 +37,7 @@ function task(overrides: Partial<Task>): Task {
     priority: false,
     rule_key: null,
     period_key: null,
+    dow_label: null,
     ...overrides,
   };
 }
