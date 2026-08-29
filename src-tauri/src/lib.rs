@@ -477,8 +477,12 @@ const EDITABLE_CONFIG_FILES: &[&str] = &[
     "templates/journal.md",
 ];
 
+fn is_editable_config_file(file: &str) -> bool {
+    EDITABLE_CONFIG_FILES.contains(&file)
+}
+
 fn editable_config_path(state: &State<'_, AppState>, file: &str) -> Result<PathBuf> {
-    if !EDITABLE_CONFIG_FILES.contains(&file) {
+    if !is_editable_config_file(file) {
         return Err(Error::State(format!("not an editable config file: {file}")));
     }
     let guard = state.vault.lock().unwrap();
@@ -711,4 +715,46 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn editable_config_allowlist_blocks_everything_else() {
+        assert!(is_editable_config_file("recurring.yml"));
+        assert!(is_editable_config_file("templates/journal.md"));
+        assert!(!is_editable_config_file("app.yml"));
+        assert!(!is_editable_config_file("../app.yml"));
+        assert!(!is_editable_config_file("../../etc/passwd"));
+        assert!(!is_editable_config_file("recurring.yml/../app.yml"));
+        assert!(!is_editable_config_file(""));
+    }
+
+    #[test]
+    fn watcher_ignores_access_events_and_own_tmp_files() {
+        use notify::{event::AccessKind, Event, EventKind};
+        let modify = Event::new(EventKind::Modify(notify::event::ModifyKind::Any))
+            .add_path("/vault/config/recurring.yml".into());
+        assert!(watch_event_is_relevant(&modify));
+
+        let access = Event::new(EventKind::Access(AccessKind::Any))
+            .add_path("/vault/config/recurring.yml".into());
+        assert!(!watch_event_is_relevant(&access));
+
+        let tmp = Event::new(EventKind::Create(notify::event::CreateKind::Any))
+            .add_path("/vault/config/.recurring.yml.tmp".into());
+        assert!(!watch_event_is_relevant(&tmp));
+
+        // a mixed batch with one real path still counts
+        let mixed = Event::new(EventKind::Modify(notify::event::ModifyKind::Any))
+            .add_path("/vault/config/.recurring.yml.tmp".into())
+            .add_path("/vault/config/recurring.yml".into());
+        assert!(watch_event_is_relevant(&mixed));
+
+        // pathless events (some platforms emit them) are not dropped
+        let bare = Event::new(EventKind::Modify(notify::event::ModifyKind::Any));
+        assert!(watch_event_is_relevant(&bare));
+    }
 }

@@ -87,6 +87,17 @@ const MIGRATIONS: &[&str] = &[
     // 010: user-set priority flag; priority tasks float to the top of
     // their list column in a dedicated group.
     "ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;",
+    // 011: one-time backfills that previously ran inside every engine
+    // pass: cadence for birthdays generated before migration 008, and
+    // origin_date for tasks generated before migration 009 (scheduled
+    // tasks keep their date in period_key; anything not yet carried
+    // over still sits on its original date).
+    "UPDATE tasks SET cadence = 'yearly' WHERE origin = 'birthday' AND cadence IS NULL;
+    UPDATE tasks SET origin_date = period_key
+        WHERE origin = 'scheduled' AND origin_date IS NULL AND length(period_key) = 10;
+    UPDATE tasks SET origin_date = scheduled_date
+        WHERE origin != 'manual' AND origin_date IS NULL
+          AND scheduled_date IS NOT NULL AND overdue = 0;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -163,6 +174,43 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, MIGRATIONS.len() as i64);
+    }
+
+    /// Not just idempotency from empty: a populated old-schema vault
+    /// must upgrade with its rows intact and the later backfills applied.
+    #[test]
+    fn migrate_upgrades_a_populated_old_vault() {
+        let conn = Connection::open_in_memory().unwrap();
+        for (idx, migration) in MIGRATIONS.iter().take(2).enumerate() {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", (idx + 1) as i64)
+                .unwrap();
+        }
+        conn.execute("INSERT INTO lists (name) VALUES ('Inbox')", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, scheduled_date)
+             VALUES ('cake', '2026-01-01T00:00:00Z', 'birthday', '2026-03-14')",
+            [],
+        )
+        .unwrap();
+
+        migrate(&conn).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, MIGRATIONS.len() as i64);
+        // columns added later exist with defaults, backfill 011 applied
+        let (priority, cadence, origin_date): (i64, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT priority, cadence, origin_date FROM tasks",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(priority, 0);
+        assert_eq!(cadence.as_deref(), Some("yearly"));
+        assert_eq!(origin_date.as_deref(), Some("2026-03-14"));
     }
 
     #[test]

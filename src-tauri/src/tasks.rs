@@ -395,6 +395,20 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
         )?;
     }
     if let Some(priority) = patch.priority {
+        // the engine also clears the flag on generated tasks every pass,
+        // but the API must refuse up front instead of silently reverting
+        if priority {
+            let origin: String =
+                conn.query_row("SELECT origin FROM tasks WHERE id = ?1", [id], |row| {
+                    row.get(0)
+                })?;
+            if origin != "manual" {
+                return Err(Error::State(
+                    "priority is only available on manual tasks; generated tasks mirror their config"
+                        .into(),
+                ));
+            }
+        }
         conn.execute(
             "UPDATE tasks SET priority = ?1 WHERE id = ?2",
             (priority as i64, id),
@@ -480,6 +494,37 @@ mod tests {
         .unwrap();
         assert_eq!(direct.list_id, Some(target.id));
         assert_eq!(direct.title, "{05 Finance} categorized");
+    }
+
+    #[test]
+    fn priority_rejected_on_generated_tasks() {
+        let conn = conn();
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, rule_key, period_key)
+             VALUES ('gen', '2026-01-01T00:00:00Z', 'recurring', 'abc', '2026-08-28T06:00')",
+            [],
+        )
+        .unwrap();
+        let id = conn.last_insert_rowid();
+        let result = task_update(
+            &conn,
+            id,
+            &TaskPatch {
+                priority: Some(true),
+                ..Default::default()
+            },
+        );
+        assert!(result.is_err());
+        // clearing the flag stays allowed
+        task_update(
+            &conn,
+            id,
+            &TaskPatch {
+                priority: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
     }
 
     #[test]

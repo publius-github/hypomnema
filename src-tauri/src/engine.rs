@@ -180,21 +180,19 @@ fn repair_orphaned_period(conn: &Connection, task: &GeneratedTask) -> Result<boo
     Ok(true)
 }
 
-fn run_recurring(
-    conn: &Connection,
+/// Loads recurring.yml plus the subfolder packs that merge into it.
+/// Editors often save truncate-then-write, and sync clients can make
+/// the file vanish for a moment; reconciling against a momentarily
+/// empty/missing recurring.yml would wipe every future recurring task
+/// and the rule_seen ledger. A file that is missing or holds only
+/// comments/whitespace is therefore flagged transient: generation may
+/// run, reconcile must not. An explicit `tasks: []` still counts as
+/// intentionally empty. A broken root returns None so the last valid
+/// state stays untouched.
+fn load_recurring_sources(
     dir: &Path,
-    config: &AppConfig,
-    horizon: NaiveDate,
-    now: DateTime<Local>,
-    outcome: &mut EngineOutcome,
-) -> Result<()> {
-    // Editors often save truncate-then-write, and sync clients can make
-    // the file vanish for a moment; reconciling against a momentarily
-    // empty/missing recurring.yml would wipe every future recurring task
-    // and the rule_seen ledger. A file that is missing or holds only
-    // comments/whitespace is treated as a transient state: generate
-    // nothing, reconcile nothing. An explicit `tasks: []` still counts
-    // as intentionally empty and reconciles.
+    errors: &mut Vec<ConfigError>,
+) -> (bool, Option<Vec<(String, RecurringFile)>>) {
     let path = dir.join("recurring.yml");
     let mut root_transient = false;
     match std::fs::read_to_string(&path) {
@@ -211,19 +209,27 @@ fn run_recurring(
     let root = if root_transient {
         RecurringFile::default()
     } else {
-        match load_yaml::<RecurringFile>(dir, "recurring.yml", &mut outcome.errors) {
+        match load_yaml::<RecurringFile>(dir, "recurring.yml", errors) {
             Some(file) => file,
-            // broken root: keep the last valid state untouched
-            None => return Ok(()),
+            None => return (false, None),
         }
     };
     // subfolder YAML packs with a tasks: section merge in after the root
     let mut sources: Vec<(String, RecurringFile)> = vec![("recurring.yml".into(), root)];
-    sources.extend(load_extras::<RecurringFile>(
-        dir,
-        "tasks",
-        &mut outcome.errors,
-    ));
+    sources.extend(load_extras::<RecurringFile>(dir, "tasks", errors));
+    (root_transient, Some(sources))
+}
+
+/// Enumerates firings for every rule item inside the catch-up window
+/// and materializes the missing instances through the rule_runs ledger.
+fn generate_recurring(
+    conn: &Connection,
+    sources: &[(String, RecurringFile)],
+    config: &AppConfig,
+    horizon: NaiveDate,
+    now: DateTime<Local>,
+    outcome: &mut EngineOutcome,
+) -> Result<()> {
     let rules: Vec<(&str, usize, &RecurringRule)> = sources
         .iter()
         .flat_map(|(source, file)| {
@@ -396,17 +402,21 @@ fn run_recurring(
         }
     }
 
-    // Reconcile with the config: a rule or item removed from
-    // recurring.yml takes its future instances and today's still-open
-    // ones (incl. overdue carry-overs) with it - the config is the
-    // source of truth for what recurring work exists. Completed
-    // instances stay as history, and a broken file never reaches this
-    // point, so the last valid state is preserved.
-    if root_transient {
-        // reconciling against a momentarily empty/missing root file
-        // would wipe its rules' future tasks and rule_seen entries
-        return Ok(());
-    }
+    Ok(())
+}
+
+/// Reconciles the DB with the config: a rule or item removed from
+/// recurring.yml takes its future instances and today's still-open
+/// ones (incl. overdue carry-overs) with it - the config is the
+/// source of truth for what recurring work exists. Completed
+/// instances stay as history, and a broken file never reaches this
+/// point, so the last valid state is preserved.
+fn reconcile_recurring(
+    conn: &Connection,
+    sources: &[(String, RecurringFile)],
+    today: NaiveDate,
+    outcome: &mut EngineOutcome,
+) -> Result<()> {
     let active: std::collections::HashSet<String> = sources
         .iter()
         .flat_map(|(_, file)| file.tasks.iter())
@@ -474,6 +484,28 @@ fn run_recurring(
         conn.execute("DELETE FROM rule_seen WHERE rule_key = ?1", [key])?;
     }
     Ok(())
+}
+
+/// One recurring pass: load sources, generate instances, reconcile.
+fn run_recurring(
+    conn: &Connection,
+    dir: &Path,
+    config: &AppConfig,
+    horizon: NaiveDate,
+    now: DateTime<Local>,
+    outcome: &mut EngineOutcome,
+) -> Result<()> {
+    let (root_transient, sources) = load_recurring_sources(dir, &mut outcome.errors);
+    let Some(sources) = sources else {
+        return Ok(());
+    };
+    generate_recurring(conn, &sources, config, horizon, now, outcome)?;
+    if root_transient {
+        // reconciling against a momentarily empty/missing root file
+        // would wipe its rules' future tasks and rule_seen entries
+        return Ok(());
+    }
+    reconcile_recurring(conn, &sources, now.date_naive(), outcome)
 }
 
 fn run_scheduled(
@@ -583,14 +615,7 @@ fn run_birthdays(
         // The occurrence that falls inside [today - catchup, horizon];
         // check this year and the next (window may span New Year).
         for year in [today.year(), today.year() + 1] {
-            // 02-29 falls back to 02-28 in non-leap years
-            let occurrence = NaiveDate::from_ymd_opt(year, month, day).or_else(|| {
-                if month == 2 && day == 29 {
-                    NaiveDate::from_ymd_opt(year, 2, 28)
-                } else {
-                    None
-                }
-            });
+            let occurrence = crate::config_files::birthday_occurrence(year, month, day);
             let Some(occurrence) = occurrence else {
                 outcome.errors.push(ConfigError {
                     file: source.into(),
@@ -607,12 +632,7 @@ fn run_birthdays(
             if occurrence < window_start || occurrence > horizon {
                 continue;
             }
-            let title = match entry.year {
-                Some(birth_year) => {
-                    format!("Birthday: {} (turns {})", entry.name, year - birth_year)
-                }
-                None => format!("Birthday: {}", entry.name),
-            };
+            let title = crate::config_files::birthday_title(&entry.name, entry.year, year);
             let generated = GeneratedTask {
                 rule_key: fnv1a64(&format!("birthday|{}|{}", entry.name, entry.date)),
                 period_key: year.to_string(),
@@ -642,18 +662,12 @@ fn run_birthdays(
     Ok(())
 }
 
-/// Overdue carry-over (req. 7, 8): every non-done task scheduled before
-/// today moves to today and keeps an overdue mark until completed.
-/// Daily-cadence tasks are exempt: a daily is never overdue, today has
-/// its own instance - a missed one just stays unchecked in its day.
-/// Returns (carried_over, deduped).
-fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
-    let today_str = today.format("%Y-%m-%d").to_string();
-    // Safety nets against duplicate recurring instances that older app
-    // versions could leave behind: (a) the same (rule, period)
-    // materialized twice - keep the oldest row; (b) an ancient row
-    // without a rule key sitting next to a keyed instance of the same
-    // title and day.
+/// Safety nets against duplicate recurring instances that older app
+/// versions could leave behind: (a) the same (rule, period)
+/// materialized twice - keep the oldest row; (b) an ancient row
+/// without a rule key sitting next to a keyed instance of the same
+/// title and day.
+fn dedupe_legacy_recurring(conn: &Connection) -> Result<usize> {
     let mut deduped = conn.execute(
         "DELETE FROM tasks
          WHERE origin = 'recurring' AND status != 'done'
@@ -681,10 +695,14 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
                              = COALESCE(tasks.scheduled_date, ''))",
         [],
     )?;
-    // Priority tasks ride along to today but never get the overdue
-    // mark: priority already says "do this now", the extra red label
-    // adds nothing.
-    let moved = conn.execute(
+    Ok(deduped)
+}
+
+/// Moves every open pre-today task to today. Priority tasks ride along
+/// but never get the overdue mark: priority already says "do this now",
+/// the extra red label adds nothing. Dailies are exempt entirely.
+fn move_overdue_to_today(conn: &Connection, today_str: &str) -> Result<usize> {
+    Ok(conn.execute(
         "UPDATE tasks SET scheduled_date = ?1,
                 overdue = CASE WHEN priority = 1 THEN 0 ELSE 1 END
          WHERE status != 'done'
@@ -693,14 +711,17 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
            AND scheduled_date IS NOT NULL
            AND scheduled_date < ?1
            AND (cadence IS NULL OR cadence != 'daily')",
-        [&today_str],
-    )?;
-    // One rule = at most one open overdue copy on today. Several missed
-    // firings carried over across different runs, or a missed firing
-    // whose next firing has already arrived, would otherwise sit next
-    // to each other as duplicates. The copy kept is today's own firing
-    // (overdue = 0) when it exists, otherwise the newest overdue copy.
-    deduped += conn.execute(
+        [today_str],
+    )?)
+}
+
+/// One rule = at most one open overdue copy on today. Several missed
+/// firings carried over across different runs, or a missed firing
+/// whose next firing has already arrived, would otherwise sit next
+/// to each other as duplicates. The copy kept is today's own firing
+/// (overdue = 0) when it exists, otherwise the newest overdue copy.
+fn collapse_carried_copies(conn: &Connection, today_str: &str) -> Result<usize> {
+    Ok(conn.execute(
         "DELETE FROM tasks
          WHERE origin = 'recurring' AND status != 'done'
            AND archived_at IS NULL
@@ -715,17 +736,19 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
                          AND live.scheduled_date = ?1
                          AND (live.overdue = 0
                               OR (live.status != 'done' AND live.id > tasks.id)))",
-        [&today_str],
-    )?;
-    // dailies carried over by earlier versions and tasks starred after
-    // being carried over drop the overdue mark
+        [today_str],
+    )?)
+}
+
+/// Dailies carried over by earlier app versions and tasks starred after
+/// being carried over drop the overdue mark; a daily moved off its
+/// firing day (older versions carried them over too) goes back home.
+fn rehome_dailies(conn: &Connection) -> Result<()> {
     conn.execute(
         "UPDATE tasks SET overdue = 0
          WHERE overdue = 1 AND (cadence = 'daily' OR priority = 1)",
         [],
     )?;
-    // A daily belongs to its own firing day, always: an instance moved
-    // off it (older app versions carried dailies over) goes back home.
     conn.execute(
         "UPDATE tasks SET scheduled_date = origin_date
          WHERE origin = 'recurring' AND cadence = 'daily'
@@ -734,6 +757,20 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
            AND scheduled_date != origin_date",
         [],
     )?;
+    Ok(())
+}
+
+/// Overdue carry-over (req. 7, 8): every non-done task scheduled before
+/// today moves to today and keeps an overdue mark until completed.
+/// Daily-cadence tasks are exempt: a daily is never overdue, today has
+/// its own instance - a missed one just stays unchecked in its day.
+/// Returns (carried_over, deduped).
+fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
+    let today_str = today.format("%Y-%m-%d").to_string();
+    let mut deduped = dedupe_legacy_recurring(conn)?;
+    let moved = move_overdue_to_today(conn, &today_str)?;
+    deduped += collapse_carried_copies(conn, &today_str)?;
+    rehome_dailies(conn)?;
     Ok((moved, deduped))
 }
 
@@ -779,29 +816,11 @@ pub fn run(
     // connection, and a DEFERRED transaction that reads first would die
     // with SQLITE_BUSY_SNAPSHOT instead of waiting out busy_timeout.
     let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)?;
-    // birthdays generated before the cadence column existed
-    conn.execute(
-        "UPDATE tasks SET cadence = 'yearly' WHERE origin = 'birthday' AND cadence IS NULL",
-        [],
-    )?;
-    // priority is a manual-task concept: generated tasks mirror their
-    // config and are pinned by their rule, not by a star
+    // Policy invariant, not a backfill (those live in db.rs migrations):
+    // priority is a manual-task concept - generated tasks mirror their
+    // config and are pinned by their rule, not by a star.
     conn.execute(
         "UPDATE tasks SET priority = 0 WHERE priority = 1 AND origin != 'manual'",
-        [],
-    )?;
-    // origin_date backfill for tasks generated before migration 009:
-    // scheduled tasks keep their date in period_key; anything not yet
-    // carried over still sits on its original date
-    conn.execute(
-        "UPDATE tasks SET origin_date = period_key
-         WHERE origin = 'scheduled' AND origin_date IS NULL AND length(period_key) = 10",
-        [],
-    )?;
-    conn.execute(
-        "UPDATE tasks SET origin_date = scheduled_date
-         WHERE origin != 'manual' AND origin_date IS NULL
-           AND scheduled_date IS NOT NULL AND overdue = 0",
         [],
     )?;
     run_recurring(conn, config_dir, config, horizon, now, &mut outcome)?;

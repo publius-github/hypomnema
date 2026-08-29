@@ -111,13 +111,7 @@ pub fn upcoming_events(
 
 fn next_birthday_occurrence(month: u32, day: u32, today: NaiveDate) -> Option<NaiveDate> {
     for year in [today.year(), today.year() + 1] {
-        let occurrence = NaiveDate::from_ymd_opt(year, month, day).or_else(|| {
-            if month == 2 && day == 29 {
-                NaiveDate::from_ymd_opt(year, 2, 28)
-            } else {
-                None
-            }
-        })?;
+        let occurrence = crate::config_files::birthday_occurrence(year, month, day)?;
         if occurrence >= today {
             return Some(occurrence);
         }
@@ -193,6 +187,10 @@ pub fn calendar_outlook(
             .unwrap_or(today)
     };
     let mut events = Vec::new();
+    // Deliberately not returned: every load error possible here is also
+    // raised by the engine pass (same files, same loaders) and reaches
+    // the UI through the config-errors banner; the projection just
+    // skips what it cannot read.
     let mut errors = Vec::new();
 
     let mut recurring: Vec<(String, RecurringFile)> = Vec::new();
@@ -284,23 +282,12 @@ pub fn calendar_outlook(
                 continue;
             };
             for year in today.year()..=to.year() {
-                let occurrence = NaiveDate::from_ymd_opt(year, month, day).or_else(|| {
-                    if month == 2 && day == 29 {
-                        NaiveDate::from_ymd_opt(year, 2, 28)
-                    } else {
-                        None
-                    }
-                });
+                let occurrence = crate::config_files::birthday_occurrence(year, month, day);
                 let Some(occurrence) = occurrence else {
                     continue;
                 };
                 if occurrence > horizon && occurrence >= from && occurrence <= to.min(dates_cap) {
-                    let title = match entry.year {
-                        Some(birth_year) => {
-                            format!("Birthday: {} (turns {})", entry.name, year - birth_year)
-                        }
-                        None => format!("Birthday: {}", entry.name),
-                    };
+                    let title = crate::config_files::birthday_title(&entry.name, entry.year, year);
                     events.push(OutlookEvent {
                         date: occurrence.format("%Y-%m-%d").to_string(),
                         title,

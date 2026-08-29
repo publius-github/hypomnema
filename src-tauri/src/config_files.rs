@@ -78,6 +78,28 @@ pub(crate) fn parse_mmdd(date: &str) -> Option<(u32, u32)> {
     NaiveDate::from_ymd_opt(2024, m, d).map(|_| (m, d))
 }
 
+/// The calendar occurrence of an MM-DD birthday in `year`; 02-29 falls
+/// back to 02-28 in non-leap years.
+pub(crate) fn birthday_occurrence(year: i32, month: u32, day: u32) -> Option<NaiveDate> {
+    NaiveDate::from_ymd_opt(year, month, day).or_else(|| {
+        if month == 2 && day == 29 {
+            NaiveDate::from_ymd_opt(year, 2, 28)
+        } else {
+            None
+        }
+    })
+}
+
+/// Title of a generated birthday task. Single source of truth: the
+/// engine's title-sync UPDATE and the calendar projection compare these
+/// strings, so they must be byte-identical everywhere.
+pub(crate) fn birthday_title(name: &str, birth_year: Option<i32>, occurrence_year: i32) -> String {
+    match birth_year {
+        Some(year) => format!("Birthday: {name} (turns {})", occurrence_year - year),
+        None => format!("Birthday: {name}"),
+    }
+}
+
 pub(crate) fn load_yaml<T: serde::de::DeserializeOwned + Default>(
     dir: &Path,
     file: &str,
