@@ -160,6 +160,7 @@ export default function TaskModal({
             <div className="mt-1 select-text text-[11px] text-info/70">
               origin {task.origin}
               {task.cadence ? ` · cadence ${task.cadence}` : ""}
+              {task.dow_label ? ` · day ${task.dow_label}` : ""}
               {task.rule_key ? ` · rule ${task.rule_key.slice(0, 8)}` : ""}
               {task.period_key ? ` · period ${task.period_key}` : ""}
             </div>

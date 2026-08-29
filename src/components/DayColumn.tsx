@@ -109,11 +109,13 @@ function DayColumn({
       } ${isToday ? "bg-accent/5" : "bg-surface-alt/50"}`}
     >
       <div
-        className={`truncate px-2.5 py-2 text-base font-semibold ${
+        // one color for every header, Today included: it follows the
+        // main text tone (and the day_header_color override); Today is
+        // marked by the [Today] suffix and the column tint instead of
+        // its own accent color, so color settings behave uniformly
+        className={`truncate px-2.5 py-2 text-base font-semibold text-content ${
           config?.day_header_centered ? "text-center" : ""
-        } ${isToday ? "text-accent" : "text-content"}`}
-        // configurable header color, Today included; without an
-        // override Today keeps the accent
+        }`}
         style={
           config?.day_header_color
             ? { color: config.day_header_color }
