@@ -21,7 +21,6 @@ pub struct AppConfig {
     /// missed based on its date only, as if it fired at 23:59.
     pub cron_ignore_time: bool,
     pub kb_path: String,
-    pub journal_template: String,
     /// Order of the sections in the left tab bar.
     pub section_order: Vec<String>,
     /// Dashboard shows a single Today column instead of the week grid.
@@ -52,6 +51,14 @@ pub struct AppConfig {
     /// moving to its section, leaving room to fix a misclick (0 = move
     /// immediately). Only matters with done_display = separate.
     pub done_hold_seconds: u32,
+    /// Center the day headers on the dashboard grid.
+    pub day_header_centered: bool,
+    /// Color the cadence group headers (daily/weekly/...) in day columns.
+    pub cadence_colors: bool,
+    /// Extra vertical spacing before each cadence group in day columns.
+    pub cadence_group_gap: bool,
+    /// Done subtasks sink to the bottom of their subtask list.
+    pub subtasks_done_last: bool,
 }
 
 pub const SECTIONS: &[&str] = &["dashboard", "upcoming", "calendar", "journal", "kb"];
@@ -66,7 +73,6 @@ impl Default for AppConfig {
             catchup_days: 14,
             cron_ignore_time: true,
             kb_path: String::new(),
-            journal_template: "journal/templates/daily.md".into(),
             section_order: SECTIONS.iter().map(|s| s.to_string()).collect(),
             dashboard_today_only: false,
             list_columns: 4,
@@ -81,6 +87,10 @@ impl Default for AppConfig {
             ui_font: String::new(),
             editor_font: "Consolas".into(),
             done_hold_seconds: 3,
+            day_header_centered: false,
+            cadence_colors: true,
+            cadence_group_gap: true,
+            subtasks_done_last: true,
         }
     }
 }
@@ -165,7 +175,6 @@ impl AppConfig {
             ("catchup_days", self.catchup_days.to_string()),
             ("cron_ignore_time", self.cron_ignore_time.to_string()),
             ("kb_path", self.kb_path.clone()),
-            ("journal_template", self.journal_template.clone()),
             ("section_order", self.section_order.join(",")),
             (
                 "dashboard_today_only",
@@ -198,6 +207,10 @@ impl AppConfig {
             ("ui_font", self.ui_font.clone()),
             ("editor_font", self.editor_font.clone()),
             ("done_hold_seconds", self.done_hold_seconds.to_string()),
+            ("day_header_centered", self.day_header_centered.to_string()),
+            ("cadence_colors", self.cadence_colors.to_string()),
+            ("cadence_group_gap", self.cadence_group_gap.to_string()),
+            ("subtasks_done_last", self.subtasks_done_last.to_string()),
         ]
     }
 }

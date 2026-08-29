@@ -6,6 +6,8 @@ import {
   gridDates,
   groupByCadence,
   nextStatus,
+  priorityPatch,
+  splitCategory,
   splitDone,
   weekdayShort,
 } from "./tasks";
@@ -49,6 +51,52 @@ describe("dayLabel", () => {
     );
     expect(dayLabel("2026-08-31", "2026-08-29")).toBe("Monday 2026-08-31");
     expect(weekdayShort("2026-08-29")).toBe("Sat");
+  });
+});
+
+describe("splitCategory", () => {
+  it("splits a {Category} prefix into a chip label and the text", () => {
+    expect(splitCategory("{Home} water plants")).toEqual({
+      category: "Home",
+      text: "water plants",
+    });
+    expect(splitCategory("no prefix")).toEqual({
+      category: null,
+      text: "no prefix",
+    });
+    expect(splitCategory("{} empty")).toEqual({
+      category: null,
+      text: "{} empty",
+    });
+  });
+});
+
+describe("priorityPatch", () => {
+  it("starring an unscheduled task pins it to today", () => {
+    expect(priorityPatch(task({}), true, "2026-08-29")).toEqual({
+      priority: true,
+      scheduled_date: "2026-08-29",
+    });
+    expect(
+      priorityPatch(task({ scheduled_date: "2026-09-01" }), true, "2026-08-29"),
+    ).toEqual({ priority: true });
+  });
+
+  it("un-starring a manual list task returns it to its list", () => {
+    expect(
+      priorityPatch(
+        task({ list_id: 5, scheduled_date: "2026-08-29" }),
+        false,
+        "2026-08-29",
+      ),
+    ).toEqual({ priority: false, scheduled_date: null });
+    expect(
+      priorityPatch(
+        task({ scheduled_date: "2026-08-29" }),
+        false,
+        "2026-08-29",
+      ),
+    ).toEqual({ priority: false });
   });
 });
 

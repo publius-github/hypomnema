@@ -6,6 +6,15 @@ import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import type { Task } from "../types";
 
+// optional color coding of the cadence groups (Settings > Appearance)
+const CADENCE_STYLE: Record<string, string> = {
+  exact: "bg-sky-400/10 text-sky-500 dark:text-sky-400",
+  daily: "bg-line/25 text-content-muted",
+  weekly: "bg-blue-400/10 text-blue-500 dark:text-blue-400",
+  monthly: "bg-violet-400/10 text-violet-500 dark:text-violet-400",
+  yearly: "bg-amber-400/10 text-amber-600 dark:text-amber-400",
+};
+
 export default function DayColumn({
   date,
   onOpenTask,
@@ -67,9 +76,9 @@ export default function DayColumn({
       } ${isToday ? "bg-accent/5" : "bg-surface-alt/50"}`}
     >
       <div
-        className={`truncate px-2.5 py-2 text-sm font-semibold ${
-          isToday ? "text-accent" : "text-content"
-        }`}
+        className={`truncate px-2.5 py-2 text-base font-semibold ${
+          config?.day_header_centered ? "text-center" : ""
+        } ${isToday ? "text-accent" : "text-content"}`}
         title={dayLabel(date, today)}
       >
         {dayLabel(date, today)}
@@ -99,9 +108,17 @@ export default function DayColumn({
         {groups.map((group) => (
           <div key={group.key} className="flex flex-col gap-1.5">
             {group.label && (
-              <div className="mt-1 flex items-center gap-1.5 rounded bg-line/25 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-content-muted">
+              <div
+                className={`${
+                  config?.cadence_group_gap ?? true ? "mt-3" : "mt-1"
+                } flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider ${
+                  ((config?.cadence_colors ?? true) &&
+                    CADENCE_STYLE[group.key]) ||
+                  "bg-line/25 text-content-muted"
+                }`}
+              >
                 <span>{group.label}</span>
-                <span className="h-px flex-1 bg-line" />
+                <span className="h-px flex-1 bg-current opacity-25" />
               </div>
             )}
             {group.tasks.map((task) => (

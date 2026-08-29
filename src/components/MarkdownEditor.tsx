@@ -31,6 +31,8 @@ import {
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { tags } from "@lezer/highlight";
 import { parseDocument } from "yaml";
+import { lintMarkdown } from "../lib/markdownLint";
+import { formatTableBlock, isTableLine } from "../lib/markdownTable";
 
 export type EditorMode = "markdown" | "yaml" | "plain";
 
@@ -145,88 +147,24 @@ function yamlLinter() {
 }
 
 // Markdown cannot really be "invalid", so the linter flags the
-// formatting mistakes that visibly break or degrade rendering:
-// unclosed code fences, glued heading/list markers, a heading without
-// a blank line above it, and stray trailing whitespace.
+// formatting mistakes that visibly break or degrade rendering: unclosed
+// code fences, glued heading/list markers, a heading without a blank
+// line above it, stray trailing whitespace (rules in lib/markdownLint).
 function markdownLinter() {
-  return linter((view): Diagnostic[] => {
-    const diagnostics: Diagnostic[] = [];
-    const doc = view.state.doc;
-    let lastFenceLine: { from: number; to: number } | null = null;
-    let openFences = 0;
-    let prevText = "";
-    for (let i = 1; i <= doc.lines; i++) {
-      const line = doc.line(i);
-      if (/^\s*(```|~~~)/.test(line.text)) {
-        openFences += 1;
-        lastFenceLine = { from: line.from, to: line.to };
-        prevText = line.text;
-        continue;
-      }
-      if (openFences % 2 === 1) {
-        prevText = line.text;
-        continue; // inside a code fence: anything goes
-      }
-      const badHeading = line.text.match(/^(#{1,6})(?=[^#\s])/);
-      if (badHeading) {
-        diagnostics.push({
-          from: line.from,
-          to: line.from + badHeading[1].length + 1,
-          severity: "warning",
-          message: "Heading marker needs a space: '# Title', not '#Title'",
-        });
-      }
-      if (/^#{1,6}\s/.test(line.text) && i > 1 && prevText.trim() !== "") {
-        diagnostics.push({
-          from: line.from,
-          to: Math.min(line.from + line.text.length, line.to),
-          severity: "warning",
-          message: "Heading should be preceded by a blank line",
-        });
-      }
-      const badList = line.text.match(/^(\s*)-(?=[^\s-])/);
-      if (badList) {
-        diagnostics.push({
-          from: line.from + badList[1].length,
-          to: line.from + badList[1].length + 2,
-          severity: "warning",
-          message: "List marker needs a space: '- item', not '-item'",
-        });
-      }
-      const trailing = line.text.match(/([ \t]+)$/);
-      // exactly two trailing spaces are a markdown hard line break
-      if (trailing && trailing[1] !== "  " && line.text.trim() !== "") {
-        diagnostics.push({
-          from: line.to - trailing[1].length,
-          to: line.to,
-          severity: "warning",
-          message: "Trailing whitespace (two spaces = hard break, anything else is noise)",
-        });
-      }
-      prevText = line.text;
-    }
-    if (openFences % 2 === 1 && lastFenceLine) {
-      diagnostics.push({
-        from: lastFenceLine.from,
-        to: lastFenceLine.to,
-        severity: "warning",
-        message: "Unclosed code fence",
-      });
-    }
-    return diagnostics;
-  });
+  return linter(
+    (view): Diagnostic[] => lintMarkdown(view.state.doc.toString()),
+  );
 }
 
 /**
- * Reformats the markdown table around the cursor: every column padded
- * to its widest cell, separator rows rebuilt keeping their alignment
- * colons. Returns false when the cursor is not inside a table.
+ * Reformats the whole markdown table around the cursor (all contiguous
+ * table lines) via lib/markdownTable. Returns false when the cursor is
+ * not inside a table.
  */
 function formatTableAt(view: EditorView): boolean {
   const { state } = view;
   const doc = state.doc;
   const cursorLine = doc.lineAt(state.selection.main.head);
-  const isTableLine = (text: string) => /^\s*\|/.test(text);
   if (!isTableLine(cursorLine.text)) return false;
 
   let first = cursorLine.number;
@@ -234,43 +172,9 @@ function formatTableAt(view: EditorView): boolean {
   let last = cursorLine.number;
   while (last < doc.lines && isTableLine(doc.line(last + 1).text)) last += 1;
 
-  const rows: string[][] = [];
-  for (let i = first; i <= last; i++) {
-    const text = doc.line(i).text.trim();
-    const inner = text.replace(/^\|/, "").replace(/\|$/, "");
-    rows.push(inner.split("|").map((c) => c.trim()));
-  }
-  const isSeparator = (cells: string[]) =>
-    cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
-  const columns = Math.max(...rows.map((r) => r.length));
-  const widths = Array.from({ length: columns }, (_, col) =>
-    Math.max(
-      3,
-      ...rows
-        .filter((r) => !isSeparator(r))
-        .map((r) => (r[col] ?? "").length),
-    ),
-  );
-  const formatted = rows
-    .map((cells) => {
-      const padded = Array.from({ length: columns }, (_, col) => {
-        const cell = cells[col] ?? "";
-        if (isSeparator(cells)) {
-          const left = cell.startsWith(":");
-          const right = cell.endsWith(":");
-          const dashes = "-".repeat(
-            Math.max(1, widths[col] - (left ? 1 : 0) - (right ? 1 : 0)),
-          );
-          return `${left ? ":" : ""}${dashes}${right ? ":" : ""}`.padEnd(
-            widths[col],
-            "-",
-          );
-        }
-        return cell.padEnd(widths[col]);
-      });
-      return `| ${padded.join(" | ")} |`;
-    })
-    .join("\n");
+  const lines: string[] = [];
+  for (let i = first; i <= last; i++) lines.push(doc.line(i).text);
+  const formatted = formatTableBlock(lines).join("\n");
 
   const from = doc.line(first).from;
   const to = doc.line(last).to;

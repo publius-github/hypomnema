@@ -5,7 +5,7 @@ export type AppConfig = { theme: "dark" | "light", grid_columns: number, done_di
  * Catch up recurring crons by calendar day: a firing counts as
  * missed based on its date only, as if it fired at 23:59.
  */
-cron_ignore_time: boolean, kb_path: string, journal_template: string, 
+cron_ignore_time: boolean, kb_path: string, 
 /**
  * Order of the sections in the left tab bar.
  */
@@ -51,4 +51,20 @@ editor_font: string,
  * moving to its section, leaving room to fix a misclick (0 = move
  * immediately). Only matters with done_display = separate.
  */
-done_hold_seconds: number, };
+done_hold_seconds: number, 
+/**
+ * Center the day headers on the dashboard grid.
+ */
+day_header_centered: boolean, 
+/**
+ * Color the cadence group headers (daily/weekly/...) in day columns.
+ */
+cadence_colors: boolean, 
+/**
+ * Extra vertical spacing before each cadence group in day columns.
+ */
+cadence_group_gap: boolean, 
+/**
+ * Done subtasks sink to the bottom of their subtask list.
+ */
+subtasks_done_last: boolean, };

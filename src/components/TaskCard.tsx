@@ -2,7 +2,13 @@ import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { compareTasks, nextStatus, weekdayShort } from "../lib/tasks";
+import {
+  compareTasks,
+  nextStatus,
+  priorityPatch,
+  splitCategory,
+  weekdayShort,
+} from "../lib/tasks";
 import type { Task } from "../types";
 
 const STATUS_BUTTON: Record<Task["status"], string> = {
@@ -44,8 +50,18 @@ export default function TaskCard({
     disabled: overlay || task.origin !== "manual",
   });
 
-  const subtasks = [...subtasksRaw].sort(compareTasks);
+  const subtasksDoneLast = useAppStore(
+    (s) => s.config?.subtasks_done_last ?? true,
+  );
+  const subtasks = [...subtasksRaw].sort((a, b) => {
+    if (subtasksDoneLast && (a.status === "done") !== (b.status === "done")) {
+      return a.status === "done" ? 1 : -1;
+    }
+    return compareTasks(a, b);
+  });
   const done = task.status === "done";
+  // a {Category} prefix is a pure text label rendered as a chip
+  const { category, text } = splitCategory(task.title);
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
   const tooltip = [
     task.title,
@@ -108,14 +124,17 @@ export default function TaskCard({
             </svg>
           )}
         </button>
-        {task.priority && !overlay && (
-          <span className="shrink-0 text-[11px] text-warn" title="Priority">
-            ★
+        {showList && listName && (
+          <span className="shrink-0 rounded bg-line/40 px-1 text-[11px] text-content-muted">
+            {listName}
           </span>
         )}
-        {showList && listName && (
-          <span className="max-w-[72px] shrink-0 truncate rounded bg-line/40 px-1 text-[11px] text-content-muted">
-            {listName}
+        {category && (
+          <span
+            className="shrink-0 rounded bg-accent/10 px-1 text-[11px] text-accent"
+            title={`Category: ${category}`}
+          >
+            {category}
           </span>
         )}
         {exactDate && task.origin_date && (
@@ -132,9 +151,36 @@ export default function TaskCard({
           }`}
           onClick={() => onOpen?.(task.id)}
         >
-          {task.title}
+          {text}
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted">
+          {!overlay && (
+            <button
+              className={`${
+                task.priority
+                  ? "text-warn"
+                  : "opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
+              }`}
+              title={
+                task.priority
+                  ? "Remove priority"
+                  : "Priority: pin to today's column"
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                void updateTask(
+                  task.id,
+                  priorityPatch(
+                    task,
+                    !task.priority,
+                    useAppStore.getState().today,
+                  ),
+                );
+              }}
+            >
+              {task.priority ? "★" : "☆"}
+            </button>
+          )}
           {task.time && <span>{task.time}</span>}
           {task.overdue && !done && (
             <span className="rounded bg-danger/15 px-1 font-medium text-danger">

@@ -111,6 +111,27 @@ export default function Settings() {
             onCommit={(v) => void updateConfig({ editor_font: v })}
           />
         </Field>
+
+        <Toggle
+          checked={config.day_header_centered}
+          label="Center day headers"
+          hint="Weekday and date centered on top of each day column."
+          onChange={(v) => void updateConfig({ day_header_centered: v })}
+        />
+
+        <Toggle
+          checked={config.cadence_colors}
+          label="Color cadence groups"
+          hint="Daily, Weekly, Monthly, Yearly and Exact date headers each get their own color in the day columns."
+          onChange={(v) => void updateConfig({ cadence_colors: v })}
+        />
+
+        <Toggle
+          checked={config.cadence_group_gap}
+          label="Extra spacing between cadence groups"
+          hint="A wider gap before each group header in the day columns."
+          onChange={(v) => void updateConfig({ cadence_group_gap: v })}
+        />
         </>
       )}
 
@@ -214,6 +235,13 @@ export default function Settings() {
             </span>
           </span>
         </label>
+
+        <Toggle
+          checked={config.subtasks_done_last}
+          label="Done subtasks sink to the bottom"
+          hint="Checked subtasks move below the open ones in the card and the task dialog."
+          onChange={(v) => void updateConfig({ subtasks_done_last: v })}
+        />
 
         <label className="flex items-start gap-2">
           <input
@@ -471,6 +499,33 @@ function NumberInput({
         }
       }}
     />
+  );
+}
+
+function Toggle({
+  checked,
+  label,
+  hint,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  hint: string;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-2">
+      <input
+        type="checkbox"
+        className="mt-0.5"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="flex flex-col">
+        <span className="text-sm font-medium">{label}</span>
+        <span className="text-xs text-content-muted">{hint}</span>
+      </span>
+    </label>
   );
 }
 

@@ -1,4 +1,4 @@
-import type { ScheduleBlock, Task, TaskStatus } from "../types";
+import type { ScheduleBlock, Task, TaskPatch, TaskStatus } from "../types";
 
 // The checkbox cycles todo -> done -> postponed -> todo: postponing is
 // one extra click on a just-completed task (the done-hold delay keeps
@@ -39,6 +39,46 @@ export function dayLabel(dateISO: string, today: string): string {
   return dateISO === today
     ? `${weekday} ${dateISO} [Today]`
     : `${weekday} ${dateISO}`;
+}
+
+/**
+ * A "{Category} rest" title splits into a category label (rendered as a
+ * chip) and the visible text. A category is pure text on the task - it
+ * has nothing to do with lists.
+ */
+export function splitCategory(title: string): {
+  category: string | null;
+  text: string;
+} {
+  const match = title.match(/^\{([^}]+)\}\s*(.*)$/s);
+  if (match && match[1].trim() && match[2].trim()) {
+    return { category: match[1].trim(), text: match[2].trim() };
+  }
+  return { category: null, text: title };
+}
+
+/**
+ * Starring a task pulls it into today's column (it keeps its list);
+ * un-starring a manual list task sends it back to its list column.
+ * Priority tasks are exempt from the overdue mark (engine side).
+ */
+export function priorityPatch(
+  task: Task,
+  on: boolean,
+  today: string,
+): TaskPatch {
+  if (on) {
+    return {
+      priority: true,
+      ...(task.scheduled_date ? {} : { scheduled_date: today }),
+    };
+  }
+  return {
+    priority: false,
+    ...(task.list_id !== null && task.origin === "manual"
+      ? { scheduled_date: null }
+      : {}),
+  };
 }
 
 /** Short weekday of an ISO date, for exact-date chips ("Sat"). */

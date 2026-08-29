@@ -161,8 +161,9 @@ export default function Dashboard() {
           <div className="mx-auto flex w-full max-w-xl flex-col gap-2 rounded-lg border border-line bg-surface-alt p-4 text-sm">
             <span className="font-semibold">Getting started</span>
             <span className="text-content-muted">
-              Click &quot;+ Add task&quot; in any day column, or type a
-              title as {"{List name}"} task text to file it into a list.
+              Click &quot;+ Add task&quot; in any day column; a{" "}
+              {"{Category}"} prefix in the title shows as a label on the
+              card. Lists live in the bottom zone (&quot;+ New list&quot;).
             </span>
             <span className="text-content-muted">
               Recurring rules, one-off dates and birthdays generate tasks
@@ -326,31 +327,33 @@ function ListZone({
         ))}
       </div>
       {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
-      {visible.length > perPage && (
-        <div className="flex w-32 shrink-0 flex-col gap-0.5 overflow-y-auto rounded-lg border border-line bg-surface-alt/50 p-1.5">
-          <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
-            All lists
+      <div className="flex min-h-0 shrink-0 flex-col gap-3">
+        <NewListForm />
+        {visible.length > perPage && (
+          <div className="flex min-h-0 w-40 flex-1 flex-col gap-0.5 overflow-y-auto rounded-lg border border-line bg-surface-alt/50 p-1.5">
+            <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+              All lists
+            </div>
+            {visible.map((list, i) => {
+              const onPage = i >= off && i < off + perPage;
+              return (
+                <button
+                  key={list.id}
+                  className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
+                    onPage
+                      ? "bg-accent/15 text-accent"
+                      : "text-content-muted hover:bg-line/40 hover:text-content"
+                  }`}
+                  title={`Jump to "${list.name}"`}
+                  onClick={() => setOffset(Math.min(i, maxOffset))}
+                >
+                  {list.name}
+                </button>
+              );
+            })}
           </div>
-          {visible.map((list, i) => {
-            const onPage = i >= off && i < off + perPage;
-            return (
-              <button
-                key={list.id}
-                className={`truncate rounded px-1.5 py-0.5 text-left text-xs ${
-                  onPage
-                    ? "bg-accent/15 text-accent"
-                    : "text-content-muted hover:bg-line/40 hover:text-content"
-                }`}
-                title={`Jump to "${list.name}"`}
-                onClick={() => setOffset(Math.min(i, maxOffset))}
-              >
-                {list.name}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      <NewListForm />
+        )}
+      </div>
     </div>
   );
 }

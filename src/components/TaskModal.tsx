@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../store";
-import { compareTasks } from "../lib/tasks";
+import { compareTasks, priorityPatch } from "../lib/tasks";
 import type { Task, TaskStatus } from "../types";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
@@ -19,7 +19,8 @@ export default function TaskModal({
   task: Task;
   onClose: () => void;
 }) {
-  const { tasks, lists, updateTask, deleteTask, createTask } = useAppStore();
+  const { tasks, lists, config, updateTask, deleteTask, createTask } =
+    useAppStore();
   // generated tasks mirror their config file exactly: title, text, date
   // and list are locked here - the config is the only place to change
   // them. Status, priority and color stay local to the instance.
@@ -31,9 +32,18 @@ export default function TaskModal({
   );
   const [subtaskTitle, setSubtaskTitle] = useState("");
 
+  const subtasksDoneLast = config?.subtasks_done_last ?? true;
   const subtasks = tasks
     .filter((t) => t.parent_task_id === task.id)
-    .sort(compareTasks);
+    .sort((a, b) => {
+      if (
+        subtasksDoneLast &&
+        (a.status === "done") !== (b.status === "done")
+      ) {
+        return a.status === "done" ? 1 : -1;
+      }
+      return compareTasks(a, b);
+    });
 
   const commitTitle = () => {
     if (generated) return;
@@ -182,11 +192,16 @@ export default function TaskModal({
               }
             >
               <option value="">No list</option>
-              {lists.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
+              {lists
+                // engine-created lists ({List} YAML prefixes, Birthdays)
+                // are not assignment targets; keep the current one so
+                // the value still renders on generated tasks
+                .filter((l) => !l.auto || l.id === task.list_id)
+                .map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
             </select>
           </label>
           <label className="flex flex-col gap-1">
@@ -218,12 +233,22 @@ export default function TaskModal({
         </div>
 
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-1.5 text-sm">
+          <label
+            className="flex items-center gap-1.5 text-sm"
+            title="Priority pins the task to today's column; it never gets the overdue mark"
+          >
             <input
               type="checkbox"
               checked={task.priority}
               onChange={(e) =>
-                void updateTask(task.id, { priority: e.target.checked })
+                void updateTask(
+                  task.id,
+                  priorityPatch(
+                    task,
+                    e.target.checked,
+                    useAppStore.getState().today,
+                  ),
+                )
               }
             />
             <span className="text-warn">★</span> Priority

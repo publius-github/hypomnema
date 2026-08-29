@@ -285,23 +285,16 @@ pub fn tasks_search(conn: &Connection, query: &str) -> Result<Vec<Task>> {
 }
 
 pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
-    let mut title = new.title.trim().to_string();
+    let title = new.title.trim().to_string();
     if title.is_empty() {
         return Err(Error::State("task title cannot be empty".into()));
     }
-    // Same {List Name} prefix syntax as the YAML items: a typed prefix
-    // routes the task and creates the list on the fly, exactly like the
-    // engine does - but only when no target list was given. Adding
-    // straight into a list column must land in that list; rerouting from
-    // there is a modal/drag action. Subtasks keep the braces literally.
-    let mut list_id = new.list_id;
-    if new.parent_task_id.is_none() && new.list_id.is_none() {
-        let (list, rest) = crate::engine::parse_item(&title);
-        if let Some(list) = list {
-            list_id = Some(list_ensure(conn, &list)?.id);
-            title = rest;
-        }
-    }
+    // A {Category} prefix typed by the user is just a text label on the
+    // task (rendered as a chip) - it never routes to or creates a list.
+    // Lists are assigned only explicitly: the target column, the modal
+    // dropdown or a drag. The engine's YAML {List} routing is separate
+    // and stays in engine::parse_item.
+    let list_id = new.list_id;
     let scheduled_date = new
         .scheduled_date
         .as_deref()
@@ -453,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn create_parses_list_prefix_like_yaml_items() {
+    fn create_keeps_category_prefix_and_never_routes_to_a_list() {
         let conn = conn();
         let task = task_create(
             &conn,
@@ -463,39 +456,24 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(task.title, "pay bills");
-        let list = lists_all(&conn)
-            .unwrap()
-            .into_iter()
-            .find(|l| l.name == "05 Finance")
-            .expect("list auto-created");
-        assert_eq!(task.list_id, Some(list.id));
+        // the prefix is a text category label, not a list route
+        assert_eq!(task.title, "{05 Finance} pay bills");
+        assert_eq!(task.list_id, None);
+        assert!(lists_all(&conn).unwrap().is_empty());
 
-        // a subtask keeps the braces literally
-        let sub = task_create(
-            &conn,
-            &NewTask {
-                title: "{not a list} step".into(),
-                parent_task_id: Some(task.id),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(sub.title, "{not a list} step");
-
-        // an explicit target list wins: no rerouting via the prefix
+        // an explicit target list is the only way in at creation
         let target = list_create(&conn, "Inbox", None, false).unwrap();
         let direct = task_create(
             &conn,
             &NewTask {
-                title: "{05 Finance} stays here".into(),
+                title: "{05 Finance} categorized".into(),
                 list_id: Some(target.id),
                 ..Default::default()
             },
         )
         .unwrap();
         assert_eq!(direct.list_id, Some(target.id));
-        assert_eq!(direct.title, "{05 Finance} stays here");
+        assert_eq!(direct.title, "{05 Finance} categorized");
     }
 
     #[test]

@@ -668,8 +668,12 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
                          AND live.scheduled_date = ?1)",
         [&today_str],
     )?;
+    // Priority tasks ride along to today but never get the overdue
+    // mark: priority already says "do this now", the extra red label
+    // adds nothing.
     let moved = conn.execute(
-        "UPDATE tasks SET scheduled_date = ?1, overdue = 1
+        "UPDATE tasks SET scheduled_date = ?1,
+                overdue = CASE WHEN priority = 1 THEN 0 ELSE 1 END
          WHERE status != 'done'
            AND archived_at IS NULL
            AND parent_task_id IS NULL
@@ -678,9 +682,11 @@ fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
            AND (cadence IS NULL OR cadence != 'daily')",
         [today.format("%Y-%m-%d").to_string()],
     )?;
-    // dailies carried over by earlier versions drop the overdue mark
+    // dailies carried over by earlier versions and tasks starred after
+    // being carried over drop the overdue mark
     conn.execute(
-        "UPDATE tasks SET overdue = 0 WHERE overdue = 1 AND cadence = 'daily'",
+        "UPDATE tasks SET overdue = 0
+         WHERE overdue = 1 AND (cadence = 'daily' OR priority = 1)",
         [],
     )?;
     Ok((moved, deduped))
@@ -1181,6 +1187,35 @@ mod tests {
             rows.collect::<std::result::Result<_, _>>().unwrap()
         };
         assert_eq!(today_rows, vec![("2026-08-31".to_string(), 0)]);
+    }
+
+    #[test]
+    fn priority_task_carries_over_without_overdue_mark() {
+        let (conn, dir) = setup("priority-carry");
+        conn.execute(
+            "INSERT INTO tasks (title, scheduled_date, priority, created_at)
+             VALUES ('starred', '2026-08-27', 1, '2026-08-27T00:00:00+00:00'),
+                    ('plain', '2026-08-27', 0, '2026-08-27T00:00:00+00:00')",
+            [],
+        )
+        .unwrap();
+        run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        let rows: Vec<(String, String, i64)> = {
+            let mut stmt = conn
+                .prepare("SELECT title, scheduled_date, overdue FROM tasks ORDER BY title")
+                .unwrap();
+            let rows = stmt
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                .unwrap();
+            rows.collect::<std::result::Result<_, _>>().unwrap()
+        };
+        assert_eq!(
+            rows,
+            vec![
+                ("plain".to_string(), "2026-08-28".to_string(), 1),
+                ("starred".to_string(), "2026-08-28".to_string(), 0),
+            ]
+        );
     }
 
     #[test]
