@@ -5,6 +5,7 @@ import type {
   ConfigError,
   DashboardContext,
   EngineOutcome,
+  KbNode,
   List,
   NewTask,
   Section,
@@ -44,6 +45,8 @@ interface AppState {
   /// set to jump to Notes with a note opened (search palette)
   kbOpenNote: string | null;
   openKbNote: (path: string) => void;
+  /// resolves a [[wiki link]] name to a note file and opens it
+  openKbNoteByName: (name: string) => Promise<void>;
   /// set to jump to Journal with a date opened (search palette)
   journalOpenDate: string | null;
   openJournalDate: (date: string) => void;
@@ -319,6 +322,34 @@ export const useAppStore = create<AppState>((set, get) => ({
         kbExpanded: [...new Set([...s.kbExpanded, ...parents])],
       };
     }),
+  openKbNoteByName: async (name) => {
+    const target = name.trim().toLowerCase();
+    if (!target) return;
+    try {
+      const tree = await invoke<KbNode[]>("kb_tree");
+      const find = (nodes: KbNode[]): string | null => {
+        for (const node of nodes) {
+          if (!node.is_dir) {
+            const base = node.name.toLowerCase().replace(/\.md$/, "");
+            if (base === target || node.name.toLowerCase() === target) {
+              return node.path;
+            }
+          }
+          const hit = find(node.children);
+          if (hit) return hit;
+        }
+        return null;
+      };
+      const path = find(tree);
+      if (path) {
+        get().openKbNote(path);
+      } else {
+        set({ error: `Note "${name.trim()}" not found in the notes folder` });
+      }
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
   journalOpenDate: null,
   openJournalDate: (date) => set({ section: "journal", journalOpenDate: date }),
   searchOpen: false,

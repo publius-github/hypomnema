@@ -33,6 +33,7 @@ import { tags } from "@lezer/highlight";
 import { parseDocument } from "yaml";
 import { lintMarkdown } from "../lib/markdownLint";
 import { formatTableBlock, isTableLine } from "../lib/markdownTable";
+import { wikiTargetAt } from "../lib/wiki";
 
 export type EditorMode = "markdown" | "yaml" | "plain";
 
@@ -240,6 +241,7 @@ export default function MarkdownEditor({
   onChange,
   showLineNumbers = false,
   mode = "markdown",
+  onWikiLink,
 }: {
   /** Identity of the document; changing it resets the editor state. */
   docKey: string;
@@ -247,11 +249,15 @@ export default function MarkdownEditor({
   onChange: (content: string) => void;
   showLineNumbers?: boolean;
   mode?: EditorMode;
+  /** Ctrl/Cmd+click on a [[wiki link]] calls this with the link name. */
+  onWikiLink?: (name: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onWikiLinkRef = useRef(onWikiLink);
+  onWikiLinkRef.current = onWikiLink;
   // last content the editor itself reported; anything else arriving via
   // the value prop is an external change that must reach the document
   const lastEmittedRef = useRef(value);
@@ -281,6 +287,25 @@ export default function MarkdownEditor({
           ...searchKeymap,
           ...historyKeymap,
         ]),
+        // Ctrl/Cmd+click on [[note name]] jumps to that note
+        EditorView.domEventHandlers({
+          mousedown: (event, view) => {
+            if (!(event.ctrlKey || event.metaKey) || !onWikiLinkRef.current) {
+              return false;
+            }
+            const pos = view.posAtCoords({
+              x: event.clientX,
+              y: event.clientY,
+            });
+            if (pos === null) return false;
+            const line = view.state.doc.lineAt(pos);
+            const target = wikiTargetAt(line.text, pos - line.from);
+            if (!target) return false;
+            event.preventDefault();
+            onWikiLinkRef.current(target);
+            return true;
+          },
+        }),
         EditorView.lineWrapping,
         editorTheme,
         ...modeExtensions(mode),

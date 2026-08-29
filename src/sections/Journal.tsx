@@ -169,6 +169,9 @@ export default function Journal() {
                 docKey={`entry:${doc.date}`}
                 value={doc.content}
                 onChange={scheduleSave}
+                onWikiLink={(name) =>
+                  void useAppStore.getState().openKbNoteByName(name)
+                }
               />
             </div>
           </>

@@ -78,6 +78,9 @@ pub struct AppConfig {
     /// per-file config copies made before programmatic rewrites, under
     /// <vault>/backups/. 0 disables backups entirely.
     pub backup_keep: u32,
+    /// OS notifications for timed tasks coming due (in-app toasts always
+    /// show); useful when the window is minimized or behind others.
+    pub notify_system: bool,
 }
 
 pub const SECTIONS: &[&str] = &[
@@ -128,6 +131,7 @@ impl Default for AppConfig {
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
+            notify_system: true,
         }
     }
 }
@@ -289,6 +293,7 @@ impl AppConfig {
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
+            ("notify_system", self.notify_system.to_string()),
         ]
     }
 }

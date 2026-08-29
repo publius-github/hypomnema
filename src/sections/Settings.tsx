@@ -349,6 +349,13 @@ export default function Settings() {
         </label>
 
         <Toggle
+          checked={config.notify_system}
+          label="System notifications for due tasks"
+          hint="A timed task coming due raises an OS notification in addition to the in-app toast, so it is visible when the window is minimized."
+          onChange={(v) => void updateConfig({ notify_system: v })}
+        />
+
+        <Toggle
           checked={config.subtasks_done_last}
           label="Done subtasks sink to the bottom"
           hint="Checked subtasks move below the open ones in the card and the task dialog."

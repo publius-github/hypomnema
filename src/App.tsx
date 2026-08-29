@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { useAppStore } from "./store";
 import { todayISO } from "./lib/tasks";
 import type { AppConfig, ConfigError, Section } from "./types";
@@ -15,6 +20,19 @@ import History from "./sections/History";
 import Journal from "./sections/Journal";
 import KnowledgeBase from "./sections/KnowledgeBase";
 import Settings from "./sections/Settings";
+
+/** OS notification, best effort: the in-app toast always shows too. */
+async function systemNotify(title: string, body: string) {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      granted = (await requestPermission()) === "granted";
+    }
+    if (granted) sendNotification({ title, body });
+  } catch {
+    // notifications unavailable on this platform
+  }
+}
 
 export default function App() {
   const loaded = useAppStore((s) => s.loaded);
@@ -91,6 +109,9 @@ export default function App() {
           notifiedRef.current.add(task.id);
           const toast = { id: task.id, text: `${task.time} ${task.title}` };
           setToasts((prev) => [...prev, toast]);
+          if (useAppStore.getState().config?.notify_system ?? true) {
+            void systemNotify("Task due", toast.text);
+          }
           const timers = toastTimersRef.current;
           const dismiss = setTimeout(() => {
             timers.delete(dismiss);

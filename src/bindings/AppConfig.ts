@@ -95,4 +95,9 @@ subtasks_done_last: boolean,
  * per-file config copies made before programmatic rewrites, under
  * <vault>/backups/. 0 disables backups entirely.
  */
-backup_keep: number, };
+backup_keep: number, 
+/**
+ * OS notifications for timed tasks coming due (in-app toasts always
+ * show); useful when the window is minimized or behind others.
+ */
+notify_system: boolean, };

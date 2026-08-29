@@ -548,6 +548,9 @@ export default function KnowledgeBase() {
                     !current.path.endsWith(".md")) ||
                   (config?.kb_line_numbers ?? false)
                 }
+                onWikiLink={(name) =>
+                  void useAppStore.getState().openKbNoteByName(name)
+                }
               />
             </div>
           </>
