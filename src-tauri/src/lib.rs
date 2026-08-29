@@ -622,6 +622,13 @@ async fn tasks_search(state: State<'_, AppState>, query: String) -> Result<Vec<t
 }
 
 #[tauri::command]
+async fn daily_streaks(state: State<'_, AppState>) -> Result<Vec<views::DailyStreak>> {
+    with_conn(&state, |conn| {
+        views::daily_streaks(conn, chrono::Local::now().date_naive())
+    })
+}
+
+#[tauri::command]
 async fn task_get(state: State<'_, AppState>, id: i64) -> Result<tasks::Task> {
     with_conn(&state, |conn| tasks::task_get(conn, id))
 }
@@ -707,6 +714,7 @@ pub fn run() {
             config_file_set,
             kb_search,
             tasks_search,
+            daily_streaks,
             task_get,
             task_restore
         ])

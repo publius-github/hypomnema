@@ -10,6 +10,7 @@ const SECTION_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   upcoming: "Upcoming",
   calendar: "Calendar",
+  history: "History",
   journal: "Journal",
   kb: "Notes",
 };

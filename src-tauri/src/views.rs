@@ -302,6 +302,87 @@ pub fn calendar_outlook(
     events
 }
 
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct DailyStreak {
+    pub title: String,
+    #[ts(type = "number")]
+    pub streak: u32,
+    pub done_today: bool,
+}
+
+/// Current done-streak per daily recurring rule: consecutive done
+/// instances counted from the newest backwards. Instances, not calendar
+/// days, so a MON-FRI daily is not broken by the weekend. Today's
+/// still-open instance neither counts nor breaks the streak. Retention
+/// pruning caps how far back a streak can reach.
+pub fn daily_streaks(conn: &Connection, today: NaiveDate) -> Result<Vec<DailyStreak>> {
+    let today_str = today.format("%Y-%m-%d").to_string();
+    let mut stmt = conn.prepare(
+        "SELECT rule_key, title, scheduled_date, status FROM tasks
+         WHERE origin = 'recurring' AND cadence = 'daily'
+           AND archived_at IS NULL AND parent_task_id IS NULL
+           AND rule_key IS NOT NULL AND scheduled_date IS NOT NULL
+           AND scheduled_date <= ?1
+         ORDER BY rule_key, scheduled_date DESC",
+    )?;
+    let rows = stmt.query_map([&today_str], |row| {
+        Ok((
+            row.get::<_, String>("rule_key")?,
+            row.get::<_, String>("title")?,
+            row.get::<_, String>("scheduled_date")?,
+            row.get::<_, String>("status")?,
+        ))
+    })?;
+    let mut out: Vec<DailyStreak> = Vec::new();
+    // (rule_key, accumulator, streak already broken)
+    let mut current: Option<(String, DailyStreak, bool)> = None;
+    for row in rows {
+        let (rule, title, date, status) = row?;
+        if current
+            .as_ref()
+            .map(|(key, _, _)| key != &rule)
+            .unwrap_or(true)
+        {
+            if let Some((_, streak, _)) = current.take() {
+                out.push(streak);
+            }
+            // the newest instance carries the current config title
+            current = Some((
+                rule,
+                DailyStreak {
+                    title,
+                    streak: 0,
+                    done_today: false,
+                },
+                false,
+            ));
+        }
+        let (_, acc, broken) = current.as_mut().expect("just set");
+        let done = status == "done";
+        if date == today_str {
+            acc.done_today = done;
+            if done {
+                acc.streak += 1;
+            }
+            continue;
+        }
+        if *broken {
+            continue;
+        }
+        if done {
+            acc.streak += 1;
+        } else {
+            *broken = true;
+        }
+    }
+    if let Some((_, streak, _)) = current.take() {
+        out.push(streak);
+    }
+    out.sort_by(|a, b| b.streak.cmp(&a.streak).then(a.title.cmp(&b.title)));
+    Ok(out)
+}
+
 /// All recurring rules with cron validation errors surfaced, so the
 /// Recurring view shows broken rules next to working ones.
 pub fn recurring_list(config_dir: &Path) -> RecurringResult {
@@ -345,6 +426,39 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use std::fs;
+
+    #[test]
+    fn daily_streaks_count_consecutive_done_instances() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrate(&conn).unwrap();
+        let insert = |rule: &str, title: &str, date: &str, status: &str| {
+            conn.execute(
+                "INSERT INTO tasks (title, created_at, origin, cadence, rule_key,
+                                    period_key, scheduled_date, status)
+                 VALUES (?1, 'x', 'recurring', 'daily', ?2, ?3, ?3, ?4)",
+                (title, rule, date, status),
+            )
+            .unwrap();
+        };
+        // MON-FRI style rule: no weekend instances, streak spans the gap
+        insert("r1", "water plants", "2026-08-28", "done"); // Fri
+        insert("r1", "water plants", "2026-08-27", "done");
+        insert("r1", "water plants", "2026-08-26", "todo"); // breaks here
+        insert("r1", "water plants", "2026-08-25", "done");
+        // second rule: today open (does not break), yesterday done
+        insert("r2", "journal", "2026-08-31", "todo"); // today
+        insert("r2", "journal", "2026-08-30", "done");
+
+        let today = NaiveDate::from_ymd_opt(2026, 8, 31).unwrap();
+        let streaks = daily_streaks(&conn, today).unwrap();
+        assert_eq!(streaks.len(), 2);
+        assert_eq!(streaks[0].title, "water plants");
+        assert_eq!(streaks[0].streak, 2);
+        assert!(!streaks[0].done_today);
+        assert_eq!(streaks[1].title, "journal");
+        assert_eq!(streaks[1].streak, 1);
+        assert!(!streaks[1].done_today);
+    }
 
     #[test]
     fn outlook_projects_beyond_horizon_within_cadence_caps() {

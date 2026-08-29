@@ -108,6 +108,15 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M14 11v6" />
     </>
   ),
+  chart: (
+    <>
+      <path d="M3 3v18h18" />
+      <path d="M7 15v3" />
+      <path d="M11 11v7" />
+      <path d="M15 7v11" />
+      <path d="M19 12v6" />
+    </>
+  ),
   chevronRight: (
     <>
       <path d="m9 6 6 6-6 6" />

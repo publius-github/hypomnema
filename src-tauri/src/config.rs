@@ -80,7 +80,14 @@ pub struct AppConfig {
     pub backup_keep: u32,
 }
 
-pub const SECTIONS: &[&str] = &["dashboard", "upcoming", "calendar", "journal", "kb"];
+pub const SECTIONS: &[&str] = &[
+    "dashboard",
+    "upcoming",
+    "calendar",
+    "history",
+    "journal",
+    "kb",
+];
 
 pub const CADENCE_GROUPS: &[&str] = &["exact", "general", "daily", "weekly", "monthly", "yearly"];
 
@@ -341,7 +348,14 @@ mod tests {
         assert_eq!(config.dashboard_split, 80);
         assert_eq!(
             config.section_order,
-            vec!["kb", "dashboard", "upcoming", "calendar", "journal"]
+            vec![
+                "kb",
+                "dashboard",
+                "upcoming",
+                "calendar",
+                "history",
+                "journal"
+            ]
         );
     }
 

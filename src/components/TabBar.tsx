@@ -9,11 +9,19 @@ const TABS: Record<string, { id: Section; label: string; icon: IconName }> = {
   dashboard: { id: "dashboard", label: "Dashboard", icon: "grid" },
   upcoming: { id: "upcoming", label: "Upcoming", icon: "clock" },
   calendar: { id: "calendar", label: "Calendar", icon: "calendar" },
+  history: { id: "history", label: "History", icon: "chart" },
   journal: { id: "journal", label: "Journal", icon: "pencil" },
   kb: { id: "kb", label: "Notes", icon: "notes" },
 };
 
-const DEFAULT_ORDER = ["dashboard", "upcoming", "calendar", "journal", "kb"];
+const DEFAULT_ORDER = [
+  "dashboard",
+  "upcoming",
+  "calendar",
+  "history",
+  "journal",
+  "kb",
+];
 
 // the highlight is a square around the icon; the label sits under it
 // and only changes color, so the selection reads compact

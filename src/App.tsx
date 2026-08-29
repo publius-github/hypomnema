@@ -11,6 +11,7 @@ import VaultPicker from "./components/VaultPicker";
 import Dashboard from "./sections/Dashboard";
 import Upcoming from "./sections/Upcoming";
 import Calendar from "./sections/Calendar";
+import History from "./sections/History";
 import Journal from "./sections/Journal";
 import KnowledgeBase from "./sections/KnowledgeBase";
 import Settings from "./sections/Settings";
@@ -130,6 +131,7 @@ export default function App() {
           "dashboard",
           "upcoming",
           "calendar",
+          "history",
           "journal",
           "kb",
         ]),
@@ -138,7 +140,7 @@ export default function App() {
       if (e.key.toLowerCase() === "k") {
         e.preventDefault();
         if (store.vaultPath) store.setSearchOpen(!store.searchOpen);
-      } else if (e.key >= "1" && e.key <= "6") {
+      } else if (e.key >= "1" && e.key <= "7") {
         // not while typing: editors and inputs own Ctrl+digits there
         const el = e.target as HTMLElement | null;
         if (
@@ -219,6 +221,7 @@ export default function App() {
         {section === "dashboard" && <Dashboard />}
         {section === "upcoming" && <Upcoming />}
         {section === "calendar" && <Calendar />}
+        {section === "history" && <History />}
         {section === "journal" && <Journal />}
         {section === "kb" && <KnowledgeBase />}
         {section === "settings" && <Settings />}
