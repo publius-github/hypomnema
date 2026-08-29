@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../store";
-import { compareTasks, priorityPatch } from "../lib/tasks";
+import { priorityPatch, sortSubtasks } from "../lib/tasks";
 import type { Task, TaskStatus } from "../types";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
@@ -19,8 +19,12 @@ export default function TaskModal({
   task: Task;
   onClose: () => void;
 }) {
-  const { tasks, lists, config, updateTask, deleteTask, createTask } =
-    useAppStore();
+  const lists = useAppStore((s) => s.lists);
+  const config = useAppStore((s) => s.config);
+  const updateTask = useAppStore((s) => s.updateTask);
+  const deleteTask = useAppStore((s) => s.deleteTask);
+  const createTask = useAppStore((s) => s.createTask);
+  const tasks = useAppStore((s) => s.tasks);
   // generated tasks mirror their config file exactly: title, text, date
   // and list are locked here - the config is the only place to change
   // them. Status, priority and color stay local to the instance.
@@ -33,17 +37,10 @@ export default function TaskModal({
   const [subtaskTitle, setSubtaskTitle] = useState("");
 
   const subtasksDoneLast = config?.subtasks_done_last ?? true;
-  const subtasks = tasks
-    .filter((t) => t.parent_task_id === task.id)
-    .sort((a, b) => {
-      if (
-        subtasksDoneLast &&
-        (a.status === "done") !== (b.status === "done")
-      ) {
-        return a.status === "done" ? 1 : -1;
-      }
-      return compareTasks(a, b);
-    });
+  const subtasks = sortSubtasks(
+    tasks.filter((t) => t.parent_task_id === task.id),
+    subtasksDoneLast,
+  );
 
   const commitTitle = () => {
     if (generated) return;
@@ -364,7 +361,8 @@ export default function TaskModal({
 }
 
 function SubtaskRow({ sub }: { sub: Task }) {
-  const { updateTask, deleteTask } = useAppStore();
+  const updateTask = useAppStore((s) => s.updateTask);
+  const deleteTask = useAppStore((s) => s.deleteTask);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(sub.title);
 

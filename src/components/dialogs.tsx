@@ -57,17 +57,16 @@ export function ConfirmModal({
       <span className="text-sm font-semibold">{title}</span>
       {message && <p className="text-sm text-content-muted">{message}</p>}
       <div className="flex justify-end gap-2 pt-1">
+        {/* focus lands on Cancel: Enter must never confirm a destructive
+            action by accident */}
         <button
           className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-content-muted"
           onClick={onCancel}
+          autoFocus
         >
           Cancel
         </button>
-        <button
-          className="btn-danger px-3 py-1.5 text-sm"
-          onClick={onConfirm}
-          autoFocus
-        >
+        <button className="btn-danger px-3 py-1.5 text-sm" onClick={onConfirm}>
           {confirmLabel}
         </button>
       </div>

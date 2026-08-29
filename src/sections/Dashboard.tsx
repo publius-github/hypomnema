@@ -19,7 +19,12 @@ import NewListForm from "../components/NewListForm";
 import type { Task } from "../types";
 
 export default function Dashboard() {
-  const { config, today, lists, tasks, updateTask, dashboard } = useAppStore();
+  const config = useAppStore((s) => s.config);
+  const today = useAppStore((s) => s.today);
+  const lists = useAppStore((s) => s.lists);
+  const tasks = useAppStore((s) => s.tasks);
+  const updateTask = useAppStore((s) => s.updateTask);
+  const dashboard = useAppStore((s) => s.dashboard);
   const gridOffset = useAppStore((s) => s.gridOffset);
   const setGridOffset = useAppStore((s) => s.setGridOffset);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);

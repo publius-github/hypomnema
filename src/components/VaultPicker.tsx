@@ -2,7 +2,9 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
 
 export default function VaultPicker() {
-  const { selectVault, error, clearError } = useAppStore();
+  const selectVault = useAppStore((s) => s.selectVault);
+  const error = useAppStore((s) => s.error);
+  const clearError = useAppStore((s) => s.clearError);
 
   const pick = async () => {
     clearError();

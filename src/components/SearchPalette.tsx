@@ -43,7 +43,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
       setSearched(true);
       setHighlighted(0);
     } catch (e) {
-      useAppStore.setState({ error: String(e) });
+      useAppStore.getState().setError(String(e));
     }
   }, []);
 

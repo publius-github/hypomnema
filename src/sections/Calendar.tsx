@@ -46,7 +46,7 @@ function iso(year: number, month: number, day: number): string {
 }
 
 export default function Calendar() {
-  const { lists } = useAppStore();
+  const lists = useAppStore((s) => s.lists);
   const today = todayISO();
   const [year, setYear] = useState(() => Number(today.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)) - 1);
@@ -81,7 +81,7 @@ export default function Calendar() {
           );
         }
       })
-      .catch((e) => useAppStore.setState({ error: String(e) }));
+      .catch((e) => useAppStore.getState().setError(String(e)));
     // projected occurrences beyond the grid horizon (Settings > Calendar
     // outlook controls how far each cadence reaches)
     void invoke<OutlookEvent[]>("calendar_outlook", {

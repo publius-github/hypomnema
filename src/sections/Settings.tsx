@@ -54,7 +54,9 @@ const TABS = [
 type Tab = (typeof TABS)[number]["id"];
 
 export default function Settings() {
-  const { vaultPath, config, updateConfig } = useAppStore();
+  const vaultPath = useAppStore((s) => s.vaultPath);
+  const config = useAppStore((s) => s.config);
+  const updateConfig = useAppStore((s) => s.updateConfig);
   const [tab, setTab] = useState<Tab>("appearance");
 
   if (!config) return null;
@@ -732,7 +734,7 @@ function MaintenanceSection() {
     try {
       setArchived(await invoke<List[]>("lists_archived"));
     } catch (e) {
-      useAppStore.setState({ error: String(e) });
+      useAppStore.getState().setError(String(e));
     }
   }, []);
 
@@ -747,7 +749,7 @@ function MaintenanceSection() {
       setStatus(`Deleted ${deleted} done task(s)`);
       await useAppStore.getState().refresh();
     } catch (e) {
-      useAppStore.setState({ error: String(e) });
+      useAppStore.getState().setError(String(e));
     }
   };
 
@@ -757,7 +759,7 @@ function MaintenanceSection() {
       await loadArchived();
       await useAppStore.getState().refresh();
     } catch (e) {
-      useAppStore.setState({ error: String(e) });
+      useAppStore.getState().setError(String(e));
     }
   };
 

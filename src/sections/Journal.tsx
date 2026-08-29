@@ -12,7 +12,7 @@ interface OpenDoc {
 
 export default function Journal() {
   const setError = useCallback(
-    (e: unknown) => useAppStore.setState({ error: String(e) }),
+    (e: unknown) => useAppStore.getState().setError(String(e)),
     [],
   );
   const [dates, setDates] = useState<string[]>([]);

@@ -3,7 +3,7 @@ import { useAppStore } from "../store";
 import type { NewTask } from "../types";
 
 export default function QuickAdd({ target }: { target: Partial<NewTask> }) {
-  const { createTask } = useAppStore();
+  const createTask = useAppStore((s) => s.createTask);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
 

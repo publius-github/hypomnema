@@ -16,10 +16,11 @@ const WEEKDAYS = [
 ];
 
 export default function Recurring() {
-  const { runEngine, refresh } = useAppStore();
+  const runEngine = useAppStore((s) => s.runEngine);
+  const refresh = useAppStore((s) => s.refresh);
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const setError = useCallback(
-    (e: unknown) => useAppStore.setState({ error: String(e) }),
+    (e: unknown) => useAppStore.getState().setError(String(e)),
     [],
   );
   const [rules, setRules] = useState<RecurringRuleView[]>([]);
@@ -341,7 +342,7 @@ function ScheduleBuilder({
 }
 
 function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
-  const setError = (e: unknown) => useAppStore.setState({ error: String(e) });
+  const setError = (e: unknown) => useAppStore.getState().setError(String(e));
   const [schedule, setSchedule] = useState<BuilderState>(() =>
     parseSchedule(""),
   );

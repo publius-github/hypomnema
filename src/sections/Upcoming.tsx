@@ -10,10 +10,11 @@ import type { BirthdayView, ConfigError, UpcomingEvent } from "../types";
 type SubTab = "scheduled" | "birthdays" | "recurring";
 
 export default function Upcoming() {
-  const { runEngine, refresh } = useAppStore();
+  const runEngine = useAppStore((s) => s.runEngine);
+  const refresh = useAppStore((s) => s.refresh);
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const setError = useCallback(
-    (e: unknown) => useAppStore.setState({ error: String(e) }),
+    (e: unknown) => useAppStore.getState().setError(String(e)),
     [],
   );
   const [tab, setTab] = useState<SubTab>("scheduled");
@@ -101,7 +102,7 @@ function ScheduledTab({
   events: UpcomingEvent[];
   onWrite: () => Promise<void>;
 }) {
-  const setError = (e: unknown) => useAppStore.setState({ error: String(e) });
+  const setError = (e: unknown) => useAppStore.getState().setError(String(e));
   const [date, setDate] = useState("");
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
@@ -297,7 +298,7 @@ function BirthdaysTab({
   birthdays: BirthdayView[];
   onWrite: () => Promise<void>;
 }) {
-  const setError = (e: unknown) => useAppStore.setState({ error: String(e) });
+  const setError = (e: unknown) => useAppStore.getState().setError(String(e));
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [year, setYear] = useState("");

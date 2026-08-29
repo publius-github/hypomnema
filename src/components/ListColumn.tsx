@@ -1,5 +1,5 @@
 import { useDroppable } from "@dnd-kit/core";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { compareTasks, splitDone } from "../lib/tasks";
@@ -8,7 +8,7 @@ import QuickAdd from "./QuickAdd";
 import { ConfirmModal } from "./dialogs";
 import type { List, Task } from "../types";
 
-export default function ListColumn({
+function ListColumn({
   list,
   onOpenTask,
 }: {
@@ -16,7 +16,6 @@ export default function ListColumn({
   onOpenTask: (id: number) => void;
 }) {
   const config = useAppStore((s) => s.config);
-  const tasks = useAppStore((s) => s.tasks);
   const renameList = useAppStore((s) => s.renameList);
   const archiveList = useAppStore((s) => s.archiveList);
   const hold = useAppStore(useShallow((s) => s.statusHold));
@@ -25,19 +24,22 @@ export default function ListColumn({
   const [name, setName] = useState(list.name);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
-  // a starred task lives in BOTH places: pinned to today's column and
+  // A starred task lives in BOTH places: pinned to today's column and
   // still here in its list - one row, so closing it anywhere closes it
-  // everywhere
-  const listTasks = tasks
-    .filter(
-      (t) =>
-        t.list_id === list.id &&
-        (t.scheduled_date === null || t.priority) &&
-        t.parent_task_id === null,
-    )
-    .sort(compareTasks);
+  // everywhere. Shallow-compared selection, like DayColumn.
+  const listTasks = useAppStore(
+    useShallow((s) =>
+      s.tasks.filter(
+        (t) =>
+          t.list_id === list.id &&
+          (t.scheduled_date === null || t.priority) &&
+          t.parent_task_id === null,
+      ),
+    ),
+  );
+  const sorted = [...listTasks].sort(compareTasks);
   const { active, postponed, done } = splitDone(
-    listTasks,
+    sorted,
     config?.done_display ?? "inline",
     new Set(hold),
   );
@@ -142,3 +144,5 @@ export default function ListColumn({
     </div>
   );
 }
+
+export default memo(ListColumn);

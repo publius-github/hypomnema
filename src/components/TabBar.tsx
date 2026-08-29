@@ -61,7 +61,8 @@ function RailButton({
 }
 
 function SyncButton() {
-  const { runEngine, refresh } = useAppStore();
+  const runEngine = useAppStore((s) => s.runEngine);
+  const refresh = useAppStore((s) => s.refresh);
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
@@ -100,7 +101,10 @@ function SyncButton() {
 }
 
 export default function TabBar() {
-  const { section, setSection, config, updateConfig } = useAppStore();
+  const section = useAppStore((s) => s.section);
+  const setSection = useAppStore((s) => s.setSection);
+  const config = useAppStore((s) => s.config);
+  const updateConfig = useAppStore((s) => s.updateConfig);
   const [aboutOpen, setAboutOpen] = useState(false);
 
   return (

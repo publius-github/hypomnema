@@ -1,18 +1,21 @@
 import { useDroppable } from "@dnd-kit/core";
+import { memo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import {
+  cadenceColor,
   categoryOf,
   currentAndNextBlock,
   dayLabel,
   groupByCadence,
   splitDone,
+  tintStyle,
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import type { Task } from "../types";
 
-export default function DayColumn({
+function DayColumn({
   date,
   onOpenTask,
 }: {
@@ -23,7 +26,6 @@ export default function DayColumn({
   // column on unrelated state changes (toasts, palette, banners)
   const config = useAppStore((s) => s.config);
   const today = useAppStore((s) => s.today);
-  const tasks = useAppStore((s) => s.tasks);
   const lists = useAppStore((s) => s.lists);
   const dashboard = useAppStore((s) => s.dashboard);
   const hold = useAppStore(useShallow((s) => s.statusHold));
@@ -40,11 +42,18 @@ export default function DayColumn({
   // columns skip them so the look-ahead shows only the special stuff
   const hideDailies =
     (config?.daily_tasks_today_only ?? false) && date > today;
-  const dayTasks = tasks.filter(
-    (t) =>
-      t.scheduled_date === date &&
-      t.parent_task_id === null &&
-      !(hideDailies && t.cadence === "daily"),
+  // shallow-compared filtered selection: targeted store merges keep
+  // unchanged task identities, so a change in another day column does
+  // not re-render this one
+  const dayTasks = useAppStore(
+    useShallow((s) =>
+      s.tasks.filter(
+        (t) =>
+          t.scheduled_date === date &&
+          t.parent_task_id === null &&
+          !(hideDailies && t.cadence === "daily"),
+      ),
+    ),
   );
   const { active, postponed, done } = splitDone(
     dayTasks,
@@ -67,23 +76,7 @@ export default function DayColumn({
 
   // the section plate takes its cadence color (same palette that colors
   // the card stripes), framing the section like the priority label does
-  const groupColor = (key: string): string | null => {
-    if (!config?.cadence_colors) return null;
-    switch (key) {
-      case "exact":
-        return config.cadence_color_exact;
-      case "daily":
-        return config.cadence_color_daily;
-      case "weekly":
-        return config.cadence_color_weekly;
-      case "monthly":
-        return config.cadence_color_monthly;
-      case "yearly":
-        return config.cadence_color_yearly;
-      default:
-        return null;
-    }
-  };
+  const groupColor = (key: string): string | null => cadenceColor(config, key);
 
   const section = (label: string, items: Task[]) =>
     items.length > 0 && (
@@ -149,10 +142,7 @@ export default function DayColumn({
               }`}
               style={
                 groupColor(group.key)
-                  ? {
-                      color: groupColor(group.key)!,
-                      backgroundColor: `${groupColor(group.key)}26`,
-                    }
+                  ? tintStyle(groupColor(group.key)!)
                   : undefined
               }
             >
@@ -181,3 +171,5 @@ export default function DayColumn({
     </div>
   );
 }
+
+export default memo(DayColumn);

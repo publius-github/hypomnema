@@ -37,9 +37,10 @@ function displayName(name: string): string {
 }
 
 export default function KnowledgeBase() {
-  const { config, updateConfig } = useAppStore();
+  const config = useAppStore((s) => s.config);
+  const updateConfig = useAppStore((s) => s.updateConfig);
   const setError = useCallback(
-    (e: unknown) => useAppStore.setState({ error: String(e) }),
+    (e: unknown) => useAppStore.getState().setError(String(e)),
     [],
   );
   const [tree, setTree] = useState<KbNode[]>([]);

@@ -16,8 +16,12 @@ import KnowledgeBase from "./sections/KnowledgeBase";
 import Settings from "./sections/Settings";
 
 export default function App() {
-  const { loaded, vaultPath, section, error, init, clearError } =
-    useAppStore();
+  const loaded = useAppStore((s) => s.loaded);
+  const vaultPath = useAppStore((s) => s.vaultPath);
+  const section = useAppStore((s) => s.section);
+  const error = useAppStore((s) => s.error);
+  const init = useAppStore((s) => s.init);
+  const clearError = useAppStore((s) => s.clearError);
   const configErrors = useAppStore((s) => s.configErrors);
 
   useEffect(() => {
@@ -135,6 +139,15 @@ export default function App() {
         e.preventDefault();
         if (store.vaultPath) store.setSearchOpen(!store.searchOpen);
       } else if (e.key >= "1" && e.key <= "6") {
+        // not while typing: editors and inputs own Ctrl+digits there
+        const el = e.target as HTMLElement | null;
+        if (
+          el &&
+          (el.isContentEditable ||
+            ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))
+        ) {
+          return;
+        }
         e.preventDefault();
         const target = sections[Number(e.key) - 1];
         if (store.vaultPath && target) store.setSection(target);

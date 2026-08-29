@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   addDaysISO,
+  cadenceColor,
+  cadenceKeyOf,
   currentAndNextBlock,
   dayLabel,
   gridDates,
   groupByCadence,
   nextStatus,
   priorityPatch,
+  sortSubtasks,
   splitCategory,
   splitDone,
   weekdayShort,
 } from "./tasks";
-import type { ScheduleBlock, Task } from "../types";
+import type { AppConfig, ScheduleBlock, Task } from "../types";
 
 function task(overrides: Partial<Task>): Task {
   return {
@@ -166,6 +169,49 @@ describe("groupByCadence", () => {
       task({ id: 3, time: "09:00" }),
     ]);
     expect(groups[0].tasks.map((t) => t.id)).toEqual([3, 2, 1]);
+  });
+});
+
+describe("cadence colors", () => {
+  const config = {
+    cadence_colors: true,
+    cadence_color_daily: "#111111",
+    cadence_color_weekly: "#222222",
+    cadence_color_monthly: "#333333",
+    cadence_color_yearly: "#444444",
+    cadence_color_exact: "#555555",
+  } as AppConfig;
+
+  it("maps scheduled and birthday tasks to the exact key", () => {
+    expect(cadenceKeyOf(task({ origin: "scheduled" }))).toBe("exact");
+    expect(cadenceKeyOf(task({ origin: "birthday" }))).toBe("exact");
+    expect(cadenceKeyOf(task({ origin: "recurring", cadence: "weekly" }))).toBe(
+      "weekly",
+    );
+    expect(cadenceKeyOf(task({ origin: "manual" }))).toBe(null);
+  });
+
+  it("resolves configured colors and honors the master toggle", () => {
+    expect(cadenceColor(config, "daily")).toBe("#111111");
+    expect(cadenceColor(config, "exact")).toBe("#555555");
+    expect(cadenceColor(config, "general")).toBe(null);
+    expect(cadenceColor(null, "daily")).toBe(null);
+    expect(
+      cadenceColor({ ...config, cadence_colors: false }, "daily"),
+    ).toBe(null);
+  });
+});
+
+describe("sortSubtasks", () => {
+  const open = task({ id: 1, sort_order: 2 });
+  const done = task({ id: 2, sort_order: 1, status: "done" });
+
+  it("sinks done subtasks when doneLast is on", () => {
+    expect(sortSubtasks([done, open], true).map((t) => t.id)).toEqual([1, 2]);
+  });
+
+  it("keeps plain order otherwise", () => {
+    expect(sortSubtasks([done, open], false).map((t) => t.id)).toEqual([2, 1]);
   });
 });
 

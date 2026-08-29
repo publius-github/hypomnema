@@ -57,6 +57,7 @@ interface AppState {
   undo: { message: string; taskId: number } | null;
   undoDelete: () => Promise<void>;
   dismissUndo: () => void;
+  setError: (message: string) => void;
   clearError: () => void;
   refresh: () => Promise<void>;
   createTask: (task: NewTask) => Promise<void>;
@@ -168,10 +169,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // Task mutations merge the backend's returned row into the snapshot
+  // instead of refetching everything: a checkbox click used to cost
+  // three IPC round-trips and a full array replacement. Engine-driven
+  // changes (generation, carry-over) still arrive via refresh() after
+  // sync/watcher events.
   createTask: async (task) => {
     try {
-      await invoke<Task>("task_create", { new: task });
-      await get().refresh();
+      const created = await invoke<Task>("task_create", { new: task });
+      set((s) => ({ tasks: [...s.tasks, created] }));
     } catch (e) {
       set({ error: String(e) });
     }
@@ -190,8 +196,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       }),
     }));
     try {
-      await invoke<Task>("task_update", { id, patch });
-      await get().refresh();
+      const updated = await invoke<Task>("task_update", { id, patch });
+      set((s) => ({
+        tasks: s.tasks.map((t) => (t.id === id ? updated : t)),
+      }));
     } catch (e) {
       // roll back only this task: restoring a whole snapshot would
       // clobber concurrent optimistic updates of other tasks
@@ -208,13 +216,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const title = get().tasks.find((t) => t.id === id)?.title;
       await invoke("task_delete", { id });
-      set({
+      // soft delete cascades to subtasks on the backend; mirror that
+      set((s) => ({
+        tasks: s.tasks.filter((t) => t.id !== id && t.parent_task_id !== id),
         undo: {
           message: title ? `Deleted "${title}"` : "Task deleted",
           taskId: id,
         },
-      });
-      await get().refresh();
+      }));
     } catch (e) {
       set({ error: String(e) });
     }
@@ -236,8 +245,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   createList: async (name) => {
     try {
-      await invoke<List>("list_create", { name, color: null });
-      await get().refresh();
+      const created = await invoke<List>("list_create", { name, color: null });
+      // new lists get the highest sort_order, so appending keeps order
+      set((s) => ({ lists: [...s.lists, created] }));
     } catch (e) {
       set({ error: String(e) });
     }
@@ -246,7 +256,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   renameList: async (id, name) => {
     try {
       await invoke("list_rename", { id, name });
-      await get().refresh();
+      set((s) => ({
+        lists: s.lists.map((l) => (l.id === id ? { ...l, name } : l)),
+      }));
     } catch (e) {
       set({ error: String(e) });
     }
@@ -255,7 +267,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   archiveList: async (id) => {
     try {
       await invoke("list_archive", { id });
-      await get().refresh();
+      set((s) => ({ lists: s.lists.filter((l) => l.id !== id) }));
     } catch (e) {
       set({ error: String(e) });
     }
@@ -303,5 +315,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }, seconds * 1000);
   },
   undo: null,
+  setError: (message) => set({ error: message }),
   clearError: () => set({ error: null }),
 }));

@@ -1,12 +1,15 @@
 import { useDraggable } from "@dnd-kit/core";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import {
-  compareTasks,
+  cadenceColor,
+  cadenceKeyOf,
   nextStatus,
   priorityPatch,
+  sortSubtasks,
   splitCategory,
+  tintStyle,
   weekdayShort,
 } from "../lib/tasks";
 import type { Task } from "../types";
@@ -17,7 +20,7 @@ const STATUS_BUTTON: Record<Task["status"], string> = {
   postponed: "border-warn bg-warn text-white",
 };
 
-export default function TaskCard({
+function TaskCard({
   task,
   overlay = false,
   onOpen,
@@ -53,43 +56,19 @@ export default function TaskCard({
   const subtasksDoneLast = useAppStore(
     (s) => s.config?.subtasks_done_last ?? true,
   );
-  const subtasks = [...subtasksRaw].sort((a, b) => {
-    if (subtasksDoneLast && (a.status === "done") !== (b.status === "done")) {
-      return a.status === "done" ? 1 : -1;
-    }
-    return compareTasks(a, b);
-  });
+  const subtasks = sortSubtasks(subtasksRaw, subtasksDoneLast);
   const done = task.status === "done";
   // a {Category} prefix is a pure text label rendered as a chip
   const { category, text } = splitCategory(task.title);
   // cadence coloring reuses the manual color stripe; a manual color wins
-  const cadenceColor = useAppStore((s) => {
-    const c = s.config;
-    if (!c?.cadence_colors) return null;
-    if (task.origin === "scheduled" || task.origin === "birthday") {
-      return c.cadence_color_exact;
-    }
-    switch (task.cadence) {
-      case "daily":
-        return c.cadence_color_daily;
-      case "weekly":
-        return c.cadence_color_weekly;
-      case "monthly":
-        return c.cadence_color_monthly;
-      case "yearly":
-        return c.cadence_color_yearly;
-      default:
-        return null;
-    }
-  });
-  const stripe = task.color ?? cadenceColor;
+  const cadColor = useAppStore((s) =>
+    cadenceColor(s.config, cadenceKeyOf(task)),
+  );
+  const stripe = task.color ?? cadColor;
   const categoryColor = useAppStore(
     (s) => s.config?.category_color ?? "#3b82f6",
   );
-  const chipStyle = {
-    color: categoryColor,
-    backgroundColor: `${categoryColor}26`,
-  };
+  const chipStyle = tintStyle(categoryColor);
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
   const tooltip = [
     task.title,
@@ -176,16 +155,9 @@ export default function TaskCard({
           // always live under
           <span
             className={`shrink-0 rounded px-1 text-[11px] font-medium ${
-              cadenceColor ? "" : "bg-info/15 text-info"
+              cadColor ? "" : "bg-info/15 text-info"
             }`}
-            style={
-              cadenceColor
-                ? {
-                    color: cadenceColor,
-                    backgroundColor: `${cadenceColor}26`,
-                  }
-                : undefined
-            }
+            style={cadColor ? tintStyle(cadColor) : undefined}
             title={`Scheduled for ${task.origin_date}`}
           >
             {weekdayShort(task.origin_date)} {task.origin_date}
@@ -298,3 +270,7 @@ export default function TaskCard({
     </div>
   );
 }
+
+// with targeted store merges, unchanged tasks keep their identity, so
+// memo skips re-rendering the rest of the grid on a single-task change
+export default memo(TaskCard);

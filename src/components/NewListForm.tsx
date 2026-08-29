@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAppStore } from "../store";
 
 export default function NewListForm() {
-  const { createList } = useAppStore();
+  const createList = useAppStore((s) => s.createList);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
 

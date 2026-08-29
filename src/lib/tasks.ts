@@ -1,4 +1,4 @@
-import type { ScheduleBlock, Task, TaskPatch, TaskStatus } from "../types";
+import type { AppConfig, ScheduleBlock, Task, TaskPatch, TaskStatus } from "../types";
 
 // The checkbox cycles todo -> done -> postponed -> todo: postponing is
 // one extra click on a just-completed task (the done-hold delay keeps
@@ -160,6 +160,61 @@ export function groupByCadence(
 /** Category label of a task title, for grouping ({X} prefix). */
 export function categoryOf(title: string): string | null {
   return splitCategory(title).category;
+}
+
+/**
+ * The cadence-palette key of a task: exact-date tasks (scheduled events
+ * and birthdays) share one color, recurring tasks take their cadence.
+ */
+export function cadenceKeyOf(task: Task): string | null {
+  if (task.origin === "scheduled" || task.origin === "birthday") {
+    return "exact";
+  }
+  return task.cadence;
+}
+
+/**
+ * The configured color for a cadence-palette key (card stripes, section
+ * plates, exact-date chips); null when cadence coloring is off or the
+ * key has no color ("general").
+ */
+export function cadenceColor(
+  config: AppConfig | null,
+  key: string | null,
+): string | null {
+  if (!config?.cadence_colors || !key) return null;
+  switch (key) {
+    case "exact":
+      return config.cadence_color_exact;
+    case "daily":
+      return config.cadence_color_daily;
+    case "weekly":
+      return config.cadence_color_weekly;
+    case "monthly":
+      return config.cadence_color_monthly;
+    case "yearly":
+      return config.cadence_color_yearly;
+    default:
+      return null;
+  }
+}
+
+/** Inline style of a colored chip/plate: colored text on a soft tint. */
+export function tintStyle(color: string): {
+  color: string;
+  backgroundColor: string;
+} {
+  return { color, backgroundColor: `${color}26` };
+}
+
+/** Subtask order: optionally done-last, then the regular comparator. */
+export function sortSubtasks(subtasks: Task[], doneLast: boolean): Task[] {
+  return [...subtasks].sort((a, b) => {
+    if (doneLast && (a.status === "done") !== (b.status === "done")) {
+      return a.status === "done" ? 1 : -1;
+    }
+    return compareTasks(a, b);
+  });
 }
 
 export function compareTasks(a: Task, b: Task): number {
