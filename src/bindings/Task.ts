@@ -14,4 +14,9 @@ origin_date: string | null,
 /**
  * Priority tasks sit in their own group on top of a list column.
  */
-priority: boolean, };
+priority: boolean, 
+/**
+ * Provenance of a generated task (diagnostics in the task dialog:
+ * which rule and period produced this instance).
+ */
+rule_key: string | null, period_key: string | null, };

@@ -24,6 +24,7 @@ export default function DayColumn({
   const config = useAppStore((s) => s.config);
   const today = useAppStore((s) => s.today);
   const tasks = useAppStore((s) => s.tasks);
+  const lists = useAppStore((s) => s.lists);
   const dashboard = useAppStore((s) => s.dashboard);
   const hold = useAppStore(useShallow((s) => s.statusHold));
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
@@ -50,7 +51,18 @@ export default function DayColumn({
     config?.done_display ?? "inline",
     new Set(hold),
   );
-  const groups = groupByCadence(active, config?.cadence_group_order);
+  // the "category" of a task: the {X} title prefix for manual tasks,
+  // the list name for engine-generated ones (their {X} became a list)
+  const taskCategory = (t: Task) =>
+    categoryOf(t.title) ??
+    (t.list_id !== null
+      ? (lists.find((l) => l.id === t.list_id)?.name ?? null)
+      : null);
+  const groups = groupByCadence(
+    active,
+    config?.cadence_group_order,
+    taskCategory,
+  );
   const isToday = date === today;
 
   // the section plate takes its cadence color (same palette that colors
@@ -148,11 +160,12 @@ export default function DayColumn({
               <span className="h-px flex-1 bg-current opacity-30" />
             </div>
             {group.tasks.map((task, j) => {
-              // a wider gap where one {Category} block ends and the
-              // next begins (tasks are pre-sorted by category)
-              const cat = categoryOf(task.title);
+              // a wider gap where one category block ends and the next
+              // begins (tasks are pre-sorted by category)
               const gapBefore =
-                j > 0 && cat !== categoryOf(group.tasks[j - 1].title);
+                (config?.category_gap ?? true) &&
+                j > 0 &&
+                taskCategory(task) !== taskCategory(group.tasks[j - 1]);
               return (
                 <div key={task.id} className={gapBefore ? "mt-3" : ""}>
                   <TaskCard task={task} onOpen={onOpenTask} />

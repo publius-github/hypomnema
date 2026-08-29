@@ -159,6 +159,12 @@ export default function TaskModal({
               {ORIGIN_CONFIG[task.origin] ?? "config"}
             </button>
             . Title, text, date and list follow the config; edit it there.
+            <div className="mt-1 select-text text-[11px] text-info/70">
+              origin {task.origin}
+              {task.cadence ? ` · cadence ${task.cadence}` : ""}
+              {task.rule_key ? ` · rule ${task.rule_key.slice(0, 8)}` : ""}
+              {task.period_key ? ` · period ${task.period_key}` : ""}
+            </div>
           </div>
         )}
 

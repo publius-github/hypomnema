@@ -146,7 +146,9 @@ export default function TaskCard({
           )}
         </button>
         {showList && listName && (
-          <span className="shrink-0 rounded bg-line/40 px-1 text-[11px] text-content-muted">
+          // the list IS the category for engine-generated tasks, so it
+          // reads as loud as the {Category} chip
+          <span className="shrink-0 rounded bg-accent/20 px-1 text-[11px] font-semibold text-accent">
             {listName}
           </span>
         )}
@@ -159,8 +161,20 @@ export default function TaskCard({
           </span>
         )}
         {exactDate && task.origin_date && (
+          // same color as the Exact date section plate these tasks
+          // always live under
           <span
-            className="shrink-0 rounded bg-info/15 px-1 text-[11px] font-medium text-info"
+            className={`shrink-0 rounded px-1 text-[11px] font-medium ${
+              cadenceColor ? "" : "bg-info/15 text-info"
+            }`}
+            style={
+              cadenceColor
+                ? {
+                    color: cadenceColor,
+                    backgroundColor: `${cadenceColor}26`,
+                  }
+                : undefined
+            }
             title={`Scheduled for ${task.origin_date}`}
           >
             {weekdayShort(task.origin_date)} {task.origin_date}

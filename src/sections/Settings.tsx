@@ -191,6 +191,13 @@ export default function Settings() {
           onChange={(v) => void updateConfig({ cadence_group_gap: v })}
         />
 
+        <Toggle
+          checked={config.category_gap}
+          label="Extra spacing between category blocks"
+          hint="Inside a section, tasks group by their category ({X} prefix or list) alphabetically with a wider gap between the blocks."
+          onChange={(v) => void updateConfig({ category_gap: v })}
+        />
+
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Day column sections</span>
           <span className="text-xs text-content-muted">
@@ -475,12 +482,12 @@ export default function Settings() {
           <span className="text-sm font-medium">Journal template</span>
           <p className="text-xs text-content-muted">
             The template for new journal entries lives in
-            config/journal-template.md.
+            config/templates/journal.md.
           </p>
           <button
             className="btn-ghost w-fit px-3 py-1 text-xs"
             onClick={() =>
-              useAppStore.getState().openConfigFile("journal-template.md")
+              useAppStore.getState().openConfigFile("templates/journal.md")
             }
           >
             Edit in Notes

@@ -15,13 +15,15 @@
   --color-danger: 220 38 38;
   --color-warn: 217 119 6;
   --color-info: 2 132 199;
-  /* markdown token colors, VS Code Light+ style */
+  /* markdown token colors, VS Code Light+ inspired with varied hues */
   --md-heading: #800000;
-  --md-bold: #000080;
+  --md-bold: #795e26;
+  --md-italic: #a626a4;
   --md-code: #a31515;
   --md-link: #0451a5;
   --md-quote: #008000;
-  --md-marker: #0451a5;
+  --md-marker: #6a737d;
+  --md-list: #0451a5;
 }
 
 .dark {
@@ -35,13 +37,17 @@
   --color-danger: 248 113 113;
   --color-warn: 251 191 36;
   --color-info: 56 189 248;
-  /* markdown token colors, VS Code Dark+ style */
+  /* markdown token colors, VS Code Dark+ inspired but with varied hues
+     per role - headings blue, bold warm, italics purple, code orange,
+     quotes green - so the page never reads as one blue wall */
   --md-heading: #569cd6;
-  --md-bold: #569cd6;
+  --md-bold: #e5c07b;
+  --md-italic: #c586c0;
   --md-code: #ce9178;
-  --md-link: #3794ff;
+  --md-link: #4fc1ff;
   --md-quote: #6a9955;
-  --md-marker: #6796e6;
+  --md-marker: #7f848e;
+  --md-list: #6796e6;
 }
 
 html,

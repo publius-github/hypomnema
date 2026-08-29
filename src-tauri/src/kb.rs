@@ -211,9 +211,10 @@ pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {
 pub fn delete(root: &Path, rel: &str) -> Result<()> {
     let path = resolve(root, rel)?;
     if path.is_dir() {
-        return Err(Error::State("deleting folders is not supported".into()));
+        fs::remove_dir_all(path)?;
+    } else {
+        fs::remove_file(path)?;
     }
-    fs::remove_file(path)?;
     Ok(())
 }
 
@@ -272,6 +273,11 @@ mod tests {
 
         delete(&root, "notes/renamed.md").unwrap();
         assert!(read(&root, "notes/renamed.md").is_err());
+
+        // folders delete recursively
+        create(&root, "notes/deep/inner").unwrap();
+        delete(&root, "notes").unwrap();
+        assert!(!root.join("notes").exists());
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -65,6 +65,9 @@ pub struct AppConfig {
     pub cadence_color_exact: String,
     /// Extra vertical spacing before each cadence group in day columns.
     pub cadence_group_gap: bool,
+    /// Extra vertical spacing between {Category} blocks inside a
+    /// section of a day column.
+    pub category_gap: bool,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -107,6 +110,7 @@ impl Default for AppConfig {
             cadence_color_yearly: "#f59e0b".into(),
             cadence_color_exact: "#0ea5e9".into(),
             cadence_group_gap: true,
+            category_gap: true,
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
         }
@@ -263,6 +267,7 @@ impl AppConfig {
             ("cadence_color_yearly", self.cadence_color_yearly.clone()),
             ("cadence_color_exact", self.cadence_color_exact.clone()),
             ("cadence_group_gap", self.cadence_group_gap.to_string()),
+            ("category_gap", self.category_gap.to_string()),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
         ]

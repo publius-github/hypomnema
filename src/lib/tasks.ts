@@ -120,6 +120,10 @@ const CADENCE_KEYS = new Set(["daily", "weekly", "monthly", "yearly"]);
 export function groupByCadence(
   tasks: Task[],
   order: string[] = DEFAULT_CADENCE_ORDER,
+  // "category" of a task for block grouping inside a section; defaults
+  // to the {X} title prefix, the day columns also fall back to the
+  // task's list name (engine-generated tasks carry theirs as a list)
+  labelOf: (task: Task) => string | null = (t) => splitCategory(t.title).category,
 ): CadenceGroup[] {
   const buckets = new Map<string, Task[]>();
   for (const task of tasks) {
@@ -142,11 +146,11 @@ export function groupByCadence(
     .map((key) => ({
       key,
       label: CADENCE_GROUP_LABELS[key],
-      // {Category} blocks stick together alphabetically (uncategorized
+      // category blocks stick together alphabetically (uncategorized
       // tasks first), so the day column can render a gap between them
       tasks: buckets.get(key)!.sort((a, b) => {
-        const ca = splitCategory(a.title).category ?? "";
-        const cb = splitCategory(b.title).category ?? "";
+        const ca = labelOf(a) ?? "";
+        const cb = labelOf(b) ?? "";
         if (ca !== cb) return ca < cb ? -1 : 1;
         return compareTasks(a, b);
       }),

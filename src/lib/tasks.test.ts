@@ -32,6 +32,8 @@ function task(overrides: Partial<Task>): Task {
     cadence: null,
     origin_date: null,
     priority: false,
+    rule_key: null,
+    period_key: null,
     ...overrides,
   };
 }

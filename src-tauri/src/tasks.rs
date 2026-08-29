@@ -50,6 +50,10 @@ pub struct Task {
     pub origin_date: Option<String>,
     /// Priority tasks sit in their own group on top of a list column.
     pub priority: bool,
+    /// Provenance of a generated task (diagnostics in the task dialog:
+    /// which rule and period produced this instance).
+    pub rule_key: Option<String>,
+    pub period_key: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -130,6 +134,8 @@ fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
         cadence: row.get("cadence")?,
         origin_date: row.get("origin_date")?,
         priority: row.get::<_, i64>("priority")? != 0,
+        rule_key: row.get("rule_key")?,
+        period_key: row.get("period_key")?,
     })
 }
 

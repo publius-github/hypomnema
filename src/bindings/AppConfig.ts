@@ -74,6 +74,11 @@ cadence_color_exact: string,
  */
 cadence_group_gap: boolean, 
 /**
+ * Extra vertical spacing between {Category} blocks inside a
+ * section of a day column.
+ */
+category_gap: boolean, 
+/**
  * Order of the cadence sections inside a day column.
  */
 cadence_group_order: Array<string>, 

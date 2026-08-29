@@ -32,20 +32,29 @@ fn entry_path(vault: &Path, date: &str) -> Result<PathBuf> {
         .join(format!("{}.md", parsed.format("%Y-%m-%d"))))
 }
 
-/// The template lives with the other config files (it used to sit in
-/// journal/templates/daily.md, which cluttered the notes tree); an old
-/// file is moved over on first access.
+/// The template lives in config/templates/ so it shows up under the
+/// Config group in Notes; older locations (config/journal-template.md
+/// and journal/templates/daily.md) are moved over on first access.
 fn template_path(vault: &Path) -> PathBuf {
-    let new = vault.join("config").join("journal-template.md");
-    let old = vault.join("journal").join("templates").join("daily.md");
-    if !new.exists() && old.exists() {
-        let _ = fs::create_dir_all(vault.join("config"));
-        if fs::rename(&old, &new).is_err() {
-            if let Ok(content) = fs::read_to_string(&old) {
-                if crate::vault::write_atomic(&new, &content).is_ok() {
-                    let _ = fs::remove_file(&old);
+    let new = vault.join("config").join("templates").join("journal.md");
+    let legacy = [
+        vault.join("config").join("journal-template.md"),
+        vault.join("journal").join("templates").join("daily.md"),
+    ];
+    if !new.exists() {
+        for old in legacy {
+            if !old.exists() {
+                continue;
+            }
+            let _ = fs::create_dir_all(vault.join("config").join("templates"));
+            if fs::rename(&old, &new).is_err() {
+                if let Ok(content) = fs::read_to_string(&old) {
+                    if crate::vault::write_atomic(&new, &content).is_ok() {
+                        let _ = fs::remove_file(&old);
+                    }
                 }
             }
+            break;
         }
     }
     new
@@ -139,20 +148,30 @@ mod tests {
     }
 
     #[test]
-    fn old_template_location_migrates_to_config() {
+    fn old_template_locations_migrate_to_config_templates() {
         let vault = vault("tpl-migrate");
-        let old = vault.join("journal").join("templates").join("daily.md");
-        fs::write(&old, "# {{date}}\n").unwrap();
+        let oldest = vault.join("journal").join("templates").join("daily.md");
+        fs::write(&oldest, "# {{date}}\n").unwrap();
 
         assert_eq!(read_template(&vault).unwrap(), "# {{date}}\n");
-        assert!(!old.exists());
-        assert!(vault.join("config").join("journal-template.md").exists());
+        assert!(!oldest.exists());
+        let target = vault.join("config").join("templates").join("journal.md");
+        assert!(target.exists());
+
+        // the intermediate config/journal-template.md location migrates
+        // the same way
+        fs::remove_file(&target).unwrap();
+        let mid = vault.join("config").join("journal-template.md");
+        fs::write(&mid, "mid\n").unwrap();
+        assert_eq!(read_template(&vault).unwrap(), "mid\n");
+        assert!(!mid.exists());
+        assert!(target.exists());
     }
 
     #[test]
     fn first_open_serves_template_without_creating_file() {
         let vault = vault("open");
-        fs::write(template_path(&vault), "# {{date}}\n\n## What I did today\n").unwrap();
+        save_template(&vault, "# {{date}}\n\n## What I did today\n").unwrap();
 
         let entry = open_entry(&vault, "2026-08-28").unwrap();
         assert!(entry.content.starts_with("# 2026-08-28"));
@@ -182,7 +201,7 @@ mod tests {
         save_entry(&vault, "2026-08-27", "a").unwrap();
         save_entry(&vault, "2026-08-28", "b").unwrap();
         save_entry(&vault, "2025-12-31", "c").unwrap();
-        fs::write(template_path(&vault), "tpl").unwrap();
+        save_template(&vault, "tpl").unwrap();
 
         let dates = list_entries(&vault).unwrap();
         assert_eq!(dates, vec!["2026-08-28", "2026-08-27", "2025-12-31"]);

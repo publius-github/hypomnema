@@ -47,7 +47,7 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.heading4, fontWeight: "600", color: "var(--md-heading)" },
   { tag: tags.heading, fontWeight: "600", color: "var(--md-heading)" },
   { tag: tags.strong, fontWeight: "700", color: "var(--md-bold)" },
-  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.emphasis, fontStyle: "italic", color: "var(--md-italic)" },
   { tag: tags.strikethrough, textDecoration: "line-through", color: "rgb(var(--color-content-muted))" },
   { tag: tags.link, color: "var(--md-link)" },
   { tag: tags.url, color: "var(--md-link)", opacity: "0.8", textDecoration: "underline" },
@@ -59,10 +59,10 @@ const markdownHighlight = HighlightStyle.define([
   },
   { tag: tags.labelName, color: "var(--md-code)" },
   { tag: tags.processingInstruction, color: "var(--md-marker)" },
-  { tag: tags.contentSeparator, color: "var(--md-heading)" },
+  { tag: tags.contentSeparator, color: "var(--md-marker)" },
   { tag: tags.quote, color: "var(--md-quote)", fontStyle: "italic" },
-  { tag: tags.list, color: "var(--md-marker)" },
-  { tag: tags.atom, color: "var(--md-marker)" },
+  { tag: tags.list, color: "var(--md-list)" },
+  { tag: tags.atom, color: "var(--md-list)" },
   { tag: tags.escape, color: "var(--md-code)" },
 ]);
 
@@ -122,11 +122,26 @@ const editorTheme = EditorView.theme({
     color: "rgb(var(--color-content))",
     borderColor: "rgb(var(--color-line))",
   },
-  ".cm-panels input, .cm-panels button": {
-    backgroundColor: "transparent",
+  ".cm-panels input": {
+    backgroundColor: "rgb(var(--color-surface))",
     color: "rgb(var(--color-content))",
     border: "1px solid rgb(var(--color-line))",
     borderRadius: "4px",
+  },
+  // CodeMirror's stock buttons use a light gradient that turns
+  // unreadable next to light text on the dark theme
+  ".cm-panels button": {
+    backgroundImage: "none",
+    backgroundColor: "rgb(var(--color-line) / 0.35)",
+    color: "rgb(var(--color-content))",
+    border: "1px solid rgb(var(--color-line))",
+    borderRadius: "4px",
+  },
+  ".cm-panels button:hover": {
+    backgroundColor: "rgb(var(--color-line) / 0.6)",
+  },
+  ".cm-panels label": {
+    color: "rgb(var(--color-content-muted))",
   },
 });
 

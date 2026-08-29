@@ -104,7 +104,10 @@ export default function Dashboard() {
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveTaskId(null)}
     >
-      <div className="flex h-full flex-col gap-3 p-4">
+      {/* min-h-full instead of h-full: a long All-lists index may push
+          the page taller than the viewport, and then the main window
+          scrollbar takes over (columns keep their internal scrolling) */}
+      <div className="flex min-h-full flex-col gap-3 p-4">
         <div className="relative flex min-h-[24px] items-center">
           <div className="flex items-center gap-1">
             <button
@@ -192,7 +195,7 @@ export default function Dashboard() {
             </span>
           </div>
         )}
-        <div ref={zonesRef} className="flex min-h-0 flex-1 flex-col">
+        <div ref={zonesRef} className="flex flex-1 flex-col">
           <div
             className="grid min-h-0 gap-3 overflow-x-auto"
             style={{
@@ -312,7 +315,7 @@ function ListZone({
 
   return (
     <div
-      className="flex min-h-0 items-stretch gap-2 pt-1"
+      className="flex items-stretch gap-2 pt-1"
       style={{ flex: `${100 - split} 1 0px` }}
     >
       {visible.length > perPage && arrow(-1, off === 0, "Previous lists")}
@@ -327,10 +330,10 @@ function ListZone({
         ))}
       </div>
       {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
-      {/* the button and the index scroll as one, with the scrollbar
-          hidden - wheel/trackpad scrolling still works, but no extra
-          thumb appears next to the list columns */}
-      <div className="flex min-h-0 shrink-0 flex-col gap-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* never collapsed and never scrolls on its own: the index shows
+          at full length, and when it is taller than the viewport the
+          whole dashboard page scrolls via the main scrollbar */}
+      <div className="flex shrink-0 flex-col gap-3">
         <NewListForm />
         {visible.length > perPage && (
           <div className="flex w-40 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">

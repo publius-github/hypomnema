@@ -17,7 +17,7 @@ const CONFIG_FILES = [
   "weekly-focus.yml",
   "day-reminders.yml",
   "day-schedule.yml",
-  "journal-template.md",
+  "templates/journal.md",
 ];
 
 interface OpenDoc {
@@ -246,11 +246,17 @@ export default function KnowledgeBase() {
 
   const deleteFile = async (node: KbNode) => {
     setDialog(null);
-    dropPendingFor(node.path);
+    // a debounced save of a file inside a deleted folder would recreate
+    // the path, so drop it too
+    const inside = (path: string | undefined) =>
+      path === node.path || (node.is_dir && path?.startsWith(`${node.path}/`));
+    if (inside(pendingRef.current?.path)) {
+      dropPendingFor(pendingRef.current!.path);
+    }
     try {
       await invoke("kb_delete", { path: node.path });
       await loadTree();
-      if (current?.path === node.path) {
+      if (current?.kind === "note" && inside(current.path)) {
         setCurrent(null);
         useAppStore.getState().setKbCurrent(null);
       }
@@ -315,16 +321,25 @@ export default function KnowledgeBase() {
         style={{ paddingLeft: `${8 + depth * 14}px` }}
       >
         {node.is_dir ? (
-          <button
-            className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium"
-            onClick={() => toggleExpanded(node.path)}
-          >
-            <Icon
-              name={expanded.has(node.path) ? "chevronDown" : "chevronRight"}
-              className="h-3 w-3 shrink-0"
-            />
-            <span className="truncate">{node.name}</span>
-          </button>
+          <>
+            <button
+              className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium"
+              onClick={() => toggleExpanded(node.path)}
+            >
+              <Icon
+                name={expanded.has(node.path) ? "chevronDown" : "chevronRight"}
+                className="h-3 w-3 shrink-0"
+              />
+              <span className="truncate">{node.name}</span>
+            </button>
+            <button
+              className="opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+              title="Delete folder"
+              onClick={() => setDialog({ kind: "delete", node })}
+            >
+              <Icon name="trash" className="h-3 w-3" />
+            </button>
+          </>
         ) : (
           <>
             <button
@@ -553,7 +568,11 @@ export default function KnowledgeBase() {
       {dialog?.kind === "delete" && (
         <ConfirmModal
           title={`Delete ${dialog.node.path}?`}
-          message="The file is removed from the folder. There is no undo."
+          message={
+            dialog.node.is_dir
+              ? "The folder and everything inside it is removed. There is no undo."
+              : "The file is removed from the folder. There is no undo."
+          }
           onConfirm={() => void deleteFile(dialog.node)}
           onCancel={() => setDialog(null)}
         />

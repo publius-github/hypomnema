@@ -435,7 +435,7 @@ const EDITABLE_CONFIG_FILES: &[&str] = &[
     "weekly-focus.yml",
     "day-reminders.yml",
     "day-schedule.yml",
-    "journal-template.md",
+    "templates/journal.md",
 ];
 
 fn editable_config_path(state: &State<'_, AppState>, file: &str) -> Result<PathBuf> {
