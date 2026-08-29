@@ -41,6 +41,12 @@ interface AppState {
   setKbExpanded: (paths: string[]) => void;
   kbCurrent: { kind: "note" | "config"; path: string } | null;
   setKbCurrent: (doc: { kind: "note" | "config"; path: string } | null) => void;
+  /// set to jump to Notes with a note opened (search palette)
+  kbOpenNote: string | null;
+  openKbNote: (path: string) => void;
+  /// set to jump to Journal with a date opened (search palette)
+  journalOpenDate: string | null;
+  openJournalDate: (date: string) => void;
   init: () => Promise<void>;
   runEngine: () => Promise<EngineOutcome | null>;
   setConfigErrors: (errors: ConfigError[]) => void;
@@ -299,6 +305,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   setKbExpanded: (paths) => set({ kbExpanded: paths }),
   kbCurrent: null,
   setKbCurrent: (doc) => set({ kbCurrent: doc }),
+  kbOpenNote: null,
+  openKbNote: (path) =>
+    set((s) => {
+      // expand every parent folder so the tree shows the opened note
+      const parts = path.split("/");
+      const parents = parts
+        .slice(0, -1)
+        .map((_, i) => parts.slice(0, i + 1).join("/"));
+      return {
+        section: "kb",
+        kbOpenNote: path,
+        kbExpanded: [...new Set([...s.kbExpanded, ...parents])],
+      };
+    }),
+  journalOpenDate: null,
+  openJournalDate: (date) => set({ section: "journal", journalOpenDate: date }),
   searchOpen: false,
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   statusHold: [],

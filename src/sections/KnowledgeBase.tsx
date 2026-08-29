@@ -276,6 +276,15 @@ export default function KnowledgeBase() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kbOpenConfig]);
 
+  // same channel for notes (search palette hits)
+  const kbOpenNote = useAppStore((s) => s.kbOpenNote);
+  useEffect(() => {
+    if (!kbOpenNote) return;
+    useAppStore.setState({ kbOpenNote: null });
+    void openFile(kbOpenNote);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kbOpenNote]);
+
   const pickFolder = async () => {
     try {
       const path = await open({ directory: true, title: "Select KB folder" });

@@ -320,13 +320,11 @@ async fn journal_list(state: State<'_, AppState>) -> Result<Vec<String>> {
 }
 
 #[tauri::command]
-async fn journal_template_get(state: State<'_, AppState>) -> Result<String> {
-    with_vault_root(&state, journal::read_template)
-}
-
-#[tauri::command]
-async fn journal_template_set(state: State<'_, AppState>, content: String) -> Result<()> {
-    with_vault_root(&state, |root| journal::save_template(root, &content))
+async fn journal_search(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<journal::JournalSearchHit>> {
+    with_vault_root(&state, |root| journal::search_entries(root, &query))
 }
 
 #[tauri::command]
@@ -688,8 +686,7 @@ pub fn run() {
             journal_open,
             journal_save,
             journal_list,
-            journal_template_get,
-            journal_template_set,
+            journal_search,
             kb_tree,
             kb_read,
             kb_write,

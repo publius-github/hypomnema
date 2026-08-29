@@ -25,6 +25,18 @@ pub struct JournalEntry {
     pub content: String,
 }
 
+#[derive(Debug, Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct JournalSearchHit {
+    pub date: String,
+    #[ts(type = "number")]
+    pub line: usize,
+    pub preview: String,
+}
+
+const SEARCH_MAX_HITS: usize = 50;
+const SEARCH_MAX_FILE_BYTES: u64 = 1_000_000;
+
 fn validate_date(date: &str) -> Result<NaiveDate> {
     NaiveDate::parse_from_str(date, "%Y-%m-%d")
         .map_err(|_| Error::State(format!("invalid journal date: {date}")))
@@ -133,6 +145,39 @@ pub fn list_entries(vault: &Path) -> Result<Vec<String>> {
     Ok(dates)
 }
 
+/// Case-insensitive content search over all entries, newest first, one
+/// hit (the first matching line) per entry.
+pub fn search_entries(vault: &Path, query: &str) -> Result<Vec<JournalSearchHit>> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return Ok(vec![]);
+    }
+    let mut hits = Vec::new();
+    for date in list_entries(vault)? {
+        let path = entry_path(vault, &date)?;
+        if fs::metadata(&path).map(|m| m.len()).unwrap_or(u64::MAX) > SEARCH_MAX_FILE_BYTES {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&path) else {
+            continue;
+        };
+        for (i, line) in content.lines().enumerate() {
+            if line.to_lowercase().contains(&query) {
+                hits.push(JournalSearchHit {
+                    date: date.clone(),
+                    line: i + 1,
+                    preview: line.trim().chars().take(120).collect(),
+                });
+                break;
+            }
+        }
+        if hits.len() >= SEARCH_MAX_HITS {
+            break;
+        }
+    }
+    Ok(hits)
+}
+
 /// A missing template falls back to the built-in default; any other
 /// read failure (permissions, a sync client holding the file) is a real
 /// error - swallowing it here would show an empty template that a
@@ -145,6 +190,9 @@ pub fn read_template(vault: &Path) -> Result<String> {
     }
 }
 
+// The template is edited through the Notes config editor these days;
+// this writer remains as a test fixture helper.
+#[cfg(test)]
 pub fn save_template(vault: &Path, content: &str) -> Result<()> {
     let path = template_path(vault);
     if let Some(parent) = path.parent() {
@@ -224,6 +272,24 @@ mod tests {
 
         let dates = list_entries(&vault).unwrap();
         assert_eq!(dates, vec!["2026-08-28", "2026-08-27", "2025-12-31"]);
+        let _ = fs::remove_dir_all(&vault);
+    }
+
+    #[test]
+    fn search_finds_entries_newest_first_case_insensitive() {
+        let vault = vault("search");
+        save_entry(&vault, "2026-08-27", "walked the DOG\nmore text").unwrap();
+        save_entry(&vault, "2026-08-28", "quiet day").unwrap();
+        save_entry(&vault, "2026-08-29", "dog again\nand dog once more").unwrap();
+
+        let hits = search_entries(&vault, "dog").unwrap();
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].date, "2026-08-29");
+        assert_eq!(hits[0].line, 1);
+        assert_eq!(hits[0].preview, "dog again");
+        assert_eq!(hits[1].date, "2026-08-27");
+        assert!(search_entries(&vault, "  ").unwrap().is_empty());
+        assert!(search_entries(&vault, "absent").unwrap().is_empty());
         let _ = fs::remove_dir_all(&vault);
     }
 

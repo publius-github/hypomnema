@@ -5,8 +5,7 @@ import { todayISO } from "../lib/tasks";
 import MarkdownEditor from "../components/MarkdownEditor";
 
 interface OpenDoc {
-  kind: "entry" | "template";
-  date: string; // entry date, or "template"
+  date: string;
   content: string;
 }
 
@@ -30,13 +29,9 @@ export default function Journal() {
   }, [setError]);
 
   const persist = useCallback(
-    async (kind: OpenDoc["kind"], date: string, content: string) => {
+    async (date: string, content: string) => {
       try {
-        if (kind === "template") {
-          await invoke("journal_template_set", { content });
-        } else {
-          await invoke("journal_save", { date, content });
-        }
+        await invoke("journal_save", { date, content });
         setSaved(true);
       } catch (e) {
         setError(e);
@@ -56,7 +51,7 @@ export default function Journal() {
     const pending = pendingRef.current;
     if (pending) {
       pendingRef.current = null;
-      await persist(pending.kind, pending.date, pending.content);
+      await persist(pending.date, pending.content);
     }
   }, [persist]);
 
@@ -73,7 +68,7 @@ export default function Journal() {
           { date },
         );
         if (seq !== openSeq.current) return;
-        setDoc({ kind: "entry", date: entry.date, content: entry.content });
+        setDoc({ date: entry.date, content: entry.content });
         setSaved(true);
         await loadDates();
       } catch (e) {
@@ -84,10 +79,18 @@ export default function Journal() {
   );
 
   useEffect(() => {
-    void openEntry(todayISO());
-    // open Today once on mount
+    // open Today once on mount, unless the palette asked for a date
+    if (!useAppStore.getState().journalOpenDate) void openEntry(todayISO());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // navigation requests from the search palette
+  const journalOpenDate = useAppStore((s) => s.journalOpenDate);
+  useEffect(() => {
+    if (!journalOpenDate) return;
+    useAppStore.setState({ journalOpenDate: null });
+    void openEntry(journalOpenDate);
+  }, [journalOpenDate, openEntry]);
 
   // autosave with debounce; flush on unmount and on entry switch
   const scheduleSave = (content: string) => {
@@ -99,7 +102,7 @@ export default function Journal() {
     pendingRef.current = target;
     saveTimer.current = setTimeout(() => {
       pendingRef.current = null;
-      void persist(target.kind, target.date, target.content);
+      void persist(target.date, target.content);
     }, 800);
   };
 
@@ -123,7 +126,7 @@ export default function Journal() {
             type="date"
             className="input px-2 py-1 text-xs"
             title="Open the entry for any date"
-            value={doc?.kind === "entry" ? doc.date : ""}
+            value={doc?.date ?? ""}
             onChange={(e) => {
               if (e.target.value) void openEntry(e.target.value);
             }}
@@ -137,7 +140,7 @@ export default function Journal() {
             <button
               key={date}
               className={`block w-full rounded px-2 py-1 text-left text-sm ${
-                doc?.kind === "entry" && doc.date === date
+                doc?.date === date
                   ? "bg-accent/15 text-accent"
                   : "text-content-muted hover:bg-line/40 hover:text-content"
               }`}
@@ -155,7 +158,7 @@ export default function Journal() {
           <>
             <div className="flex items-center justify-between border-b border-line px-4 py-2 text-sm">
               <span className="font-medium">
-                {doc.kind === "template" ? "Journal template" : doc.date}
+                {doc.date}
               </span>
               <span className="text-xs text-content-muted">
                 {saved ? "Saved" : "Saving..."}
@@ -163,7 +166,7 @@ export default function Journal() {
             </div>
             <div className="min-h-0 flex-1">
               <MarkdownEditor
-                docKey={`${doc.kind}:${doc.date}`}
+                docKey={`entry:${doc.date}`}
                 value={doc.content}
                 onChange={scheduleSave}
               />
