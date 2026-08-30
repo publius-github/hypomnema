@@ -40,7 +40,7 @@ Order configurable via `config.section_order`; Settings always last. Rail also h
 - **Calendar** - month grid: real tasks + read-only projections from `views::calendar_outlook`, per-cadence horizons.
 - **History** - month completion stats, per-rule daily streaks, completed tasks by day; bounded by retention pruning.
 - **Journal** - one Markdown entry per date, template-seeded (`{{date}}`), file created on first save.
-- **Notes** (section id `kb`) - file tree over the KB root, editor, content search, wiki `[[links]]`, `.trash`, plus a Config group editing the six YAMLs + journal template with save-time validation.
+- **Notes** (section id `kb`) - file tree over the KB root (multi-select with Ctrl/Shift, F2 rename, Delete, Ctrl+C/X/V copy-cut-paste via `kb_copy`/`kb_rename`), editor, content search, wiki `[[links]]`, `.trash`, plus a Config group editing the six YAMLs + journal template with save-time validation. New-note dialog completes the .md extension explicitly (Tab).
 - **Settings** - tabs Appearance / Planner / Calendar / Navigation / Files / Maintenance (`src/sections/settings/`).
 
 ## Config files (`config_files.rs`, `config.rs`)

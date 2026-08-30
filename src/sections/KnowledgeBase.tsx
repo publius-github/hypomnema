@@ -30,6 +30,14 @@ function flattenFiles(nodes: KbNode[]): KbNode[] {
   return nodes.flatMap((n) => (n.is_dir ? flattenFiles(n.children) : [n]));
 }
 
+function flattenAll(nodes: KbNode[]): KbNode[] {
+  return nodes.flatMap((n) => [n, ...(n.is_dir ? flattenAll(n.children) : [])]);
+}
+
+const parentDirOf = (path: string) =>
+  path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+const basenameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+
 export default function KnowledgeBase() {
   const config = useAppStore((s) => s.config);
   const updateConfig = useAppStore((s) => s.updateConfig);
@@ -210,8 +218,139 @@ export default function KnowledgeBase() {
   type Dialog =
     | { kind: "create" }
     | { kind: "rename"; node: KbNode }
-    | { kind: "delete"; node: KbNode };
+    | { kind: "delete"; node: KbNode }
+    | { kind: "deleteMany"; paths: string[] };
   const [dialog, setDialog] = useState<Dialog | null>(null);
+
+  // IDE-style tree selection: click selects (and opens a file),
+  // Ctrl/Cmd+click toggles, Shift+click ranges over the visible rows
+  const [selected, setSelected] = useState<string[]>([]);
+  const selectedSet = new Set(selected);
+  const anchorRef = useRef<string | null>(null);
+  // internal file clipboard for Ctrl+C / Ctrl+X / Ctrl+V in the tree
+  const [clipboard, setClipboard] = useState<{
+    paths: string[];
+    cut: boolean;
+  } | null>(null);
+
+  const visibleOrder = (nodes: KbNode[]): string[] =>
+    nodes.flatMap((n) => [
+      n.path,
+      ...(n.is_dir && expanded.has(n.path) ? visibleOrder(n.children) : []),
+    ]);
+
+  const selectRow = (node: KbNode, e: React.MouseEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      anchorRef.current = node.path;
+      setSelected((prev) =>
+        prev.includes(node.path)
+          ? prev.filter((p) => p !== node.path)
+          : [...prev, node.path],
+      );
+      return true; // handled: no open/expand on ctrl-click
+    }
+    if (e.shiftKey && anchorRef.current) {
+      const order = visibleOrder(tree);
+      const a = order.indexOf(anchorRef.current);
+      const b = order.indexOf(node.path);
+      if (a >= 0 && b >= 0) {
+        setSelected(order.slice(Math.min(a, b), Math.max(a, b) + 1));
+        return true;
+      }
+    }
+    anchorRef.current = node.path;
+    setSelected([node.path]);
+    return false;
+  };
+
+  const deleteMany = async (paths: string[]) => {
+    setDialog(null);
+    for (const path of paths) {
+      const inside = (p: string | undefined) =>
+        p === path || p?.startsWith(`${path}/`);
+      if (inside(pendingRef.current?.path)) {
+        dropPendingFor(pendingRef.current!.path);
+      }
+      try {
+        await invoke("kb_delete", { path });
+      } catch (e) {
+        setError(e);
+      }
+      if (current?.kind === "note" && inside(current.path)) {
+        setCurrent(null);
+        useAppStore.getState().setKbCurrent(null);
+      }
+    }
+    setSelected([]);
+    await loadTree();
+  };
+
+  const pasteClipboard = async () => {
+    if (!clipboard) return;
+    // paste target: the selected folder, a selected file's folder, or
+    // the root when the selection is empty/mixed
+    const nodes = flattenAll(tree);
+    let toDir = "";
+    if (selected.length === 1) {
+      const node = nodes.find((n) => n.path === selected[0]);
+      if (node) toDir = node.is_dir ? node.path : parentDirOf(node.path);
+    }
+    for (const from of clipboard.paths) {
+      try {
+        if (clipboard.cut) {
+          const target = toDir ? `${toDir}/${basenameOf(from)}` : basenameOf(from);
+          if (target === from) continue;
+          if (toDir === from || toDir.startsWith(`${from}/`)) {
+            setError(`cannot move "${from}" into itself`);
+            continue;
+          }
+          dropPendingFor(from);
+          await invoke("kb_rename", { from, to: target });
+          if (current?.path === from) {
+            setCurrent(null);
+            useAppStore.getState().setKbCurrent(null);
+          }
+        } else {
+          await invoke("kb_copy", { from, toDir });
+        }
+      } catch (e) {
+        setError(e);
+      }
+    }
+    if (clipboard.cut) setClipboard(null);
+    setSelected([]);
+    await loadTree();
+  };
+
+  const onTreeKeyDown = (e: React.KeyboardEvent) => {
+    const mod = e.ctrlKey || e.metaKey;
+    const nodes = flattenAll(tree);
+    if (e.key === "F2" && selected.length === 1) {
+      const node = nodes.find((n) => n.path === selected[0]);
+      if (node) {
+        e.preventDefault();
+        setDialog({ kind: "rename", node });
+      }
+    } else if ((e.key === "Delete" || (e.key === "Backspace" && mod)) && selected.length > 0) {
+      e.preventDefault();
+      setDialog({ kind: "deleteMany", paths: [...selected] });
+    } else if (mod && (e.key === "c" || e.key === "C") && selected.length > 0) {
+      e.preventDefault();
+      setClipboard({ paths: [...selected], cut: false });
+    } else if (mod && (e.key === "x" || e.key === "X") && selected.length > 0) {
+      e.preventDefault();
+      setClipboard({ paths: [...selected], cut: true });
+    } else if (mod && (e.key === "v" || e.key === "V") && clipboard) {
+      e.preventDefault();
+      void pasteClipboard();
+    } else if (mod && (e.key === "a" || e.key === "A")) {
+      e.preventDefault();
+      setSelected(visibleOrder(tree));
+    } else if (e.key === "Escape") {
+      setSelected([]);
+      setClipboard(null);
+    }
+  };
 
   const createFile = async (name: string) => {
     setDialog(null);
@@ -318,17 +457,21 @@ export default function KnowledgeBase() {
     <div key={node.path}>
       <div
         className={`group flex items-center gap-1 rounded px-2 py-0.5 text-sm ${
-          !node.is_dir && current?.path === node.path
-            ? "bg-accent/15 text-accent"
-            : "text-content hover:bg-line/40"
-        }`}
+          selectedSet.has(node.path)
+            ? "bg-accent/20 text-content"
+            : !node.is_dir && current?.path === node.path
+              ? "bg-accent/15 text-accent"
+              : "text-content hover:bg-line/40"
+        } ${clipboard?.cut && clipboard.paths.includes(node.path) ? "opacity-50" : ""}`}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
       >
         {node.is_dir ? (
           <>
             <button
               className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium"
-              onClick={() => toggleExpanded(node.path)}
+              onClick={(e) => {
+                if (!selectRow(node, e)) toggleExpanded(node.path);
+              }}
             >
               <Icon
                 name={expanded.has(node.path) ? "chevronDown" : "chevronRight"}
@@ -348,7 +491,9 @@ export default function KnowledgeBase() {
           <>
             <button
               className="flex-1 truncate text-left"
-              onClick={() => void openFile(node.path)}
+              onClick={(e) => {
+                if (!selectRow(node, e)) void openFile(node.path);
+              }}
             >
               {node.name}
             </button>
@@ -398,7 +543,13 @@ export default function KnowledgeBase() {
                 +
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+            {/* focusable so the tree takes IDE keys: F2 rename, Delete,
+                Ctrl+C/X/V copy-cut-paste, Ctrl+A select all */}
+            <div
+              className="min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-none"
+              tabIndex={0}
+              onKeyDown={onTreeKeyDown}
+            >
               {searchResults
                 ? searchResults.map((node) => renderNode(node, 0))
                 : tree.map((node) => renderNode(node, 0))}
@@ -555,11 +706,18 @@ export default function KnowledgeBase() {
         )}
       </div>
       {dialog?.kind === "create" && (
-        <PromptModal
-          title="New note"
-          placeholder="Path, e.g. ideas/note (.md is added unless you give an extension)"
-          submitLabel="Create"
+        <CreateNoteModal
           onSubmit={(name) => void createFile(name)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "deleteMany" && (
+        <ConfirmModal
+          title={`Delete ${dialog.paths.length} selected item${
+            dialog.paths.length > 1 ? "s" : ""
+          }?`}
+          message="Everything moves to .trash inside the notes folder (kept for 30 days)."
+          onConfirm={() => void deleteMany(dialog.paths)}
           onCancel={() => setDialog(null)}
         />
       )}
@@ -584,6 +742,96 @@ export default function KnowledgeBase() {
           onCancel={() => setDialog(null)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * New-note dialog with an explicit extension completion: a name typed
+ * without an extension shows the ".md" completion the user accepts with
+ * Tab (or a click) instead of the extension being appended silently.
+ */
+function CreateNoteModal({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+  const trimmed = value.trim();
+  const hasExtension = /\.[^./\\]+$/.test(trimmed);
+  const suggestion = trimmed && !hasExtension ? `${trimmed}.md` : null;
+  const submit = () => {
+    if (!trimmed) return;
+    onSubmit(suggestion ?? trimmed);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-6"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex w-[400px] flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl"
+      >
+        <span className="text-sm font-semibold">New note</span>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <input
+            ref={inputRef}
+            className="input w-full"
+            placeholder="Path, e.g. ideas/note"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") onCancel();
+              if (e.key === "Tab" && suggestion) {
+                e.preventDefault();
+                setValue(suggestion);
+              }
+            }}
+          />
+        </form>
+        {suggestion ? (
+          <button
+            className="self-start rounded bg-accent/15 px-2 py-0.5 text-xs text-accent hover:bg-accent/25"
+            title="Tab or click to accept"
+            onClick={() => setValue(suggestion)}
+          >
+            {suggestion}
+          </button>
+        ) : (
+          <span className="text-xs text-content-muted">
+            {hasExtension
+              ? `Creates ${trimmed}`
+              : "Type a name; Tab completes the .md extension"}
+          </span>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-content-muted"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button className="btn-primary px-3" onClick={submit}>
+            Create
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

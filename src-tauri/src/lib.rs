@@ -839,6 +839,11 @@ async fn kb_rename(state: State<'_, AppState>, from: String, to: String) -> Resu
 }
 
 #[tauri::command]
+async fn kb_copy(state: State<'_, AppState>, from: String, to_dir: String) -> Result<String> {
+    kb::copy_into(&kb_root(&state)?, &from, &to_dir)
+}
+
+#[tauri::command]
 async fn kb_delete(state: State<'_, AppState>, path: String) -> Result<()> {
     kb::delete(&kb_root(&state)?, &path)
 }
@@ -936,6 +941,7 @@ pub fn run() {
             kb_write,
             kb_create,
             kb_rename,
+            kb_copy,
             kb_delete,
             dashboard_context,
             birthdays_list,

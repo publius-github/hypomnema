@@ -281,6 +281,58 @@ pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {
     Ok(())
 }
 
+fn copy_recursive(src: &Path, dst: &Path) -> Result<()> {
+    if src.is_dir() {
+        fs::create_dir_all(dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            copy_recursive(&entry.path(), &dst.join(entry.file_name()))?;
+        }
+    } else {
+        fs::copy(src, dst)?;
+    }
+    Ok(())
+}
+
+/// Copies a file or folder into `to_dir` ("" = KB root), keeping the
+/// basename; a name clash gets " copy" appended before the extension
+/// until the name is unique. Returns the new relative path. Backs the
+/// tree's Ctrl+C / Ctrl+V.
+pub fn copy_into(root: &Path, from: &str, to_dir: &str) -> Result<String> {
+    let source = resolve(root, from)?;
+    if !source.exists() {
+        return Err(Error::State(format!("no such file: {from}")));
+    }
+    let name = Path::new(from)
+        .file_name()
+        .ok_or_else(|| Error::State(format!("invalid KB path: {from}")))?
+        .to_string_lossy()
+        .into_owned();
+    let dir_abs = resolve(root, to_dir)?;
+    fs::create_dir_all(&dir_abs)?;
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() && !source.is_dir() => (s.to_string(), format!(".{e}")),
+        _ => (name.clone(), String::new()),
+    };
+    let mut candidate = name.clone();
+    let mut n = 0;
+    while dir_abs.join(&candidate).exists() {
+        n += 1;
+        candidate = if n == 1 {
+            format!("{stem} copy{ext}")
+        } else {
+            format!("{stem} copy {n}{ext}")
+        };
+    }
+    let rel = if to_dir.is_empty() {
+        candidate.clone()
+    } else {
+        format!("{to_dir}/{candidate}")
+    };
+    copy_recursive(&source, &dir_abs.join(&candidate))?;
+    Ok(rel)
+}
+
 /// Deleting moves the file or folder into .trash/ inside the KB root
 /// (dot-prefixed, so the tree hides it): notes are primary user data
 /// and a mistaken delete must be recoverable in the file manager.
@@ -442,6 +494,25 @@ mod tests {
         fs::write(root.join(IGNORE_FILE), ".trash/\n").unwrap();
         let names: Vec<String> = tree(&root).unwrap().into_iter().map(|n| n.name).collect();
         assert_eq!(names, vec![IGNORE_FILE.to_string()]);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn copy_into_generates_unique_names() {
+        let root = root("copy");
+        create(&root, "a.md").unwrap();
+        write(&root, "a.md", "x").unwrap();
+        assert_eq!(copy_into(&root, "a.md", "").unwrap(), "a copy.md");
+        assert_eq!(copy_into(&root, "a.md", "").unwrap(), "a copy 2.md");
+        assert_eq!(read(&root, "a copy.md").unwrap(), "x");
+        fs::create_dir_all(root.join("sub")).unwrap();
+        assert_eq!(copy_into(&root, "a.md", "sub").unwrap(), "sub/a.md");
+        // folders copy recursively
+        create(&root, "dir/inner.md").unwrap();
+        assert_eq!(copy_into(&root, "dir", "").unwrap(), "dir copy");
+        assert!(read(&root, "dir copy/inner.md").is_ok());
+        // traversal stays rejected
+        assert!(copy_into(&root, "a.md", "../out").is_err());
         let _ = fs::remove_dir_all(&root);
     }
 
