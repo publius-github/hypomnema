@@ -85,7 +85,12 @@ const markdownHighlight = HighlightStyle.define([
 // brackets briefly wore the token color of whatever the parser guessed.
 // Instead EVERY literal [ and ] outside code gets the plain color -
 // parse-independent, so nothing flickers.
-const bracketMark = Decoration.mark({ class: "cm-md-bracket" });
+// the inline style outranks any token class the highlighter puts on the
+// same span, so bracket color can never depend on what sits inside
+const bracketMark = Decoration.mark({
+  class: "cm-md-bracket",
+  attributes: { style: "color: rgb(var(--color-content))" },
+});
 
 function bracketDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
@@ -207,6 +212,14 @@ const editorTheme = EditorView.theme({
   ".cm-content .cm-md-bracket": { color: "rgb(var(--color-content))" },
   ".cm-content .cm-md-table": {
     fontFamily: 'ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace',
+  },
+  // inline tokens inside a table row (code spans, bold, links) must not
+  // change font or size - one cell with `code` at 0.9em breaks the
+  // character-count alignment of the whole column
+  ".cm-content .cm-md-table span": {
+    fontFamily: "inherit",
+    fontSize: "inherit",
+    letterSpacing: "inherit",
   },
   "&.cm-focused": { outline: "none" },
   ".cm-line": { padding: "0 12px" },

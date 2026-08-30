@@ -216,7 +216,7 @@ export default function KnowledgeBase() {
   };
 
   type Dialog =
-    | { kind: "create" }
+    | { kind: "create"; dir?: string }
     | { kind: "rename"; node: KbNode }
     | { kind: "delete"; node: KbNode }
     | { kind: "deleteMany"; paths: string[] };
@@ -480,6 +480,13 @@ export default function KnowledgeBase() {
               <span className="truncate">{node.name}</span>
             </button>
             <button
+              className="px-0.5 opacity-0 hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
+              title="New note in this folder"
+              onClick={() => setDialog({ kind: "create", dir: node.path })}
+            >
+              +
+            </button>
+            <button
               className="opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
               title="Delete folder"
               onClick={() => setDialog({ kind: "delete", node })}
@@ -707,6 +714,7 @@ export default function KnowledgeBase() {
       </div>
       {dialog?.kind === "create" && (
         <CreateNoteModal
+          initialDir={dialog.dir}
           onSubmit={(name) => void createFile(name)}
           onCancel={() => setDialog(null)}
         />
@@ -752,16 +760,23 @@ export default function KnowledgeBase() {
  * Tab (or a click) instead of the extension being appended silently.
  */
 function CreateNoteModal({
+  initialDir,
   onSubmit,
   onCancel,
 }: {
+  /** Folder the note starts in (the + on a folder row); editable text. */
+  initialDir?: string;
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialDir ? `${initialDir}/` : "");
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    inputRef.current?.focus();
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    // caret after the prefilled folder path, ready for the note name
+    el.setSelectionRange(el.value.length, el.value.length);
   }, []);
   const trimmed = value.trim();
   const hasExtension = /\.[^./\\]+$/.test(trimmed);

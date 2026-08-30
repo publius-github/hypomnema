@@ -41,6 +41,26 @@ const PRESETS: Record<string, { dark: ThemeColors; light: ThemeColors }> = {
       line: "#e5e7eb",
     },
   },
+  vscode: {
+    // VS Code Dark+ / Light+ chrome (editor background, side bar,
+    // borders and the classic blue accent)
+    dark: {
+      surface: "#1e1e1e",
+      surfaceAlt: "#252526",
+      content: "#d4d4d4",
+      contentMuted: "#8c8c8c",
+      accent: "#3794ff",
+      line: "#3c3c3c",
+    },
+    light: {
+      surface: "#ffffff",
+      surfaceAlt: "#f3f3f3",
+      content: "#333333",
+      contentMuted: "#6f6f6f",
+      accent: "#005fb8",
+      line: "#e0e0e0",
+    },
+  },
   nord: {
     dark: {
       surface: "#2e3440",
@@ -100,6 +120,7 @@ const PRESETS: Record<string, { dark: ThemeColors; light: ThemeColors }> = {
 export const THEME_PRESET_LABELS: Record<string, string> = {
   default: "Default",
   black: "Black / White",
+  vscode: "VS Code",
   nord: "Nord",
   gruvbox: "Gruvbox",
   solarized: "Solarized",
