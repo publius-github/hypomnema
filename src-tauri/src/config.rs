@@ -109,6 +109,12 @@ pub struct AppConfig {
     /// A priority task left unfinished past its day gets the overdue
     /// mark like any other task; off = priority carries over silently.
     pub priority_overdue: bool,
+    /// Cadence bucket thresholds: a recurring rule counts as
+    /// daily/weekly/monthly when it fires at least this many times over
+    /// the next year (anything below monthly is yearly).
+    pub cadence_daily_min_per_year: u32,
+    pub cadence_weekly_min_per_year: u32,
+    pub cadence_monthly_min_per_year: u32,
     /// Base UI font size in px (the browser default is 16; every text
     /// size in the app scales from it).
     pub ui_font_size: u32,
@@ -199,6 +205,10 @@ impl Default for AppConfig {
             list_tasks_sort_alpha: false,
             clear_done_list_tasks: true,
             priority_overdue: true,
+            // every 1-2 days / up to ~10 days apart / up to a quarter apart
+            cadence_daily_min_per_year: 183,
+            cadence_weekly_min_per_year: 37,
+            cadence_monthly_min_per_year: 4,
             ui_font_size: 16,
             content_color: String::new(),
             content_muted_color: String::new(),
@@ -269,6 +279,15 @@ impl AppConfig {
         if !MD_PRESETS.contains(&self.md_preset.as_str()) {
             self.md_preset = "vscode".into();
         }
+        // bucket thresholds must stay strictly ordered or every rule
+        // would land in one bucket
+        self.cadence_monthly_min_per_year = self.cadence_monthly_min_per_year.clamp(1, 998);
+        self.cadence_weekly_min_per_year = self
+            .cadence_weekly_min_per_year
+            .clamp(self.cadence_monthly_min_per_year + 1, 999);
+        self.cadence_daily_min_per_year = self
+            .cadence_daily_min_per_year
+            .clamp(self.cadence_weekly_min_per_year + 1, 1000);
         self.task_gap = self.task_gap.min(48);
         self.section_gap = self.section_gap.min(48);
         self.category_block_gap = self.category_block_gap.min(48);
@@ -426,6 +445,18 @@ impl AppConfig {
                 self.clear_done_list_tasks.to_string(),
             ),
             ("priority_overdue", self.priority_overdue.to_string()),
+            (
+                "cadence_daily_min_per_year",
+                self.cadence_daily_min_per_year.to_string(),
+            ),
+            (
+                "cadence_weekly_min_per_year",
+                self.cadence_weekly_min_per_year.to_string(),
+            ),
+            (
+                "cadence_monthly_min_per_year",
+                self.cadence_monthly_min_per_year.to_string(),
+            ),
             ("ui_font_size", self.ui_font_size.to_string()),
             ("content_color", self.content_color.clone()),
             ("content_muted_color", self.content_muted_color.clone()),

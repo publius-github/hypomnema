@@ -267,7 +267,7 @@ pub fn calendar_outlook(
             let Ok(cron) = Cron::new(&rule.schedule).parse() else {
                 continue;
             };
-            let cadence = cadence_of(&cron, now);
+            let cadence = cadence_of(&cron, now, config);
             // rules pinned to concrete weekdays carry a [SAT#1]-style
             // marker so a projected entry says which weekday rule it is
             let dow = if config.cron_weekday_labels {

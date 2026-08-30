@@ -84,12 +84,19 @@ struct GeneratedTask<'a> {
 /// Buckets a cron by how often it actually fires over the next year:
 /// the day grid groups tasks by this, and the Calendar picks its
 /// projection horizon from it. Firing counts, not field syntax, so
-/// "0 9 * * 1-5" lands in daily and a quarterly rule in monthly.
-pub(crate) fn cadence_of(cron: &Cron, now: DateTime<Local>) -> &'static str {
+/// "0 9 * * 1-5" lands in daily and a quarterly rule in monthly. The
+/// yearly firing-count thresholds per bucket come from the config
+/// (Settings > Planner).
+pub(crate) fn cadence_of(cron: &Cron, now: DateTime<Local>, config: &AppConfig) -> &'static str {
+    let daily = config.cadence_daily_min_per_year.max(1);
+    let weekly = config.cadence_weekly_min_per_year.max(1);
+    let monthly = config.cadence_monthly_min_per_year.max(1);
     let end = now + Duration::days(365);
     let mut cursor = now;
     let mut count: u32 = 0;
-    while count < 190 {
+    // counting past the daily threshold changes nothing; +7 tolerance
+    // keeps the loop bounded for runaway schedules
+    while count < daily.saturating_add(7) {
         match cron.find_next_occurrence(&cursor, false) {
             Ok(firing) if firing <= end => {
                 cursor = firing;
@@ -98,11 +105,14 @@ pub(crate) fn cadence_of(cron: &Cron, now: DateTime<Local>) -> &'static str {
             _ => break,
         }
     }
-    match count {
-        183.. => "daily", // every 1-2 days
-        37.. => "weekly", // up to ~10 days apart
-        4.. => "monthly", // up to a quarter apart
-        _ => "yearly",
+    if count >= daily {
+        "daily"
+    } else if count >= weekly {
+        "weekly"
+    } else if count >= monthly {
+        "monthly"
+    } else {
+        "yearly"
     }
 }
 
@@ -328,7 +338,7 @@ fn generate_recurring(
             });
             continue;
         }
-        let cadence = cadence_of(&cron, now);
+        let cadence = cadence_of(&cron, now, config);
         // rules pinned to concrete weekdays carry a [SAT#1]-style marker
         // shown before the task title
         let dow_label = crate::views::weekday_label(&rule.schedule);
@@ -968,7 +978,8 @@ mod tests {
     #[test]
     fn cadence_buckets_by_firing_frequency() {
         let now = at("2026-08-28", "12:00:00");
-        let of = |cron: &str| cadence_of(&Cron::new(cron).parse().unwrap(), now);
+        let cfg = AppConfig::default();
+        let of = |cron: &str| cadence_of(&Cron::new(cron).parse().unwrap(), now, &cfg);
         assert_eq!(of("0 0 * * *"), "daily");
         assert_eq!(of("0 9 * * 1-5"), "daily");
         assert_eq!(of("0 0 * * 1"), "weekly");

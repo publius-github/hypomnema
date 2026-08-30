@@ -148,6 +148,12 @@ clear_done_list_tasks: boolean,
  */
 priority_overdue: boolean, 
 /**
+ * Cadence bucket thresholds: a recurring rule counts as
+ * daily/weekly/monthly when it fires at least this many times over
+ * the next year (anything below monthly is yearly).
+ */
+cadence_daily_min_per_year: number, cadence_weekly_min_per_year: number, cadence_monthly_min_per_year: number, 
+/**
  * Base UI font size in px (the browser default is 16; every text
  * size in the app scales from it).
  */
