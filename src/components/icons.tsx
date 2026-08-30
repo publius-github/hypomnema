@@ -117,6 +117,23 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M19 12v6" />
     </>
   ),
+  list: (
+    <>
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M3 6h.01" />
+      <path d="M3 12h.01" />
+      <path d="M3 18h.01" />
+    </>
+  ),
+  columns: (
+    <>
+      <rect x="3" y="4" width="5" height="16" rx="1" />
+      <rect x="10" y="4" width="5" height="16" rx="1" />
+      <rect x="17" y="4" width="4" height="16" rx="1" />
+    </>
+  ),
   chevronRight: (
     <>
       <path d="m9 6 6 6-6 6" />

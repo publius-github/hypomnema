@@ -7,6 +7,8 @@ import AboutModal from "./AboutModal";
 
 const TABS: Record<string, { id: Section; label: string; icon: IconName }> = {
   dashboard: { id: "dashboard", label: "Dashboard", icon: "grid" },
+  lists: { id: "lists", label: "Lists", icon: "list" },
+  days: { id: "days", label: "Days", icon: "columns" },
   upcoming: { id: "upcoming", label: "Upcoming", icon: "clock" },
   calendar: { id: "calendar", label: "Calendar", icon: "calendar" },
   history: { id: "history", label: "History", icon: "chart" },
@@ -16,6 +18,8 @@ const TABS: Record<string, { id: Section; label: string; icon: IconName }> = {
 
 const DEFAULT_ORDER = [
   "dashboard",
+  "lists",
+  "days",
   "upcoming",
   "calendar",
   "history",

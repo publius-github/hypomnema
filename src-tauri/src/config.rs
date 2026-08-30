@@ -100,6 +100,8 @@ pub struct AppConfig {
     /// Order the dashboard list columns alphabetically (favorites still
     /// come first); off = manual creation order.
     pub lists_sort_alpha: bool,
+    /// Grid columns on the dedicated Lists page.
+    pub lists_page_columns: u32,
     /// Order the tasks inside a list column alphabetically (timed tasks
     /// still pin to the top); off = manual drag order.
     pub list_tasks_sort_alpha: bool,
@@ -149,6 +151,8 @@ pub const MD_PRESETS: &[&str] = &["vscode", "monokai", "one-dark", "github", "cu
 
 pub const SECTIONS: &[&str] = &[
     "dashboard",
+    "lists",
+    "days",
     "upcoming",
     "calendar",
     "history",
@@ -202,6 +206,7 @@ impl Default for AppConfig {
             tasks_mirror: true,
             cron_weekday_labels: true,
             lists_sort_alpha: false,
+            lists_page_columns: 4,
             list_tasks_sort_alpha: false,
             clear_done_list_tasks: true,
             priority_overdue: true,
@@ -267,6 +272,7 @@ impl AppConfig {
         }
         self.dashboard_split = self.dashboard_split.clamp(20, 80);
         self.list_columns = self.list_columns.clamp(1, 12);
+        self.lists_page_columns = self.lists_page_columns.clamp(1, 12);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -436,6 +442,7 @@ impl AppConfig {
             ("tasks_mirror", self.tasks_mirror.to_string()),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
             ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
+            ("lists_page_columns", self.lists_page_columns.to_string()),
             (
                 "list_tasks_sort_alpha",
                 self.list_tasks_sort_alpha.to_string(),
@@ -534,6 +541,8 @@ mod tests {
             vec![
                 "kb",
                 "dashboard",
+                "lists",
+                "days",
                 "upcoming",
                 "calendar",
                 "history",

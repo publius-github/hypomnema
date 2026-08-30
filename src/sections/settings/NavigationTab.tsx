@@ -1,5 +1,7 @@
 const SECTION_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
+  lists: "Lists",
+  days: "Days",
   upcoming: "Upcoming",
   calendar: "Calendar",
   history: "History",

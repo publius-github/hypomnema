@@ -133,6 +133,10 @@ cron_weekday_labels: boolean,
  */
 lists_sort_alpha: boolean, 
 /**
+ * Grid columns on the dedicated Lists page.
+ */
+lists_page_columns: number, 
+/**
  * Order the tasks inside a list column alphabetically (timed tasks
  * still pin to the top); off = manual drag order.
  */

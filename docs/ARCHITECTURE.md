@@ -33,7 +33,7 @@ The only state outside the vault is `vault-path.txt` in the OS app-config dir. `
 
 ## UI sections
 
-Order configurable via `config.section_order`; Settings always last. Rail also has Search (Ctrl/Cmd+K), Sync (runs engine), theme toggle, About.
+Order configurable via `config.section_order`; Settings always last. Besides the combined Dashboard there are two focused variants: **Lists** (every list in a wrapping grid, `lists_page_columns`) and **Days** (the day grid at full height, no list zone) - all three share the store snapshot and the drag-and-drop wiring (`components/taskDnd.ts`). Rail also has Search (Ctrl/Cmd+K), Sync (runs engine), theme toggle, About.
 
 - **Dashboard** - day grid (`grid_columns`, paged) over list-zone backlog columns (paged, split draggable); dnd-kit drag between days/lists; weekly focus + day reminders from `dashboard_context`.
 - **Upcoming** - sub-tabs Scheduled / Birthdays / Recurring; CRUD writes back into the YAML files (comment-preserving splice in `config_files.rs`). A materialized scheduled event stays listed until its task is done or deleted.

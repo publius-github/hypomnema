@@ -1,16 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
+import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { addDaysISO, gridDates } from "../lib/tasks";
+import { addDaysISO, gridDates, orderLists } from "../lib/tasks";
+import { useTaskDnd } from "../components/taskDnd";
 import DayColumn from "../components/DayColumn";
 import ListColumn from "../components/ListColumn";
 import TaskCard from "../components/TaskCard";
@@ -24,11 +17,10 @@ export default function Dashboard() {
   const today = useAppStore((s) => s.today);
   const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
-  const updateTask = useAppStore((s) => s.updateTask);
   const dashboard = useAppStore((s) => s.dashboard);
   const gridOffset = useAppStore((s) => s.gridOffset);
   const setGridOffset = useAppStore((s) => s.setGridOffset);
-  const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
+  const dnd = useTaskDnd();
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   // Moving the open task's date beyond the grid window drops it from
   // the snapshot; the modal must survive that (and keep unsaved edits),
@@ -42,9 +34,6 @@ export default function Dashboard() {
   const [splitDraft, setSplitDraft] = useState<number | null>(null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const zonesRef = useRef<HTMLDivElement | null>(null);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
 
   useEffect(() => {
     if (editingTaskId === null) {
@@ -75,49 +64,16 @@ export default function Dashboard() {
   // fresh vault: nothing exists yet, so the automation features are
   // invisible - point at them once
   const freshVault = tasks.length === 0 && lists.length === 0;
-  const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
   const editingTask =
     tasks.find((t) => t.id === editingTaskId) ??
     (fetchedTask && fetchedTask.id === editingTaskId ? fetchedTask : null);
 
-  const onDragStart = (event: DragStartEvent) => {
-    setActiveTaskId(Number(String(event.active.id).replace("task:", "")));
-  };
-
-  const onDragEnd = (event: DragEndEvent) => {
-    setActiveTaskId(null);
-    const { active, over } = event;
-    if (!over) return;
-    const taskId = Number(String(active.id).replace("task:", ""));
-    const target = String(over.id);
-    const task = tasks.find((t) => t.id === taskId);
-    if (target.startsWith("day:")) {
-      const date = target.slice(4);
-      if (task?.scheduled_date === date) return;
-      void updateTask(taskId, { scheduled_date: date });
-    } else if (target.startsWith("list:")) {
-      const listId = Number(target.slice(5));
-      if (task && task.list_id === listId && task.scheduled_date === null)
-        return;
-      void updateTask(taskId, {
-        list_id: listId,
-        scheduled_date: null,
-      });
-    } else if (target.startsWith("task:")) {
-      // dropped onto a backlog card: reorder within the list, or move
-      // into that card's list when it is a different one
-      void useAppStore
-        .getState()
-        .reorderTask(taskId, Number(target.slice(5)));
-    }
-  };
-
   return (
     <DndContext
-      sensors={sensors}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onDragCancel={() => setActiveTaskId(null)}
+      sensors={dnd.sensors}
+      onDragStart={dnd.onDragStart}
+      onDragEnd={dnd.onDragEnd}
+      onDragCancel={dnd.onDragCancel}
     >
       {/* Two scrollbars by design: the day grid has a viewport-bound
           height and its columns scroll internally; the list zone below
@@ -287,7 +243,7 @@ export default function Dashboard() {
       </div>
 
       <DragOverlay>
-        {activeTask && <TaskCard task={activeTask} overlay />}
+        {dnd.activeTask && <TaskCard task={dnd.activeTask} overlay />}
       </DragOverlay>
 
       {editingTask && (
@@ -316,33 +272,7 @@ function ListZone({
   const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
   const listsAlpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
-  // engine-created lists ({List} prefixes, Birthdays) only group tasks
-  // inside day columns; they earn a backlog column only when something
-  // unscheduled lands in them
-  const visible = lists
-    .filter(
-      (list) =>
-        !list.auto ||
-        tasks.some(
-          (t) =>
-            t.list_id === list.id &&
-            (!t.scheduled_date || t.priority) &&
-            t.parent_task_id === null,
-        ),
-    )
-    // favorites always lead; the rest keep creation order or go
-    // alphabetical per the setting
-    .sort((a, b) => {
-      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
-      if (listsAlpha) {
-        const byName = a.name.localeCompare(b.name, undefined, {
-          sensitivity: "base",
-          numeric: true,
-        });
-        if (byName !== 0) return byName;
-      }
-      return a.sort_order - b.sort_order || a.id - b.id;
-    });
+  const visible = orderLists(lists, tasks, listsAlpha);
   const maxOffset = Math.max(0, visible.length - perPage);
   const off = Math.min(offset, maxOffset);
   const page = visible.slice(off, off + perPage);

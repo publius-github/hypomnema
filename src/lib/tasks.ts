@@ -1,4 +1,4 @@
-import type { AppConfig, ScheduleBlock, Task, TaskPatch, TaskStatus } from "../types";
+import type { AppConfig, List, ScheduleBlock, Task, TaskPatch, TaskStatus } from "../types";
 
 // The checkbox cycles todo -> done -> postponed -> todo: postponing is
 // one extra click on a just-completed task (the done-hold delay keeps
@@ -215,6 +215,37 @@ export function sortSubtasks(subtasks: Task[], doneLast: boolean): Task[] {
     }
     return compareTasks(a, b);
   });
+}
+
+/**
+ * The list columns a lists view shows, in display order: auto lists
+ * ({List} prefixes, Birthdays) appear only when something unscheduled
+ * (or priority-pinned) lives in them; favorites always lead; the rest
+ * keep creation order, or go alphabetical when `alpha` is on.
+ */
+export function orderLists(lists: List[], tasks: Task[], alpha: boolean): List[] {
+  return lists
+    .filter(
+      (list) =>
+        !list.auto ||
+        tasks.some(
+          (t) =>
+            t.list_id === list.id &&
+            (!t.scheduled_date || t.priority) &&
+            t.parent_task_id === null,
+        ),
+    )
+    .sort((a, b) => {
+      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+      if (alpha) {
+        const byName = a.name.localeCompare(b.name, undefined, {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (byName !== 0) return byName;
+      }
+      return a.sort_order - b.sort_order || a.id - b.id;
+    });
 }
 
 export function compareTasks(a: Task, b: Task): number {

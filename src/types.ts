@@ -37,6 +37,8 @@ export type TaskStatus = Task["status"];
 
 export type Section =
   | "dashboard"
+  | "lists"
+  | "days"
   | "upcoming"
   | "calendar"
   | "history"

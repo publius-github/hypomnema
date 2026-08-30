@@ -14,6 +14,8 @@ import TabBar from "./components/TabBar";
 import SearchPalette from "./components/SearchPalette";
 import VaultPicker from "./components/VaultPicker";
 import Dashboard from "./sections/Dashboard";
+import Lists from "./sections/Lists";
+import Days from "./sections/Days";
 import Upcoming from "./sections/Upcoming";
 import Calendar from "./sections/Calendar";
 import History from "./sections/History";
@@ -146,10 +148,12 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       const store = useAppStore.getState();
-      // Ctrl+1..6 follow the configured tab order, settings last
+      // Ctrl+1..9 follow the configured tab order, settings last
       const sections = [
         ...(store.config?.section_order ?? [
           "dashboard",
+          "lists",
+          "days",
           "upcoming",
           "calendar",
           "history",
@@ -161,7 +165,7 @@ export default function App() {
       if (e.key.toLowerCase() === "k") {
         e.preventDefault();
         if (store.vaultPath) store.setSearchOpen(!store.searchOpen);
-      } else if (e.key >= "1" && e.key <= "7") {
+      } else if (e.key >= "1" && e.key <= "9") {
         // not while typing: editors and inputs own Ctrl+digits there
         const el = e.target as HTMLElement | null;
         if (
@@ -240,6 +244,8 @@ export default function App() {
           </div>
         )}
         {section === "dashboard" && <Dashboard />}
+        {section === "lists" && <Lists />}
+        {section === "days" && <Days />}
         {section === "upcoming" && <Upcoming />}
         {section === "calendar" && <Calendar />}
         {section === "history" && <History />}
