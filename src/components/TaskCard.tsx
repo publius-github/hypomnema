@@ -5,6 +5,7 @@ import { useAppStore } from "../store";
 import {
   cadenceColor,
   cadenceKeyOf,
+  isListExact,
   nextStatus,
   priorityPatch,
   sortSubtasks,
@@ -82,7 +83,12 @@ function TaskCard({
       ? (s.lists.find((l) => l.id === task.list_id)?.color ?? null)
       : null,
   );
-  const stripe = task.color ?? listColor ?? cadColor;
+  // a dated list task is marked like the other Exact date tasks: the
+  // exact-date cadence color outranks the list color for it
+  const listExact = isListExact(task);
+  const stripe =
+    task.color ??
+    (listExact ? (cadColor ?? listColor) : (listColor ?? cadColor));
   const categoryColor = useAppStore(
     (s) => s.config?.category_color ?? "#3b82f6",
   );
@@ -170,6 +176,19 @@ function TaskCard({
             </svg>
           )}
         </button>
+        {listExact && task.scheduled_date && (
+          // the same date label the scheduled/birthday cards wear, ahead
+          // of the list chip - in the day column AND in the list column
+          <span
+            className={`shrink-0 rounded px-1 text-[11px] font-medium ${
+              cadColor ? "" : "bg-info/15 text-info"
+            }`}
+            style={cadColor ? tintStyle(cadColor) : undefined}
+            title={`Scheduled for ${task.scheduled_date}`}
+          >
+            {weekdayShort(task.scheduled_date)} {task.scheduled_date}
+          </span>
+        )}
         {showList && listName && (
           // the list IS the category for engine-generated tasks, so it
           // reads as loud as the {Category} chip
@@ -189,19 +208,6 @@ function TaskCard({
             {category}
           </span>
         )}
-        {!showList &&
-          task.origin === "manual" &&
-          task.scheduled_date &&
-          !task.priority && (
-            // a dated list task also lives on that day column; the chip
-            // is the calendar marker inside the list
-            <span
-              className="shrink-0 rounded bg-info/15 px-1 text-[11px] font-medium text-info"
-              title={`Also on the day grid: ${task.scheduled_date}`}
-            >
-              {weekdayShort(task.scheduled_date)} {task.scheduled_date}
-            </span>
-          )}
         {exactDate && task.origin_date && (
           // same color as the Exact date section plate these tasks
           // always live under

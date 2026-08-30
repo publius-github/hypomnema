@@ -127,19 +127,12 @@ export function groupByCadence(
 ): CadenceGroup[] {
   const buckets = new Map<string, Task[]>();
   for (const task of tasks) {
-    // a dated manual list task behaves like a one-off event, so it
-    // lands under Exact date; priority pins keep their General spot
-    // (their today-date is an artifact of starring)
-    const listExact =
-      task.origin === "manual" &&
-      task.list_id !== null &&
-      task.scheduled_date !== null &&
-      !task.priority;
+    const cadKey = cadenceKeyOf(task);
     const key =
-      task.origin === "scheduled" || task.origin === "birthday" || listExact
+      cadKey === "exact"
         ? "exact"
-        : task.cadence && CADENCE_KEYS.has(task.cadence)
-          ? task.cadence
+        : cadKey && CADENCE_KEYS.has(cadKey)
+          ? cadKey
           : "general";
     const bucket = buckets.get(key);
     if (bucket) bucket.push(task);
@@ -178,7 +171,21 @@ export function cadenceKeyOf(task: Task): string | null {
   if (task.origin === "scheduled" || task.origin === "birthday") {
     return "exact";
   }
+  // a dated manual list task behaves like a one-off event (Exact date
+  // section, exact-date color); priority pins stay General - their
+  // today-date is an artifact of starring
+  if (isListExact(task)) return "exact";
   return task.cadence;
+}
+
+/** A manual list task pinned to a concrete date (not via priority). */
+export function isListExact(task: Task): boolean {
+  return (
+    task.origin === "manual" &&
+    task.list_id !== null &&
+    task.scheduled_date !== null &&
+    !task.priority
+  );
 }
 
 /**
