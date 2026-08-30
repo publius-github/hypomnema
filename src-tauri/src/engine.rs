@@ -164,8 +164,8 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
 /// app versions hard-deleted task rows while the ledger survived). For a
 /// today-or-future period the ledger row is dropped so the task can be
 /// regenerated - unless evidence says the absence is deliberate: an
-/// archived tombstone of the same (rule_key, period_key) means the user
-/// deleted the instance, and any recurring task with the same title and
+/// archived tombstone of the same (rule_key, period_key) means a
+/// delete-done sweep removed the instance, and any recurring task with the same title and
 /// date (live or archived, e.g. a copy completed under the rule's
 /// previous identity) means the period is already represented.
 fn repair_orphaned_period(conn: &Connection, task: &GeneratedTask) -> Result<bool> {
@@ -1645,7 +1645,7 @@ mod tests {
     }
 
     #[test]
-    fn deleted_instance_is_not_regenerated() {
+    fn deleted_instance_regenerates() {
         let (conn, dir) = setup("deleted");
         fs::write(
             dir.join("recurring.yml"),
@@ -1656,6 +1656,12 @@ mod tests {
         let cfg = config(1, 7, 0);
 
         run(&conn, &dir, &cfg, now).unwrap();
+        let count = |conn: &Connection| -> i64 {
+            conn.query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+                .unwrap()
+        };
+        let before = count(&conn);
+        assert!(before > 0);
         let ids: Vec<i64> = {
             let mut stmt = conn.prepare("SELECT id FROM tasks").unwrap();
             let rows = stmt.query_map([], |r| r.get(0)).unwrap();
@@ -1664,46 +1670,13 @@ mod tests {
         for id in ids {
             crate::tasks::task_delete(&conn, id).unwrap();
         }
+        assert_eq!(count(&conn), 0);
 
-        // tombstones (archived rows) keep every deleted instance dead,
-        // even after the purge pass, as long as its date is current
-        let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        assert_eq!(outcome.generated, 0);
-        let live: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM tasks WHERE archived_at IS NULL",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(live, 0);
-
-        // simulate the undo window passing: generated tombstones with a
-        // current date survive the purge and still block regeneration
-        conn.execute(
-            "UPDATE tasks SET archived_at = '2026-08-20T00:00:00+00:00'",
-            [],
-        )
-        .unwrap();
-        let outcome = run(&conn, &dir, &cfg, now).unwrap();
-        assert_eq!(outcome.generated, 0);
-        let tombstones: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(tombstones, 7);
-
-        // once a tombstone's date is in the past it purges for good
-        let later = at("2026-09-05", "12:00:00");
-        run(&conn, &dir, &cfg, later).unwrap();
-        let old_tombstones: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM tasks
-                 WHERE archived_at IS NOT NULL AND scheduled_date < '2026-09-05'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(old_tombstones, 0);
+        // deleting via the card is not how a rule dies: the delete took
+        // the rule_runs rows with it, so every still-current period of
+        // the live rule fires again on the next run
+        run(&conn, &dir, &cfg, now).unwrap();
+        assert_eq!(count(&conn), before);
     }
 
     #[test]

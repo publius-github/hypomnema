@@ -501,22 +501,21 @@ pub fn list_reorder(conn: &Connection, list_id: i64, ordered_ids: &[i64]) -> Res
     Ok(())
 }
 
-/// Soft delete: the row (and its subtasks) get archived_at set, every
-/// query filters them out, and task_restore can undo it. The engine
-/// permanently purges archived rows after 24h. The rule_runs ledger row
-/// survives either way, so a deleted generated instance never
-/// regenerates for the same period.
+/// Hard delete: the row and its subtasks disappear from the database as
+/// if they never existed. For a generated instance the rule_runs ledger
+/// row goes with it, so a still-current period regenerates on the next
+/// engine run - deleting a generated task is never how you get rid of
+/// it, editing its config file is.
 pub fn task_delete(conn: &Connection, id: i64) -> Result<()> {
     conn.execute(
-        "UPDATE tasks SET archived_at = ?1 WHERE id = ?2 OR parent_task_id = ?2",
-        (Utc::now().to_rfc3339(), id),
+        "DELETE FROM rule_runs
+         WHERE (rule_key, period_key) IN
+               (SELECT rule_key, period_key FROM tasks
+                WHERE id = ?1 AND rule_key IS NOT NULL AND period_key IS NOT NULL)",
+        [id],
     )?;
-    Ok(())
-}
-
-pub fn task_restore(conn: &Connection, id: i64) -> Result<()> {
     conn.execute(
-        "UPDATE tasks SET archived_at = NULL WHERE id = ?1 OR parent_task_id = ?1",
+        "DELETE FROM tasks WHERE id = ?1 OR parent_task_id = ?1",
         [id],
     )?;
     Ok(())
@@ -732,16 +731,12 @@ mod tests {
         let snapshot = tasks_snapshot(&conn, "2026-08-28", "2026-08-29").unwrap();
         assert!(snapshot.iter().any(|t| t.id == sub.id));
 
-        // delete is soft: the pair disappears from the snapshot but can
-        // be restored as a whole within the undo window
+        // delete is hard and cascades: the pair is gone from the table
         task_delete(&conn, parent.id).unwrap();
-        let after = tasks_snapshot(&conn, "2026-08-28", "2026-08-29").unwrap();
-        assert!(!after.iter().any(|t| t.id == parent.id || t.id == sub.id));
-
-        task_restore(&conn, parent.id).unwrap();
-        let restored = tasks_snapshot(&conn, "2026-08-28", "2026-08-29").unwrap();
-        assert!(restored.iter().any(|t| t.id == parent.id));
-        assert!(restored.iter().any(|t| t.id == sub.id));
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 0);
     }
 
     #[test]

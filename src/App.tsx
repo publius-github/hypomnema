@@ -131,17 +131,6 @@ export default function App() {
     };
   }, []);
 
-  // undo toast for deleted tasks, auto-dismissed after 6s
-  const undo = useAppStore((s) => s.undo);
-  useEffect(() => {
-    if (!undo) return;
-    const timer = setTimeout(() => {
-      const store = useAppStore.getState();
-      if (store.undo === undo) store.dismissUndo();
-    }, 6000);
-    return () => clearTimeout(timer);
-  }, [undo]);
-
   // global shortcuts: Ctrl/Cmd+K search palette, Ctrl/Cmd+1..6 sections
   const searchOpen = useAppStore((s) => s.searchOpen);
   useEffect(() => {
@@ -257,23 +246,6 @@ export default function App() {
         <SearchPalette
           onClose={() => useAppStore.getState().setSearchOpen(false)}
         />
-      )}
-      {undo && (
-        <div className="fixed bottom-4 left-20 z-20 flex items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-sm shadow-lg">
-          <span className="max-w-[320px] truncate">{undo.message}</span>
-          <button
-            className="font-semibold text-accent hover:underline"
-            onClick={() => void useAppStore.getState().undoDelete()}
-          >
-            Undo
-          </button>
-          <button
-            className="text-content-muted hover:text-content"
-            onClick={() => useAppStore.getState().dismissUndo()}
-          >
-            ×
-          </button>
-        </div>
       )}
       {toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-20 flex flex-col gap-2">

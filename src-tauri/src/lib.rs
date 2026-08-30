@@ -882,13 +882,6 @@ async fn task_get(state: State<'_, AppState>, id: i64) -> Result<tasks::Task> {
     with_conn(&state, |conn| tasks::task_get(conn, id))
 }
 
-#[tauri::command]
-async fn task_restore(state: State<'_, AppState>, id: i64) -> Result<()> {
-    with_conn(&state, |conn| tasks::task_restore(conn, id))?;
-    mirror_export(&state);
-    Ok(())
-}
-
 /// Panics land in <app-config-dir>/hypomnema.log so field errors are
 /// diagnosable without a console (M7 error reporting).
 fn install_panic_logger(log_path: PathBuf) {
@@ -971,8 +964,7 @@ pub fn run() {
             kb_search,
             tasks_search,
             daily_streaks,
-            task_get,
-            task_restore
+            task_get
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");

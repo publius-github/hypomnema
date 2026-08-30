@@ -68,10 +68,6 @@ interface AppState {
   /// in the active block until the hold expires (done_hold_seconds)
   statusHold: number[];
   holdStatus: (id: number) => void;
-  /// last soft-deleted task, restorable until the toast expires
-  undo: { message: string; taskId: number } | null;
-  undoDelete: () => Promise<void>;
-  dismissUndo: () => void;
   setError: (message: string) => void;
   clearError: () => void;
   refresh: () => Promise<void>;
@@ -330,34 +326,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deleteTask: async (id) => {
     try {
-      const title = get().tasks.find((t) => t.id === id)?.title;
+      // hard delete, gone from the database; the backend cascades to
+      // subtasks and drops the rule_runs ledger row, so a deleted
+      // generated instance of a live rule regenerates on the next run
       await invoke("task_delete", { id });
-      // soft delete cascades to subtasks on the backend; mirror that
       set((s) => ({
         tasks: s.tasks.filter((t) => t.id !== id && t.parent_task_id !== id),
-        undo: {
-          message: title ? `Deleted "${title}"` : "Task deleted",
-          taskId: id,
-        },
       }));
     } catch (e) {
       set({ error: String(e) });
     }
   },
-
-  undoDelete: async () => {
-    const undo = get().undo;
-    if (!undo) return;
-    set({ undo: null });
-    try {
-      await invoke("task_restore", { id: undo.taskId });
-      await get().refresh();
-    } catch (e) {
-      set({ error: String(e) });
-    }
-  },
-
-  dismissUndo: () => set({ undo: null }),
 
   createList: async (name) => {
     try {
@@ -515,7 +494,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       set((s) => ({ statusHold: s.statusHold.filter((h) => h !== id) }));
     }, seconds * 1000);
   },
-  undo: null,
   setError: (message) => set({ error: message }),
   clearError: () => set({ error: null }),
 }));
