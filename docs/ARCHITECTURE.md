@@ -33,14 +33,14 @@ The only state outside the vault is `vault-path.txt` in the OS app-config dir. `
 
 ## UI sections
 
-Order configurable via `config.section_order`; Settings always last. Besides the combined Dashboard there are two focused variants: **Lists** (every list in a wrapping grid, `lists_page_columns`) and **Days** (the day grid at full height, no list zone) - all three share the store snapshot and the drag-and-drop wiring (`components/taskDnd.ts`). Rail also has Search (Ctrl/Cmd+K), Sync (runs engine), theme toggle, About.
+Order configurable via `config.section_order`; Settings always last. Besides the combined Dashboard there are two focused variants: **Lists** (every list in a wrapping grid, `lists_page_columns`) and **Days** (the day grid at full height, no list zone; its own width via `days_page_columns`, 0 = follow the dashboard grid) - all three share the store snapshot and the drag-and-drop wiring (`components/taskDnd.ts`). Rail also has Search (Ctrl/Cmd+K), Sync (runs engine), theme toggle, About.
 
-- **Dashboard** - day grid (`grid_columns`, paged) over list-zone backlog columns (paged, split draggable); dnd-kit drag between days/lists; weekly focus + day reminders from `dashboard_context`.
+- **Dashboard** - day grid (`grid_columns`, paged) over list-zone backlog columns (paged, split draggable); the list dialog (⋯ on a column) manages name/color/description and the backlog itself (add, check off, star, delete, open a task with its subtasks); dnd-kit drag between days/lists; weekly focus + day reminders from `dashboard_context`.
 - **Upcoming** - sub-tabs Scheduled / Birthdays / Recurring; CRUD writes back into the YAML files (comment-preserving splice in `config_files.rs`). A materialized scheduled event stays listed until its task is done or deleted.
 - **Calendar** - month grid: real tasks + read-only projections from `views::calendar_outlook`, per-cadence horizons.
 - **History** - month completion stats, per-rule daily streaks, completed tasks by day; bounded by retention pruning.
 - **Journal** - one Markdown entry per date, template-seeded (`{{date}}`), file created on first save.
-- **Notes** (section id `kb`) - file tree over the KB root (multi-select with Ctrl/Shift, F2 rename, Delete, Ctrl+C/X/V copy-cut-paste via `kb_copy`/`kb_rename`), editor, content search, wiki `[[links]]`, `.trash`, plus a Config group editing the six YAMLs + journal template with save-time validation. New-note dialog completes the .md extension explicitly (Tab).
+- **Notes** (section id `kb`) - file tree over the KB root (multi-select with Ctrl/Shift, F2 rename, Delete, Ctrl+C/X/V copy-cut-paste via `kb_copy`/`kb_rename`), editor, content search, wiki `[[links]]`, `.trash`, plus a Config group editing the six YAMLs + journal template with save-time validation. New-note dialog completes the .md extension explicitly (Tab); the + on a folder row pre-fills that folder's path.
 - **Settings** - tabs Appearance / Planner / Calendar / Navigation / Files / Maintenance (`src/sections/settings/`).
 
 ## Config files (`config_files.rs`, `config.rs`)
@@ -56,21 +56,21 @@ Order configurable via `config.section_order`; Settings always last. Besides the
 
 Packs: subfolders of `config/` are walked recursively; a `*.yml` file contributes to whichever of the three task sections its top-level keys name. Errors carry the path relative to `config/`. Broken files never wipe state - last valid config stays active, error shows as a banner.
 
-`AppConfig` (~75 fields): theme + `theme_preset` chrome palettes (default/black/nord/gruvbox/solarized, per-theme variants in `src/lib/themePresets.ts`) with individual accent/surface/panel/border overrides, typography, dashboard layout, task display (cadence colors, done display/hold), engine (`retention_days`, `catchup_days`, `cron_ignore_time`), calendar outlook horizons, `section_order`, files (`kb_path`, `tasks_mirror`, `backup_keep`), `notify_system`, markdown editor color presets. Adding a setting = field + default + `sanitized()` clamp + `settings_pairs()` in `config.rs`, ts-rs regen via `cargo test`, control in the matching Settings tab.
+`AppConfig` (~75 fields): theme + `theme_preset` chrome palettes (default/black/vscode/nord/gruvbox/solarized, per-theme variants in `src/lib/themePresets.ts`) with individual accent/surface/panel/border overrides, typography, dashboard layout, task display (cadence colors, done display/hold), engine (`retention_days`, `catchup_days`, `cron_ignore_time`), calendar outlook horizons, `section_order`, files (`kb_path`, `tasks_mirror`, `backup_keep`), `notify_system`, markdown editor color presets. Adding a setting = field + default + `sanitized()` clamp + `settings_pairs()` in `config.rs`, ts-rs regen via `cargo test`, control in the matching Settings tab.
 
 ## Engine (`engine.rs`)
 
 Three generators per pass: recurring (cron), scheduled events, birthdays. No separate dailies/priority generator: "daily" is a cadence bucket derived from firing frequency (`cadence_of`), priority is manual-only and reset on generated tasks every pass.
 
-- **Dedup**: `rule_runs(rule_key, period_key)` ledger, keys via stable FNV-1a 64. Period keys: recurring `YYYY-MM-DDTHH:MM`, scheduled `YYYY-MM-DD`, birthday `<year>`. Deleted instances never regenerate (tombstones); `repair_orphaned_period` unblocks today/future periods whose task vanished without a deliberate delete.
+- **Dedup**: `rule_runs(rule_key, period_key)` ledger, keys via stable FNV-1a 64. Period keys: recurring `YYYY-MM-DDTHH:MM`, scheduled `YYYY-MM-DD`, birthday `<year>`. Card deletes are hard (`task_delete` drops the row and its `rule_runs` entry), so a deleted instance of a live rule regenerates on the next pass; only the delete-done sweep leaves archived tombstones, and `repair_orphaned_period` unblocks today/future periods whose task vanished without one.
 - **Catch-up**: window `[now - catchup_days, today + grid_columns - 1]`; missed firings collapse into the single latest one (one overdue copy, not N); `MAX_FIRINGS = 2000` runaway guard; fresh rules start from today (`rule_seen`).
 - **Reconcile**: removing a rule/item removes its future + today's open instances; done instances stay as history. Missing/comment-only `recurring.yml` is treated as transient (generation may run, reconcile must not).
 - **Carry-over**: open pre-today tasks move to today with the overdue mark (priority included unless `priority_overdue` is off); dailies are exempt and get rehomed to their firing day; at most one open overdue copy per rule.
-- **Pass phases** (one IMMEDIATE transaction): priority reset -> generate x3 -> carry-over -> retention prune -> clear done list-backlog tasks (`clear_done_list_tasks`) -> purge soft-deleted (>24h, except pending tombstones) -> trim old `rule_runs` -> dedupe errors. Returns `EngineOutcome{generated, carried_over, removed, pruned, errors}`.
+- **Pass phases** (one IMMEDIATE transaction): priority reset -> generate x3 -> carry-over -> retention prune -> clear done list-backlog tasks (`clear_done_list_tasks`) -> purge archived rows (>24h, except pending delete-done tombstones) -> trim old `rule_runs` -> dedupe errors. Returns `EngineOutcome{generated, carried_over, removed, pruned, errors}`.
 
 ## Core modules
 
-- `tasks.rs` - lists/tasks CRUD; soft delete (`archived_at`) backs the undo toast; lists carry a `favorite` flag (sorts ahead in the list zone).
+- `tasks.rs` - lists/tasks CRUD; `task_delete` is a hard delete (cascades to subtasks, drops the `rule_runs` row); `archived_at` remains only for the delete-done sweep tombstones; lists carry a `favorite` flag (sorts ahead in the list zone).
 - `tasks_mirror.rs` - Markdown mirror of manual tasks only: one file per list + `scheduled.md`; per-line `^<id>` sync keys; marker first line; gated by `config.tasks_mirror`; folder watcher imports outside edits.
 - `journal.rs` - entry open/save/list/search, template at `config/templates/journal.md`.
 - `kb.rs` - Notes FS layer; `resolve()` blocks path traversal; `.hypomnemaignore` glob filter; trash + 30-day prune.
@@ -84,7 +84,7 @@ Three generators per pass: recurring (cron), scheduled events, birthdays. No sep
 
 - Store invalidation: `vaultVersion` counter bumped by engine runs and `vault-updated`; sections re-fetch on it.
 - `src/lib/`: date helpers, wiki-link codec, markdown lint/table, md color presets, updater flow (silent on failure, runs once on mount).
-- Global keys: Ctrl/Cmd+K search, Ctrl/Cmd+1..7 sections. 60s rollover engine re-run, 30s due-task notification timer, 6s undo toast.
+- Global keys: Ctrl/Cmd+K search, Ctrl/Cmd+1..7 sections. 60s rollover engine re-run, 30s due-task notification timer.
 
 ## Build, release, tests
 
