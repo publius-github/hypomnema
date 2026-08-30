@@ -202,6 +202,12 @@ export default function TaskModal({
                 // are not assignment targets; keep the current one so
                 // the value still renders on generated tasks
                 .filter((l) => !l.auto || l.id === task.list_id)
+                .sort((a, b) =>
+                  a.name.localeCompare(b.name, undefined, {
+                    sensitivity: "base",
+                    numeric: true,
+                  }),
+                )
                 .map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}

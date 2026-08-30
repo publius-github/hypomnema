@@ -48,7 +48,11 @@ export default function Days() {
   }, [editingTaskId, tasks]);
 
   if (!config) return null;
-  const columns = config.dashboard_today_only ? 1 : config.grid_columns;
+  // the page has its own focus width: 0 follows the dashboard grid,
+  // 1 is the single-day deep-work view, anything else a fixed span
+  const dashboardColumns = config.dashboard_today_only ? 1 : config.grid_columns;
+  const columns =
+    config.days_page_columns > 0 ? config.days_page_columns : dashboardColumns;
   const dates = gridDates(addDaysISO(today, gridOffset), columns);
   const editingTask =
     tasks.find((t) => t.id === editingTaskId) ??
@@ -85,6 +89,25 @@ export default function Days() {
               Back to today
             </button>
           )}
+          <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
+            <span>Days</span>
+            <select
+              className="input px-1 py-0.5 text-xs"
+              value={config.days_page_columns}
+              onChange={(e) =>
+                void useAppStore
+                  .getState()
+                  .updateConfig({ days_page_columns: Number(e.target.value) })
+              }
+            >
+              <option value={0}>Dashboard ({dashboardColumns})</option>
+              {[1, 2, 3, 5, 7, 10, 14].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div
           className="grid min-h-0 flex-1 gap-3 overflow-x-auto"

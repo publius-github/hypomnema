@@ -6,7 +6,7 @@ export type AppConfig = { theme: "dark" | "light",
  * ("default" = the stylesheet colors); each preset carries both a
  * dark and a light variant.
  */
-theme_preset: "default" | "black" | "nord" | "gruvbox" | "solarized", 
+theme_preset: "default" | "black" | "vscode" | "nord" | "gruvbox" | "solarized", 
 /**
  * Individual chrome color overrides, hex; empty = preset default.
  */
@@ -146,6 +146,11 @@ lists_sort_alpha: boolean,
  * Grid columns on the dedicated Lists page.
  */
 lists_page_columns: number, 
+/**
+ * Day columns on the dedicated Days page; 0 = follow the dashboard
+ * grid (grid_columns / today-only).
+ */
+days_page_columns: number, 
 /**
  * Order the tasks inside a list column alphabetically (timed tasks
  * still pin to the top); off = manual drag order.

@@ -97,7 +97,7 @@ function ListColumn({
         isOver ? "border-accent" : "border-line"
       } bg-surface-alt/50`}
     >
-      <div className="group flex items-center gap-1 px-2.5 py-2">
+      <div className="group flex items-center gap-2 px-2.5 py-2">
         {editing ? (
           <form
             className="flex-1"
@@ -137,15 +137,17 @@ function ListColumn({
             <span className="truncate">{list.name}</span>
           </button>
         )}
+        {/* the header controls share the star's size (text-base): the
+            old mixed xs/sm buttons were too small to hit comfortably */}
         <button
-          className="text-xs text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
-          title="List settings: color, description, copy tasks"
+          className="text-base leading-none text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
+          title="List settings: tasks, color, description, copy"
           onClick={() => setDetailsOpen(true)}
         >
           ⋯
         </button>
         <button
-          className={`text-sm leading-none ${
+          className={`text-base leading-none ${
             list.favorite
               ? "text-warn"
               : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
@@ -160,7 +162,7 @@ function ListColumn({
           {list.favorite ? "★" : "☆"}
         </button>
         <button
-          className="text-xs text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+          className="text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
           title="Archive list"
           onClick={() => setConfirmArchive(true)}
         >
@@ -184,6 +186,9 @@ function ListColumn({
       {/* no internal scrollbar: a long list grows past the viewport and
           the dashboard page scrollbar reaches it */}
       <div className="flex flex-1 flex-col px-2 pb-2" style={{ rowGap: taskGap }}>
+        {/* the add field leads the column: with a long list of checked
+            tasks the bottom is a scroll away, the top never is */}
+        <QuickAdd target={{ list_id: list.id }} />
         {prioritized.length > 0 && (
           <div className="flex flex-col" style={{ rowGap: taskGap }}>
             <div className="flex items-center gap-1.5 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warn">
@@ -216,7 +221,6 @@ function ListColumn({
         )}
         {section("Postponed", postponed)}
         {section("Done", done)}
-        <QuickAdd target={{ list_id: list.id }} />
       </div>
     </div>
   );

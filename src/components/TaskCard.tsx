@@ -287,11 +287,11 @@ function TaskCard({
             </button>
           )}
           {!overlay && (
-            // delete with the undo toast; a deleted generated instance
-            // never regenerates for the same period (its next period
-            // still fires - that is the rule working as configured)
+            // hard delete, gone from the database; a deleted generated
+            // instance of a still-live rule regenerates on the next
+            // engine run - the config file is where a rule dies
             <button
-              className="text-sm leading-none opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+              className="text-base leading-none opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
               title="Delete task"
               onClick={(e) => {
                 e.stopPropagation();

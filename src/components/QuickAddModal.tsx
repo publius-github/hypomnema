@@ -33,6 +33,16 @@ export default function QuickAddModal({ onClose }: { onClose: () => void }) {
   if (!config) return null;
   const columns = config.dashboard_today_only ? 1 : config.grid_columns;
   const dates = gridDates(addDaysISO(today, gridOffset), columns);
+  // only real user lists are add targets: engine-created ({List} YAML
+  // prefixes, Birthdays) and archived lists stay out of the picker
+  const targetLists = lists
+    .filter((l) => !l.auto)
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      }),
+    );
 
   const submit = () => {
     const text = title.trim();
@@ -86,9 +96,9 @@ export default function QuickAddModal({ onClose }: { onClose: () => void }) {
                 </option>
               ))}
             </optgroup>
-            {lists.length > 0 && (
+            {targetLists.length > 0 && (
               <optgroup label="Lists">
-                {lists.map((list) => (
+                {targetLists.map((list) => (
                   <option key={list.id} value={`list:${list.id}`}>
                     {list.name}
                   </option>

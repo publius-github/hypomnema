@@ -15,7 +15,7 @@ pub struct AppConfig {
     /// Named chrome palette applied on top of the dark/light theme
     /// ("default" = the stylesheet colors); each preset carries both a
     /// dark and a light variant.
-    #[ts(type = "\"default\" | \"black\" | \"nord\" | \"gruvbox\" | \"solarized\"")]
+    #[ts(type = "\"default\" | \"black\" | \"vscode\" | \"nord\" | \"gruvbox\" | \"solarized\"")]
     pub theme_preset: String,
     /// Individual chrome color overrides, hex; empty = preset default.
     pub accent_color: String,
@@ -112,6 +112,9 @@ pub struct AppConfig {
     pub lists_sort_alpha: bool,
     /// Grid columns on the dedicated Lists page.
     pub lists_page_columns: u32,
+    /// Day columns on the dedicated Days page; 0 = follow the dashboard
+    /// grid (grid_columns / today-only).
+    pub days_page_columns: u32,
     /// Order the tasks inside a list column alphabetically (timed tasks
     /// still pin to the top); off = manual drag order.
     pub list_tasks_sort_alpha: bool,
@@ -159,7 +162,7 @@ pub struct AppConfig {
 
 pub const MD_PRESETS: &[&str] = &["vscode", "monokai", "one-dark", "github", "custom"];
 
-pub const THEME_PRESETS: &[&str] = &["default", "black", "nord", "gruvbox", "solarized"];
+pub const THEME_PRESETS: &[&str] = &["default", "black", "vscode", "nord", "gruvbox", "solarized"];
 
 pub const SECTIONS: &[&str] = &[
     "dashboard",
@@ -224,6 +227,7 @@ impl Default for AppConfig {
             cron_weekday_labels: true,
             lists_sort_alpha: false,
             lists_page_columns: 4,
+            days_page_columns: 0,
             list_tasks_sort_alpha: false,
             clear_done_list_tasks: true,
             priority_overdue: true,
@@ -293,6 +297,7 @@ impl AppConfig {
         self.dashboard_split = self.dashboard_split.clamp(20, 80);
         self.list_columns = self.list_columns.clamp(1, 12);
         self.lists_page_columns = self.lists_page_columns.clamp(1, 12);
+        self.days_page_columns = self.days_page_columns.min(14);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -472,6 +477,7 @@ impl AppConfig {
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
             ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
             ("lists_page_columns", self.lists_page_columns.to_string()),
+            ("days_page_columns", self.days_page_columns.to_string()),
             (
                 "list_tasks_sort_alpha",
                 self.list_tasks_sort_alpha.to_string(),
