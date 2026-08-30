@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react";
-import { EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
+import {
+  EditorState,
+  Prec,
+  RangeSetBuilder,
+  type Extension,
+} from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -85,8 +90,17 @@ const markdownHighlight = HighlightStyle.define([
 // brackets briefly wore the token color of whatever the parser guessed.
 // Instead EVERY literal [ and ] outside code gets the plain color -
 // parse-independent, so nothing flickers.
-// the inline style outranks any token class the highlighter puts on the
-// same span, so bracket color can never depend on what sits inside
+// Overlapping mark decorations do NOT merge into one span: the view
+// nests one <span> per mark, and "nesting order is determined by
+// precedence of the facet, with the higher-precedence decorations
+// creating the inner DOM nodes" (CM docs). syntaxHighlighting() ships
+// as Prec.high, so at default precedence this mark rendered OUTSIDE
+// the token span and the token class (link/marker/atom - the orange
+// and blue) recolored the bracket from within, overriding the
+// inherited style. The plugin is therefore mounted with Prec.highest
+// (see modeExtensions), which puts this span innermost - the inline
+// style then sits on the element that directly holds the character
+// and nothing can restyle it. Guarded by markdownBrackets.test.ts.
 const bracketMark = Decoration.mark({
   class: "cm-md-bracket",
   attributes: { style: "color: rgb(var(--color-content))" },
@@ -339,13 +353,16 @@ function formatTableAt(view: EditorView): boolean {
 const tabTableOrIndent: Command = (view) =>
   formatTableAt(view) || indentMore(view);
 
-function modeExtensions(mode: EditorMode): Extension[] {
+// exported for the DOM regression test (bracket span nesting)
+export function modeExtensions(mode: EditorMode): Extension[] {
   switch (mode) {
     case "markdown":
       return [
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(markdownHighlight),
-        plainBrackets,
+        // must outrank the Prec.high tree highlighter so the bracket
+        // span nests inside the token span, not around it
+        Prec.highest(plainBrackets),
         tableLines,
         markdownLinter(),
       ];
