@@ -1993,7 +1993,16 @@ mod tests {
         assert_eq!(time, "10:30");
         assert_eq!(origin, "scheduled");
 
-        // the far event stays in the Upcoming list
+        // the far event and the still-open materialized one both stay in
+        // the Upcoming list; only completion clears an entry
+        let (pending, _) = upcoming_events(&conn, &dir).unwrap();
+        let dates: Vec<&str> = pending.iter().map(|e| e.date.as_str()).collect();
+        assert_eq!(dates, vec!["2026-08-30", "2026-12-01"]);
+        conn.execute(
+            "UPDATE tasks SET status = 'done' WHERE title = 'dentist'",
+            [],
+        )
+        .unwrap();
         let (pending, _) = upcoming_events(&conn, &dir).unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].date, "2026-12-01");

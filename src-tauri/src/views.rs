@@ -70,8 +70,10 @@ pub struct BirthdaysResult {
     pub errors: Vec<ConfigError>,
 }
 
-/// Future scheduled events still waiting in the Upcoming list: entries
-/// whose (rule, period) has not been materialized yet.
+/// Scheduled events still pending in the Upcoming list: entries whose
+/// (rule, period) has not been materialized yet, plus materialized ones
+/// whose task is still open - a passed date does not close the item,
+/// only checking it done (or deleting it) does.
 pub fn upcoming_events(
     conn: &Connection,
     config_dir: &Path,
@@ -95,7 +97,16 @@ pub fn upcoming_events(
                 (&rule_key, &event.date),
                 |row| row.get(0),
             )?;
-            if !materialized {
+            let still_open = materialized
+                && conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM tasks
+                                   WHERE rule_key = ?1 AND period_key = ?2
+                                     AND archived_at IS NULL AND parent_task_id IS NULL
+                                     AND status != 'done')",
+                    (&rule_key, &event.date),
+                    |row| row.get(0),
+                )?;
+            if !materialized || still_open {
                 pending.push(UpcomingEventView {
                     date: event.date,
                     title: event.title,

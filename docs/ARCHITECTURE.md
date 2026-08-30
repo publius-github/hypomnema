@@ -36,7 +36,7 @@ The only state outside the vault is `vault-path.txt` in the OS app-config dir. `
 Order configurable via `config.section_order`; Settings always last. Rail also has Search (Ctrl/Cmd+K), Sync (runs engine), theme toggle, About.
 
 - **Dashboard** - day grid (`grid_columns`, paged) over list-zone backlog columns (paged, split draggable); dnd-kit drag between days/lists; weekly focus + day reminders from `dashboard_context`.
-- **Upcoming** - sub-tabs Scheduled / Birthdays / Recurring; CRUD writes back into the YAML files (comment-preserving splice in `config_files.rs`).
+- **Upcoming** - sub-tabs Scheduled / Birthdays / Recurring; CRUD writes back into the YAML files (comment-preserving splice in `config_files.rs`). A materialized scheduled event stays listed until its task is done or deleted.
 - **Calendar** - month grid: real tasks + read-only projections from `views::calendar_outlook`, per-cadence horizons.
 - **History** - month completion stats, per-rule daily streaks, completed tasks by day; bounded by retention pruning.
 - **Journal** - one Markdown entry per date, template-seeded (`{{date}}`), file created on first save.

@@ -15,6 +15,7 @@ import DayColumn from "../components/DayColumn";
 import ListColumn from "../components/ListColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
+import QuickAddModal from "../components/QuickAddModal";
 import NewListForm from "../components/NewListForm";
 import type { Task } from "../types";
 
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const setListOffset = useAppStore((s) => s.setListOffset);
   // live value while dragging the grid/lists divider; null = use config
   const [splitDraft, setSplitDraft] = useState<number | null>(null);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const zonesRef = useRef<HTMLDivElement | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -163,6 +165,13 @@ export default function Dashboard() {
               </button>
             )}
           </div>
+          <button
+            className="btn-ghost ml-auto px-2 py-0.5 text-xs"
+            title="Add a task to any day or list"
+            onClick={() => setQuickAddOpen(true)}
+          >
+            + Task
+          </button>
           {dashboard?.focus && (
             <button
               className="absolute left-1/2 -translate-x-1/2 text-sm font-medium italic text-accent hover:underline"
@@ -284,6 +293,7 @@ export default function Dashboard() {
       {editingTask && (
         <TaskModal task={editingTask} onClose={() => setEditingTaskId(null)} />
       )}
+      {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} />}
     </DndContext>
   );
 }
