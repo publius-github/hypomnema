@@ -206,6 +206,17 @@ day_header_color: string,
  */
 dow_label_color: string, 
 /**
+ * Date chip of a dated list task inside its LIST column; empty =
+ * the exact-date cadence color. Day columns always use that color.
+ */
+list_date_chip_color: string, 
+/**
+ * The card stripe of a dated list task keeps the exact-date color
+ * inside its list too; off = the list color rules there. Day
+ * columns always use the exact-date color.
+ */
+list_exact_stripe: boolean, 
+/**
  * Markdown editor color scheme: a named preset, or "custom" using
  * the md_color_* values below.
  */

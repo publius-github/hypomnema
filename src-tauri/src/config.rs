@@ -150,6 +150,13 @@ pub struct AppConfig {
     /// The [SAT#1]-style weekday marker on task cards; empty =
     /// secondary tone.
     pub dow_label_color: String,
+    /// Date chip of a dated list task inside its LIST column; empty =
+    /// the exact-date cadence color. Day columns always use that color.
+    pub list_date_chip_color: String,
+    /// The card stripe of a dated list task keeps the exact-date color
+    /// inside its list too; off = the list color rules there. Day
+    /// columns always use the exact-date color.
+    pub list_exact_stripe: bool,
     /// Markdown editor color scheme: a named preset, or "custom" using
     /// the md_color_* values below.
     #[ts(type = "\"vscode\" | \"monokai\" | \"one-dark\" | \"github\" | \"custom\"")]
@@ -247,6 +254,8 @@ impl Default for AppConfig {
             reminder_color: String::new(),
             day_header_color: String::new(),
             dow_label_color: String::new(),
+            list_date_chip_color: String::new(),
+            list_exact_stripe: false,
             md_preset: "vscode".into(),
             // custom starts from the Dark+ values
             md_color_heading: "#569cd6".into(),
@@ -389,6 +398,7 @@ impl AppConfig {
         sanitize_optional_color(&mut self.reminder_color);
         sanitize_optional_color(&mut self.day_header_color);
         sanitize_optional_color(&mut self.dow_label_color);
+        sanitize_optional_color(&mut self.list_date_chip_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -515,6 +525,8 @@ impl AppConfig {
             ("reminder_color", self.reminder_color.clone()),
             ("day_header_color", self.day_header_color.clone()),
             ("dow_label_color", self.dow_label_color.clone()),
+            ("list_date_chip_color", self.list_date_chip_color.clone()),
+            ("list_exact_stripe", self.list_exact_stripe.to_string()),
             ("md_preset", self.md_preset.clone()),
             ("md_color_heading", self.md_color_heading.clone()),
             ("md_color_bold", self.md_color_bold.clone()),

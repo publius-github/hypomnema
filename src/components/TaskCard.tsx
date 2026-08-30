@@ -83,12 +83,25 @@ function TaskCard({
       ? (s.lists.find((l) => l.id === task.list_id)?.color ?? null)
       : null,
   );
-  // a dated list task is marked like the other Exact date tasks: the
-  // exact-date cadence color outranks the list color for it
+  // A dated list task is marked like the other Exact date tasks on its
+  // DAY column. Inside its list the red signal is optional: the stripe
+  // keeps the list color unless list_exact_stripe is on, and the date
+  // chip color can be overridden (list_date_chip_color).
   const listExact = isListExact(task);
+  const listExactStripe = useAppStore(
+    (s) => s.config?.list_exact_stripe ?? false,
+  );
+  const listChipColor = useAppStore(
+    (s) => s.config?.list_date_chip_color || "",
+  );
+  const exactStripeHere = listExact && (showList || listExactStripe);
   const stripe =
     task.color ??
-    (listExact ? (cadColor ?? listColor) : (listColor ?? cadColor));
+    (exactStripeHere
+      ? (cadColor ?? listColor)
+      : (listColor ?? (listExact ? null : cadColor)));
+  const dateChipColor =
+    listExact && !showList ? listChipColor || cadColor : cadColor;
   const categoryColor = useAppStore(
     (s) => s.config?.category_color ?? "#3b82f6",
   );
@@ -181,9 +194,9 @@ function TaskCard({
           // of the list chip - in the day column AND in the list column
           <span
             className={`shrink-0 rounded px-1 text-[11px] font-medium ${
-              cadColor ? "" : "bg-info/15 text-info"
+              dateChipColor ? "" : "bg-info/15 text-info"
             }`}
-            style={cadColor ? tintStyle(cadColor) : undefined}
+            style={dateChipColor ? tintStyle(dateChipColor) : undefined}
             title={`Scheduled for ${task.scheduled_date}`}
           >
             {weekdayShort(task.scheduled_date)} {task.scheduled_date}

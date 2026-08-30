@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { addDaysISO, gridDates } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
+import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
@@ -92,6 +93,7 @@ export default function Days() {
           >
             Today only
           </button>
+          <DateJump />
           {gridOffset !== 0 && (
             <button
               className="btn-ghost px-2 py-0.5 text-xs"

@@ -1,8 +1,7 @@
 import { ColorPicker, Field, NumberInput, TextInput, Toggle } from "../../components/form";
-import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
 import { MD_PRESET_LABELS, MD_TOKENS } from "../../lib/mdPresets";
 import { THEME_PRESET_LABELS, resolveThemeColors } from "../../lib/themePresets";
-import type { AppConfig, DoneDisplay, Theme } from "../../types";
+import type { AppConfig, Theme } from "../../types";
 import { useAppStore } from "../../store";
 
 // overridable text colors: [label, config key, dark default, light
@@ -17,25 +16,22 @@ const TEXT_COLOR_ROWS = [
   ["Weekday marker ([SAT#1])", "dow_label_color", "#a8b0bc", "#58606c"],
 ] as const;
 
+function SectionTitle({ children }: { children: string }) {
+  return (
+    <div className="mt-2 border-b border-line pb-1 text-sm font-semibold">
+      {children}
+    </div>
+  );
+}
+
 export default function AppearanceTab() {
   const config = useAppStore((s) => s.config);
   const updateConfig = useAppStore((s) => s.updateConfig);
-  const move = (
-    key: "section_order" | "cadence_group_order",
-    index: number,
-    delta: number,
-  ) => {
-    if (!config) return;
-    const order = [...config[key]];
-    const target = index + delta;
-    if (target < 0 || target >= order.length) return;
-    [order[index], order[target]] = [order[target], order[index]];
-    void updateConfig({ [key]: order });
-  };
   if (!config) return null;
 
   return (
     <>
+        <SectionTitle>Theme</SectionTitle>
 
         <Field label="Theme">
           <select
@@ -108,30 +104,7 @@ export default function AppearanceTab() {
           })}
         </section>
 
-        <Field label="Done tasks display">
-          <select
-            className="input"
-            value={config.done_display}
-            onChange={(e) =>
-              void updateConfig({
-                done_display: e.target.value as DoneDisplay,
-              })
-            }
-          >
-            <option value="inline">Inline with active tasks</option>
-            <option value="separate">Separate block per day</option>
-          </select>
-        </Field>
-
-        <Field label="Hold before a done/postponed task moves to its section, seconds (0 = immediately)">
-          <NumberInput
-            value={config.done_hold_seconds}
-            min={0}
-            onCommit={(n) =>
-              void updateConfig({ done_hold_seconds: Math.min(30, n) })
-            }
-          />
-        </Field>
+        <SectionTitle>Fonts</SectionTitle>
 
         <Field label="UI font (empty = system default)">
           <TextInput
@@ -167,8 +140,9 @@ export default function AppearanceTab() {
           />
         </Field>
 
+        <SectionTitle>Text colors</SectionTitle>
+
         <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Text colors</span>
           {TEXT_COLOR_ROWS.map(([label, key, darkHex, lightHex]) => {
             const fallback = config.theme === "light" ? lightHex : darkHex;
             return (
@@ -195,53 +169,7 @@ export default function AppearanceTab() {
           })}
         </section>
 
-        <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Markdown colors</span>
-          <select
-            className="input w-64"
-            value={config.md_preset}
-            onChange={(e) =>
-              void updateConfig({
-                md_preset: e.target.value as AppConfig["md_preset"],
-              })
-            }
-          >
-            {Object.entries(MD_PRESET_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          {config.md_preset === "custom" && (
-            <div className="flex flex-col gap-2 pl-6">
-              {MD_TOKENS.map(({ key, label }) => {
-                const field = `md_color_${key}` as const;
-                return (
-                  <div key={key} className="flex items-center gap-2">
-                    <span className="w-40 text-xs text-content-muted">
-                      {label}
-                    </span>
-                    <ColorPicker
-                      value={config[field]}
-                      onChange={(color) => void updateConfig({ [field]: color })}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <span className="text-xs text-content-muted">
-            Token colors in the Journal/Notes editor. Custom keeps its own
-            seven colors and applies them on both themes.
-          </span>
-        </section>
-
-        <Toggle
-          checked={config.day_header_centered}
-          label="Center day headers"
-          hint="Weekday and date centered on top of each day column."
-          onChange={(v) => void updateConfig({ day_header_centered: v })}
-        />
+        <SectionTitle>Task colors</SectionTitle>
 
         <Toggle
           checked={config.cadence_colors}
@@ -289,8 +217,52 @@ export default function AppearanceTab() {
           />
         </div>
 
+        <SectionTitle>Editor colors</SectionTitle>
+
         <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Vertical spacing, px</span>
+          <select
+            className="input w-64"
+            value={config.md_preset}
+            onChange={(e) =>
+              void updateConfig({
+                md_preset: e.target.value as AppConfig["md_preset"],
+              })
+            }
+          >
+            {Object.entries(MD_PRESET_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          {config.md_preset === "custom" && (
+            <div className="flex flex-col gap-2 pl-6">
+              {MD_TOKENS.map(({ key, label }) => {
+                const field = `md_color_${key}` as const;
+                return (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="w-40 text-xs text-content-muted">
+                      {label}
+                    </span>
+                    <ColorPicker
+                      value={config[field]}
+                      onChange={(color) => void updateConfig({ [field]: color })}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <span className="text-xs text-content-muted">
+            Markdown token colors in the Journal/Notes editor. Custom keeps
+            its own seven colors and applies them on both themes. YAML files
+            always follow the VS Code Dark+/Light+ palette.
+          </span>
+        </section>
+
+        <SectionTitle>Vertical spacing</SectionTitle>
+
+        <section className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-4">
             <label className="flex w-40 flex-col gap-1">
               <span className="text-xs text-content-muted">Between tasks</span>
@@ -324,43 +296,8 @@ export default function AppearanceTab() {
           <span className="text-xs text-content-muted">
             Sections are the cadence groups plus Postponed and Done;
             category blocks group tasks by their {"{X}"} prefix or list
-            inside a section.
+            inside a section. All values in px.
           </span>
-        </section>
-
-        <section className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Day column sections</span>
-          <span className="text-xs text-content-muted">
-            Order of the sections inside a day column.
-          </span>
-          <div className="flex flex-col gap-1">
-            {config.cadence_group_order.map((id, i) => (
-              <div
-                key={id}
-                className="flex items-center gap-2 rounded-md border border-line px-3 py-1 text-sm"
-              >
-                <span className="min-w-0 flex-1">
-                  {CADENCE_GROUP_LABELS[id] ?? id}
-                </span>
-                <button
-                  className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
-                  disabled={i === 0}
-                  title="Move up"
-                  onClick={() => move("cadence_group_order", i, -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
-                  disabled={i === config.cadence_group_order.length - 1}
-                  title="Move down"
-                  onClick={() => move("cadence_group_order", i, 1)}
-                >
-                  ↓
-                </button>
-              </div>
-            ))}
-          </div>
         </section>
     </>
   );
