@@ -533,7 +533,11 @@ async fn upcoming_events(state: State<'_, AppState>) -> Result<views::UpcomingRe
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    let (events, errors) = views::upcoming_events(&vault.conn, &vault.config_dir())?;
+    let (events, errors) = views::upcoming_events(
+        &vault.conn,
+        &vault.config_dir(),
+        chrono::Local::now().date_naive(),
+    )?;
     Ok(views::UpcomingResult { events, errors })
 }
 

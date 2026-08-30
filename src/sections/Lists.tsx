@@ -18,18 +18,11 @@ export default function Lists() {
   const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
-  const offset = useAppStore((s) => s.listsPageOffset);
-  const setOffset = useAppStore((s) => s.setListsPageOffset);
   const dnd = useTaskDnd();
 
   if (!config) return null;
-  const all = orderLists(lists, tasks, config.lists_sort_alpha);
+  const visible = orderLists(lists, tasks, config.lists_sort_alpha);
   const columns = Math.max(1, config.lists_page_columns);
-  // same edge-arrow paging as the dashboard list zone, stepping a full
-  // row at a time; the wrapping grid shows everything from the offset
-  const maxOffset = Math.max(0, all.length - columns);
-  const off = Math.min(offset, maxOffset);
-  const visible = all.slice(off);
   const editingTask = tasks.find((t) => t.id === editingTaskId) ?? null;
 
   return (
@@ -62,17 +55,7 @@ export default function Lists() {
           </div>
           <NewListForm />
         </div>
-        <div className="flex items-stretch gap-2">
-          {all.length > columns && (
-            <button
-              className="btn-ghost self-stretch px-1 text-lg leading-none disabled:opacity-20"
-              title="Previous lists"
-              disabled={off === 0}
-              onClick={() => setOffset(Math.max(0, off - columns))}
-            >
-              ‹
-            </button>
-          )}
+        <div className="flex items-start gap-3">
           <div
             className="grid min-w-0 flex-1 content-start gap-3"
             style={{
@@ -80,22 +63,34 @@ export default function Lists() {
             }}
           >
             {visible.map((list) => (
-              <ListColumn
-                key={list.id}
-                list={list}
-                onOpenTask={setEditingTaskId}
-              />
+              <div key={list.id} id={`lists-page-${list.id}`}>
+                <ListColumn list={list} onOpenTask={setEditingTaskId} />
+              </div>
             ))}
           </div>
-          {all.length > columns && (
-            <button
-              className="btn-ghost self-stretch px-1 text-lg leading-none disabled:opacity-20"
-              title="Next lists"
-              disabled={off >= maxOffset}
-              onClick={() => setOffset(Math.min(maxOffset, off + columns))}
-            >
-              ›
-            </button>
+          {/* the same All-lists index the dashboard list zone has; here
+              everything is already on the page, so a click scrolls the
+              column into view. Sticky, so it stays at hand. */}
+          {visible.length > columns && (
+            <div className="sticky top-4 flex w-40 shrink-0 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
+              <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+                All lists
+              </div>
+              {visible.map((list) => (
+                <button
+                  key={list.id}
+                  className="shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs text-content-muted hover:bg-line/40 hover:text-content"
+                  title={`Scroll to "${list.name}"`}
+                  onClick={() =>
+                    document
+                      .getElementById(`lists-page-${list.id}`)
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                >
+                  {list.name}
+                </button>
+              ))}
+            </div>
           )}
         </div>
         {visible.length === 0 && (

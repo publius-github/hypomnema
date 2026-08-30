@@ -38,9 +38,6 @@ interface AppState {
   /// survives section switches
   listOffset: number;
   setListOffset: (offset: number) => void;
-  /// same for the dedicated Lists page (its own paging)
-  listsPageOffset: number;
-  setListsPageOffset: (offset: number) => void;
   /// set to jump to Notes with a config file opened (error banner,
   /// focus line, Settings links)
   kbOpenConfig: string | null;
@@ -432,8 +429,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   listOffset: 0,
   setListOffset: (listOffset) => set({ listOffset }),
-  listsPageOffset: 0,
-  setListsPageOffset: (listsPageOffset) => set({ listsPageOffset }),
   kbOpenConfig: null,
   openConfigFile: (file) => set({ section: "kb", kbOpenConfig: file }),
   kbExpanded: [],

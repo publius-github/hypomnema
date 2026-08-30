@@ -77,6 +77,7 @@ pub struct BirthdaysResult {
 pub fn upcoming_events(
     conn: &Connection,
     config_dir: &Path,
+    today: NaiveDate,
 ) -> Result<(Vec<UpcomingEventView>, Vec<ConfigError>)> {
     let mut errors = Vec::new();
     let Some(root) = load_yaml::<ScheduledFile>(config_dir, "scheduled.yml", &mut errors) else {
@@ -116,6 +117,28 @@ pub fn upcoming_events(
             }
         }
     }
+    // Dated manual list tasks count as one-off events too: they show
+    // here read-only (the task dialog is where they are edited) and
+    // disappear once done, like a materialized event. Priority pins are
+    // excluded - their today-date is an artifact of starring.
+    let mut stmt = conn.prepare(
+        "SELECT t.scheduled_date, t.title, t.time, l.name
+         FROM tasks t JOIN lists l ON l.id = t.list_id
+         WHERE t.origin = 'manual' AND t.archived_at IS NULL
+           AND t.parent_task_id IS NULL AND t.status != 'done'
+           AND t.priority = 0 AND t.scheduled_date >= ?1",
+    )?;
+    let list_tasks = stmt
+        .query_map([today.format("%Y-%m-%d").to_string()], |row| {
+            Ok(UpcomingEventView {
+                date: row.get(0)?,
+                title: row.get(1)?,
+                time: row.get(2)?,
+                source: format!("list \"{}\"", row.get::<_, String>(3)?),
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    pending.extend(list_tasks);
     pending.sort_by(|a, b| a.date.cmp(&b.date));
     Ok((pending, errors))
 }

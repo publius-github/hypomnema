@@ -1979,7 +1979,8 @@ mod tests {
 
         // the far event and the still-open materialized one both stay in
         // the Upcoming list; only completion clears an entry
-        let (pending, _) = upcoming_events(&conn, &dir).unwrap();
+        let (pending, _) =
+            upcoming_events(&conn, &dir, at("2026-08-28", "12:00:00").date_naive()).unwrap();
         let dates: Vec<&str> = pending.iter().map(|e| e.date.as_str()).collect();
         assert_eq!(dates, vec!["2026-08-30", "2026-12-01"]);
         conn.execute(
@@ -1987,7 +1988,8 @@ mod tests {
             [],
         )
         .unwrap();
-        let (pending, _) = upcoming_events(&conn, &dir).unwrap();
+        let (pending, _) =
+            upcoming_events(&conn, &dir, at("2026-08-28", "12:00:00").date_naive()).unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].date, "2026-12-01");
 

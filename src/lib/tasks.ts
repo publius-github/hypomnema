@@ -127,8 +127,16 @@ export function groupByCadence(
 ): CadenceGroup[] {
   const buckets = new Map<string, Task[]>();
   for (const task of tasks) {
+    // a dated manual list task behaves like a one-off event, so it
+    // lands under Exact date; priority pins keep their General spot
+    // (their today-date is an artifact of starring)
+    const listExact =
+      task.origin === "manual" &&
+      task.list_id !== null &&
+      task.scheduled_date !== null &&
+      !task.priority;
     const key =
-      task.origin === "scheduled" || task.origin === "birthday"
+      task.origin === "scheduled" || task.origin === "birthday" || listExact
         ? "exact"
         : task.cadence && CADENCE_KEYS.has(task.cadence)
           ? task.cadence

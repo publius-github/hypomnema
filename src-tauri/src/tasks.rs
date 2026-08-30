@@ -280,9 +280,11 @@ pub fn list_unarchive(conn: &Connection, id: i64) -> Result<()> {
 }
 
 /// Tasks visible on the Dashboard: everything scheduled in the rolling
-/// window, everything unscheduled (list zone), and all their subtasks.
-/// Overdue carry-over (M2) will move older tasks into the window before
-/// this query runs, so a plain range filter is enough here.
+/// window, everything unscheduled (list zone), manual list tasks with
+/// ANY date (they stay in their list column even when the date is far
+/// outside the grid), and all their subtasks. Overdue carry-over (M2)
+/// will move older tasks into the window before this query runs, so a
+/// plain range filter is enough for the rest.
 pub fn tasks_snapshot(conn: &Connection, start_date: &str, end_date: &str) -> Result<Vec<Task>> {
     let mut stmt = conn.prepare(
         "SELECT * FROM tasks
@@ -291,6 +293,7 @@ pub fn tasks_snapshot(conn: &Connection, start_date: &str, end_date: &str) -> Re
              parent_task_id IS NOT NULL
              OR scheduled_date IS NULL
              OR (scheduled_date >= ?1 AND scheduled_date < ?2)
+             OR (origin = 'manual' AND list_id IS NOT NULL)
            )
          ORDER BY time IS NULL, time, sort_order, id",
     )?;
@@ -704,6 +707,26 @@ mod tests {
         };
         assert_eq!(order, vec![(c.id, 0), (a.id, 1), (b.id, 2)]);
         assert_eq!(task_get(&conn, foreign.id).unwrap().sort_order, 0);
+    }
+
+    #[test]
+    fn manual_list_tasks_stay_in_snapshot_regardless_of_date() {
+        let conn = conn();
+        let list = list_create(&conn, "Trips", None, false).unwrap();
+        let task = task_create(
+            &conn,
+            &NewTask {
+                title: "book flights".into(),
+                list_id: Some(list.id),
+                scheduled_date: Some("2027-05-01".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // the date is far outside the grid window, but the task still
+        // belongs to its list column
+        let snapshot = tasks_snapshot(&conn, "2026-08-28", "2026-09-04").unwrap();
+        assert!(snapshot.iter().any(|t| t.id == task.id));
     }
 
     #[test]
