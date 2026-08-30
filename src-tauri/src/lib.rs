@@ -411,6 +411,18 @@ async fn list_set_favorite(state: State<'_, AppState>, id: i64, favorite: bool) 
 }
 
 #[tauri::command]
+async fn list_set_meta(
+    state: State<'_, AppState>,
+    id: i64,
+    color: Option<String>,
+    description: String,
+) -> Result<()> {
+    with_conn(&state, |conn| {
+        tasks::list_set_meta(conn, id, color.as_deref(), &description)
+    })
+}
+
+#[tauri::command]
 async fn list_archive(state: State<'_, AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::list_archive(conn, id))?;
     mirror_export(&state);
@@ -921,6 +933,7 @@ pub fn run() {
             list_create,
             list_rename,
             list_set_favorite,
+            list_set_meta,
             list_archive,
             lists_archived,
             list_unarchive,

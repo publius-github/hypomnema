@@ -85,6 +85,11 @@ interface AppState {
   archiveList: (id: number) => Promise<void>;
   /// favorite lists sort ahead of the rest in the dashboard list zone
   toggleListFavorite: (id: number) => Promise<void>;
+  /// cosmetic list metadata from the list dialog
+  updateListMeta: (
+    id: number,
+    meta: { color: string | null; description: string },
+  ) => Promise<void>;
 }
 
 /** "#a1b2c3" -> "161 178 195" (the space-separated form the theme
@@ -379,6 +384,26 @@ export const useAppStore = create<AppState>((set, get) => ({
         lists: s.lists.map((l) =>
           l.id === id ? { ...l, favorite: !favorite } : l,
         ),
+        error: String(e),
+      }));
+    }
+  },
+
+  updateListMeta: async (id, meta) => {
+    const previous = get().lists.find((l) => l.id === id);
+    if (!previous) return;
+    set((s) => ({
+      lists: s.lists.map((l) => (l.id === id ? { ...l, ...meta } : l)),
+    }));
+    try {
+      await invoke("list_set_meta", {
+        id,
+        color: meta.color,
+        description: meta.description,
+      });
+    } catch (e) {
+      set((s) => ({
+        lists: s.lists.map((l) => (l.id === id ? previous : l)),
         error: String(e),
       }));
     }

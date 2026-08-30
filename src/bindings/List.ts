@@ -9,4 +9,8 @@ auto: boolean,
 /**
  * Favorite lists sort ahead of the rest in the list zone.
  */
-favorite: boolean, };
+favorite: boolean, 
+/**
+ * Free-text description shown in the list dialog.
+ */
+description: string, };

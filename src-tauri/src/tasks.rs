@@ -20,6 +20,8 @@ pub struct List {
     pub auto: bool,
     /// Favorite lists sort ahead of the rest in the list zone.
     pub favorite: bool,
+    /// Free-text description shown in the list dialog.
+    pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -154,6 +156,7 @@ fn row_to_list(row: &Row) -> rusqlite::Result<List> {
         archived: row.get::<_, i64>("archived")? != 0,
         auto: row.get::<_, i64>("auto")? != 0,
         favorite: row.get::<_, i64>("favorite")? != 0,
+        description: row.get("description")?,
     })
 }
 
@@ -214,6 +217,24 @@ pub fn list_rename(conn: &Connection, id: i64, name: &str) -> Result<()> {
     let updated = conn.execute(
         "UPDATE lists SET name = ?1 WHERE id = ?2",
         (name.trim(), id),
+    )?;
+    if updated == 0 {
+        return Err(Error::State(format!("list {id} not found")));
+    }
+    Ok(())
+}
+
+/// Cosmetic list metadata from the list dialog: color (None clears it)
+/// and description.
+pub fn list_set_meta(
+    conn: &Connection,
+    id: i64,
+    color: Option<&str>,
+    description: &str,
+) -> Result<()> {
+    let updated = conn.execute(
+        "UPDATE lists SET color = ?1, description = ?2 WHERE id = ?3",
+        (color, description, id),
     )?;
     if updated == 0 {
         return Err(Error::State(format!("list {id} not found")));

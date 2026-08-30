@@ -11,6 +11,7 @@ import { useAppStore } from "../store";
 import { compareTasks, splitDone } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
+import ListModal from "./ListModal";
 import { ConfirmModal } from "./dialogs";
 import type { List, Task } from "../types";
 
@@ -29,6 +30,7 @@ function ListColumn({
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(list.name);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // A starred task lives in BOTH places: pinned to today's column and
   // still here in its list - one row, so closing it anywhere closes it
@@ -115,16 +117,33 @@ function ListColumn({
           </form>
         ) : (
           <button
-            className="flex-1 truncate text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
             onDoubleClick={() => {
               setName(list.name);
               setEditing(true);
             }}
-            title="Double-click to rename"
+            title={
+              list.description
+                ? `${list.description}\n\nDouble-click to rename`
+                : "Double-click to rename"
+            }
           >
-            {list.name}
+            {list.color && (
+              <span
+                className="h-3 w-1 shrink-0 rounded"
+                style={{ backgroundColor: list.color }}
+              />
+            )}
+            <span className="truncate">{list.name}</span>
           </button>
         )}
+        <button
+          className="text-xs text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
+          title="List settings: color, description, copy tasks"
+          onClick={() => setDetailsOpen(true)}
+        >
+          ⋯
+        </button>
         <button
           className={`text-sm leading-none ${
             list.favorite
@@ -148,6 +167,9 @@ function ListColumn({
           ×
         </button>
       </div>
+      {detailsOpen && (
+        <ListModal list={list} onClose={() => setDetailsOpen(false)} />
+      )}
       {confirmArchive && (
         <ConfirmModal
           title={`Archive list "${list.name}"?`}

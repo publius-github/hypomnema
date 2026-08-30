@@ -105,6 +105,8 @@ const MIGRATIONS: &[&str] = &[
     // 013: favorite lists sort ahead of the rest in the dashboard
     // list zone.
     "ALTER TABLE lists ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;",
+    // 014: free-text list description shown in the list dialog.
+    "ALTER TABLE lists ADD COLUMN description TEXT NOT NULL DEFAULT '';",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

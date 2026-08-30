@@ -72,11 +72,17 @@ function TaskCard({
   const done = task.status === "done";
   // a {Category} prefix is a pure text label rendered as a chip
   const { category, text } = splitCategory(task.title);
-  // cadence coloring reuses the manual color stripe; a manual color wins
+  // cadence coloring reuses the manual color stripe; a manual color
+  // wins, then the list's own color (manual tasks), then the cadence
   const cadColor = useAppStore((s) =>
     cadenceColor(s.config, cadenceKeyOf(task)),
   );
-  const stripe = task.color ?? cadColor;
+  const listColor = useAppStore((s) =>
+    task.origin === "manual" && task.list_id !== null
+      ? (s.lists.find((l) => l.id === task.list_id)?.color ?? null)
+      : null,
+  );
+  const stripe = task.color ?? listColor ?? cadColor;
   const categoryColor = useAppStore(
     (s) => s.config?.category_color ?? "#3b82f6",
   );
