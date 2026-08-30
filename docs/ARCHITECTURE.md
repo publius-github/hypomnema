@@ -56,7 +56,7 @@ Order configurable via `config.section_order`; Settings always last. Besides the
 
 Packs: subfolders of `config/` are walked recursively; a `*.yml` file contributes to whichever of the three task sections its top-level keys name. Errors carry the path relative to `config/`. Broken files never wipe state - last valid config stays active, error shows as a banner.
 
-`AppConfig` (~60 fields): theme/typography, dashboard layout, task display (cadence colors, done display/hold), engine (`retention_days`, `catchup_days`, `cron_ignore_time`), calendar outlook horizons, `section_order`, files (`kb_path`, `tasks_mirror`, `backup_keep`), `notify_system`, markdown editor color presets. Adding a setting = field + default + `sanitized()` clamp + `settings_pairs()` in `config.rs`, ts-rs regen via `cargo test`, control in the matching Settings tab.
+`AppConfig` (~75 fields): theme + `theme_preset` chrome palettes (default/black/nord/gruvbox/solarized, per-theme variants in `src/lib/themePresets.ts`) with individual accent/surface/panel/border overrides, typography, dashboard layout, task display (cadence colors, done display/hold), engine (`retention_days`, `catchup_days`, `cron_ignore_time`), calendar outlook horizons, `section_order`, files (`kb_path`, `tasks_mirror`, `backup_keep`), `notify_system`, markdown editor color presets. Adding a setting = field + default + `sanitized()` clamp + `settings_pairs()` in `config.rs`, ts-rs regen via `cargo test`, control in the matching Settings tab.
 
 ## Engine (`engine.rs`)
 

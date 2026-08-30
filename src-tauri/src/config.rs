@@ -12,6 +12,16 @@ use crate::error::Result;
 pub struct AppConfig {
     #[ts(type = "\"dark\" | \"light\"")]
     pub theme: String,
+    /// Named chrome palette applied on top of the dark/light theme
+    /// ("default" = the stylesheet colors); each preset carries both a
+    /// dark and a light variant.
+    #[ts(type = "\"default\" | \"black\" | \"nord\" | \"gruvbox\" | \"solarized\"")]
+    pub theme_preset: String,
+    /// Individual chrome color overrides, hex; empty = preset default.
+    pub accent_color: String,
+    pub surface_color: String,
+    pub surface_alt_color: String,
+    pub line_color: String,
     pub grid_columns: u32,
     #[ts(type = "\"inline\" | \"separate\"")]
     pub done_display: String,
@@ -149,6 +159,8 @@ pub struct AppConfig {
 
 pub const MD_PRESETS: &[&str] = &["vscode", "monokai", "one-dark", "github", "custom"];
 
+pub const THEME_PRESETS: &[&str] = &["default", "black", "nord", "gruvbox", "solarized"];
+
 pub const SECTIONS: &[&str] = &[
     "dashboard",
     "lists",
@@ -166,6 +178,11 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme: "dark".into(),
+            theme_preset: "default".into(),
+            accent_color: String::new(),
+            surface_color: String::new(),
+            surface_alt_color: String::new(),
+            line_color: String::new(),
             grid_columns: 7,
             done_display: "inline".into(),
             retention_days: 0,
@@ -267,6 +284,9 @@ impl AppConfig {
         if !["dark", "light"].contains(&self.theme.as_str()) {
             self.theme = "dark".into();
         }
+        if !THEME_PRESETS.contains(&self.theme_preset.as_str()) {
+            self.theme_preset = "default".into();
+        }
         if !["inline", "separate"].contains(&self.done_display.as_str()) {
             self.done_display = "inline".into();
         }
@@ -346,6 +366,10 @@ impl AppConfig {
                 value.clear();
             }
         };
+        sanitize_optional_color(&mut self.accent_color);
+        sanitize_optional_color(&mut self.surface_color);
+        sanitize_optional_color(&mut self.surface_alt_color);
+        sanitize_optional_color(&mut self.line_color);
         sanitize_optional_color(&mut self.content_color);
         sanitize_optional_color(&mut self.content_muted_color);
         sanitize_optional_color(&mut self.weekly_focus_color);
@@ -384,6 +408,11 @@ impl AppConfig {
     pub fn settings_pairs(&self) -> Vec<(&'static str, String)> {
         vec![
             ("theme", self.theme.clone()),
+            ("theme_preset", self.theme_preset.clone()),
+            ("accent_color", self.accent_color.clone()),
+            ("surface_color", self.surface_color.clone()),
+            ("surface_alt_color", self.surface_alt_color.clone()),
+            ("line_color", self.line_color.clone()),
             ("grid_columns", self.grid_columns.to_string()),
             ("done_display", self.done_display.clone()),
             ("retention_days", self.retention_days.to_string()),

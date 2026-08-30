@@ -14,6 +14,7 @@ import type {
 } from "./types";
 import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
 import { MD_TOKENS, resolveMdColors } from "./lib/mdPresets";
+import { THEME_TOKEN_VARS, resolveThemeColors } from "./lib/themePresets";
 
 interface AppState {
   loaded: boolean;
@@ -125,12 +126,21 @@ function applyTheme(config: AppConfig | null) {
   // every text size derives from the root font size (rem-based tokens)
   const size = config?.ui_font_size ?? 16;
   root.style.fontSize = size === 16 ? "" : `${size}px`;
-  // text tone overrides; empty config value = theme default
-  for (const [name, value] of [
-    ["--color-content", config?.content_color],
-    ["--color-content-muted", config?.content_muted_color],
-  ] as const) {
-    const triplet = value ? hexToTriplet(value) : null;
+  // chrome palette: the preset colors first ("default" = stylesheet),
+  // then the individual overrides on top; empty value = fall through
+  const preset = config ? resolveThemeColors(config) : null;
+  for (const [token, name] of Object.entries(THEME_TOKEN_VARS)) {
+    const presetHex = preset?.[token as keyof typeof THEME_TOKEN_VARS] ?? "";
+    const override =
+      {
+        surface: config?.surface_color,
+        surfaceAlt: config?.surface_alt_color,
+        content: config?.content_color,
+        contentMuted: config?.content_muted_color,
+        accent: config?.accent_color,
+        line: config?.line_color,
+      }[token] ?? "";
+    const triplet = hexToTriplet(override || presetHex || "");
     if (triplet) root.style.setProperty(name, triplet);
     else root.style.removeProperty(name);
   }

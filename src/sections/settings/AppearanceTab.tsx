@@ -1,6 +1,7 @@
 import { ColorPicker, Field, NumberInput, TextInput, Toggle } from "../../components/form";
 import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
 import { MD_PRESET_LABELS, MD_TOKENS } from "../../lib/mdPresets";
+import { THEME_PRESET_LABELS, resolveThemeColors } from "../../lib/themePresets";
 import type { AppConfig, DoneDisplay, Theme } from "../../types";
 import { useAppStore } from "../../store";
 
@@ -48,6 +49,64 @@ export default function AppearanceTab() {
             <option value="light">Light</option>
           </select>
         </Field>
+
+        <Field label="Theme palette (each has a dark and a light variant)">
+          <select
+            className="input"
+            value={config.theme_preset}
+            onChange={(e) =>
+              void updateConfig({
+                theme_preset: e.target.value as AppConfig["theme_preset"],
+              })
+            }
+          >
+            {Object.entries(THEME_PRESET_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <section className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Theme colors</span>
+          {(
+            [
+              ["Accent", "accent_color", "accent"],
+              ["Background", "surface_color", "surface"],
+              ["Panels", "surface_alt_color", "surfaceAlt"],
+              ["Borders", "line_color", "line"],
+            ] as const
+          ).map(([label, key, token]) => {
+            const presetColors = resolveThemeColors(config);
+            const stylesheet =
+              config.theme === "light"
+                ? { accent: "#2563eb", surface: "#f4f6f8", surfaceAlt: "#ffffff", line: "#dadfe6" }
+                : { accent: "#6091ff", surface: "#121418", surfaceAlt: "#1c1f25", line: "#343942" };
+            const fallback = presetColors?.[token] ?? stylesheet[token];
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-48 text-xs text-content-muted">{label}</span>
+                <ColorPicker
+                  value={config[key] || fallback}
+                  onChange={(color) => void updateConfig({ [key]: color })}
+                />
+                {config[key] ? (
+                  <button
+                    className="text-xs text-content-muted hover:text-content"
+                    onClick={() => void updateConfig({ [key]: "" })}
+                  >
+                    reset to palette default
+                  </button>
+                ) : (
+                  <span className="text-xs text-content-muted">
+                    palette default
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </section>
 
         <Field label="Done tasks display">
           <select
