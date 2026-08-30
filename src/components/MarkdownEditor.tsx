@@ -38,7 +38,7 @@ import {
   syntaxHighlighting,
   syntaxTree,
 } from "@codemirror/language";
-import { linter, type Diagnostic } from "@codemirror/lint";
+import { lintGutter, linter, type Diagnostic } from "@codemirror/lint";
 import { tags } from "@lezer/highlight";
 import { parseDocument } from "yaml";
 import { lintMarkdown } from "../lib/markdownLint";
@@ -192,17 +192,18 @@ const tableLines = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
-// IDE-style YAML colors; fixed mid-tone hues stay readable on both the
-// dark and the light background
+// YAML colors per the VS Code Dark+/Light+ specs via the --yaml-* theme
+// vars in styles.css (keys like entity.name.tag, green comments, blue
+// keywords - not the generic mid-tone scheme used before)
 const yamlHighlight = HighlightStyle.define([
-  { tag: tags.definition(tags.propertyName), color: "rgb(var(--color-accent))" },
-  { tag: tags.propertyName, color: "rgb(var(--color-accent))" },
-  { tag: tags.string, color: "#4d9375" },
-  { tag: tags.number, color: "#d19a66" },
-  { tag: tags.bool, color: "#c678dd" },
-  { tag: tags.null, color: "#c678dd" },
-  { tag: tags.keyword, color: "#c678dd" },
-  { tag: tags.comment, color: "rgb(var(--color-content-muted))", fontStyle: "italic" },
+  { tag: tags.definition(tags.propertyName), color: "var(--yaml-key)" },
+  { tag: tags.propertyName, color: "var(--yaml-key)" },
+  { tag: tags.string, color: "var(--yaml-string)" },
+  { tag: tags.number, color: "var(--yaml-number)" },
+  { tag: tags.bool, color: "var(--yaml-keyword)" },
+  { tag: tags.null, color: "var(--yaml-keyword)" },
+  { tag: tags.keyword, color: "var(--yaml-keyword)" },
+  { tag: tags.comment, color: "var(--yaml-comment)", fontStyle: "italic" },
   { tag: tags.punctuation, color: "rgb(var(--color-content-muted))" },
 ]);
 
@@ -365,12 +366,16 @@ export function modeExtensions(mode: EditorMode): Extension[] {
         Prec.highest(plainBrackets),
         tableLines,
         markdownLinter(),
+        // IDE-style gutter markers next to the squiggles, so broken
+        // formatting is visible without hovering the exact spot
+        lintGutter(),
       ];
     case "yaml":
       return [
         yaml(),
         syntaxHighlighting(yamlHighlight),
         yamlLinter(),
+        lintGutter(),
         monoTheme,
       ];
     case "plain":

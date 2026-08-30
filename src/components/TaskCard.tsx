@@ -189,6 +189,19 @@ function TaskCard({
             {category}
           </span>
         )}
+        {!showList &&
+          task.origin === "manual" &&
+          task.scheduled_date &&
+          !task.priority && (
+            // a dated list task also lives on that day column; the chip
+            // is the calendar marker inside the list
+            <span
+              className="shrink-0 rounded bg-info/15 px-1 text-[11px] font-medium text-info"
+              title={`Also on the day grid: ${task.scheduled_date}`}
+            >
+              {weekdayShort(task.scheduled_date)} {task.scheduled_date}
+            </span>
+          )}
         {exactDate && task.origin_date && (
           // same color as the Exact date section plate these tasks
           // always live under

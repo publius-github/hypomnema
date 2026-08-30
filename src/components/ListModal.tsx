@@ -37,7 +37,7 @@ export default function ListModal({
       s.tasks.filter(
         (t) =>
           t.list_id === list.id &&
-          (t.scheduled_date === null || t.priority) &&
+          (t.scheduled_date === null || t.priority || t.origin === "manual") &&
           t.parent_task_id === null,
       ),
     ),

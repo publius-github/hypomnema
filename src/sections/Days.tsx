@@ -48,11 +48,9 @@ export default function Days() {
   }, [editingTaskId, tasks]);
 
   if (!config) return null;
-  // the page has its own focus width: 0 follows the dashboard grid,
-  // 1 is the single-day deep-work view, anything else a fixed span
-  const dashboardColumns = config.dashboard_today_only ? 1 : config.grid_columns;
-  const columns =
-    config.days_page_columns > 0 ? config.days_page_columns : dashboardColumns;
+  // the page has its own focus controls, independent of the dashboard:
+  // a Today-only toggle and its own day count
+  const columns = config.days_today_only ? 1 : config.days_page_columns;
   const dates = gridDates(addDaysISO(today, gridOffset), columns);
   const editingTask =
     tasks.find((t) => t.id === editingTaskId) ??
@@ -81,6 +79,19 @@ export default function Days() {
           >
             ›
           </button>
+          <button
+            className={`px-2 py-0.5 text-xs rounded-md ${
+              config.days_today_only ? "bg-accent/15 text-accent" : "btn-ghost"
+            }`}
+            title="Show only the Today column"
+            onClick={() =>
+              void useAppStore.getState().updateConfig({
+                days_today_only: !config.days_today_only,
+              })
+            }
+          >
+            Today only
+          </button>
           {gridOffset !== 0 && (
             <button
               className="btn-ghost px-2 py-0.5 text-xs"
@@ -100,8 +111,7 @@ export default function Days() {
                   .updateConfig({ days_page_columns: Number(e.target.value) })
               }
             >
-              <option value={0}>Dashboard ({dashboardColumns})</option>
-              {[1, 2, 3, 5, 7, 10, 14].map((n) => (
+              {Array.from({ length: 14 }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>

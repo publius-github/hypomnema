@@ -32,15 +32,16 @@ function ListColumn({
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  // A starred task lives in BOTH places: pinned to today's column and
-  // still here in its list - one row, so closing it anywhere closes it
-  // everywhere. Shallow-compared selection, like DayColumn.
+  // A dated or starred manual task lives in BOTH places: on its day
+  // column and still here in its list - one row, so closing it anywhere
+  // closes it everywhere. Generated tasks (auto lists) stay day-only.
+  // Shallow-compared selection, like DayColumn.
   const listTasks = useAppStore(
     useShallow((s) =>
       s.tasks.filter(
         (t) =>
           t.list_id === list.id &&
-          (t.scheduled_date === null || t.priority) &&
+          (t.scheduled_date === null || t.priority || t.origin === "manual") &&
           t.parent_task_id === null,
       ),
     ),
@@ -90,14 +91,24 @@ function ListColumn({
       </div>
     );
 
+  // double-click on free space (not on a card, button or input) opens
+  // the list dialog, same as the ⋯ button
+  const openOnFreeSpace = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) setDetailsOpen(true);
+  };
+
   return (
     <div
       ref={setNodeRef}
       className={`flex min-w-0 flex-col rounded-lg border ${
         isOver ? "border-accent" : "border-line"
       } bg-surface-alt/50`}
+      onDoubleClick={openOnFreeSpace}
     >
-      <div className="group flex items-center gap-2 px-2.5 py-2">
+      <div
+        className="group flex items-center gap-2 px-2.5 py-2"
+        onDoubleClick={openOnFreeSpace}
+      >
         {editing ? (
           <form
             className="flex-1"
@@ -185,7 +196,11 @@ function ListColumn({
       )}
       {/* no internal scrollbar: a long list grows past the viewport and
           the dashboard page scrollbar reaches it */}
-      <div className="flex flex-1 flex-col px-2 pb-2" style={{ rowGap: taskGap }}>
+      <div
+        className="flex flex-1 flex-col px-2 pb-2"
+        style={{ rowGap: taskGap }}
+        onDoubleClick={openOnFreeSpace}
+      >
         {/* the add field leads the column: with a long list of checked
             tasks the bottom is a scroll away, the top never is */}
         <QuickAdd target={{ list_id: list.id }} />

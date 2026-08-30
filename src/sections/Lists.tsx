@@ -18,11 +18,18 @@ export default function Lists() {
   const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const offset = useAppStore((s) => s.listsPageOffset);
+  const setOffset = useAppStore((s) => s.setListsPageOffset);
   const dnd = useTaskDnd();
 
   if (!config) return null;
-  const visible = orderLists(lists, tasks, config.lists_sort_alpha);
+  const all = orderLists(lists, tasks, config.lists_sort_alpha);
   const columns = Math.max(1, config.lists_page_columns);
+  // same edge-arrow paging as the dashboard list zone, stepping a full
+  // row at a time; the wrapping grid shows everything from the offset
+  const maxOffset = Math.max(0, all.length - columns);
+  const off = Math.min(offset, maxOffset);
+  const visible = all.slice(off);
   const editingTask = tasks.find((t) => t.id === editingTaskId) ?? null;
 
   return (
@@ -55,15 +62,41 @@ export default function Lists() {
           </div>
           <NewListForm />
         </div>
-        <div
-          className="grid content-start gap-3"
-          style={{
-            gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-          }}
-        >
-          {visible.map((list) => (
-            <ListColumn key={list.id} list={list} onOpenTask={setEditingTaskId} />
-          ))}
+        <div className="flex items-stretch gap-2">
+          {all.length > columns && (
+            <button
+              className="btn-ghost self-stretch px-1 text-lg leading-none disabled:opacity-20"
+              title="Previous lists"
+              disabled={off === 0}
+              onClick={() => setOffset(Math.max(0, off - columns))}
+            >
+              ‹
+            </button>
+          )}
+          <div
+            className="grid min-w-0 flex-1 content-start gap-3"
+            style={{
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+            }}
+          >
+            {visible.map((list) => (
+              <ListColumn
+                key={list.id}
+                list={list}
+                onOpenTask={setEditingTaskId}
+              />
+            ))}
+          </div>
+          {all.length > columns && (
+            <button
+              className="btn-ghost self-stretch px-1 text-lg leading-none disabled:opacity-20"
+              title="Next lists"
+              disabled={off >= maxOffset}
+              onClick={() => setOffset(Math.min(maxOffset, off + columns))}
+            >
+              ›
+            </button>
+          )}
         </div>
         {visible.length === 0 && (
           <div className="flex flex-1 items-center justify-center text-content-muted">

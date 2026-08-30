@@ -147,10 +147,16 @@ lists_sort_alpha: boolean,
  */
 lists_page_columns: number, 
 /**
- * Day columns on the dedicated Days page; 0 = follow the dashboard
- * grid (grid_columns / today-only).
+ * Day columns on the dedicated Days page (its own width, not tied
+ * to the dashboard grid). 0 is a legacy "follow the dashboard"
+ * value that sanitize resolves to grid_columns.
  */
 days_page_columns: number, 
+/**
+ * Days page shows a single Today column (its own toggle, separate
+ * from dashboard_today_only).
+ */
+days_today_only: boolean, 
 /**
  * Order the tasks inside a list column alphabetically (timed tasks
  * still pin to the top); off = manual drag order.

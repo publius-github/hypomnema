@@ -31,6 +31,14 @@
   --md-link: #a31515;
   --md-quote: #008000;
   --md-marker: #0451a5;
+  /* YAML token colors per the VS Code Light+ spec: keys (entity.name.tag)
+     #800000, strings #a31515, numbers #098658, keywords/bools #0000ff,
+     comments #008000, punctuation follows the main text */
+  --yaml-key: #800000;
+  --yaml-string: #a31515;
+  --yaml-number: #098658;
+  --yaml-keyword: #0000ff;
+  --yaml-comment: #008000;
 }
 
 .dark {
@@ -55,6 +63,14 @@
   --md-link: #ce9178;
   --md-quote: #6a9955;
   --md-marker: #6796e6;
+  /* YAML token colors per the VS Code Dark+ spec: keys (entity.name.tag)
+     #9cdcfe, strings #ce9178, numbers #b5cea8, keywords/bools #569cd6,
+     comments #6a9955 */
+  --yaml-key: #9cdcfe;
+  --yaml-string: #ce9178;
+  --yaml-number: #b5cea8;
+  --yaml-keyword: #569cd6;
+  --yaml-comment: #6a9955;
 }
 
 html,

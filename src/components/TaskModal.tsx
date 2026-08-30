@@ -36,6 +36,20 @@ export default function TaskModal({
     generated || task.description_md.length > 0,
   );
   const [subtaskTitle, setSubtaskTitle] = useState("");
+  // Date/time are drafts, not directly bound to the task: committing
+  // every change reset the store row to null on a half-typed date, and
+  // the re-render wiped the segments mid-typing (the "year eats six
+  // digits then the fields clear" bug). A complete plausible value
+  // commits immediately (so the calendar picker still applies at
+  // once); clearing commits on blur.
+  const [dateDraft, setDateDraft] = useState(task.scheduled_date ?? "");
+  const [timeDraft, setTimeDraft] = useState(task.time ?? "");
+  useEffect(() => {
+    setDateDraft(task.scheduled_date ?? "");
+  }, [task.scheduled_date]);
+  useEffect(() => {
+    setTimeDraft(task.time ?? "");
+  }, [task.time]);
 
   const subtasksDoneLast = config?.subtasks_done_last ?? true;
   const subtasks = sortSubtasks(
@@ -220,13 +234,25 @@ export default function TaskModal({
             <input
               className="input"
               type="date"
-              value={task.scheduled_date ?? ""}
+              // the max caps the year segment at 4 digits
+              min="1970-01-01"
+              max="9999-12-31"
+              value={dateDraft}
               disabled={generated}
-              onChange={(e) =>
-                void updateTask(task.id, {
-                  scheduled_date: e.target.value || null,
-                })
-              }
+              onChange={(e) => {
+                const v = e.target.value;
+                setDateDraft(v);
+                // mid-typing the year passes through 0002-.., 0020-..:
+                // only a believable complete date commits on change
+                if (v && Number(v.slice(0, 4)) >= 1970) {
+                  void updateTask(task.id, { scheduled_date: v });
+                }
+              }}
+              onBlur={() => {
+                if (!dateDraft && task.scheduled_date !== null) {
+                  void updateTask(task.id, { scheduled_date: null });
+                }
+              }}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -234,11 +260,18 @@ export default function TaskModal({
             <input
               className="input"
               type="time"
-              value={task.time ?? ""}
+              value={timeDraft}
               disabled={generated}
-              onChange={(e) =>
-                void updateTask(task.id, { time: e.target.value || null })
-              }
+              onChange={(e) => {
+                const v = e.target.value;
+                setTimeDraft(v);
+                if (v) void updateTask(task.id, { time: v });
+              }}
+              onBlur={() => {
+                if (!timeDraft && task.time !== null) {
+                  void updateTask(task.id, { time: null });
+                }
+              }}
             />
           </label>
         </div>

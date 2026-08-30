@@ -112,9 +112,13 @@ pub struct AppConfig {
     pub lists_sort_alpha: bool,
     /// Grid columns on the dedicated Lists page.
     pub lists_page_columns: u32,
-    /// Day columns on the dedicated Days page; 0 = follow the dashboard
-    /// grid (grid_columns / today-only).
+    /// Day columns on the dedicated Days page (its own width, not tied
+    /// to the dashboard grid). 0 is a legacy "follow the dashboard"
+    /// value that sanitize resolves to grid_columns.
     pub days_page_columns: u32,
+    /// Days page shows a single Today column (its own toggle, separate
+    /// from dashboard_today_only).
+    pub days_today_only: bool,
     /// Order the tasks inside a list column alphabetically (timed tasks
     /// still pin to the top); off = manual drag order.
     pub list_tasks_sort_alpha: bool,
@@ -227,7 +231,8 @@ impl Default for AppConfig {
             cron_weekday_labels: true,
             lists_sort_alpha: false,
             lists_page_columns: 4,
-            days_page_columns: 0,
+            days_page_columns: 7,
+            days_today_only: false,
             list_tasks_sort_alpha: false,
             clear_done_list_tasks: true,
             priority_overdue: true,
@@ -297,7 +302,10 @@ impl AppConfig {
         self.dashboard_split = self.dashboard_split.clamp(20, 80);
         self.list_columns = self.list_columns.clamp(1, 12);
         self.lists_page_columns = self.lists_page_columns.clamp(1, 12);
-        self.days_page_columns = self.days_page_columns.min(14);
+        if self.days_page_columns == 0 {
+            self.days_page_columns = self.grid_columns;
+        }
+        self.days_page_columns = self.days_page_columns.clamp(1, 14);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -478,6 +486,7 @@ impl AppConfig {
             ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
             ("lists_page_columns", self.lists_page_columns.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),
+            ("days_today_only", self.days_today_only.to_string()),
             (
                 "list_tasks_sort_alpha",
                 self.list_tasks_sort_alpha.to_string(),
