@@ -21,7 +21,7 @@ priority: boolean,
  */
 rule_key: string | null, period_key: string | null, 
 /**
- * "[SAT1]"-style marker for recurring rules whose cron pins
+ * "[SAT#1]"-style marker for recurring rules whose cron pins
  * concrete weekdays; None for everything else.
  */
 dow_label: string | null, };

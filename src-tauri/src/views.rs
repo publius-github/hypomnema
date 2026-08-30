@@ -168,12 +168,22 @@ pub struct OutlookEvent {
 }
 
 /// A display label for the day-of-week field of a cron schedule, when
-/// the rule pins concrete weekdays ("0 9 * * SAT#1" -> "SAT1",
-/// "0 9 * * 1-5" -> "MON-FRI"). Wildcards and steps return None.
+/// the rule pins concrete weekdays ("0 9 * * SAT#1" -> "SAT#1",
+/// "0 9 * * 1-5" -> "MON-FRI"). Wildcards and steps return None, and so
+/// does a schedule that also restricts the day-of-month: cron ORs the
+/// two fields, so such a rule fires on other weekdays too and a weekday
+/// marker would lie.
 pub(crate) fn weekday_label(schedule: &str) -> Option<String> {
-    let field = schedule.split_whitespace().last()?;
+    let fields: Vec<&str> = schedule.split_whitespace().collect();
+    let field = *fields.last()?;
     if field.contains('*') || field == "?" || field.is_empty() {
         return None;
+    }
+    if fields.len() >= 3 {
+        let dom = fields[fields.len() - 3];
+        if dom != "*" && dom != "?" {
+            return None;
+        }
     }
     fn map_days(part: &str) -> String {
         const NAMES: [&str; 8] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -193,13 +203,14 @@ pub(crate) fn weekday_label(schedule: &str) -> Option<String> {
         }
         out
     }
-    // "SAT#1" / "6#1": the nth-occurrence number stays a number
+    // "SAT#1" / "6#1": keep the crontab spelling with the '#'
     let (days, nth) = match field.split_once('#') {
         Some((days, nth)) => (days, Some(nth)),
         None => (field, None),
     };
     let mut label = map_days(days);
     if let Some(nth) = nth {
+        label.push('#');
         label.push_str(nth);
     }
     Some(label)
@@ -246,7 +257,7 @@ pub fn calendar_outlook(
                 continue;
             };
             let cadence = cadence_of(&cron, now);
-            // rules pinned to concrete weekdays carry a [SAT1]-style
+            // rules pinned to concrete weekdays carry a [SAT#1]-style
             // marker so a projected entry says which weekday rule it is
             let dow = if config.cron_weekday_labels {
                 weekday_label(&rule.schedule)
@@ -478,13 +489,17 @@ mod tests {
 
     #[test]
     fn weekday_label_only_for_concrete_days() {
-        assert_eq!(weekday_label("0 9 * * SAT#1").as_deref(), Some("SAT1"));
-        assert_eq!(weekday_label("0 9 * * 6#1").as_deref(), Some("SAT1"));
+        assert_eq!(weekday_label("0 9 * * SAT#1").as_deref(), Some("SAT#1"));
+        assert_eq!(weekday_label("0 9 * * 6#1").as_deref(), Some("SAT#1"));
         assert_eq!(weekday_label("0 9 * * 1-5").as_deref(), Some("MON-FRI"));
         assert_eq!(weekday_label("0 9 * * mon,fri").as_deref(), Some("MON,FRI"));
         assert_eq!(weekday_label("0 9 * * *"), None);
         assert_eq!(weekday_label("0 9 1 * ?"), None);
         assert_eq!(weekday_label("0 9 * * */2"), None);
+        // a restricted day-of-month ORs with the weekday in cron, so the
+        // rule fires outside the named weekdays - no marker
+        assert_eq!(weekday_label("0 9 30 * SAT#4"), None);
+        assert_eq!(weekday_label("0 9 1-15 * MON"), None);
     }
 
     #[test]

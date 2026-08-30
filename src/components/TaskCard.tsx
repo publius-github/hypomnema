@@ -80,10 +80,11 @@ function TaskCard({
   const categoryColor = useAppStore(
     (s) => s.config?.category_color ?? "#3b82f6",
   );
-  // [SAT1]-style marker for weekday-pinned recurring rules
+  // [SAT#1]-style marker for weekday-pinned recurring rules
   const dowLabel = useAppStore((s) =>
     (s.config?.cron_weekday_labels ?? true) ? task.dow_label : null,
   );
+  const dowColor = useAppStore((s) => s.config?.dow_label_color || "");
   const chipStyle = tintStyle(categoryColor);
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
   const tooltip = [
@@ -204,6 +205,7 @@ function TaskCard({
           {dowLabel && (
             <span
               className="text-content-muted"
+              style={dowColor ? { color: dowColor } : undefined}
               title="Weekday pinned by the rule's cron"
             >
               [{dowLabel}]{" "}
@@ -261,7 +263,7 @@ function TaskCard({
             ))}
           {task.time && <span>{task.time}</span>}
           {task.overdue && !done && (
-            <span className="rounded bg-danger/15 px-1 font-medium text-danger">
+            <span className="rounded bg-danger/15 px-1 font-semibold uppercase text-danger">
               overdue
             </span>
           )}

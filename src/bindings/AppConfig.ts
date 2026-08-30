@@ -47,8 +47,9 @@ ui_font: string,
  */
 editor_font: string, 
 /**
- * Editor font size in px (Journal/Notes/config files); independent
- * of ui_font_size, which drives the rest of the UI.
+ * Editor font size (Journal/Notes/config files) on the same scale
+ * as ui_font_size: equal values render the editor text at the same
+ * visible size as the app's main text (which is 87.5% of the base).
  */
 editor_font_size: number, 
 /**
@@ -122,7 +123,7 @@ notify_system: boolean,
  */
 tasks_mirror: boolean, 
 /**
- * Show a [SAT1]-style marker before recurring tasks whose cron
+ * Show a [SAT#1]-style marker before recurring tasks whose cron
  * pins concrete weekdays.
  */
 cron_weekday_labels: boolean, 
@@ -148,6 +149,11 @@ reminder_color: string,
  * main text color (and the accent on Today).
  */
 day_header_color: string, 
+/**
+ * The [SAT#1]-style weekday marker on task cards; empty =
+ * secondary tone.
+ */
+dow_label_color: string, 
 /**
  * Markdown editor color scheme: a named preset, or "custom" using
  * the md_color_* values below.

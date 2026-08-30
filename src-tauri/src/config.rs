@@ -47,8 +47,9 @@ pub struct AppConfig {
     pub ui_font: String,
     /// Editor font family for Journal/Notes/config files.
     pub editor_font: String,
-    /// Editor font size in px (Journal/Notes/config files); independent
-    /// of ui_font_size, which drives the rest of the UI.
+    /// Editor font size (Journal/Notes/config files) on the same scale
+    /// as ui_font_size: equal values render the editor text at the same
+    /// visible size as the app's main text (which is 87.5% of the base).
     pub editor_font_size: u32,
     /// Seconds a task just marked done/postponed stays in place before
     /// moving to its section, leaving room to fix a misclick (0 = move
@@ -93,7 +94,7 @@ pub struct AppConfig {
     /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
     /// (one file per list + scheduled.md) for bulk editing in any editor.
     pub tasks_mirror: bool,
-    /// Show a [SAT1]-style marker before recurring tasks whose cron
+    /// Show a [SAT#1]-style marker before recurring tasks whose cron
     /// pins concrete weekdays.
     pub cron_weekday_labels: bool,
     /// Base UI font size in px (the browser default is 16; every text
@@ -109,6 +110,9 @@ pub struct AppConfig {
     /// Weekday + date header of a day column, Today included; empty =
     /// main text color (and the accent on Today).
     pub day_header_color: String,
+    /// The [SAT#1]-style weekday marker on task cards; empty =
+    /// secondary tone.
+    pub dow_label_color: String,
     /// Markdown editor color scheme: a named preset, or "custom" using
     /// the md_color_* values below.
     #[ts(type = "\"vscode\" | \"monokai\" | \"one-dark\" | \"github\" | \"custom\"")]
@@ -159,7 +163,7 @@ impl Default for AppConfig {
             calendar_dates_years: 1,
             ui_font: String::new(),
             editor_font: "Consolas".into(),
-            editor_font_size: 14,
+            editor_font_size: 16,
             done_hold_seconds: 3,
             day_header_centered: false,
             cadence_colors: true,
@@ -185,6 +189,7 @@ impl Default for AppConfig {
             weekly_focus_color: String::new(),
             reminder_color: String::new(),
             day_header_color: String::new(),
+            dow_label_color: String::new(),
             md_preset: "vscode".into(),
             // custom starts from the Dark+ values
             md_color_heading: "#569cd6".into(),
@@ -305,6 +310,7 @@ impl AppConfig {
         sanitize_optional_color(&mut self.weekly_focus_color);
         sanitize_optional_color(&mut self.reminder_color);
         sanitize_optional_color(&mut self.day_header_color);
+        sanitize_optional_color(&mut self.dow_label_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -400,6 +406,7 @@ impl AppConfig {
             ("weekly_focus_color", self.weekly_focus_color.clone()),
             ("reminder_color", self.reminder_color.clone()),
             ("day_header_color", self.day_header_color.clone()),
+            ("dow_label_color", self.dow_label_color.clone()),
             ("md_preset", self.md_preset.clone()),
             ("md_color_heading", self.md_color_heading.clone()),
             ("md_color_bold", self.md_color_bold.clone()),

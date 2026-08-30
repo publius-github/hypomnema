@@ -13,6 +13,7 @@ const TEXT_COLOR_ROWS = [
   ["Weekly focus", "weekly_focus_color", "#6091ff", "#2563eb"],
   ["Day reminders", "reminder_color", "#a8b0bc", "#58606c"],
   ["Day header (weekday, date)", "day_header_color", "#e6e9ee", "#171a1f"],
+  ["Weekday marker ([SAT#1])", "dow_label_color", "#a8b0bc", "#58606c"],
 ] as const;
 
 export default function AppearanceTab() {
@@ -97,7 +98,7 @@ export default function AppearanceTab() {
           />
         </Field>
 
-        <Field label="Editor font size, px (Journal, Notes, config files)">
+        <Field label="Editor font size (Journal, Notes, config files; same scale as the base size - equal values match the main text)">
           <NumberInput
             value={config.editor_font_size}
             min={10}

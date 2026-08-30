@@ -99,7 +99,7 @@ const MIGRATIONS: &[&str] = &[
         WHERE origin != 'manual' AND origin_date IS NULL
           AND scheduled_date IS NOT NULL AND overdue = 0;",
     // 012: display label for recurring rules pinned to concrete
-    // weekdays ("SAT1", "MON-FRI"); the engine keeps it in sync with
+    // weekdays ("SAT#1", "MON-FRI"); the engine keeps it in sync with
     // the rule's cron on every pass, so no backfill is needed here.
     "ALTER TABLE tasks ADD COLUMN dow_label TEXT;",
 ];

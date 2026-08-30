@@ -78,34 +78,40 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.escape, color: "var(--md-code)" },
 ]);
 
-// The square brackets of links, wiki links and checkboxes stay in the
-// default text color - only the content between them takes the token
-// color. The bracket characters have no tag of their own (LinkMark
-// shares processingInstruction with every other mark; a TaskMarker is
-// one atom node), so they are re-colored with a decoration over the
-// syntax tree.
+// Square brackets (links, wiki links, checkboxes) stay in the default
+// text color - only the content between them takes the token color.
+// Decorating just the LinkMark/TaskMarker nodes made the color jump
+// while typing: a half-typed link is not a Link node yet, so its
+// brackets briefly wore the token color of whatever the parser guessed.
+// Instead EVERY literal [ and ] outside code gets the plain color -
+// parse-independent, so nothing flickers.
 const bracketMark = Decoration.mark({ class: "cm-md-bracket" });
 
 function bracketDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   for (const { from, to } of view.visibleRanges) {
+    // inside code spans/blocks the brackets keep their code color
+    const code: { from: number; to: number }[] = [];
     syntaxTree(view.state).iterate({
       from,
       to,
       enter: (node) => {
-        if (node.name === "LinkMark") {
-          const text = view.state.doc.sliceString(node.from, node.to);
-          for (let i = 0; i < text.length; i++) {
-            if (text[i] === "[" || text[i] === "]") {
-              builder.add(node.from + i, node.from + i + 1, bracketMark);
-            }
-          }
-        } else if (node.name === "TaskMarker" && node.to - node.from >= 2) {
-          builder.add(node.from, node.from + 1, bracketMark);
-          builder.add(node.to - 1, node.to, bracketMark);
+        if (node.name.includes("Code")) {
+          code.push({ from: node.from, to: node.to });
+          return false;
         }
       },
     });
+    const text = view.state.doc.sliceString(from, to);
+    let c = 0;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch !== "[" && ch !== "]") continue;
+      const pos = from + i;
+      while (c < code.length && code[c].to <= pos) c++;
+      if (c < code.length && code[c].from <= pos) continue;
+      builder.add(pos, pos + 1, bracketMark);
+    }
   }
   return builder.finish();
 }
@@ -117,15 +123,50 @@ const plainBrackets = ViewPlugin.fromClass(
       this.decorations = bracketDecorations(view);
     }
     update(update: ViewUpdate) {
-      // the syntax tree finishes parsing asynchronously after the doc
-      // opens - without the tree comparison the initial build sees an
-      // empty tree and the brackets keep their token colors
+      // the tree comparison keeps the code-span exclusion in sync with
+      // the asynchronously finishing parse
       if (
         update.docChanged ||
         update.viewportChanged ||
         syntaxTree(update.state) !== syntaxTree(update.startState)
       ) {
         this.decorations = bracketDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+// Table rows are aligned by character count (lib/markdownTable), which
+// only lines up visually in a monospace font - with a proportional
+// editor font the columns drift no matter how well the source is
+// padded. Table lines therefore always render monospace.
+const tableLineDeco = Decoration.line({ class: "cm-md-table" });
+
+function tableDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const { from, to } of view.visibleRanges) {
+    let pos = from;
+    while (pos <= to) {
+      const line = view.state.doc.lineAt(pos);
+      if (isTableLine(line.text)) {
+        builder.add(line.from, line.from, tableLineDeco);
+      }
+      pos = line.to + 1;
+    }
+  }
+  return builder.finish();
+}
+
+const tableLines = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = tableDecorations(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = tableDecorations(update.view);
       }
     }
   },
@@ -164,6 +205,9 @@ const editorTheme = EditorView.theme({
   // the two-class selector outweighs the single-class token color the
   // highlighter puts on the same span
   ".cm-content .cm-md-bracket": { color: "rgb(var(--color-content))" },
+  ".cm-content .cm-md-table": {
+    fontFamily: 'ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace',
+  },
   "&.cm-focused": { outline: "none" },
   ".cm-line": { padding: "0 12px" },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
@@ -289,6 +333,7 @@ function modeExtensions(mode: EditorMode): Extension[] {
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(markdownHighlight),
         plainBrackets,
+        tableLines,
         markdownLinter(),
       ];
     case "yaml":

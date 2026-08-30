@@ -104,9 +104,12 @@ function applyTheme(config: AppConfig | null) {
     "--editor-font",
     `"${editor}", ui-monospace, SFMono-Regular, Consolas, monospace`,
   );
+  // the editor size setting lives on the same scale as ui_font_size:
+  // the app's main text is text-sm (87.5% of the base), so the editor
+  // applies the same factor - equal settings, equal visible size
   root.style.setProperty(
     "--editor-font-size",
-    `${config?.editor_font_size ?? 14}px`,
+    `${(config?.editor_font_size ?? 16) * 0.875}px`,
   );
   // every text size derives from the root font size (rem-based tokens)
   const size = config?.ui_font_size ?? 16;

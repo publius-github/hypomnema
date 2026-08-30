@@ -77,7 +77,7 @@ struct GeneratedTask<'a> {
     time: Option<&'a str>,
     origin: &'static str,
     cadence: Option<&'static str>,
-    /// Weekday marker of the generating cron ("SAT1"); recurring only.
+    /// Weekday marker of the generating cron ("SAT#1"); recurring only.
     dow_label: Option<String>,
 }
 
@@ -329,7 +329,7 @@ fn generate_recurring(
             continue;
         }
         let cadence = cadence_of(&cron, now);
-        // rules pinned to concrete weekdays carry a [SAT1]-style marker
+        // rules pinned to concrete weekdays carry a [SAT#1]-style marker
         // shown before the task title
         let dow_label = crate::views::weekday_label(&rule.schedule);
         // A missed daily is not overdue work - today has its own
@@ -1011,7 +1011,7 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(label, "SAT1");
+        assert_eq!(label, "SAT#1");
     }
 
     #[test]

@@ -54,7 +54,7 @@ pub struct Task {
     /// which rule and period produced this instance).
     pub rule_key: Option<String>,
     pub period_key: Option<String>,
-    /// "[SAT1]"-style marker for recurring rules whose cron pins
+    /// "[SAT#1]"-style marker for recurring rules whose cron pins
     /// concrete weekdays; None for everything else.
     pub dow_label: Option<String>,
 }
