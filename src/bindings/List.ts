@@ -5,4 +5,8 @@ export type List = { id: number, name: string, sort_order: number, color: string
  * Created by the engine (a `{List}` prefix or Birthdays), not by
  * the user; hidden from the dashboard list zone while empty.
  */
-auto: boolean, };
+auto: boolean, 
+/**
+ * Favorite lists sort ahead of the rest in the list zone.
+ */
+favorite: boolean, };

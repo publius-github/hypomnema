@@ -18,7 +18,7 @@ All working files live under `<vault>/.hypomnema/` (like a repo's `.git`). Never
   .hypomnemaignore                 # gitignore-like filter for the Notes tree
   <user notes>                     # KB root = vault root unless config.kb_path set
   .hypomnema/
-    app.db (+wal/shm)              # WAL mode, migrations in db.rs (12 entries)
+    app.db (+wal/shm)              # WAL mode, migrations in db.rs (13 entries)
     settings/app.yml               # AppConfig, source of truth; SQLite `settings` is a mirror
     config/                        # user YAML configs, seeded with commented samples
       recurring.yml scheduled.yml birthdays.yml
@@ -65,19 +65,19 @@ Three generators per pass: recurring (cron), scheduled events, birthdays. No sep
 - **Dedup**: `rule_runs(rule_key, period_key)` ledger, keys via stable FNV-1a 64. Period keys: recurring `YYYY-MM-DDTHH:MM`, scheduled `YYYY-MM-DD`, birthday `<year>`. Deleted instances never regenerate (tombstones); `repair_orphaned_period` unblocks today/future periods whose task vanished without a deliberate delete.
 - **Catch-up**: window `[now - catchup_days, today + grid_columns - 1]`; missed firings collapse into the single latest one (one overdue copy, not N); `MAX_FIRINGS = 2000` runaway guard; fresh rules start from today (`rule_seen`).
 - **Reconcile**: removing a rule/item removes its future + today's open instances; done instances stay as history. Missing/comment-only `recurring.yml` is treated as transient (generation may run, reconcile must not).
-- **Carry-over**: open pre-today tasks move to today with the overdue mark; priority moves without the mark; dailies are exempt and get rehomed to their firing day; at most one open overdue copy per rule.
-- **Pass phases** (one IMMEDIATE transaction): priority reset -> generate x3 -> carry-over -> retention prune -> purge soft-deleted (>24h, except pending tombstones) -> trim old `rule_runs` -> dedupe errors. Returns `EngineOutcome{generated, carried_over, removed, pruned, errors}`.
+- **Carry-over**: open pre-today tasks move to today with the overdue mark (priority included unless `priority_overdue` is off); dailies are exempt and get rehomed to their firing day; at most one open overdue copy per rule.
+- **Pass phases** (one IMMEDIATE transaction): priority reset -> generate x3 -> carry-over -> retention prune -> clear done list-backlog tasks (`clear_done_list_tasks`) -> purge soft-deleted (>24h, except pending tombstones) -> trim old `rule_runs` -> dedupe errors. Returns `EngineOutcome{generated, carried_over, removed, pruned, errors}`.
 
 ## Core modules
 
-- `tasks.rs` - lists/tasks CRUD; soft delete (`archived_at`) backs the undo toast.
+- `tasks.rs` - lists/tasks CRUD; soft delete (`archived_at`) backs the undo toast; lists carry a `favorite` flag (sorts ahead in the list zone).
 - `tasks_mirror.rs` - Markdown mirror of manual tasks only: one file per list + `scheduled.md`; per-line `^<id>` sync keys; marker first line; gated by `config.tasks_mirror`; folder watcher imports outside edits.
 - `journal.rs` - entry open/save/list/search, template at `config/templates/journal.md`.
 - `kb.rs` - Notes FS layer; `resolve()` blocks path traversal; `.hypomnemaignore` glob filter; trash + 30-day prune.
 - `reminders.rs` - `dashboard_context`: weekly focus (ISO-week pinned via `weekly_focus_state`), day-type reminders, schedule blocks.
 - `views.rs` - read-only projections: upcoming, birthdays, recurring list, calendar outlook, daily streaks, cron weekday labels.
 - `backup.rs` - daily DB snapshot (`VACUUM INTO`) + pre-rewrite config backups, rotation by `backup_keep`, best effort.
-- `db.rs` - migrations (12), refuses a newer-than-known `user_version`; `mirror_settings`.
+- `db.rs` - migrations (13), refuses a newer-than-known `user_version`; `mirror_settings`.
 - `lib.rs` - commands, `AppState`, three debounced watchers: `config/`+settings (reload + engine + `vault-updated`), `tasks/` (mirror import), KB root.
 
 ## Frontend notes

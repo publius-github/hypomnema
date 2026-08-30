@@ -33,8 +33,10 @@ export default function Dashboard() {
   // the snapshot; the modal must survive that (and keep unsaved edits),
   // so fall back to fetching the task by id.
   const [fetchedTask, setFetchedTask] = useState<Task | null>(null);
-  // first visible list in the paged list zone
-  const [listOffset, setListOffset] = useState(0);
+  // first visible list in the paged list zone; store-held so the page
+  // survives switching sections and coming back
+  const listOffset = useAppStore((s) => s.listOffset);
+  const setListOffset = useAppStore((s) => s.setListOffset);
   // live value while dragging the grid/lists divider; null = use config
   const [splitDraft, setSplitDraft] = useState<number | null>(null);
   const zonesRef = useRef<HTMLDivElement | null>(null);
@@ -303,19 +305,34 @@ function ListZone({
 }) {
   const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
+  const listsAlpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   // engine-created lists ({List} prefixes, Birthdays) only group tasks
   // inside day columns; they earn a backlog column only when something
   // unscheduled lands in them
-  const visible = lists.filter(
-    (list) =>
-      !list.auto ||
-      tasks.some(
-        (t) =>
-          t.list_id === list.id &&
-          (!t.scheduled_date || t.priority) &&
-          t.parent_task_id === null,
-      ),
-  );
+  const visible = lists
+    .filter(
+      (list) =>
+        !list.auto ||
+        tasks.some(
+          (t) =>
+            t.list_id === list.id &&
+            (!t.scheduled_date || t.priority) &&
+            t.parent_task_id === null,
+        ),
+    )
+    // favorites always lead; the rest keep creation order or go
+    // alphabetical per the setting
+    .sort((a, b) => {
+      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+      if (listsAlpha) {
+        const byName = a.name.localeCompare(b.name, undefined, {
+          sensitivity: "base",
+          numeric: true,
+        });
+        if (byName !== 0) return byName;
+      }
+      return a.sort_order - b.sort_order || a.id - b.id;
+    });
   const maxOffset = Math.max(0, visible.length - perPage);
   const off = Math.min(offset, maxOffset);
   const page = visible.slice(off, off + perPage);

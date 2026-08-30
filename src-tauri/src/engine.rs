@@ -714,20 +714,25 @@ fn dedupe_legacy_recurring(conn: &Connection) -> Result<usize> {
     Ok(deduped)
 }
 
-/// Moves every open pre-today task to today. Priority tasks ride along
-/// but never get the overdue mark: priority already says "do this now",
-/// the extra red label adds nothing. Dailies are exempt entirely.
-fn move_overdue_to_today(conn: &Connection, today_str: &str) -> Result<usize> {
+/// Moves every open pre-today task to today. With priority_overdue off,
+/// priority tasks ride along without the overdue mark (priority already
+/// says "do this now"); with it on they are marked like any other task.
+/// Dailies are exempt entirely.
+fn move_overdue_to_today(
+    conn: &Connection,
+    today_str: &str,
+    priority_overdue: bool,
+) -> Result<usize> {
     Ok(conn.execute(
         "UPDATE tasks SET scheduled_date = ?1,
-                overdue = CASE WHEN priority = 1 THEN 0 ELSE 1 END
+                overdue = CASE WHEN priority = 1 AND ?2 = 0 THEN 0 ELSE 1 END
          WHERE status != 'done'
            AND archived_at IS NULL
            AND parent_task_id IS NULL
            AND scheduled_date IS NOT NULL
            AND scheduled_date < ?1
            AND (cadence IS NULL OR cadence != 'daily')",
-        [today_str],
+        (today_str, priority_overdue as i64),
     )?)
 }
 
@@ -756,14 +761,14 @@ fn collapse_carried_copies(conn: &Connection, today_str: &str) -> Result<usize> 
     )?)
 }
 
-/// Dailies carried over by earlier app versions and tasks starred after
-/// being carried over drop the overdue mark; a daily moved off its
-/// firing day (older versions carried them over too) goes back home.
-fn rehome_dailies(conn: &Connection) -> Result<()> {
+/// Dailies carried over by earlier app versions drop the overdue mark
+/// (with priority_overdue off, starred tasks do too); a daily moved off
+/// its firing day (older versions carried them over too) goes back home.
+fn rehome_dailies(conn: &Connection, priority_overdue: bool) -> Result<()> {
     conn.execute(
         "UPDATE tasks SET overdue = 0
-         WHERE overdue = 1 AND (cadence = 'daily' OR priority = 1)",
-        [],
+         WHERE overdue = 1 AND (cadence = 'daily' OR (priority = 1 AND ?1 = 0))",
+        [priority_overdue as i64],
     )?;
     conn.execute(
         "UPDATE tasks SET scheduled_date = origin_date
@@ -781,13 +786,41 @@ fn rehome_dailies(conn: &Connection) -> Result<()> {
 /// Daily-cadence tasks are exempt: a daily is never overdue, today has
 /// its own instance - a missed one just stays unchecked in its day.
 /// Returns (carried_over, deduped).
-fn carry_over(conn: &Connection, today: NaiveDate) -> Result<(usize, usize)> {
+fn carry_over(
+    conn: &Connection,
+    today: NaiveDate,
+    priority_overdue: bool,
+) -> Result<(usize, usize)> {
     let today_str = today.format("%Y-%m-%d").to_string();
     let mut deduped = dedupe_legacy_recurring(conn)?;
-    let moved = move_overdue_to_today(conn, &today_str)?;
+    let moved = move_overdue_to_today(conn, &today_str, priority_overdue)?;
     deduped += collapse_carried_copies(conn, &today_str)?;
-    rehome_dailies(conn)?;
+    rehome_dailies(conn, priority_overdue)?;
     Ok((moved, deduped))
+}
+
+/// With clear_done_list_tasks on, done backlog tasks of the list
+/// columns (manual, list-bound, unscheduled or priority-pinned) are
+/// removed once their completion day has passed: the list is a working
+/// queue, not history. Subtasks cascade with the parent row.
+fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usize> {
+    let today_start = now
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .and_then(|naive| Local.from_local_datetime(&naive).earliest())
+        .unwrap_or(now);
+    // completed_at is stored as UTC RFC3339, comparable lexicographically
+    let cutoff = today_start.with_timezone(&Utc).to_rfc3339();
+    Ok(conn.execute(
+        "DELETE FROM tasks
+         WHERE origin = 'manual' AND status = 'done'
+           AND parent_task_id IS NULL
+           AND list_id IS NOT NULL
+           AND (scheduled_date IS NULL OR priority = 1)
+           AND completed_at IS NOT NULL
+           AND completed_at < ?1",
+        [cutoff],
+    )?)
 }
 
 /// Retention pruning (req. 9): with retention_days > 0, done tasks
@@ -849,10 +882,13 @@ pub fn run(
         now,
         &mut outcome,
     )?;
-    let (carried_over, deduped) = carry_over(conn, today)?;
+    let (carried_over, deduped) = carry_over(conn, today, config.priority_overdue)?;
     outcome.carried_over = carried_over;
     outcome.removed += deduped;
     outcome.pruned = prune(conn, config.retention_days, now)?;
+    if config.clear_done_list_tasks {
+        outcome.pruned += clear_done_list_tasks(conn, now)?;
+    }
     // Soft-deleted tasks past their undo window are purged for good.
     // Generated tasks are the exception: their archived row doubles as a
     // tombstone telling repair_orphaned_period "the user deleted this
@@ -1438,17 +1474,17 @@ mod tests {
     }
 
     #[test]
-    fn priority_task_carries_over_without_overdue_mark() {
-        let (conn, dir) = setup("priority-carry");
-        conn.execute(
-            "INSERT INTO tasks (title, scheduled_date, priority, created_at)
-             VALUES ('starred', '2026-08-27', 1, '2026-08-27T00:00:00+00:00'),
-                    ('plain', '2026-08-27', 0, '2026-08-27T00:00:00+00:00')",
-            [],
-        )
-        .unwrap();
-        run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
-        let rows: Vec<(String, String, i64)> = {
+    fn priority_carry_over_overdue_follows_the_setting() {
+        let seed = |conn: &Connection| {
+            conn.execute(
+                "INSERT INTO tasks (title, scheduled_date, priority, created_at)
+                 VALUES ('starred', '2026-08-27', 1, '2026-08-27T00:00:00+00:00'),
+                        ('plain', '2026-08-27', 0, '2026-08-27T00:00:00+00:00')",
+                [],
+            )
+            .unwrap();
+        };
+        let rows = |conn: &Connection| -> Vec<(String, String, i64)> {
             let mut stmt = conn
                 .prepare("SELECT title, scheduled_date, overdue FROM tasks ORDER BY title")
                 .unwrap();
@@ -1457,13 +1493,115 @@ mod tests {
                 .unwrap();
             rows.collect::<std::result::Result<_, _>>().unwrap()
         };
+
+        // default: a starred task left unfinished is overdue like any other
+        let (conn, dir) = setup("priority-carry-on");
+        seed(&conn);
+        run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(
-            rows,
+            rows(&conn),
+            vec![
+                ("plain".to_string(), "2026-08-28".to_string(), 1),
+                ("starred".to_string(), "2026-08-28".to_string(), 1),
+            ]
+        );
+
+        // setting off: priority rides along without the mark
+        let (conn, dir) = setup("priority-carry-off");
+        seed(&conn);
+        let cfg = AppConfig {
+            priority_overdue: false,
+            ..config(1, 7, 0)
+        };
+        run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(
+            rows(&conn),
             vec![
                 ("plain".to_string(), "2026-08-28".to_string(), 1),
                 ("starred".to_string(), "2026-08-28".to_string(), 0),
             ]
         );
+    }
+
+    #[test]
+    fn done_list_backlog_tasks_clear_on_day_rollover() {
+        let (conn, dir) = setup("clear-done-lists");
+        conn.execute(
+            "INSERT INTO lists (name, sort_order) VALUES ('Inbox', 0)",
+            [],
+        )
+        .unwrap();
+        let list_id = conn.last_insert_rowid();
+        let insert = |title: &str,
+                      date: Option<&str>,
+                      status: &str,
+                      done_at: Option<&str>,
+                      priority: i64| {
+            conn.execute(
+                "INSERT INTO tasks (title, list_id, scheduled_date, status, completed_at,
+                                    priority, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, '2026-08-25T00:00:00+00:00')",
+                (title, list_id, date, status, done_at, priority),
+            )
+            .unwrap();
+        };
+        // done yesterday: clears; done today: stays; open backlog: stays
+        insert(
+            "old done",
+            None,
+            "done",
+            Some("2026-08-27T15:00:00+00:00"),
+            0,
+        );
+        insert(
+            "fresh done",
+            None,
+            "done",
+            Some("2026-08-28T10:00:00+00:00"),
+            0,
+        );
+        insert("open", None, "todo", None, 0);
+        // starred copy done yesterday clears too (it shows in the list)
+        insert(
+            "starred done",
+            Some("2026-08-27"),
+            "done",
+            Some("2026-08-27T15:00:00+00:00"),
+            1,
+        );
+
+        run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+        let titles: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT title FROM tasks ORDER BY title")
+                .unwrap();
+            let rows = stmt.query_map([], |r| r.get(0)).unwrap();
+            rows.collect::<std::result::Result<_, _>>().unwrap()
+        };
+        assert_eq!(titles, vec!["fresh done".to_string(), "open".to_string()]);
+
+        // with the setting off nothing is touched
+        let (conn2, dir2) = setup("clear-done-lists-off");
+        conn2
+            .execute(
+                "INSERT INTO lists (name, sort_order) VALUES ('Inbox', 0)",
+                [],
+            )
+            .unwrap();
+        conn2
+            .execute(
+                "INSERT INTO tasks (title, list_id, status, completed_at, created_at)
+                 VALUES ('old done', 1, 'done', '2026-08-27T15:00:00+00:00',
+                         '2026-08-25T00:00:00+00:00')",
+                [],
+            )
+            .unwrap();
+        let cfg = AppConfig {
+            clear_done_list_tasks: false,
+            ..config(1, 7, 0)
+        };
+        run(&conn2, &dir2, &cfg, at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(count_tasks(&conn2), 1);
     }
 
     #[test]

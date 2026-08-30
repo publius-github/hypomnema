@@ -43,7 +43,20 @@ function ListColumn({
       ),
     ),
   );
-  const sorted = [...listTasks].sort(compareTasks);
+  // optional alphabetical order for the backlog (timed tasks still pin
+  // to the top via compareTasks); manual drag order otherwise
+  const alpha = config?.list_tasks_sort_alpha ?? false;
+  const sorted = [...listTasks].sort((a, b) => {
+    if (alpha) {
+      if ((a.time === null) !== (b.time === null)) return a.time === null ? 1 : -1;
+      const byTitle = a.title.localeCompare(b.title, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+      if (byTitle !== 0) return byTitle;
+    }
+    return compareTasks(a, b);
+  });
   const { active, postponed, done } = splitDone(
     sorted,
     config?.done_display ?? "inline",
@@ -112,6 +125,21 @@ function ListColumn({
             {list.name}
           </button>
         )}
+        <button
+          className={`text-sm leading-none ${
+            list.favorite
+              ? "text-warn"
+              : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
+          }`}
+          title={
+            list.favorite
+              ? "Remove from favorites"
+              : "Favorite: pin ahead of the other lists"
+          }
+          onClick={() => void useAppStore.getState().toggleListFavorite(list.id)}
+        >
+          {list.favorite ? "★" : "☆"}
+        </button>
         <button
           className="text-xs text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
           title="Archive list"

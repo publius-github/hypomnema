@@ -97,6 +97,18 @@ pub struct AppConfig {
     /// Show a [SAT#1]-style marker before recurring tasks whose cron
     /// pins concrete weekdays.
     pub cron_weekday_labels: bool,
+    /// Order the dashboard list columns alphabetically (favorites still
+    /// come first); off = manual creation order.
+    pub lists_sort_alpha: bool,
+    /// Order the tasks inside a list column alphabetically (timed tasks
+    /// still pin to the top); off = manual drag order.
+    pub list_tasks_sort_alpha: bool,
+    /// At day rollover, remove done backlog tasks from the list columns
+    /// (the list is a working queue, not history).
+    pub clear_done_list_tasks: bool,
+    /// A priority task left unfinished past its day gets the overdue
+    /// mark like any other task; off = priority carries over silently.
+    pub priority_overdue: bool,
     /// Base UI font size in px (the browser default is 16; every text
     /// size in the app scales from it).
     pub ui_font_size: u32,
@@ -183,6 +195,10 @@ impl Default for AppConfig {
             notify_system: true,
             tasks_mirror: true,
             cron_weekday_labels: true,
+            lists_sort_alpha: false,
+            list_tasks_sort_alpha: false,
+            clear_done_list_tasks: true,
+            priority_overdue: true,
             ui_font_size: 16,
             content_color: String::new(),
             content_muted_color: String::new(),
@@ -400,6 +416,16 @@ impl AppConfig {
             ("notify_system", self.notify_system.to_string()),
             ("tasks_mirror", self.tasks_mirror.to_string()),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
+            ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
+            (
+                "list_tasks_sort_alpha",
+                self.list_tasks_sort_alpha.to_string(),
+            ),
+            (
+                "clear_done_list_tasks",
+                self.clear_done_list_tasks.to_string(),
+            ),
+            ("priority_overdue", self.priority_overdue.to_string()),
             ("ui_font_size", self.ui_font_size.to_string()),
             ("content_color", self.content_color.clone()),
             ("content_muted_color", self.content_muted_color.clone()),

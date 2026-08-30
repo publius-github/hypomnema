@@ -18,6 +18,8 @@ pub struct List {
     /// Created by the engine (a `{List}` prefix or Birthdays), not by
     /// the user; hidden from the dashboard list zone while empty.
     pub auto: bool,
+    /// Favorite lists sort ahead of the rest in the list zone.
+    pub favorite: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -151,6 +153,7 @@ fn row_to_list(row: &Row) -> rusqlite::Result<List> {
         color: row.get("color")?,
         archived: row.get::<_, i64>("archived")? != 0,
         auto: row.get::<_, i64>("auto")? != 0,
+        favorite: row.get::<_, i64>("favorite")? != 0,
     })
 }
 
@@ -211,6 +214,17 @@ pub fn list_rename(conn: &Connection, id: i64, name: &str) -> Result<()> {
     let updated = conn.execute(
         "UPDATE lists SET name = ?1 WHERE id = ?2",
         (name.trim(), id),
+    )?;
+    if updated == 0 {
+        return Err(Error::State(format!("list {id} not found")));
+    }
+    Ok(())
+}
+
+pub fn list_set_favorite(conn: &Connection, id: i64, favorite: bool) -> Result<()> {
+    let updated = conn.execute(
+        "UPDATE lists SET favorite = ?1 WHERE id = ?2",
+        (favorite as i64, id),
     )?;
     if updated == 0 {
         return Err(Error::State(format!("list {id} not found")));

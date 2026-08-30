@@ -280,6 +280,21 @@ function TaskCard({
               {subtasks.length}
             </button>
           )}
+          {!overlay && (
+            // delete with the undo toast; a deleted generated instance
+            // never regenerates for the same period (its next period
+            // still fires - that is the rule working as configured)
+            <button
+              className="text-sm leading-none opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+              title="Delete task"
+              onClick={(e) => {
+                e.stopPropagation();
+                void useAppStore.getState().deleteTask(task.id);
+              }}
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
       {expanded && subtasks.length > 0 && (

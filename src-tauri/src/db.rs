@@ -102,6 +102,9 @@ const MIGRATIONS: &[&str] = &[
     // weekdays ("SAT#1", "MON-FRI"); the engine keeps it in sync with
     // the rule's cron on every pass, so no backfill is needed here.
     "ALTER TABLE tasks ADD COLUMN dow_label TEXT;",
+    // 013: favorite lists sort ahead of the rest in the dashboard
+    // list zone.
+    "ALTER TABLE lists ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

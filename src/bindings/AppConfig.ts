@@ -128,6 +128,26 @@ tasks_mirror: boolean,
  */
 cron_weekday_labels: boolean, 
 /**
+ * Order the dashboard list columns alphabetically (favorites still
+ * come first); off = manual creation order.
+ */
+lists_sort_alpha: boolean, 
+/**
+ * Order the tasks inside a list column alphabetically (timed tasks
+ * still pin to the top); off = manual drag order.
+ */
+list_tasks_sort_alpha: boolean, 
+/**
+ * At day rollover, remove done backlog tasks from the list columns
+ * (the list is a working queue, not history).
+ */
+clear_done_list_tasks: boolean, 
+/**
+ * A priority task left unfinished past its day gets the overdue
+ * mark like any other task; off = priority carries over silently.
+ */
+priority_overdue: boolean, 
+/**
  * Base UI font size in px (the browser default is 16; every text
  * size in the app scales from it).
  */

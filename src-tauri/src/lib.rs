@@ -406,6 +406,11 @@ async fn list_rename(state: State<'_, AppState>, id: i64, name: String) -> Resul
 }
 
 #[tauri::command]
+async fn list_set_favorite(state: State<'_, AppState>, id: i64, favorite: bool) -> Result<()> {
+    with_conn(&state, |conn| tasks::list_set_favorite(conn, id, favorite))
+}
+
+#[tauri::command]
 async fn list_archive(state: State<'_, AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::list_archive(conn, id))?;
     mirror_export(&state);
@@ -910,6 +915,7 @@ pub fn run() {
             lists_all,
             list_create,
             list_rename,
+            list_set_favorite,
             list_archive,
             lists_archived,
             list_unarchive,

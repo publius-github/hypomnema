@@ -22,11 +22,15 @@ export default function QuickAdd({ target }: { target: Partial<NewTask> }) {
     <form
       onSubmit={(e) => {
         e.preventDefault();
+        // Enter submits and keeps the input focused for the next task;
+        // Escape or clicking elsewhere ends the streak
         if (title.trim()) {
           void createTask({ title: title.trim(), ...target });
+          setTitle("");
+        } else {
+          setTitle("");
+          setOpen(false);
         }
-        setTitle("");
-        setOpen(false);
       }}
     >
       <input

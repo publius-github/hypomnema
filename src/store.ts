@@ -33,6 +33,10 @@ interface AppState {
   /// window follows it so past days are browsable in place
   gridOffset: number;
   setGridOffset: (offset: number) => void;
+  /// first visible list in the paged list zone; lives here so the page
+  /// survives section switches
+  listOffset: number;
+  setListOffset: (offset: number) => void;
   /// set to jump to Notes with a config file opened (error banner,
   /// focus line, Settings links)
   kbOpenConfig: string | null;
@@ -79,6 +83,8 @@ interface AppState {
   createList: (name: string) => Promise<void>;
   renameList: (id: number, name: string) => Promise<void>;
   archiveList: (id: number) => Promise<void>;
+  /// favorite lists sort ahead of the rest in the dashboard list zone
+  toggleListFavorite: (id: number) => Promise<void>;
 }
 
 /** "#a1b2c3" -> "161 178 195" (the space-separated form the theme
@@ -359,6 +365,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  toggleListFavorite: async (id) => {
+    const list = get().lists.find((l) => l.id === id);
+    if (!list) return;
+    const favorite = !list.favorite;
+    set((s) => ({
+      lists: s.lists.map((l) => (l.id === id ? { ...l, favorite } : l)),
+    }));
+    try {
+      await invoke("list_set_favorite", { id, favorite });
+    } catch (e) {
+      set((s) => ({
+        lists: s.lists.map((l) =>
+          l.id === id ? { ...l, favorite: !favorite } : l,
+        ),
+        error: String(e),
+      }));
+    }
+  },
+
   archiveList: async (id) => {
     try {
       await invoke("list_archive", { id });
@@ -388,6 +413,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ gridOffset });
     void get().refresh();
   },
+  listOffset: 0,
+  setListOffset: (listOffset) => set({ listOffset }),
   kbOpenConfig: null,
   openConfigFile: (file) => set({ section: "kb", kbOpenConfig: file }),
   kbExpanded: [],
