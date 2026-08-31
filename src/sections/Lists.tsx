@@ -56,10 +56,8 @@ export default function Lists() {
       onDragEnd={dnd.onDragEnd}
       onDragCancel={dnd.onDragCancel}
     >
-      <div className="flex min-h-full flex-col gap-3 p-4 pt-0">
-        {/* sticky header: the New list button and the column control
-            stay on screen while the grid scrolls */}
-        <div className="sticky top-0 z-10 -mx-4 flex items-center gap-2 bg-surface px-4 py-3">
+      <div className="flex min-h-full flex-col gap-3 p-4">
+        <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">Lists</span>
           <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
             <span>Columns</span>
@@ -79,7 +77,6 @@ export default function Lists() {
               ))}
             </select>
           </div>
-          <NewListForm />
         </div>
         <div className="flex items-start gap-3">
           <div
@@ -99,31 +96,34 @@ export default function Lists() {
               </div>
             ))}
           </div>
-          {/* the same All-lists index the dashboard list zone has; here
-              everything is already on the page, so a click scrolls the
-              column into view and flashes it. Sticky below the sticky
-              header, so it stays at hand. */}
-          {visible.length > columns && (
-            <div className="sticky top-[68px] flex w-40 shrink-0 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
-              <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
-                All lists
+          {/* sticky right rail, same layout as the dashboard list zone:
+              the New list button on top, then the All-lists index - both
+              stay on screen while the grid scrolls. A click on the index
+              scrolls the column into view and flashes it. */}
+          <div className="sticky top-4 flex w-40 shrink-0 flex-col gap-3">
+            <NewListForm />
+            {visible.length > columns && (
+              <div className="flex flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
+                <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+                  All lists
+                </div>
+                {visible.map((list) => (
+                  <button
+                    key={list.id}
+                    className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
+                      highlightId === list.id
+                        ? "bg-accent/15 text-accent"
+                        : "text-content-muted hover:bg-line/40 hover:text-content"
+                    }`}
+                    title={`Scroll to "${list.name}"`}
+                    onClick={() => jumpTo(list.id)}
+                  >
+                    {list.name}
+                  </button>
+                ))}
               </div>
-              {visible.map((list) => (
-                <button
-                  key={list.id}
-                  className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
-                    highlightId === list.id
-                      ? "bg-accent/15 text-accent"
-                      : "text-content-muted hover:bg-line/40 hover:text-content"
-                  }`}
-                  title={`Scroll to "${list.name}"`}
-                  onClick={() => jumpTo(list.id)}
-                >
-                  {list.name}
-                </button>
-              ))}
-            </div>
-          )}
+            )}
+          </div>
         </div>
         {visible.length === 0 && (
           <div className="flex flex-1 items-center justify-center text-content-muted">
