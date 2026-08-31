@@ -217,6 +217,38 @@ export default function AppearanceTab() {
           />
         </div>
 
+        <SectionTitle>Section plates</SectionTitle>
+
+        <span className="text-xs text-content-muted">
+          Colors of the section header plates inside a column. Empty keeps
+          the neutral plate style; General also needs cadence colors on.
+        </span>
+        {(
+          [
+            ["General", "cadence_color_general"],
+            ["Postponed", "postponed_plate_color"],
+            ["Done", "done_plate_color"],
+          ] as const
+        ).map(([label, key]) => (
+          <div key={key} className="flex items-center gap-2">
+            <span className="w-24 text-xs text-content-muted">{label}</span>
+            <ColorPicker
+              value={config[key] || "#6b7280"}
+              onChange={(color) => void updateConfig({ [key]: color })}
+            />
+            {config[key] ? (
+              <button
+                className="text-xs text-content-muted hover:text-content"
+                onClick={() => void updateConfig({ [key]: "" })}
+              >
+                reset to neutral
+              </button>
+            ) : (
+              <span className="text-xs text-content-muted">neutral</span>
+            )}
+          </div>
+        ))}
+
         <SectionTitle>Editor colors</SectionTitle>
 
         <section className="flex flex-col gap-2">
@@ -292,11 +324,24 @@ export default function AppearanceTab() {
                 onCommit={(n) => void updateConfig({ category_block_gap: n })}
               />
             </label>
+            <label className="flex w-40 flex-col gap-1">
+              <span className="text-xs text-content-muted">
+                Before Postponed/Done
+              </span>
+              <NumberInput
+                value={config.done_section_gap}
+                min={0}
+                onCommit={(n) =>
+                  void updateConfig({ done_section_gap: Math.min(400, n) })
+                }
+              />
+            </label>
           </div>
           <span className="text-xs text-content-muted">
-            Sections are the cadence groups plus Postponed and Done;
-            category blocks group tasks by their {"{X}"} prefix or list
-            inside a section. All values in px.
+            Sections are the cadence groups; the Postponed and Done blocks
+            take their own gap so they can sit visibly lower. Category
+            blocks group tasks by their {"{X}"} prefix or list inside a
+            section. All values in px.
           </span>
         </section>
     </>

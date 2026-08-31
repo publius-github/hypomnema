@@ -90,6 +90,10 @@ pub struct AppConfig {
     pub section_gap: u32,
     /// Vertical gap between {Category} blocks inside a section, px.
     pub category_block_gap: u32,
+    /// Vertical gap before the Postponed and Done sections of a column
+    /// (done_display = separate), px; lets them sit visibly below the
+    /// active tasks instead of blending in.
+    pub done_section_gap: u32,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -107,11 +111,17 @@ pub struct AppConfig {
     /// Show a [SAT#1]-style marker before recurring tasks whose cron
     /// pins concrete weekdays.
     pub cron_weekday_labels: bool,
+    /// With cron_weekday_labels on, rules free on both day fields wear
+    /// an [EVERYDAY] marker instead of going unlabeled.
+    pub cron_everyday_label: bool,
     /// Order the dashboard list columns alphabetically (favorites still
     /// come first); off = manual creation order.
     pub lists_sort_alpha: bool,
     /// Grid columns on the dedicated Lists page.
     pub lists_page_columns: u32,
+    /// Lists page: stretch every list column to its grid row's height so
+    /// the rows line up; off = each column takes its natural height.
+    pub lists_page_align_rows: bool,
     /// Day columns on the dedicated Days page (its own width, not tied
     /// to the dashboard grid). 0 is a legacy "follow the dashboard"
     /// value that sanitize resolves to grid_columns.
@@ -153,6 +163,11 @@ pub struct AppConfig {
     /// Date chip of a dated list task inside its LIST column; empty =
     /// the exact-date cadence color. Day columns always use that color.
     pub list_date_chip_color: String,
+    /// Section plate colors: the General cadence group and the Postponed
+    /// and Done blocks; empty = the neutral plate style.
+    pub cadence_color_general: String,
+    pub postponed_plate_color: String,
+    pub done_plate_color: String,
     /// The card stripe of a dated list task keeps the exact-date color
     /// inside its list too; off = the list color rules there. Day
     /// columns always use the exact-date color.
@@ -230,14 +245,17 @@ impl Default for AppConfig {
             task_gap: 6,
             section_gap: 12,
             category_block_gap: 12,
+            done_section_gap: 12,
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
             notify_system: true,
             tasks_mirror: true,
             cron_weekday_labels: true,
+            cron_everyday_label: true,
             lists_sort_alpha: false,
             lists_page_columns: 4,
+            lists_page_align_rows: true,
             days_page_columns: 7,
             days_today_only: false,
             list_tasks_sort_alpha: false,
@@ -255,6 +273,9 @@ impl Default for AppConfig {
             day_header_color: String::new(),
             dow_label_color: String::new(),
             list_date_chip_color: String::new(),
+            cadence_color_general: String::new(),
+            postponed_plate_color: String::new(),
+            done_plate_color: String::new(),
             list_exact_stripe: false,
             md_preset: "vscode".into(),
             // custom starts from the Dark+ values
@@ -339,6 +360,9 @@ impl AppConfig {
         self.task_gap = self.task_gap.min(48);
         self.section_gap = self.section_gap.min(48);
         self.category_block_gap = self.category_block_gap.min(48);
+        // deliberately roomier than the other gaps: its point is pushing
+        // Postponed/Done visibly below the active tasks
+        self.done_section_gap = self.done_section_gap.min(400);
         self.ui_font = self.ui_font.trim().to_string();
         self.editor_font = self.editor_font.trim().to_string();
         // hex colors land in inline styles; anything malformed falls
@@ -399,6 +423,9 @@ impl AppConfig {
         sanitize_optional_color(&mut self.day_header_color);
         sanitize_optional_color(&mut self.dow_label_color);
         sanitize_optional_color(&mut self.list_date_chip_color);
+        sanitize_optional_color(&mut self.cadence_color_general);
+        sanitize_optional_color(&mut self.postponed_plate_color);
+        sanitize_optional_color(&mut self.done_plate_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -487,14 +514,20 @@ impl AppConfig {
             ("task_gap", self.task_gap.to_string()),
             ("section_gap", self.section_gap.to_string()),
             ("category_block_gap", self.category_block_gap.to_string()),
+            ("done_section_gap", self.done_section_gap.to_string()),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
             ("notify_system", self.notify_system.to_string()),
             ("tasks_mirror", self.tasks_mirror.to_string()),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
+            ("cron_everyday_label", self.cron_everyday_label.to_string()),
             ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
             ("lists_page_columns", self.lists_page_columns.to_string()),
+            (
+                "lists_page_align_rows",
+                self.lists_page_align_rows.to_string(),
+            ),
             ("days_page_columns", self.days_page_columns.to_string()),
             ("days_today_only", self.days_today_only.to_string()),
             (
@@ -526,6 +559,9 @@ impl AppConfig {
             ("day_header_color", self.day_header_color.clone()),
             ("dow_label_color", self.dow_label_color.clone()),
             ("list_date_chip_color", self.list_date_chip_color.clone()),
+            ("cadence_color_general", self.cadence_color_general.clone()),
+            ("postponed_plate_color", self.postponed_plate_color.clone()),
+            ("done_plate_color", self.done_plate_color.clone()),
             ("list_exact_stripe", self.list_exact_stripe.to_string()),
             ("md_preset", self.md_preset.clone()),
             ("md_color_heading", self.md_color_heading.clone()),

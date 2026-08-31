@@ -8,7 +8,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { memo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { compareTasks, splitDone } from "../lib/tasks";
+import { compareTasks, splitDone, tintStyle } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import ListModal from "./ListModal";
@@ -18,9 +18,15 @@ import type { List, Task } from "../types";
 function ListColumn({
   list,
   onOpenTask,
+  fill = false,
+  highlight = false,
 }: {
   list: List;
   onOpenTask: (id: number) => void;
+  /** stretch to the parent's height (Lists page row alignment) */
+  fill?: boolean;
+  /** flash ring after a jump from the All-lists index */
+  highlight?: boolean;
 }) {
   const config = useAppStore((s) => s.config);
   const renameList = useAppStore((s) => s.renameList);
@@ -69,21 +75,28 @@ function ListColumn({
   const prioritized = active.filter((t) => t.priority);
   const rest = active.filter((t) => !t.priority);
 
-  // configurable vertical rhythm, same tokens the day columns use
+  // configurable vertical rhythm, same tokens the day columns use;
+  // Postponed/Done sit behind their own configurable gap
   const taskGap = config?.task_gap ?? 6;
   const sectionGap = config?.section_gap ?? 12;
+  const doneSectionGap = config?.done_section_gap ?? 12;
 
   const card = (task: Task) => (
     <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
   );
-  // same plate style as the day-column section headers
-  const section = (label: string, items: Task[]) =>
+  // same plate style as the day-column section headers, optional color
+  const section = (label: string, items: Task[], plateColor: string) =>
     items.length > 0 && (
       <div
         className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: sectionGap }}
+        style={{ rowGap: taskGap, marginTop: doneSectionGap }}
       >
-        <div className="flex items-center gap-1.5 rounded bg-line/40 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-content">
+        <div
+          className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
+            plateColor ? "" : "bg-line/40 text-content"
+          }`}
+          style={plateColor ? tintStyle(plateColor) : undefined}
+        >
           <span>{label}</span>
           <span className="h-px flex-1 bg-current opacity-30" />
         </div>
@@ -102,7 +115,9 @@ function ListColumn({
       ref={setNodeRef}
       className={`flex min-w-0 flex-col rounded-lg border ${
         isOver ? "border-accent" : "border-line"
-      } bg-surface-alt/50`}
+      } bg-surface-alt/50 ${fill ? "h-full" : ""} ${
+        highlight ? "ring-2 ring-accent" : ""
+      }`}
       onDoubleClick={openOnFreeSpace}
     >
       <div
@@ -234,8 +249,8 @@ function ListColumn({
             </SortableContext>
           </div>
         )}
-        {section("Postponed", postponed)}
-        {section("Done", done)}
+        {section("Postponed", postponed, config?.postponed_plate_color ?? "")}
+        {section("Done", done, config?.done_plate_color ?? "")}
       </div>
     </div>
   );

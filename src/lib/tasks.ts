@@ -210,6 +210,9 @@ export function cadenceColor(
   switch (key) {
     case "exact":
       return config.cadence_color_exact;
+    case "general":
+      // optional: empty keeps the neutral plate style
+      return config.cadence_color_general || null;
     case "daily":
       return config.cadence_color_daily;
     case "weekly":

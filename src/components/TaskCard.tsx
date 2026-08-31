@@ -105,9 +105,13 @@ function TaskCard({
   const categoryColor = useAppStore(
     (s) => s.config?.category_color ?? "#3b82f6",
   );
-  // [SAT#1]-style marker for weekday-pinned recurring rules
+  // [SAT#1]-style marker for weekday-pinned recurring rules; rules
+  // firing every day carry [EVERYDAY] behind its own toggle
   const dowLabel = useAppStore((s) =>
-    (s.config?.cron_weekday_labels ?? true) ? task.dow_label : null,
+    (s.config?.cron_weekday_labels ?? true) &&
+    (task.dow_label !== "EVERYDAY" || (s.config?.cron_everyday_label ?? true))
+      ? task.dow_label
+      : null,
   );
   const dowColor = useAppStore((s) => s.config?.dow_label_color || "");
   const chipStyle = tintStyle(categoryColor);
@@ -241,9 +245,11 @@ function TaskCard({
           onClick={() => onOpen?.(task.id)}
         >
           {dowLabel && (
+            // on a done card the marker joins the struck-through muted
+            // text instead of keeping its own bright color
             <span
               className="text-content-muted"
-              style={dowColor ? { color: dowColor } : undefined}
+              style={dowColor && !done ? { color: dowColor } : undefined}
               title="Weekday pinned by the rule's cron"
             >
               [{dowLabel}]{" "}
@@ -253,10 +259,8 @@ function TaskCard({
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted">
           {!overlay &&
-            // priority is a manual-task concept (custom lists and the
-            // General section); generated tasks mirror their config
-            task.origin === "manual" &&
-            // in a day column priority reads as a loud yellow label; in
+            // any task can carry priority, generated ones included; in
+            // a day column priority reads as a loud yellow label, in
             // a list column it stays a star toggle
             (task.priority && showList ? (
               <button
@@ -338,7 +342,7 @@ function TaskCard({
       {expanded && subtasks.length > 0 && (
         <div className="flex flex-col gap-1 border-t border-line px-2 py-1.5 pl-7">
           {subtasks.map((sub) => (
-            <label key={sub.id} className="flex items-start gap-1.5 text-xs">
+            <div key={sub.id} className="group/sub flex items-start gap-1.5 text-xs">
               <input
                 type="checkbox"
                 className="mt-0.5"
@@ -351,18 +355,38 @@ function TaskCard({
                 }
               />
               <span
-                className={
+                className={`flex-1 ${
                   sub.status === "done"
                     ? "text-content-muted line-through"
                     : sub.status === "postponed"
                       ? "text-warn"
                       : ""
-                }
+                }`}
                 title={sub.status === "postponed" ? "Postponed" : undefined}
               >
                 {sub.title}
               </span>
-            </label>
+              {/* subtasks postpone too, same semantics as the task
+                  dialog's arrow */}
+              <button
+                className={`shrink-0 ${
+                  sub.status === "postponed"
+                    ? "text-warn"
+                    : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover/sub:opacity-100"
+                }`}
+                title={
+                  sub.status === "postponed" ? "Back to To Do" : "Postpone"
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void updateTask(sub.id, {
+                    status: sub.status === "postponed" ? "todo" : "postponed",
+                  });
+                }}
+              >
+                →
+              </button>
+            </div>
           ))}
         </div>
       )}

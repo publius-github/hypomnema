@@ -274,10 +274,32 @@ function ListZone({
   const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
   const listsAlpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
+  // the column just jumped to via the All-lists index wears a short
+  // accent ring, so the eye finds it among the visible page
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  const highlightTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (highlightTimer.current !== null)
+        window.clearTimeout(highlightTimer.current);
+    },
+    [],
+  );
   const visible = orderLists(lists, tasks, listsAlpha);
   const maxOffset = Math.max(0, visible.length - perPage);
   const off = Math.min(offset, maxOffset);
   const page = visible.slice(off, off + perPage);
+
+  const jumpTo = (index: number, id: number) => {
+    setOffset(Math.min(index, maxOffset));
+    setHighlightId(id);
+    if (highlightTimer.current !== null)
+      window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = window.setTimeout(
+      () => setHighlightId(null),
+      2000,
+    );
+  };
 
   const arrow = (delta: number, disabled: boolean, label: string) => (
     <button
@@ -300,7 +322,12 @@ function ListZone({
         }}
       >
         {page.map((list) => (
-          <ListColumn key={list.id} list={list} onOpenTask={onOpenTask} />
+          <ListColumn
+            key={list.id}
+            list={list}
+            onOpenTask={onOpenTask}
+            highlight={highlightId === list.id}
+          />
         ))}
       </div>
       {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
@@ -324,7 +351,7 @@ function ListZone({
                       : "text-content-muted hover:bg-line/40 hover:text-content"
                   }`}
                   title={`Jump to "${list.name}"`}
-                  onClick={() => setOffset(Math.min(i, maxOffset))}
+                  onClick={() => jumpTo(i, list.id)}
                 >
                   {list.name}
                 </button>

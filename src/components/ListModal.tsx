@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { compareTasks, priorityPatch } from "../lib/tasks";
+import { compareTasks, nextStatus, priorityPatch } from "../lib/tasks";
 import { ColorPicker } from "./form";
 import TaskModal from "./TaskModal";
 import type { List, Task } from "../types";
@@ -227,17 +227,66 @@ function ListTaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
 
   return (
     <div className="group flex items-center gap-2 rounded-md border border-line bg-surface-alt px-2 py-1 text-sm">
-      <input
-        type="checkbox"
-        style={{ accentColor: "var(--color-done)" }}
-        checked={done}
-        onChange={() =>
-          void updateTask(task.id, { status: done ? "todo" : "done" })
+      {/* the same three-state cycle the task cards use, so a postponed
+          task is visible here too, not just done/not-done */}
+      <button
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+          task.status === "postponed"
+            ? "border-warn bg-warn text-white"
+            : done
+              ? "text-white"
+              : "border-content-muted text-content-muted"
+        }`}
+        style={
+          done
+            ? {
+                backgroundColor: "var(--color-done)",
+                borderColor: "var(--color-done)",
+              }
+            : undefined
         }
-      />
+        title={`Status: ${task.status} (click: ${nextStatus(task.status)})`}
+        onClick={() =>
+          void updateTask(task.id, { status: nextStatus(task.status) })
+        }
+      >
+        {done && (
+          <svg
+            viewBox="0 0 12 12"
+            className="h-3 w-3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M2.5 6.5l2.5 2.5l4.5 -5" />
+          </svg>
+        )}
+        {task.status === "postponed" && (
+          <svg
+            viewBox="0 0 12 12"
+            className="h-3 w-3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M1.5 6h8" />
+            <path d="M6.5 3l3 3-3 3" />
+          </svg>
+        )}
+      </button>
       <button
         className={`min-w-0 flex-1 truncate text-left ${
-          done ? "text-content-muted line-through" : ""
+          done
+            ? "text-content-muted line-through"
+            : task.status === "postponed"
+              ? "text-warn"
+              : ""
         }`}
         title="Open task (subtasks, description, date)"
         onClick={onOpen}

@@ -210,14 +210,22 @@ pub struct OutlookEvent {
 pub(crate) fn weekday_label(schedule: &str) -> Option<String> {
     let fields: Vec<&str> = schedule.split_whitespace().collect();
     let field = *fields.last()?;
-    if field.contains('*') || field == "?" || field.is_empty() {
+    let unrestricted = |f: &str| f == "*" || f == "?";
+    let dom_unrestricted = if fields.len() >= 3 {
+        unrestricted(fields[fields.len() - 3])
+    } else {
+        true
+    };
+    // a rule free on both day fields fires every day: the EVERYDAY
+    // marker (display gated by config.cron_everyday_label)
+    if unrestricted(field) {
+        return dom_unrestricted.then(|| "EVERYDAY".to_string());
+    }
+    if field.contains('*') || field.is_empty() {
         return None;
     }
-    if fields.len() >= 3 {
-        let dom = fields[fields.len() - 3];
-        if dom != "*" && dom != "?" {
-            return None;
-        }
+    if !dom_unrestricted {
+        return None;
     }
     fn map_days(part: &str) -> String {
         const NAMES: [&str; 8] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -295,6 +303,7 @@ pub fn calendar_outlook(
             // marker so a projected entry says which weekday rule it is
             let dow = if config.cron_weekday_labels {
                 weekday_label(&rule.schedule)
+                    .filter(|l| l != "EVERYDAY" || config.cron_everyday_label)
             } else {
                 None
             };
@@ -527,8 +536,12 @@ mod tests {
         assert_eq!(weekday_label("0 9 * * 6#1").as_deref(), Some("SAT#1"));
         assert_eq!(weekday_label("0 9 * * 1-5").as_deref(), Some("MON-FRI"));
         assert_eq!(weekday_label("0 9 * * mon,fri").as_deref(), Some("MON,FRI"));
-        assert_eq!(weekday_label("0 9 * * *"), None);
+        // both day fields free = fires every day
+        assert_eq!(weekday_label("0 9 * * *").as_deref(), Some("EVERYDAY"));
+        assert_eq!(weekday_label("0 9 * * ?").as_deref(), Some("EVERYDAY"));
+        // day-of-month restricted: not an everyday rule, no marker
         assert_eq!(weekday_label("0 9 1 * ?"), None);
+        assert_eq!(weekday_label("0 9 1 * *"), None);
         assert_eq!(weekday_label("0 9 * * */2"), None);
         // a restricted day-of-month ORs with the weekday in cron, so the
         // rule fires outside the named weekdays - no marker

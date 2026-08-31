@@ -66,6 +66,17 @@ export default function TasksTab() {
           onChange={(v) => void updateConfig({ cron_weekday_labels: v })}
         />
 
+        {config.cron_weekday_labels && (
+          <div className="pl-6">
+            <Toggle
+              checked={config.cron_everyday_label}
+              label="[EVERYDAY] marker on daily rules"
+              hint="Rules free on both day fields (e.g. 0 9 * * *) wear an [EVERYDAY] marker instead of going unlabeled."
+              onChange={(v) => void updateConfig({ cron_everyday_label: v })}
+            />
+          </div>
+        )}
+
         <SectionTitle>Lists</SectionTitle>
 
         <Toggle
@@ -80,6 +91,13 @@ export default function TasksTab() {
           label="Sort tasks inside lists alphabetically"
           hint="Backlog tasks in a list column order by title instead of manual drag order; timed tasks still pin to the top."
           onChange={(v) => void updateConfig({ list_tasks_sort_alpha: v })}
+        />
+
+        <Toggle
+          checked={config.lists_page_align_rows}
+          label="Align list rows on the Lists page"
+          hint="Every list column stretches to its grid row's height, so the rows line up instead of forming a ragged mosaic. Off = each column takes its natural height."
+          onChange={(v) => void updateConfig({ lists_page_align_rows: v })}
         />
 
         <Toggle

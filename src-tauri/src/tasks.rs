@@ -422,10 +422,11 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
         } else {
             None
         };
+        // overdue survives the status cycle: cycling an overdue task
+        // through done and back to todo must not silently drop the mark
+        // (the UI hides it on done cards; the flag stays truthful)
         conn.execute(
-            "UPDATE tasks SET status = ?1, completed_at = ?2,
-                    overdue = CASE WHEN ?1 = 'done' THEN 0 ELSE overdue END
-             WHERE id = ?3",
+            "UPDATE tasks SET status = ?1, completed_at = ?2 WHERE id = ?3",
             (status, completed_at, id),
         )?;
     }
@@ -465,20 +466,6 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
         )?;
     }
     if let Some(priority) = patch.priority {
-        // the engine also clears the flag on generated tasks every pass,
-        // but the API must refuse up front instead of silently reverting
-        if priority {
-            let origin: String =
-                conn.query_row("SELECT origin FROM tasks WHERE id = ?1", [id], |row| {
-                    row.get(0)
-                })?;
-            if origin != "manual" {
-                return Err(Error::State(
-                    "priority is only available on manual tasks; generated tasks mirror their config"
-                        .into(),
-                ));
-            }
-        }
         conn.execute(
             "UPDATE tasks SET priority = ?1 WHERE id = ?2",
             (priority as i64, id),
@@ -582,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn priority_rejected_on_generated_tasks() {
+    fn priority_allowed_on_generated_tasks() {
         let conn = conn();
         conn.execute(
             "INSERT INTO tasks (title, created_at, origin, rule_key, period_key)
@@ -591,17 +578,17 @@ mod tests {
         )
         .unwrap();
         let id = conn.last_insert_rowid();
-        let result = task_update(
+        let starred = task_update(
             &conn,
             id,
             &TaskPatch {
                 priority: Some(true),
                 ..Default::default()
             },
-        );
-        assert!(result.is_err());
-        // clearing the flag stays allowed
-        task_update(
+        )
+        .unwrap();
+        assert!(starred.priority);
+        let cleared = task_update(
             &conn,
             id,
             &TaskPatch {
@@ -610,6 +597,7 @@ mod tests {
             },
         )
         .unwrap();
+        assert!(!cleared.priority);
     }
 
     #[test]
@@ -798,7 +786,9 @@ mod tests {
     }
 
     #[test]
-    fn done_clears_overdue_flag() {
+    fn overdue_survives_the_status_cycle() {
+        // done -> postponed -> todo on an overdue task must not lose the
+        // mark; the UI hides it on done cards, the flag stays truthful
         let conn = conn();
         let task = task_create(
             &conn,
@@ -811,16 +801,18 @@ mod tests {
         conn.execute("UPDATE tasks SET overdue = 1 WHERE id = ?1", [task.id])
             .unwrap();
 
-        let done = task_update(
-            &conn,
-            task.id,
-            &TaskPatch {
-                status: Some("done".into()),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert!(!done.overdue);
+        for status in ["done", "postponed", "todo"] {
+            let updated = task_update(
+                &conn,
+                task.id,
+                &TaskPatch {
+                    status: Some(status.into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert!(updated.overdue, "overdue lost at status '{status}'");
+        }
     }
 
     #[test]

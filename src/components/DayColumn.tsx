@@ -78,20 +78,28 @@ function DayColumn({
   // the card stripes), framing the section like the priority label does
   const groupColor = (key: string): string | null => cadenceColor(config, key);
 
-  // configurable vertical rhythm: cards, sections, category blocks
+  // configurable vertical rhythm: cards, sections, category blocks;
+  // Postponed/Done take their own (roomier) gap so they can sit
+  // visibly below the active tasks
   const taskGap = config?.task_gap ?? 6;
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.category_block_gap ?? 12;
+  const doneSectionGap = config?.done_section_gap ?? 12;
 
   // Postponed/Done headers use the same plate style as the cadence
-  // group headers, so every section label reads with the same weight
-  const section = (label: string, items: Task[]) =>
+  // group headers, each with an optional color of its own
+  const section = (label: string, items: Task[], plateColor: string) =>
     items.length > 0 && (
       <div
         className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: sectionGap }}
+        style={{ rowGap: taskGap, marginTop: doneSectionGap }}
       >
-        <div className="flex items-center gap-1.5 rounded bg-line/40 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-content">
+        <div
+          className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
+            plateColor ? "" : "bg-line/40 text-content"
+          }`}
+          style={plateColor ? tintStyle(plateColor) : undefined}
+        >
           <span>{label}</span>
           <span className="h-px flex-1 bg-current opacity-30" />
         </div>
@@ -199,8 +207,8 @@ function DayColumn({
             })}
           </div>
         ))}
-        {section("Postponed", postponed)}
-        {section("Done", done)}
+        {section("Postponed", postponed, config?.postponed_plate_color ?? "")}
+        {section("Done", done, config?.done_plate_color ?? "")}
         <QuickAdd target={{ scheduled_date: date }} />
       </div>
     </div>

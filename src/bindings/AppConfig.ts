@@ -109,6 +109,12 @@ section_gap: number,
  */
 category_block_gap: number, 
 /**
+ * Vertical gap before the Postponed and Done sections of a column
+ * (done_display = separate), px; lets them sit visibly below the
+ * active tasks instead of blending in.
+ */
+done_section_gap: number, 
+/**
  * Order of the cadence sections inside a day column.
  */
 cadence_group_order: Array<string>, 
@@ -138,6 +144,11 @@ tasks_mirror: boolean,
  */
 cron_weekday_labels: boolean, 
 /**
+ * With cron_weekday_labels on, rules free on both day fields wear
+ * an [EVERYDAY] marker instead of going unlabeled.
+ */
+cron_everyday_label: boolean, 
+/**
  * Order the dashboard list columns alphabetically (favorites still
  * come first); off = manual creation order.
  */
@@ -146,6 +157,11 @@ lists_sort_alpha: boolean,
  * Grid columns on the dedicated Lists page.
  */
 lists_page_columns: number, 
+/**
+ * Lists page: stretch every list column to its grid row's height so
+ * the rows line up; off = each column takes its natural height.
+ */
+lists_page_align_rows: boolean, 
 /**
  * Day columns on the dedicated Days page (its own width, not tied
  * to the dashboard grid). 0 is a legacy "follow the dashboard"
@@ -210,6 +226,11 @@ dow_label_color: string,
  * the exact-date cadence color. Day columns always use that color.
  */
 list_date_chip_color: string, 
+/**
+ * Section plate colors: the General cadence group and the Postponed
+ * and Done blocks; empty = the neutral plate style.
+ */
+cadence_color_general: string, postponed_plate_color: string, done_plate_color: string, 
 /**
  * The card stripe of a dated list task keeps the exact-date color
  * inside its list too; off = the list color rules there. Day

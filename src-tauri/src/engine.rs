@@ -430,10 +430,13 @@ fn generate_recurring(
 }
 
 /// Reconciles the DB with the config: a rule or item removed from
-/// recurring.yml takes its future instances and today's still-open
-/// ones (incl. overdue carry-overs) with it - the config is the
-/// source of truth for what recurring work exists. Completed
-/// instances stay as history, and a broken file never reaches this
+/// recurring.yml takes its instances with it - future ones, today's
+/// still-open ones (incl. overdue carry-overs), and the pre-today
+/// history that would otherwise keep cluttering the Calendar - the
+/// config is the source of truth for what recurring work exists.
+/// Only a copy already completed TODAY survives, so editing a rule
+/// (which re-identifies it) never makes a just-checked-off task
+/// vanish from the day column. A broken file never reaches this
 /// point, so the last valid state is preserved.
 fn reconcile_recurring(
     conn: &Connection,
@@ -456,32 +459,25 @@ fn reconcile_recurring(
         keys.collect::<std::result::Result<_, _>>()?
     };
     for key in existing.iter().filter(|key| !active.contains(*key)) {
+        // subtasks the user hung on doomed instances go first, or they
+        // would linger as orphan rows
+        conn.execute(
+            "DELETE FROM tasks
+             WHERE parent_task_id IN
+                   (SELECT id FROM tasks
+                    WHERE origin = 'recurring' AND rule_key = ?1
+                      AND (COALESCE(scheduled_date, '') != ?2 OR status != 'done'))",
+            (key, &today_str),
+        )?;
         outcome.removed += conn.execute(
             "DELETE FROM tasks
              WHERE origin = 'recurring' AND rule_key = ?1
-               AND (scheduled_date > ?2
-                    OR (scheduled_date = ?2 AND status != 'done'))",
+               AND (COALESCE(scheduled_date, '') != ?2 OR status != 'done')",
             (key, &today_str),
         )?;
         // Editing a rule re-identifies it: the new key regenerated
-        // today's firing above while this old key still owns a copy of
-        // it - without the two steps below the user sees the task twice
-        // after a rename. (a) An untouched todo copy of the removed key
-        // yields to a same-title-same-day copy from another key;
-        outcome.removed += conn.execute(
-            "DELETE FROM tasks
-             WHERE origin = 'recurring' AND rule_key = ?1 AND status = 'todo'
-               AND archived_at IS NULL
-               AND EXISTS (SELECT 1 FROM tasks live
-                           WHERE live.origin = 'recurring'
-                             AND live.id != tasks.id
-                             AND live.rule_key != ?1
-                             AND live.archived_at IS NULL
-                             AND live.title = tasks.title
-                             AND live.scheduled_date = tasks.scheduled_date)",
-            [key],
-        )?;
-        // (b) a firing already completed under the old identity must not
+        // today's firing above while the old key kept the completed
+        // copy - a firing already done under the old identity must not
         // come back as a fresh todo under the new one.
         conn.execute(
             "DELETE FROM tasks
@@ -875,13 +871,6 @@ pub fn run(
     // connection, and a DEFERRED transaction that reads first would die
     // with SQLITE_BUSY_SNAPSHOT instead of waiting out busy_timeout.
     let tx = rusqlite::Transaction::new_unchecked(conn, rusqlite::TransactionBehavior::Immediate)?;
-    // Policy invariant, not a backfill (those live in db.rs migrations):
-    // priority is a manual-task concept - generated tasks mirror their
-    // config and are pinned by their rule, not by a star.
-    conn.execute(
-        "UPDATE tasks SET priority = 0 WHERE priority = 1 AND origin != 'manual'",
-        [],
-    )?;
     run_recurring(conn, config_dir, config, horizon, now, &mut outcome)?;
     run_scheduled(conn, config_dir, horizon, now, &mut outcome)?;
     run_birthdays(
@@ -1087,7 +1076,9 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(daily, None);
+        // both day fields free = the EVERYDAY marker (display is gated
+        // by config.cron_everyday_label on the frontend)
+        assert_eq!(daily.as_deref(), Some("EVERYDAY"));
     }
 
     #[test]
@@ -1431,7 +1422,9 @@ mod tests {
     }
 
     #[test]
-    fn generated_tasks_lose_the_priority_flag() {
+    fn generated_tasks_keep_the_priority_flag() {
+        // priority can be set on any task, generated ones included; an
+        // engine pass must not strip a star the user placed
         let (conn, dir) = setup("generated-priority");
         fs::write(
             dir.join("recurring.yml"),
@@ -1448,7 +1441,7 @@ mod tests {
                 r.get(0)
             })
             .unwrap();
-        assert_eq!(starred, 0);
+        assert_eq!(starred, 3);
     }
 
     #[test]
@@ -1910,26 +1903,33 @@ mod tests {
     }
 
     #[test]
-    fn removed_rule_takes_open_instances_keeps_done_history() {
+    fn removed_rule_takes_all_instances_history_included() {
         let (conn, dir) = setup("reconcile");
         fs::write(
             dir.join("recurring.yml"),
             "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"a\"\n      - \"b\"\n",
         )
         .unwrap();
-        let now = at("2026-08-28", "12:00:00");
         let cfg = config(1, 7, 0);
-        run(&conn, &dir, &cfg, now).unwrap();
+        run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(count_tasks(&conn), 14);
+        // a completed instance becomes history...
+        conn.execute(
+            "UPDATE tasks SET status = 'done', completed_at = '2026-08-28T13:00:00Z'
+             WHERE title = 'b' AND scheduled_date = '2026-08-28'",
+            [],
+        )
+        .unwrap();
 
-        // drop item 'b': all its open instances go, today's included -
-        // the config is the source of truth for recurring work
+        // ...but dropping item 'b' takes everything: open instances,
+        // today's copy AND the pre-today history that would otherwise
+        // keep showing in the Calendar
         fs::write(
             dir.join("recurring.yml"),
             "tasks:\n  - schedule: \"0 6 * * *\"\n    items:\n      - \"a\"\n",
         )
         .unwrap();
-        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        let outcome = run(&conn, &dir, &cfg, at("2026-08-29", "12:00:00")).unwrap();
         assert_eq!(outcome.removed, 7);
         let b_left: i64 = conn
             .query_row("SELECT COUNT(*) FROM tasks WHERE title = 'b'", [], |r| {
@@ -1937,19 +1937,11 @@ mod tests {
             })
             .unwrap();
         assert_eq!(b_left, 0);
-        let b_future: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM tasks WHERE title = 'b' AND scheduled_date > '2026-08-28'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(b_future, 0);
 
         // a broken file must not wipe anything
         let before = count_tasks(&conn);
         fs::write(dir.join("recurring.yml"), "tasks: [\n").unwrap();
-        let outcome = run(&conn, &dir, &cfg, now).unwrap();
+        let outcome = run(&conn, &dir, &cfg, at("2026-08-29", "13:00:00")).unwrap();
         assert_eq!(outcome.removed, 0);
         assert_eq!(count_tasks(&conn), before);
     }
