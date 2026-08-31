@@ -109,11 +109,12 @@ section_gap: number,
  */
 category_block_gap: number, 
 /**
- * Vertical gap before the Postponed and Done sections of a column
- * (done_display = separate), px; lets them sit visibly below the
- * active tasks instead of blending in.
+ * Vertical gaps before the Postponed and Done sections
+ * (done_display = separate), px; each section and each column kind
+ * (day grid vs custom lists) has its own knob, so they can sit
+ * visibly below the active tasks independently.
  */
-done_section_gap: number, 
+postponed_section_gap: number, done_section_gap: number, list_postponed_section_gap: number, list_done_section_gap: number, 
 /**
  * Order of the cadence sections inside a day column.
  */

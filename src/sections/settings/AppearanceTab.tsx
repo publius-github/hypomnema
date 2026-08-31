@@ -324,22 +324,32 @@ export default function AppearanceTab() {
                 onCommit={(n) => void updateConfig({ category_block_gap: n })}
               />
             </label>
-            <label className="flex w-40 flex-col gap-1">
-              <span className="text-xs text-content-muted">
-                Before Postponed/Done
-              </span>
-              <NumberInput
-                value={config.done_section_gap}
-                min={0}
-                onCommit={(n) =>
-                  void updateConfig({ done_section_gap: Math.min(400, n) })
-                }
-              />
-            </label>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {(
+              [
+                ["Before Postponed (days)", "postponed_section_gap"],
+                ["Before Done (days)", "done_section_gap"],
+                ["Before Postponed (lists)", "list_postponed_section_gap"],
+                ["Before Done (lists)", "list_done_section_gap"],
+              ] as const
+            ).map(([label, key]) => (
+              <label key={key} className="flex w-40 flex-col gap-1">
+                <span className="text-xs text-content-muted">{label}</span>
+                <NumberInput
+                  value={config[key]}
+                  min={0}
+                  onCommit={(n) =>
+                    void updateConfig({ [key]: Math.min(400, n) })
+                  }
+                />
+              </label>
+            ))}
           </div>
           <span className="text-xs text-content-muted">
             Sections are the cadence groups; the Postponed and Done blocks
-            take their own gap so they can sit visibly lower. Category
+            take their own gaps, separately for the day columns and the
+            custom list columns, so they can sit visibly lower. Category
             blocks group tasks by their {"{X}"} prefix or list inside a
             section. All values in px.
           </span>

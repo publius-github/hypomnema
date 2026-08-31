@@ -56,8 +56,10 @@ export default function Lists() {
       onDragEnd={dnd.onDragEnd}
       onDragCancel={dnd.onDragCancel}
     >
-      <div className="flex min-h-full flex-col gap-3 p-4">
-        <div className="flex items-center gap-2">
+      <div className="flex min-h-full flex-col gap-3 p-4 pt-0">
+        {/* sticky header: the New list button and the column control
+            stay on screen while the grid scrolls */}
+        <div className="sticky top-0 z-10 -mx-4 flex items-center gap-2 bg-surface px-4 py-3">
           <span className="text-sm font-semibold">Lists</span>
           <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
             <span>Columns</span>
@@ -99,11 +101,10 @@ export default function Lists() {
           </div>
           {/* the same All-lists index the dashboard list zone has; here
               everything is already on the page, so a click scrolls the
-              column into view and flashes it. Sticky, so it stays at
-              hand - with its own New list form, reachable without
-              scrolling back to the top. */}
+              column into view and flashes it. Sticky below the sticky
+              header, so it stays at hand. */}
           {visible.length > columns && (
-            <div className="sticky top-4 flex w-40 shrink-0 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
+            <div className="sticky top-[68px] flex w-40 shrink-0 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
               <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
                 All lists
               </div>
@@ -121,9 +122,6 @@ export default function Lists() {
                   {list.name}
                 </button>
               ))}
-              <div className="pt-1.5">
-                <NewListForm fluid />
-              </div>
             </div>
           )}
         </div>

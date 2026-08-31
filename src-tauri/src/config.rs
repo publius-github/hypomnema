@@ -90,10 +90,14 @@ pub struct AppConfig {
     pub section_gap: u32,
     /// Vertical gap between {Category} blocks inside a section, px.
     pub category_block_gap: u32,
-    /// Vertical gap before the Postponed and Done sections of a column
-    /// (done_display = separate), px; lets them sit visibly below the
-    /// active tasks instead of blending in.
+    /// Vertical gaps before the Postponed and Done sections
+    /// (done_display = separate), px; each section and each column kind
+    /// (day grid vs custom lists) has its own knob, so they can sit
+    /// visibly below the active tasks independently.
+    pub postponed_section_gap: u32,
     pub done_section_gap: u32,
+    pub list_postponed_section_gap: u32,
+    pub list_done_section_gap: u32,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -245,7 +249,10 @@ impl Default for AppConfig {
             task_gap: 6,
             section_gap: 12,
             category_block_gap: 12,
+            postponed_section_gap: 12,
             done_section_gap: 12,
+            list_postponed_section_gap: 12,
+            list_done_section_gap: 12,
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
@@ -360,9 +367,12 @@ impl AppConfig {
         self.task_gap = self.task_gap.min(48);
         self.section_gap = self.section_gap.min(48);
         self.category_block_gap = self.category_block_gap.min(48);
-        // deliberately roomier than the other gaps: its point is pushing
-        // Postponed/Done visibly below the active tasks
+        // deliberately roomier than the other gaps: their point is
+        // pushing Postponed/Done visibly below the active tasks
+        self.postponed_section_gap = self.postponed_section_gap.min(400);
         self.done_section_gap = self.done_section_gap.min(400);
+        self.list_postponed_section_gap = self.list_postponed_section_gap.min(400);
+        self.list_done_section_gap = self.list_done_section_gap.min(400);
         self.ui_font = self.ui_font.trim().to_string();
         self.editor_font = self.editor_font.trim().to_string();
         // hex colors land in inline styles; anything malformed falls
@@ -514,7 +524,19 @@ impl AppConfig {
             ("task_gap", self.task_gap.to_string()),
             ("section_gap", self.section_gap.to_string()),
             ("category_block_gap", self.category_block_gap.to_string()),
+            (
+                "postponed_section_gap",
+                self.postponed_section_gap.to_string(),
+            ),
             ("done_section_gap", self.done_section_gap.to_string()),
+            (
+                "list_postponed_section_gap",
+                self.list_postponed_section_gap.to_string(),
+            ),
+            (
+                "list_done_section_gap",
+                self.list_done_section_gap.to_string(),
+            ),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),

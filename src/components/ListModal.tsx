@@ -42,11 +42,18 @@ export default function ListModal({
       ),
     ),
   );
+  // same done-hold the columns use: a just-clicked row stays in place
+  // for a moment instead of flying to the bottom, so the next click of
+  // the status cycle (or a misclick fix) is still possible
+  const hold = useAppStore(useShallow((s) => s.statusHold));
+  const held = new Set(hold);
   // same order as the list column: optional alphabetical, done sinks
   const alpha = config?.list_tasks_sort_alpha ?? false;
   const sorted = [...listTasks].sort((a, b) => {
-    if ((a.status === "done") !== (b.status === "done")) {
-      return a.status === "done" ? 1 : -1;
+    const aDone = a.status === "done" && !held.has(a.id);
+    const bDone = b.status === "done" && !held.has(b.id);
+    if (aDone !== bDone) {
+      return aDone ? 1 : -1;
     }
     if (alpha) {
       const byTitle = a.title.localeCompare(b.title, undefined, {
@@ -219,6 +226,7 @@ export default function ListModal({
  * dialog), star, delete. */
 function ListTaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
   const updateTask = useAppStore((s) => s.updateTask);
+  const holdStatus = useAppStore((s) => s.holdStatus);
   const subtasks = useAppStore(
     useShallow((s) => s.tasks.filter((t) => t.parent_task_id === task.id)),
   );
@@ -246,9 +254,11 @@ function ListTaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
             : undefined
         }
         title={`Status: ${task.status} (click: ${nextStatus(task.status)})`}
-        onClick={() =>
-          void updateTask(task.id, { status: nextStatus(task.status) })
-        }
+        onClick={() => {
+          const next = nextStatus(task.status);
+          void updateTask(task.id, { status: next });
+          if (next !== "todo") holdStatus(task.id);
+        }}
       >
         {done && (
           <svg

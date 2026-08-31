@@ -76,20 +76,20 @@ function ListColumn({
   const rest = active.filter((t) => !t.priority);
 
   // configurable vertical rhythm, same tokens the day columns use;
-  // Postponed/Done sit behind their own configurable gap
+  // Postponed/Done sit behind list-specific gaps, separate from the
+  // day-grid ones
   const taskGap = config?.task_gap ?? 6;
   const sectionGap = config?.section_gap ?? 12;
-  const doneSectionGap = config?.done_section_gap ?? 12;
 
   const card = (task: Task) => (
     <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
   );
   // same plate style as the day-column section headers, optional color
-  const section = (label: string, items: Task[], plateColor: string) =>
+  const section = (label: string, items: Task[], plateColor: string, gap: number) =>
     items.length > 0 && (
       <div
         className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: doneSectionGap }}
+        style={{ rowGap: taskGap, marginTop: gap }}
       >
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
@@ -249,8 +249,18 @@ function ListColumn({
             </SortableContext>
           </div>
         )}
-        {section("Postponed", postponed, config?.postponed_plate_color ?? "")}
-        {section("Done", done, config?.done_plate_color ?? "")}
+        {section(
+          "Postponed",
+          postponed,
+          config?.postponed_plate_color ?? "",
+          config?.list_postponed_section_gap ?? 12,
+        )}
+        {section(
+          "Done",
+          done,
+          config?.done_plate_color ?? "",
+          config?.list_done_section_gap ?? 12,
+        )}
       </div>
     </div>
   );

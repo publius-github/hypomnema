@@ -79,20 +79,19 @@ function DayColumn({
   const groupColor = (key: string): string | null => cadenceColor(config, key);
 
   // configurable vertical rhythm: cards, sections, category blocks;
-  // Postponed/Done take their own (roomier) gap so they can sit
-  // visibly below the active tasks
+  // Postponed and Done each take their own (roomier) gap so they can
+  // sit visibly below the active tasks
   const taskGap = config?.task_gap ?? 6;
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.category_block_gap ?? 12;
-  const doneSectionGap = config?.done_section_gap ?? 12;
 
   // Postponed/Done headers use the same plate style as the cadence
-  // group headers, each with an optional color of its own
-  const section = (label: string, items: Task[], plateColor: string) =>
+  // group headers, each with an optional color and gap of its own
+  const section = (label: string, items: Task[], plateColor: string, gap: number) =>
     items.length > 0 && (
       <div
         className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: doneSectionGap }}
+        style={{ rowGap: taskGap, marginTop: gap }}
       >
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
@@ -207,8 +206,18 @@ function DayColumn({
             })}
           </div>
         ))}
-        {section("Postponed", postponed, config?.postponed_plate_color ?? "")}
-        {section("Done", done, config?.done_plate_color ?? "")}
+        {section(
+          "Postponed",
+          postponed,
+          config?.postponed_plate_color ?? "",
+          config?.postponed_section_gap ?? 12,
+        )}
+        {section(
+          "Done",
+          done,
+          config?.done_plate_color ?? "",
+          config?.done_section_gap ?? 12,
+        )}
         <QuickAdd target={{ scheduled_date: date }} />
       </div>
     </div>
