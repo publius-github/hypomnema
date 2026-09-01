@@ -43,7 +43,9 @@ import { tags } from "@lezer/highlight";
 import { parseDocument } from "yaml";
 import { lintMarkdown } from "../lib/markdownLint";
 import { formatTableBlock, isTableLine } from "../lib/markdownTable";
+import { urlAt } from "../lib/links";
 import { wikiTargetAt } from "../lib/wiki";
+import { useAppStore } from "../store";
 
 export type EditorMode = "markdown" | "yaml" | "plain";
 
@@ -435,22 +437,31 @@ export default function MarkdownEditor({
           ...searchKeymap,
           ...historyKeymap,
         ]),
-        // Ctrl/Cmd+click on [[note name]] jumps to that note
+        // Ctrl/Cmd+click follows a link: [[note name]] jumps to that
+        // note, a web/mail URL (bare or a [label](url) target) opens in
+        // the system browser
         EditorView.domEventHandlers({
           mousedown: (event, view) => {
-            if (!(event.ctrlKey || event.metaKey) || !onWikiLinkRef.current) {
-              return false;
-            }
+            if (!(event.ctrlKey || event.metaKey)) return false;
             const pos = view.posAtCoords({
               x: event.clientX,
               y: event.clientY,
             });
             if (pos === null) return false;
             const line = view.state.doc.lineAt(pos);
-            const target = wikiTargetAt(line.text, pos - line.from);
-            if (!target) return false;
+            const offset = pos - line.from;
+            const note = onWikiLinkRef.current
+              ? wikiTargetAt(line.text, offset)
+              : null;
+            if (note) {
+              event.preventDefault();
+              onWikiLinkRef.current?.(note);
+              return true;
+            }
+            const url = urlAt(line.text, offset);
+            if (!url) return false;
             event.preventDefault();
-            onWikiLinkRef.current(target);
+            void useAppStore.getState().openExternal(url);
             return true;
           },
         }),

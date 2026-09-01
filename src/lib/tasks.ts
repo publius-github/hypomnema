@@ -1,4 +1,19 @@
+import type { CSSProperties } from "react";
 import type { AppConfig, List, ScheduleBlock, Task, TaskPatch, TaskStatus } from "../types";
+
+/**
+ * Cut a wrapping text off after `lines` lines. The webview is Chromium,
+ * so the -webkit-line-clamp box is the reliable way to do it with a
+ * runtime line count (Tailwind's line-clamp-N needs a literal).
+ */
+export function clampStyle(lines: number): CSSProperties {
+  return {
+    display: "-webkit-box",
+    WebkitBoxOrient: "vertical",
+    WebkitLineClamp: lines,
+    overflow: "hidden",
+  };
+}
 
 // The checkbox cycles todo -> done -> postponed -> todo: postponing is
 // one extra click on a just-completed task (the done-hold delay keeps

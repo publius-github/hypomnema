@@ -886,6 +886,50 @@ async fn task_get(state: State<'_, AppState>, id: i64) -> Result<tasks::Task> {
     with_conn(&state, |conn| tasks::task_get(conn, id))
 }
 
+/// Only web and mail links leave the app, and only as a single argument
+/// to the platform launcher - no shell, so nothing in the URL can be
+/// read as a command.
+fn is_openable_url(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    if !["http://", "https://", "mailto:"]
+        .iter()
+        .any(|scheme| lower.starts_with(scheme))
+    {
+        return false;
+    }
+    !url.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
+/// Opens a link from a note or a task description in the system browser
+/// (the webview would otherwise navigate the app itself).
+#[tauri::command]
+async fn open_external(url: String) -> Result<()> {
+    let url = url.trim().to_string();
+    if !is_openable_url(&url) {
+        return Err(Error::State(format!("refusing to open {url}")));
+    }
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut c = std::process::Command::new("rundll32.exe");
+        c.arg("url.dll,FileProtocolHandler").arg(&url);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut c = std::process::Command::new("open");
+        c.arg(&url);
+        c
+    };
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let mut command = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(&url);
+        c
+    };
+    command.spawn()?;
+    Ok(())
+}
+
 /// Panics land in <app-config-dir>/hypomnema.log so field errors are
 /// diagnosable without a console (M7 error reporting).
 fn install_panic_logger(log_path: PathBuf) {
@@ -968,7 +1012,8 @@ pub fn run() {
             kb_search,
             tasks_search,
             daily_streaks,
-            task_get
+            task_get,
+            open_external
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");
@@ -987,6 +1032,19 @@ mod tests {
         assert!(!is_editable_config_file("../../etc/passwd"));
         assert!(!is_editable_config_file("recurring.yml/../app.yml"));
         assert!(!is_editable_config_file(""));
+    }
+
+    #[test]
+    fn only_web_and_mail_urls_leave_the_app() {
+        assert!(is_openable_url("https://example.com/a?b=1#c"));
+        assert!(is_openable_url("HTTP://example.com"));
+        assert!(is_openable_url("mailto:me@example.com"));
+        assert!(!is_openable_url("file:///etc/passwd"));
+        assert!(!is_openable_url("javascript:alert(1)"));
+        assert!(!is_openable_url("C:\\Windows\\System32\\calc.exe"));
+        assert!(!is_openable_url("https://example.com/a b"));
+        assert!(!is_openable_url("https://example.com/\na"));
+        assert!(!is_openable_url(""));
     }
 
     #[test]

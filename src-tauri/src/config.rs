@@ -136,6 +136,12 @@ pub struct AppConfig {
     /// Order the tasks inside a list column alphabetically (timed tasks
     /// still pin to the top); off = manual drag order.
     pub list_tasks_sort_alpha: bool,
+    /// How many lines a task title may take on a card in a list column
+    /// before it is cut off (1 = the old single truncated line).
+    pub list_task_lines: u32,
+    /// Same, for the task rows inside the list dialog - the roomy view,
+    /// so it defaults to more lines than the column.
+    pub list_dialog_task_lines: u32,
     /// At day rollover, remove done backlog tasks from the list columns
     /// (the list is a working queue, not history).
     pub clear_done_list_tasks: bool,
@@ -266,6 +272,8 @@ impl Default for AppConfig {
             days_page_columns: 7,
             days_today_only: false,
             list_tasks_sort_alpha: false,
+            list_task_lines: 1,
+            list_dialog_task_lines: 3,
             clear_done_list_tasks: true,
             priority_overdue: true,
             // every 1-2 days / up to ~10 days apart / up to a quarter apart
@@ -298,6 +306,13 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    /// Days ahead the engine materializes tasks for (and the calendar
+    /// projection starts after): the widest day grid any view shows, so
+    /// a Days page wider than the dashboard is not left empty.
+    pub fn horizon_days(&self) -> u32 {
+        self.grid_columns.max(self.days_page_columns).max(1)
+    }
+
     /// Loads app.yml, falling back to defaults when the file is broken
     /// instead of making the vault unopenable. The parse error comes
     /// back for the UI banner; the broken file stays on disk untouched
@@ -364,6 +379,9 @@ impl AppConfig {
         self.cadence_daily_min_per_year = self
             .cadence_daily_min_per_year
             .clamp(self.cadence_weekly_min_per_year + 1, 1000);
+        // a card that grows without bound stops being a card
+        self.list_task_lines = self.list_task_lines.clamp(1, 10);
+        self.list_dialog_task_lines = self.list_dialog_task_lines.clamp(1, 10);
         self.task_gap = self.task_gap.min(48);
         self.section_gap = self.section_gap.min(48);
         self.category_block_gap = self.category_block_gap.min(48);
@@ -580,6 +598,11 @@ impl AppConfig {
             ("reminder_color", self.reminder_color.clone()),
             ("day_header_color", self.day_header_color.clone()),
             ("dow_label_color", self.dow_label_color.clone()),
+            ("list_task_lines", self.list_task_lines.to_string()),
+            (
+                "list_dialog_task_lines",
+                self.list_dialog_task_lines.to_string(),
+            ),
             ("list_date_chip_color", self.list_date_chip_color.clone()),
             ("cadence_color_general", self.cadence_color_general.clone()),
             ("postponed_plate_color", self.postponed_plate_color.clone()),
@@ -682,6 +705,18 @@ mod tests {
             );
         }
         assert_eq!(pairs.len(), mapping.len());
+    }
+
+    #[test]
+    fn horizon_follows_the_widest_day_grid() {
+        let mut config = AppConfig {
+            grid_columns: 3,
+            days_page_columns: 10,
+            ..Default::default()
+        };
+        assert_eq!(config.horizon_days(), 10);
+        config.days_page_columns = 1;
+        assert_eq!(config.horizon_days(), 3);
     }
 
     #[test]

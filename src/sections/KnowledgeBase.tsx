@@ -653,11 +653,16 @@ export default function KnowledgeBase() {
       <div className="flex min-w-0 flex-1 flex-col">
         {current ? (
           <>
-            <div className="flex items-center justify-between border-b border-line px-4 py-2 text-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-sm">
               <span className="truncate text-base font-semibold">
                 {current.kind === "config"
                   ? `config/${current.path}`
                   : current.path}
+              </span>
+              {/* the gesture is not guessable, and a link that looks
+                  dead is the same as no link */}
+              <span className="ml-auto shrink-0 text-xs text-content-muted">
+                Ctrl/Cmd+click a link to open it
               </span>
               <span
                 className={`text-xs ${

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { compareTasks, nextStatus, priorityPatch } from "../lib/tasks";
+import { clampStyle, compareTasks, nextStatus, priorityPatch } from "../lib/tasks";
 import { ColorPicker } from "./form";
 import TaskModal from "./TaskModal";
 import type { List, Task } from "../types";
@@ -189,6 +189,7 @@ export default function ListModal({
             <ListTaskRow
               key={task.id}
               task={task}
+              titleLines={config?.list_dialog_task_lines ?? 3}
               onOpen={() => setOpenTaskId(task.id)}
             />
           ))}
@@ -223,8 +224,17 @@ export default function ListModal({
 }
 
 /** Compact backlog row: check off, open (subtasks live in the task
- * dialog), star, delete. */
-function ListTaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
+ * dialog), star, delete. The title wraps over up to `titleLines` lines
+ * (list_dialog_task_lines) - the dialog is the roomy view of a list. */
+function ListTaskRow({
+  task,
+  titleLines,
+  onOpen,
+}: {
+  task: Task;
+  titleLines: number;
+  onOpen: () => void;
+}) {
   const updateTask = useAppStore((s) => s.updateTask);
   const holdStatus = useAppStore((s) => s.holdStatus);
   const subtasks = useAppStore(
@@ -234,11 +244,11 @@ function ListTaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
   const subDone = subtasks.filter((s) => s.status === "done").length;
 
   return (
-    <div className="group flex items-center gap-2 rounded-md border border-line bg-surface-alt px-2 py-1 text-sm">
+    <div className="group flex items-start gap-2 rounded-md border border-line bg-surface-alt px-2 py-1 text-sm">
       {/* the same three-state cycle the task cards use, so a postponed
           task is visible here too, not just done/not-done */}
       <button
-        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
           task.status === "postponed"
             ? "border-warn bg-warn text-white"
             : done
@@ -291,30 +301,33 @@ function ListTaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
         )}
       </button>
       <button
-        className={`min-w-0 flex-1 truncate text-left ${
+        className={`min-w-0 flex-1 text-left ${
+          titleLines > 1 ? "break-words" : "truncate"
+        } ${
           done
             ? "text-content-muted line-through"
             : task.status === "postponed"
               ? "text-warn"
               : ""
         }`}
+        style={titleLines > 1 ? clampStyle(titleLines) : undefined}
         title="Open task (subtasks, description, date)"
         onClick={onOpen}
       >
         {task.title}
       </button>
       {subtasks.length > 0 && (
-        <span className="shrink-0 text-[11px] text-content-muted">
+        <span className="mt-0.5 shrink-0 text-[11px] text-content-muted">
           {subDone}/{subtasks.length}
         </span>
       )}
       {task.time && (
-        <span className="shrink-0 text-[11px] text-content-muted">
+        <span className="mt-0.5 shrink-0 text-[11px] text-content-muted">
           {task.time}
         </span>
       )}
       <button
-        className={`shrink-0 text-base leading-none ${
+        className={`mt-0.5 shrink-0 text-base leading-none ${
           task.priority
             ? "text-warn"
             : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
@@ -330,7 +343,7 @@ function ListTaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
         {task.priority ? "★" : "☆"}
       </button>
       <button
-        className="shrink-0 text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+        className="mt-0.5 shrink-0 text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
         title="Delete task"
         onClick={() => void useAppStore.getState().deleteTask(task.id)}
       >

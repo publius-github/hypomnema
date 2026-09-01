@@ -16,6 +16,15 @@ import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
 import { MD_TOKENS, resolveMdColors } from "./lib/mdPresets";
 import { THEME_TOKEN_VARS, resolveThemeColors } from "./lib/themePresets";
 
+/// Settings that change how many days the views show: both the snapshot
+/// window and the engine horizon derive from them.
+const WINDOW_KEYS: (keyof AppConfig)[] = [
+  "grid_columns",
+  "dashboard_today_only",
+  "days_page_columns",
+  "days_today_only",
+];
+
 interface AppState {
   loaded: boolean;
   vaultPath: string | null;
@@ -71,6 +80,9 @@ interface AppState {
   setError: (message: string) => void;
   clearError: () => void;
   refresh: () => Promise<void>;
+  /// opens a web/mail link from a note or description in the system
+  /// browser (the webview would navigate the app itself)
+  openExternal: (url: string) => Promise<void>;
   createTask: (task: NewTask) => Promise<void>;
   updateTask: (id: number, patch: TaskPatch) => Promise<void>;
   /// drag-to-reorder inside a list column; dropping onto a task of a
@@ -211,12 +223,27 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setConfigErrors: (configErrors) => set({ configErrors }),
 
+  openExternal: async (url: string) => {
+    try {
+      await invoke("open_external", { url });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
   refresh: async () => {
     const config = get().config;
     if (!config) return;
     const today = todayISO();
     const start = addDaysISO(today, get().gridOffset);
-    const columns = config.dashboard_today_only ? 1 : config.grid_columns;
+    // one snapshot feeds every task view, so the window spans the
+    // widest of them: with only the dashboard's count here, widening the
+    // Days page (or leaving its Today-only mode) showed empty columns
+    // until the dashboard was widened too
+    const columns = Math.max(
+      config.dashboard_today_only ? 1 : config.grid_columns,
+      config.days_today_only ? 1 : config.days_page_columns,
+    );
     const dates = Array.from({ length: columns }, (_, i) =>
       addDaysISO(start, i),
     );
@@ -415,6 +442,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ config: next });
     try {
       await invoke("config_set", { config: next });
+      // widening a day grid moves both the snapshot window and the
+      // engine's generation horizon, so the new columns need a pass and
+      // a refetch instead of waiting for the settings watcher
+      if (WINDOW_KEYS.some((key) => key in patch)) {
+        await get().runEngine();
+        await get().refresh();
+      }
     } catch (e) {
       applyTheme(current);
       set({ config: current, error: String(e) });

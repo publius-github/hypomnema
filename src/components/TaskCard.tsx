@@ -5,6 +5,7 @@ import { useAppStore } from "../store";
 import {
   cadenceColor,
   cadenceKeyOf,
+  clampStyle,
   isListExact,
   nextStatus,
   priorityPatch,
@@ -33,6 +34,7 @@ function TaskCard({
   onOpen,
   showList = true,
   inert = false,
+  titleLines = 1,
 }: {
   task: Task;
   overlay?: boolean;
@@ -41,6 +43,8 @@ function TaskCard({
   showList?: boolean;
   /** the card registers no drag of its own (a sortable wrapper does) */
   inert?: boolean;
+  /** how many lines the title may wrap to before it is cut off */
+  titleLines?: number;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -128,6 +132,8 @@ function TaskCard({
     .filter(Boolean)
     .join("\n");
 
+  const multiline = titleLines > 1;
+
   const cycleStatus = () => {
     const next = nextStatus(task.status);
     void updateTask(task.id, { status: next });
@@ -145,15 +151,24 @@ function TaskCard({
         isDragging ? "opacity-30" : ""
       } ${overlay ? "shadow-lg" : ""}`}
     >
-      <div className="flex items-center gap-2 px-2 py-1" title={tooltip}>
+      {/* with a multi-line title everything else hugs the first line
+          instead of centering against the whole block */}
+      <div
+        className={`flex gap-2 px-2 py-1 ${
+          multiline ? "items-start" : "items-center"
+        }`}
+        title={tooltip}
+      >
         {stripe && (
           <span
-            className="h-4 w-1 shrink-0 rounded"
+            className={`h-4 w-1 shrink-0 rounded ${multiline ? "mt-0.5" : ""}`}
             style={{ backgroundColor: stripe }}
           />
         )}
         <button
-          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${STATUS_BUTTON[task.status]}`}
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+            multiline ? "mt-0.5" : ""
+          } ${STATUS_BUTTON[task.status]}`}
           style={done ? DONE_BUTTON_STYLE : undefined}
           title={`Status: ${task.status} (click: ${nextStatus(task.status)})`}
           onClick={(e) => {
@@ -239,9 +254,12 @@ function TaskCard({
           </span>
         )}
         <div
-          className={`min-w-0 flex-1 cursor-pointer truncate leading-snug ${
-            done ? "text-content-muted line-through" : ""
-          }`}
+          className={`min-w-0 flex-1 cursor-pointer leading-snug ${
+            multiline ? "break-words" : "truncate"
+          } ${done ? "text-content-muted line-through" : ""}`}
+          // multi-line titles clamp at the configured line count
+          // instead of truncating on the first line
+          style={multiline ? clampStyle(titleLines) : undefined}
           onClick={() => onOpen?.(task.id)}
         >
           {dowLabel && (
@@ -257,7 +275,11 @@ function TaskCard({
           )}
           {text}
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted">
+        <div
+          className={`flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted ${
+            multiline ? "mt-0.5" : ""
+          }`}
+        >
           {!overlay &&
             // any task can carry priority, generated ones included; in
             // a day column priority reads as a loud yellow label, in
@@ -369,7 +391,7 @@ function TaskCard({
               {/* subtasks postpone too, same semantics as the task
                   dialog's arrow */}
               <button
-                className={`shrink-0 ${
+                className={`shrink-0 px-1 text-base leading-none ${
                   sub.status === "postponed"
                     ? "text-warn"
                     : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover/sub:opacity-100"

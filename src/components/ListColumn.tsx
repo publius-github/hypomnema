@@ -81,8 +81,18 @@ function ListColumn({
   const taskGap = config?.task_gap ?? 6;
   const sectionGap = config?.section_gap ?? 12;
 
+  // multi-line task titles in list columns (list_task_lines); the day
+  // grid keeps its single truncated line
+  const titleLines = config?.list_task_lines ?? 1;
+
   const card = (task: Task) => (
-    <TaskCard key={task.id} task={task} onOpen={onOpenTask} showList={false} />
+    <TaskCard
+      key={task.id}
+      task={task}
+      onOpen={onOpenTask}
+      showList={false}
+      titleLines={titleLines}
+    />
   );
   // same plate style as the day-column section headers, optional color
   const section = (label: string, items: Task[], plateColor: string, gap: number) =>
@@ -244,7 +254,12 @@ function ListColumn({
               strategy={verticalListSortingStrategy}
             >
               {rest.map((task) => (
-                <SortableCard key={task.id} task={task} onOpenTask={onOpenTask} />
+                <SortableCard
+                  key={task.id}
+                  task={task}
+                  onOpenTask={onOpenTask}
+                  titleLines={titleLines}
+                />
               ))}
             </SortableContext>
           </div>
@@ -275,9 +290,11 @@ function ListColumn({
 function SortableCard({
   task,
   onOpenTask,
+  titleLines,
 }: {
   task: Task;
   onOpenTask: (id: number) => void;
+  titleLines: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -292,7 +309,13 @@ function SortableCard({
       {...attributes}
       {...listeners}
     >
-      <TaskCard task={task} onOpen={onOpenTask} showList={false} inert />
+      <TaskCard
+        task={task}
+        onOpen={onOpenTask}
+        showList={false}
+        inert
+        titleLines={titleLines}
+      />
     </div>
   );
 }

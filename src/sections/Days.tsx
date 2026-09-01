@@ -8,6 +8,7 @@ import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
+import QuickAddModal from "../components/QuickAddModal";
 import type { Task } from "../types";
 
 /**
@@ -22,6 +23,7 @@ export default function Days() {
   const setGridOffset = useAppStore((s) => s.setGridOffset);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [fetchedTask, setFetchedTask] = useState<Task | null>(null);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const dnd = useTaskDnd();
 
   // same fallback as the Dashboard: the open task may leave the
@@ -102,7 +104,16 @@ export default function Days() {
               Back to today
             </button>
           )}
-          <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
+          {/* same entry point as the dashboard header: a task straight
+              into any day or list, without hunting for the column */}
+          <button
+            className="btn-ghost ml-auto px-2 py-0.5 text-xs"
+            title="Add a task to any day or list"
+            onClick={() => setQuickAddOpen(true)}
+          >
+            + Task
+          </button>
+          <div className="flex items-center gap-1 text-xs text-content-muted">
             <span>Days</span>
             <select
               className="input px-1 py-0.5 text-xs"
@@ -141,6 +152,7 @@ export default function Days() {
       {editingTask && (
         <TaskModal task={editingTask} onClose={() => setEditingTaskId(null)} />
       )}
+      {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} />}
     </DndContext>
   );
 }

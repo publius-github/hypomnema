@@ -93,6 +93,26 @@ export default function TasksTab() {
           onChange={(v) => void updateConfig({ list_tasks_sort_alpha: v })}
         />
 
+        <Field label="Task title lines in a list column (1 = one truncated line)">
+          <NumberInput
+            value={config.list_task_lines}
+            min={1}
+            onCommit={(n) =>
+              void updateConfig({ list_task_lines: Math.min(10, n) })
+            }
+          />
+        </Field>
+
+        <Field label="Task title lines in the list dialog">
+          <NumberInput
+            value={config.list_dialog_task_lines}
+            min={1}
+            onCommit={(n) =>
+              void updateConfig({ list_dialog_task_lines: Math.min(10, n) })
+            }
+          />
+        </Field>
+
         <Toggle
           checked={config.lists_page_align_rows}
           label="Align list rows on the Lists page"

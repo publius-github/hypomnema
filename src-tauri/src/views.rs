@@ -271,7 +271,7 @@ pub fn calendar_outlook(
     let today = now.date_naive();
     // dates up to the horizon are materialized as real tasks and would
     // show twice; the projection starts right after it
-    let horizon = today + Duration::days(i64::from(config.grid_columns.max(1)) - 1);
+    let horizon = today + Duration::days(i64::from(config.horizon_days()) - 1);
     let add_months = |months: u32| {
         today
             .checked_add_months(Months::new(months))

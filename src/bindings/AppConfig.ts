@@ -180,6 +180,16 @@ days_today_only: boolean,
  */
 list_tasks_sort_alpha: boolean, 
 /**
+ * How many lines a task title may take on a card in a list column
+ * before it is cut off (1 = the old single truncated line).
+ */
+list_task_lines: number, 
+/**
+ * Same, for the task rows inside the list dialog - the roomy view,
+ * so it defaults to more lines than the column.
+ */
+list_dialog_task_lines: number, 
+/**
  * At day rollover, remove done backlog tasks from the list columns
  * (the list is a working queue, not history).
  */

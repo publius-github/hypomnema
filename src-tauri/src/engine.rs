@@ -861,7 +861,7 @@ pub fn run(
 ) -> Result<EngineOutcome> {
     let mut outcome = EngineOutcome::default();
     let today = now.date_naive();
-    let horizon = today + Duration::days(i64::from(config.grid_columns.max(1)) - 1);
+    let horizon = today + Duration::days(i64::from(config.horizon_days()) - 1);
 
     // One transaction for the whole pass: a crash between the ledger
     // insert and the task insert would otherwise mark a period as
@@ -953,7 +953,10 @@ mod tests {
     fn config(catchup: u32, columns: u32, retention: u32) -> AppConfig {
         AppConfig {
             catchup_days: catchup,
+            // both grids feed the horizon (horizon_days), so the tests
+            // pin them together to the width under test
             grid_columns: columns,
+            days_page_columns: columns,
             retention_days: retention,
             ..AppConfig::default()
         }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../store";
 import { priorityPatch, sortSubtasks } from "../lib/tasks";
+import { isExternalUrl } from "../lib/links";
 import { wikiTargetFromHref, wikiToMarkdownLinks } from "../lib/wiki";
 import type { Task, TaskStatus } from "../types";
 
@@ -363,7 +364,23 @@ export default function TaskModal({
                         </a>
                       );
                     }
-                    return <a href={href}>{children}</a>;
+                    // a plain web link must leave the app: navigating
+                    // the webview would replace the app itself
+                    return (
+                      <a
+                        href={href}
+                        className="text-accent underline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (href && isExternalUrl(href)) {
+                            void useAppStore.getState().openExternal(href);
+                          }
+                        }}
+                      >
+                        {children}
+                      </a>
+                    );
                   },
                 }}
               >
@@ -498,8 +515,10 @@ function SubtaskRow({ sub }: { sub: Task }) {
           {sub.title}
         </span>
       )}
+      {/* both controls are real hit targets (text-base + padding): at
+          text-xs the arrow and the cross were a few pixels wide */}
       <button
-        className={`text-xs ${
+        className={`shrink-0 px-1 text-base leading-none ${
           sub.status === "postponed"
             ? "text-warn"
             : "text-content-muted hover:text-warn"
@@ -514,7 +533,8 @@ function SubtaskRow({ sub }: { sub: Task }) {
         →
       </button>
       <button
-        className="text-xs text-content-muted hover:text-danger"
+        className="shrink-0 px-1 text-base leading-none text-content-muted hover:text-danger"
+        title="Delete subtask"
         onClick={() => void deleteTask(sub.id)}
       >
         ×
