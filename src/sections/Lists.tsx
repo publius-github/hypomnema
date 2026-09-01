@@ -7,6 +7,7 @@ import ListColumn from "../components/ListColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import NewListForm from "../components/NewListForm";
+import QuickAddModal from "../components/QuickAddModal";
 
 /**
  * Dedicated lists dashboard: every list at once in a wrapping grid,
@@ -18,6 +19,7 @@ export default function Lists() {
   const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   // the column just jumped to via the All-lists index wears a short
   // accent ring, so the eye finds it among many lists
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -77,6 +79,15 @@ export default function Lists() {
               ))}
             </select>
           </div>
+          {/* same entry point as the dashboard header, and the same spot
+              on every task view: the far right of the header */}
+          <button
+            className="btn-ghost px-2 py-0.5 text-xs"
+            title="Add a task to any day or list"
+            onClick={() => setQuickAddOpen(true)}
+          >
+            + Task
+          </button>
         </div>
         <div className="flex items-start gap-3">
           <div
@@ -139,6 +150,7 @@ export default function Lists() {
       {editingTask && (
         <TaskModal task={editingTask} onClose={() => setEditingTaskId(null)} />
       )}
+      {quickAddOpen && <QuickAddModal onClose={() => setQuickAddOpen(false)} />}
     </DndContext>
   );
 }

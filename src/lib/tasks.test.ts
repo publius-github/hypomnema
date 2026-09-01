@@ -14,7 +14,7 @@ import {
   splitDone,
   weekdayShort,
 } from "./tasks";
-import type { AppConfig, ScheduleBlock, Task } from "../types";
+import type { AppConfig, ScheduleBlock, Task, TaskStatus } from "../types";
 
 function task(overrides: Partial<Task>): Task {
   return {
@@ -267,14 +267,19 @@ describe("splitDone", () => {
     expect(done.map((t) => t.id)).toEqual([1]);
   });
 
-  it("keeps just-clicked tasks in the active block while held", () => {
+  it("keeps just-clicked tasks in the section they were shown in", () => {
+    // 1 is done but was clicked while shown as todo; 3 is postponed but
+    // was clicked while shown in the Done section
     const { active, postponed, done } = splitDone(
       tasks,
       "separate",
-      new Set([1, 3]),
+      new Map<number, TaskStatus>([
+        [1, "todo"],
+        [3, "done"],
+      ]),
     );
-    expect(active.map((t) => t.id)).toEqual([1, 2, 3]);
+    expect(active.map((t) => t.id)).toEqual([1, 2]);
     expect(postponed).toHaveLength(0);
-    expect(done).toHaveLength(0);
+    expect(done.map((t) => t.id)).toEqual([3]);
   });
 });

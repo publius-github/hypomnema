@@ -11,6 +11,7 @@ import type {
   Section,
   Task,
   TaskPatch,
+  TaskStatus,
 } from "./types";
 import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
 import { MD_TOKENS, resolveMdColors } from "./lib/mdPresets";
@@ -73,10 +74,11 @@ interface AppState {
   setSection: (section: Section) => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
-  /// ids of tasks just marked done/postponed via the checkbox; they stay
-  /// in the active block until the hold expires (done_hold_seconds)
-  statusHold: number[];
-  holdStatus: (id: number) => void;
+  /// tasks whose status was just cycled via the checkbox, with the
+  /// status they were displayed under at click time; they stay in that
+  /// section until the hold expires (done_hold_seconds)
+  statusHold: { id: number; status: TaskStatus }[];
+  holdStatus: (id: number, shownStatus: TaskStatus) => void;
   setError: (message: string) => void;
   clearError: () => void;
   refresh: () => Promise<void>;
@@ -516,16 +518,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   searchOpen: false,
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   statusHold: [],
-  holdStatus: (id) => {
+  holdStatus: (id, shownStatus) => {
     const seconds = get().config?.done_hold_seconds ?? 0;
     if (seconds <= 0) return;
+    // repeat clicks during the hold keep the original placement, so the
+    // card sits still through the whole status cycle
     set((s) => ({
-      statusHold: s.statusHold.includes(id)
+      statusHold: s.statusHold.some((h) => h.id === id)
         ? s.statusHold
-        : [...s.statusHold, id],
+        : [...s.statusHold, { id, status: shownStatus }],
     }));
     setTimeout(() => {
-      set((s) => ({ statusHold: s.statusHold.filter((h) => h !== id) }));
+      set((s) => ({ statusHold: s.statusHold.filter((h) => h.id !== id) }));
     }, seconds * 1000);
   },
   setError: (message) => set({ error: message }),

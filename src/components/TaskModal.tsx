@@ -52,6 +52,15 @@ export default function TaskModal({
     setTimeDraft(task.time ?? "");
   }, [task.time]);
 
+  // grow the title box to fit its content on every change
+  const titleRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
+
   const subtasksDoneLast = config?.subtasks_done_last ?? true;
   const subtasks = sortSubtasks(
     tasks.filter((t) => t.parent_task_id === task.id),
@@ -139,13 +148,24 @@ export default function TaskModal({
         className="flex max-h-full w-[560px] flex-col gap-4 overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-xl"
       >
         <div className="flex items-start gap-3">
-          <input
-            className={`input flex-1 text-base font-medium ${
+          {/* the title is one logical line, but long ones wrap here so
+              the whole text is visible; Enter commits instead of
+              inserting a newline */}
+          <textarea
+            ref={titleRef}
+            rows={1}
+            className={`input flex-1 resize-none overflow-hidden text-base font-medium ${
               generated ? "opacity-70" : ""
             }`}
             value={title}
             readOnly={generated}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => setTitle(e.target.value.replace(/\n/g, " "))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
             onBlur={commitTitle}
           />
           <button

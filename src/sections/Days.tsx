@@ -104,16 +104,7 @@ export default function Days() {
               Back to today
             </button>
           )}
-          {/* same entry point as the dashboard header: a task straight
-              into any day or list, without hunting for the column */}
-          <button
-            className="btn-ghost ml-auto px-2 py-0.5 text-xs"
-            title="Add a task to any day or list"
-            onClick={() => setQuickAddOpen(true)}
-          >
-            + Task
-          </button>
-          <div className="flex items-center gap-1 text-xs text-content-muted">
+          <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
             <span>Days</span>
             <select
               className="input px-1 py-0.5 text-xs"
@@ -131,6 +122,15 @@ export default function Days() {
               ))}
             </select>
           </div>
+          {/* same entry point as the dashboard header, and the same spot
+              on every task view: the far right of the header */}
+          <button
+            className="btn-ghost px-2 py-0.5 text-xs"
+            title="Add a task to any day or list"
+            onClick={() => setQuickAddOpen(true)}
+          >
+            + Task
+          </button>
         </div>
         <div
           className="grid min-h-0 flex-1 gap-3 overflow-x-auto"

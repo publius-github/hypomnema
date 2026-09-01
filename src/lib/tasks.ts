@@ -342,13 +342,15 @@ export function currentAndNextBlock(
 export function splitDone(
   tasks: Task[],
   mode: string,
-  hold?: ReadonlySet<number>,
+  hold?: ReadonlyMap<number, TaskStatus>,
 ): DoneSplit {
   if (mode !== "separate") return { active: tasks, postponed: [], done: [] };
-  const held = (t: Task) => hold?.has(t.id) ?? false;
+  // a held task keeps the section it was displayed in when its checkbox
+  // was clicked, wherever the status cycle has moved it since
+  const shown = (t: Task) => hold?.get(t.id) ?? t.status;
   return {
-    active: tasks.filter((t) => t.status === "todo" || held(t)),
-    postponed: tasks.filter((t) => t.status === "postponed" && !held(t)),
-    done: tasks.filter((t) => t.status === "done" && !held(t)),
+    active: tasks.filter((t) => shown(t) === "todo"),
+    postponed: tasks.filter((t) => shown(t) === "postponed"),
+    done: tasks.filter((t) => shown(t) === "done"),
   };
 }

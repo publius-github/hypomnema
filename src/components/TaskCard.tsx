@@ -135,11 +135,10 @@ function TaskCard({
   const multiline = titleLines > 1;
 
   const cycleStatus = () => {
-    const next = nextStatus(task.status);
-    void updateTask(task.id, { status: next });
-    // hold a just-completed/postponed card in place for a moment so the
-    // next checkbox click (or a fix of a misclick) is still possible
-    if (next !== "todo") holdStatus(task.id);
+    void updateTask(task.id, { status: nextStatus(task.status) });
+    // hold the card in its current section for a moment so the next
+    // checkbox click (or a fix of a misclick) is still possible
+    holdStatus(task.id, task.status);
   };
 
   return (

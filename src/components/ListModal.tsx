@@ -46,12 +46,13 @@ export default function ListModal({
   // for a moment instead of flying to the bottom, so the next click of
   // the status cycle (or a misclick fix) is still possible
   const hold = useAppStore(useShallow((s) => s.statusHold));
-  const held = new Set(hold);
+  const held = new Map(hold.map((h) => [h.id, h.status]));
+  const shown = (t: Task) => held.get(t.id) ?? t.status;
   // same order as the list column: optional alphabetical, done sinks
   const alpha = config?.list_tasks_sort_alpha ?? false;
   const sorted = [...listTasks].sort((a, b) => {
-    const aDone = a.status === "done" && !held.has(a.id);
-    const bDone = b.status === "done" && !held.has(b.id);
+    const aDone = shown(a) === "done";
+    const bDone = shown(b) === "done";
     if (aDone !== bDone) {
       return aDone ? 1 : -1;
     }
@@ -265,9 +266,8 @@ function ListTaskRow({
         }
         title={`Status: ${task.status} (click: ${nextStatus(task.status)})`}
         onClick={() => {
-          const next = nextStatus(task.status);
-          void updateTask(task.id, { status: next });
-          if (next !== "todo") holdStatus(task.id);
+          void updateTask(task.id, { status: nextStatus(task.status) });
+          holdStatus(task.id, task.status);
         }}
       >
         {done && (

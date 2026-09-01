@@ -151,7 +151,8 @@ export default function App() {
         ]),
         "settings",
       ] as Section[];
-      if (e.key.toLowerCase() === "k") {
+      // physical key, so the shortcut survives non-Latin layouts
+      if (e.code === "KeyK") {
         e.preventDefault();
         if (store.vaultPath) store.setSearchOpen(!store.searchOpen);
       } else if (e.key >= "1" && e.key <= "9") {

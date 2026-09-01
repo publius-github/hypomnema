@@ -69,7 +69,7 @@ function ListColumn({
   const { active, postponed, done } = splitDone(
     sorted,
     config?.done_display ?? "inline",
-    new Set(hold),
+    new Map(hold.map((h) => [h.id, h.status])),
   );
   // priority tasks jump the queue: their own group on top of the column
   const prioritized = active.filter((t) => t.priority);

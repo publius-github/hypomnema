@@ -58,7 +58,7 @@ function DayColumn({
   const { active, postponed, done } = splitDone(
     dayTasks,
     config?.done_display ?? "inline",
-    new Set(hold),
+    new Map(hold.map((h) => [h.id, h.status])),
   );
   // the "category" of a task: the {X} title prefix for manual tasks,
   // the list name for engine-generated ones (their {X} became a list)

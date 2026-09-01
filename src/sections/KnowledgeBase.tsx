@@ -334,16 +334,18 @@ export default function KnowledgeBase() {
     } else if ((e.key === "Delete" || (e.key === "Backspace" && mod)) && selected.length > 0) {
       e.preventDefault();
       setDialog({ kind: "deleteMany", paths: [...selected] });
-    } else if (mod && (e.key === "c" || e.key === "C") && selected.length > 0) {
+      // letter shortcuts match on e.code (the physical key), so they
+      // keep working on non-Latin keyboard layouts where e.key differs
+    } else if (mod && e.code === "KeyC" && selected.length > 0) {
       e.preventDefault();
       setClipboard({ paths: [...selected], cut: false });
-    } else if (mod && (e.key === "x" || e.key === "X") && selected.length > 0) {
+    } else if (mod && e.code === "KeyX" && selected.length > 0) {
       e.preventDefault();
       setClipboard({ paths: [...selected], cut: true });
-    } else if (mod && (e.key === "v" || e.key === "V") && clipboard) {
+    } else if (mod && e.code === "KeyV" && clipboard) {
       e.preventDefault();
       void pasteClipboard();
-    } else if (mod && (e.key === "a" || e.key === "A")) {
+    } else if (mod && e.code === "KeyA") {
       e.preventDefault();
       setSelected(visibleOrder(tree));
     } else if (e.key === "Escape") {
