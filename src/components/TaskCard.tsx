@@ -230,7 +230,7 @@ function TaskCard({
             {listName}
           </span>
         )}
-        {category && (
+        {category && !multiline && (
           <span
             className="shrink-0 rounded px-1 text-[11px] font-semibold"
             style={chipStyle}
@@ -261,6 +261,19 @@ function TaskCard({
           style={multiline ? clampStyle(titleLines) : undefined}
           onClick={() => onOpen?.(task.id)}
         >
+          {category && multiline && (
+            // on a wrapping title the chip flows inline with the text,
+            // so the second line wraps to the card edge instead of
+            // hanging indented by the chip's width
+            <span
+              className="inline-block rounded px-1 text-[11px] font-semibold"
+              style={chipStyle}
+              title={`Category: ${category}`}
+            >
+              {category}
+            </span>
+          )}
+          {category && multiline && " "}
           {dowLabel && (
             // on a done card the marker joins the struck-through muted
             // text instead of keeping its own bright color
