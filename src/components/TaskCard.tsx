@@ -266,7 +266,7 @@ function TaskCard({
               hanging indented by the chips' width */}
           {listExact && task.scheduled_date && multiline && (
             <span
-              className={`inline-block rounded px-1 text-[11px] font-medium ${
+              className={`inline-block rounded px-1 font-medium ${
                 dateChipColor ? "" : "bg-info/15 text-info"
               }`}
               style={dateChipColor ? tintStyle(dateChipColor) : undefined}
@@ -278,7 +278,7 @@ function TaskCard({
           {listExact && task.scheduled_date && multiline && " "}
           {category && multiline && (
             <span
-              className="inline-block rounded px-1 text-[11px] font-semibold"
+              className="inline-block rounded px-1 font-semibold"
               style={chipStyle}
               title={`Category: ${category}`}
             >
