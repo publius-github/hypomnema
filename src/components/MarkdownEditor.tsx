@@ -265,11 +265,20 @@ const editorTheme = EditorView.theme({
     color: "rgb(var(--color-content))",
     borderColor: "rgb(var(--color-line))",
   },
+  // CodeMirror sizes the search panel's own controls at 70-80% of the
+  // editor font, which at a comfortable editor size leaves buttons a
+  // few pixels tall. Everything in the panel follows the editor text.
+  ".cm-panel.cm-search": {
+    fontSize: "var(--editor-font-size, 14px)",
+    padding: "6px 8px 8px",
+  },
   ".cm-panels input": {
     backgroundColor: "rgb(var(--color-surface))",
     color: "rgb(var(--color-content))",
     border: "1px solid rgb(var(--color-line))",
     borderRadius: "4px",
+    fontSize: "inherit",
+    padding: "3px 6px",
   },
   // CodeMirror's stock buttons use a light gradient that turns
   // unreadable next to light text on the dark theme
@@ -279,11 +288,28 @@ const editorTheme = EditorView.theme({
     color: "rgb(var(--color-content))",
     border: "1px solid rgb(var(--color-line))",
     borderRadius: "4px",
+    fontSize: "inherit",
+    padding: "3px 10px",
   },
   ".cm-panels button:hover": {
     backgroundColor: "rgb(var(--color-line) / 0.6)",
   },
   ".cm-panels label": {
+    color: "rgb(var(--color-content-muted))",
+  },
+  // the stock rule is `.cm-panel.cm-search label { font-size: 80% }`,
+  // which outweighs a plain `.cm-panels label`
+  ".cm-panel.cm-search label": {
+    fontSize: "inherit",
+  },
+  ".cm-panel.cm-search input[type=checkbox]": {
+    width: "1em",
+    height: "1em",
+  },
+  ".cm-panel.cm-search [name=close]": {
+    fontSize: "1.4em",
+    lineHeight: "1",
+    padding: "0 4px",
     color: "rgb(var(--color-content-muted))",
   },
 });

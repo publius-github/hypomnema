@@ -241,6 +241,40 @@ export function cadenceColor(
   }
 }
 
+/**
+ * Rotation used to tell one category from the next where the app has no
+ * per-item color to fall back on (the Calendar day list): distinct hues
+ * in an order that keeps neighbours apart.
+ */
+export const CATEGORY_PALETTE = [
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#a855f7",
+  "#ec4899",
+  "#14b8a6",
+  "#ef4444",
+  "#0ea5e9",
+];
+
+/**
+ * Stable color per category name: a list keeps the color it already
+ * wears elsewhere, everything else takes the next palette hue by its
+ * position in the sorted set of names, so the assignment does not jump
+ * around as tasks come and go within a month.
+ */
+export function categoryColors(
+  names: string[],
+  lists: List[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  [...new Set(names)].sort().forEach((name, i) => {
+    const list = lists.find((l) => l.name === name && l.color);
+    map.set(name, list?.color || CATEGORY_PALETTE[i % CATEGORY_PALETTE.length]);
+  });
+  return map;
+}
+
 /** Inline style of a colored chip/plate: colored text on a soft tint. */
 export function tintStyle(color: string): {
   color: string;

@@ -53,6 +53,14 @@ pub struct AppConfig {
     pub calendar_monthly_months: u32,
     pub calendar_yearly_years: u32,
     pub calendar_dates_years: u32,
+    /// Font size of the Calendar day-detail chips (list/category, time,
+    /// projected kind) as a percent of the row text: 100 = exactly the
+    /// size of the task text next to them.
+    pub calendar_chip_font_scale: u32,
+    /// Give every category in the Calendar day list its own chip color,
+    /// rotating through a palette so neighbouring categories differ at
+    /// a glance; off = one neutral chip style for all of them.
+    pub calendar_category_colors: bool,
     /// UI font family (empty = system default stack).
     pub ui_font: String,
     /// Editor font family for Journal/Notes/config files.
@@ -117,6 +125,11 @@ pub struct AppConfig {
     /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
     /// (one file per list + scheduled.md) for bulk editing in any editor.
     pub tasks_mirror: bool,
+    /// Write the trailing `^id` sync key on every mirrored line. Off
+    /// keeps the files clean to read, at the price of identity: a line
+    /// is then matched back to its task by title, so renaming a task in
+    /// the file replaces it instead of editing it.
+    pub tasks_mirror_ids: bool,
     /// Show a [SAT#1]-style marker before recurring tasks whose cron
     /// pins concrete weekdays.
     pub cron_weekday_labels: bool,
@@ -210,6 +223,7 @@ pub const SECTIONS: &[&str] = &[
     "lists",
     "days",
     "upcoming",
+    "reminders",
     "calendar",
     "history",
     "journal",
@@ -244,6 +258,8 @@ impl Default for AppConfig {
             calendar_monthly_months: 3,
             calendar_yearly_years: 1,
             calendar_dates_years: 1,
+            calendar_chip_font_scale: 100,
+            calendar_category_colors: true,
             ui_font: String::new(),
             editor_font: "Consolas".into(),
             editor_font_size: 16,
@@ -270,6 +286,7 @@ impl Default for AppConfig {
             backup_keep: 14,
             notify_system: true,
             tasks_mirror: true,
+            tasks_mirror_ids: true,
             cron_weekday_labels: true,
             cron_everyday_label: true,
             lists_sort_alpha: false,
@@ -369,6 +386,7 @@ impl AppConfig {
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
         self.calendar_yearly_years = self.calendar_yearly_years.min(5);
         self.calendar_dates_years = self.calendar_dates_years.min(5);
+        self.calendar_chip_font_scale = self.calendar_chip_font_scale.clamp(50, 200);
         self.done_hold_seconds = self.done_hold_seconds.min(30);
         self.backup_keep = self.backup_keep.min(365);
         self.ui_font_size = self.ui_font_size.clamp(10, 28);
@@ -533,6 +551,14 @@ impl AppConfig {
                 "calendar_dates_years",
                 self.calendar_dates_years.to_string(),
             ),
+            (
+                "calendar_chip_font_scale",
+                self.calendar_chip_font_scale.to_string(),
+            ),
+            (
+                "calendar_category_colors",
+                self.calendar_category_colors.to_string(),
+            ),
             ("ui_font", self.ui_font.clone()),
             ("editor_font", self.editor_font.clone()),
             ("editor_font_size", self.editor_font_size.to_string()),
@@ -571,6 +597,7 @@ impl AppConfig {
             ("backup_keep", self.backup_keep.to_string()),
             ("notify_system", self.notify_system.to_string()),
             ("tasks_mirror", self.tasks_mirror.to_string()),
+            ("tasks_mirror_ids", self.tasks_mirror_ids.to_string()),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
             ("cron_everyday_label", self.cron_everyday_label.to_string()),
             ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
@@ -692,6 +719,7 @@ mod tests {
                 "lists",
                 "days",
                 "upcoming",
+                "reminders",
                 "calendar",
                 "history",
                 "journal"

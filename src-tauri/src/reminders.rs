@@ -8,38 +8,46 @@ use crate::config_files::{load_yaml, ConfigError};
 use crate::error::Result;
 
 #[derive(Debug, Default, Deserialize)]
-struct WeeklyFocusFile {
+pub(crate) struct WeeklyFocusFile {
     #[serde(default)]
-    rotation: Option<String>,
+    pub(crate) rotation: Option<String>,
     #[serde(default)]
-    phrases: Vec<String>,
+    pub(crate) phrases: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct DayRemindersFile {
+pub(crate) struct DayRemindersFile {
     #[serde(default)]
-    reminders: Vec<DayReminder>,
+    pub(crate) reminders: Vec<DayReminder>,
 }
 
-#[derive(Debug, Deserialize)]
-struct DayReminder {
-    day_type: String,
-    text: String,
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct DayReminder {
+    /// workday | weekend | mon..sun
+    pub day_type: String,
+    pub text: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct DayScheduleFile {
+pub(crate) struct DayScheduleFile {
     #[serde(default)]
-    blocks: Vec<ScheduleBlock>,
+    pub(crate) blocks: Vec<ScheduleBlock>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export, export_to = "../../src/bindings/")]
 pub struct ScheduleBlock {
     pub from: String,
     pub to: String,
     pub label: String,
 }
+
+/// Day types a `day-reminders.yml` entry may target, in the order the
+/// Reminders section offers them.
+pub const DAY_TYPES: &[&str] = &[
+    "workday", "weekend", "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+];
 
 #[derive(Debug, Serialize, ts_rs::TS)]
 #[ts(export, export_to = "../../src/bindings/")]
@@ -115,6 +123,61 @@ fn focus_for_week(
         (iso_year, iso_week, index as i64),
     )?;
     Ok(Some(index))
+}
+
+/// Everything the Reminders section shows: the three files' contents in
+/// file order (so the section can edit them by index) plus the state
+/// they produce right now - this week's focus phrase and today's
+/// matching reminders.
+#[derive(Debug, Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct RemindersOverview {
+    pub focus: Option<String>,
+    /// Rotation mode from weekly-focus.yml; only "cycle" is supported.
+    pub rotation: String,
+    pub phrases: Vec<String>,
+    pub reminders: Vec<DayReminder>,
+    pub blocks: Vec<ScheduleBlock>,
+    pub today: String,
+    /// The reminder texts matching `today`.
+    pub today_reminders: Vec<String>,
+    pub errors: Vec<ConfigError>,
+}
+
+pub fn overview(
+    conn: &Connection,
+    config_dir: &Path,
+    today: NaiveDate,
+) -> Result<RemindersOverview> {
+    let mut errors = Vec::new();
+    let focus_file = load_yaml::<WeeklyFocusFile>(config_dir, "weekly-focus.yml", &mut errors)
+        .unwrap_or_default();
+    let reminders_file =
+        load_yaml::<DayRemindersFile>(config_dir, "day-reminders.yml", &mut errors)
+            .unwrap_or_default();
+    let schedule_file = load_yaml::<DayScheduleFile>(config_dir, "day-schedule.yml", &mut errors)
+        .unwrap_or_default();
+
+    let week = today.iso_week();
+    let focus = focus_for_week(conn, week.year(), week.week(), focus_file.phrases.len())?
+        .map(|index| focus_file.phrases[index].clone());
+    let today_reminders = reminders_file
+        .reminders
+        .iter()
+        .filter(|r| matches_day_type(&r.day_type, today))
+        .map(|r| r.text.clone())
+        .collect();
+
+    Ok(RemindersOverview {
+        focus,
+        rotation: focus_file.rotation.unwrap_or_else(|| "cycle".into()),
+        phrases: focus_file.phrases,
+        reminders: reminders_file.reminders,
+        blocks: schedule_file.blocks,
+        today: today.format("%Y-%m-%d").to_string(),
+        today_reminders,
+        errors,
+    })
 }
 
 pub fn dashboard_context(

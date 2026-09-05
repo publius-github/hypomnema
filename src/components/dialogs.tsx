@@ -52,21 +52,48 @@ export function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const row = useRef<HTMLDivElement>(null);
+
+  // Left/Right (and Up/Down) walk the two buttons, so the dialog can be
+  // answered without reaching for the mouse or knowing that Tab is the
+  // only way through. Focus stays visible on whichever button is armed;
+  // Enter/Space then activate it the way a button always does.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
+    if (!keys.includes(e.key)) return;
+    const buttons = Array.from(
+      row.current?.querySelectorAll("button") ?? [],
+    ) as HTMLButtonElement[];
+    if (buttons.length === 0) return;
+    e.preventDefault();
+    const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const delta = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1;
+    const next = current < 0 ? 0 : (current + delta + buttons.length) % buttons.length;
+    buttons[next].focus();
+  };
+
   return (
     <Backdrop onCancel={onCancel}>
       <span className="text-sm font-semibold">{title}</span>
       {message && <p className="text-sm text-content-muted">{message}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div
+        ref={row}
+        className="flex justify-end gap-2 pt-1"
+        onKeyDown={onKeyDown}
+      >
         {/* focus lands on Cancel: Enter must never confirm a destructive
             action by accident */}
         <button
-          className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-content-muted"
+          className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-content-muted focus:border-accent focus:outline-none focus-visible:border-accent"
           onClick={onCancel}
           autoFocus
         >
           Cancel
         </button>
-        <button className="btn-danger px-3 py-1.5 text-sm" onClick={onConfirm}>
+        <button
+          className="btn-danger px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-danger/50"
+          onClick={onConfirm}
+        >
           {confirmLabel}
         </button>
       </div>

@@ -49,6 +49,18 @@ dashboard_split: number,
  */
 calendar_daily_days: number, calendar_weekly_weeks: number, calendar_monthly_months: number, calendar_yearly_years: number, calendar_dates_years: number, 
 /**
+ * Font size of the Calendar day-detail chips (list/category, time,
+ * projected kind) as a percent of the row text: 100 = exactly the
+ * size of the task text next to them.
+ */
+calendar_chip_font_scale: number, 
+/**
+ * Give every category in the Calendar day list its own chip color,
+ * rotating through a palette so neighbouring categories differ at
+ * a glance; off = one neutral chip style for all of them.
+ */
+calendar_category_colors: boolean, 
+/**
  * UI font family (empty = system default stack).
  */
 ui_font: string, 
@@ -146,6 +158,13 @@ notify_system: boolean,
  * (one file per list + scheduled.md) for bulk editing in any editor.
  */
 tasks_mirror: boolean, 
+/**
+ * Write the trailing `^id` sync key on every mirrored line. Off
+ * keeps the files clean to read, at the price of identity: a line
+ * is then matched back to its task by title, so renaming a task in
+ * the file replaces it instead of editing it.
+ */
+tasks_mirror_ids: boolean, 
 /**
  * Show a [SAT#1]-style marker before recurring tasks whose cron
  * pins concrete weekdays.

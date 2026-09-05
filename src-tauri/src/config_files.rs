@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::Result;
+use crate::reminders::{DayReminder, ScheduleBlock};
 
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
@@ -602,6 +603,188 @@ pub fn edit_birthday(
     }
 }
 
+fn check_weekly_focus(content: &str) -> Option<String> {
+    serde_yaml::from_str::<crate::reminders::WeeklyFocusFile>(content)
+        .err()
+        .map(|e| e.to_string())
+}
+
+fn check_day_reminders(content: &str) -> Option<String> {
+    serde_yaml::from_str::<crate::reminders::DayRemindersFile>(content)
+        .err()
+        .map(|e| e.to_string())
+}
+
+fn check_day_schedule(content: &str) -> Option<String> {
+    serde_yaml::from_str::<crate::reminders::DayScheduleFile>(content)
+        .err()
+        .map(|e| e.to_string())
+}
+
+/// "HH:MM" on a real clock.
+pub(crate) fn valid_hhmm(value: &str) -> bool {
+    chrono::NaiveTime::parse_from_str(value, "%H:%M").is_ok()
+}
+
+fn validate_reminder(entry: &DayReminder) -> Result<()> {
+    if !crate::reminders::DAY_TYPES.contains(&entry.day_type.as_str()) {
+        return Err(crate::error::Error::State(format!(
+            "unknown day type '{}', expected one of {}",
+            entry.day_type,
+            crate::reminders::DAY_TYPES.join(", ")
+        )));
+    }
+    if entry.text.trim().is_empty() {
+        return Err(crate::error::Error::State(
+            "a reminder needs some text".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_block(block: &ScheduleBlock) -> Result<()> {
+    if !valid_hhmm(&block.from) || !valid_hhmm(&block.to) {
+        return Err(crate::error::Error::State(format!(
+            "invalid block times '{}'-'{}', expected HH:MM",
+            block.from, block.to
+        )));
+    }
+    if block.label.trim().is_empty() {
+        return Err(crate::error::Error::State(
+            "a schedule block needs a label".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// The three reminder files have no packs, so the Reminders section
+/// lists their items in file order and edits them by index.
+pub fn append_focus_phrase(config_dir: &Path, phrase: String) -> Result<()> {
+    let phrase = phrase.trim().to_string();
+    if phrase.is_empty() {
+        return Err(crate::error::Error::State("the phrase is empty".into()));
+    }
+    splice_item(
+        config_dir,
+        "weekly-focus.yml",
+        "phrases",
+        None,
+        Some(&phrase),
+        check_weekly_focus,
+    )
+}
+
+pub fn edit_focus_phrase(
+    config_dir: &Path,
+    index: usize,
+    replacement: Option<String>,
+) -> Result<()> {
+    match replacement {
+        Some(phrase) => {
+            let phrase = phrase.trim().to_string();
+            if phrase.is_empty() {
+                return Err(crate::error::Error::State("the phrase is empty".into()));
+            }
+            splice_item(
+                config_dir,
+                "weekly-focus.yml",
+                "phrases",
+                Some(index),
+                Some(&phrase),
+                check_weekly_focus,
+            )
+        }
+        None => splice_item::<String>(
+            config_dir,
+            "weekly-focus.yml",
+            "phrases",
+            Some(index),
+            None,
+            check_weekly_focus,
+        ),
+    }
+}
+
+pub fn append_day_reminder(config_dir: &Path, entry: DayReminder) -> Result<()> {
+    validate_reminder(&entry)?;
+    splice_item(
+        config_dir,
+        "day-reminders.yml",
+        "reminders",
+        None,
+        Some(&entry),
+        check_day_reminders,
+    )
+}
+
+pub fn edit_day_reminder(
+    config_dir: &Path,
+    index: usize,
+    replacement: Option<DayReminder>,
+) -> Result<()> {
+    match replacement {
+        Some(entry) => {
+            validate_reminder(&entry)?;
+            splice_item(
+                config_dir,
+                "day-reminders.yml",
+                "reminders",
+                Some(index),
+                Some(&entry),
+                check_day_reminders,
+            )
+        }
+        None => splice_item::<DayReminder>(
+            config_dir,
+            "day-reminders.yml",
+            "reminders",
+            Some(index),
+            None,
+            check_day_reminders,
+        ),
+    }
+}
+
+pub fn append_schedule_block(config_dir: &Path, block: ScheduleBlock) -> Result<()> {
+    validate_block(&block)?;
+    splice_item(
+        config_dir,
+        "day-schedule.yml",
+        "blocks",
+        None,
+        Some(&block),
+        check_day_schedule,
+    )
+}
+
+pub fn edit_schedule_block(
+    config_dir: &Path,
+    index: usize,
+    replacement: Option<ScheduleBlock>,
+) -> Result<()> {
+    match replacement {
+        Some(block) => {
+            validate_block(&block)?;
+            splice_item(
+                config_dir,
+                "day-schedule.yml",
+                "blocks",
+                Some(index),
+                Some(&block),
+                check_day_schedule,
+            )
+        }
+        None => splice_item::<ScheduleBlock>(
+            config_dir,
+            "day-schedule.yml",
+            "blocks",
+            Some(index),
+            None,
+            check_day_schedule,
+        ),
+    }
+}
+
 /// Validates the content of a task-config file without writing it.
 /// Used by the Settings editor for inline validation before save.
 pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
@@ -667,6 +850,38 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
             }
             Err(e) => push_yaml_error(e),
         },
+        "day-reminders.yml" => {
+            match serde_yaml::from_str::<crate::reminders::DayRemindersFile>(content) {
+                Ok(parsed) => {
+                    for (index, entry) in parsed.reminders.iter().enumerate() {
+                        if let Err(e) = validate_reminder(entry) {
+                            errors.push(ConfigError {
+                                file: file.into(),
+                                line: None,
+                                message: format!("reminder {}: {e}", index + 1),
+                            });
+                        }
+                    }
+                }
+                Err(e) => push_yaml_error(e),
+            }
+        }
+        "day-schedule.yml" => {
+            match serde_yaml::from_str::<crate::reminders::DayScheduleFile>(content) {
+                Ok(parsed) => {
+                    for (index, block) in parsed.blocks.iter().enumerate() {
+                        if let Err(e) = validate_block(block) {
+                            errors.push(ConfigError {
+                                file: file.into(),
+                                line: None,
+                                message: format!("block {}: {e}", index + 1),
+                            });
+                        }
+                    }
+                }
+                Err(e) => push_yaml_error(e),
+            }
+        }
         _ => {
             if let Err(e) = serde_yaml::from_str::<serde_yaml::Value>(content) {
                 push_yaml_error(e);

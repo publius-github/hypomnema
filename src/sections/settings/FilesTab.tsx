@@ -86,6 +86,29 @@ export default function FilesTab() {
           </span>
         </label>
 
+        <label className="ml-6 flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            disabled={!config.tasks_mirror}
+            checked={config.tasks_mirror_ids}
+            onChange={(e) =>
+              void updateConfig({ tasks_mirror_ids: e.target.checked })
+            }
+          />
+          <span className="flex flex-col">
+            <span className="text-sm font-medium">
+              Write the ^id sync key on every line
+            </span>
+            <span className="text-xs text-content-muted">
+              The trailing number is what ties a line to its task across
+              edits. Turning it off keeps the files clean to read, and a
+              line is then matched by its text instead: retyping a title
+              replaces the task rather than renaming it.
+            </span>
+          </span>
+        </label>
+
         <label className="flex items-start gap-2">
           <input
             type="checkbox"
@@ -111,7 +134,8 @@ export default function FilesTab() {
           <p className="text-xs text-content-muted">
             recurring.yml, scheduled.yml and the other config files are
             edited in Notes under the Config group, with validation on save.
-            Quick links to the files without a form UI:
+            The three below also have a form UI in the Reminders section;
+            these are the raw files:
           </p>
           <div className="flex flex-wrap gap-2">
             {["weekly-focus.yml", "day-reminders.yml", "day-schedule.yml"].map(

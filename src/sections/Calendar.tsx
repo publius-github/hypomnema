@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
-import { todayISO } from "../lib/tasks";
+import {
+  categoryColors,
+  categoryOf,
+  splitCategory,
+  tintStyle,
+  todayISO,
+} from "../lib/tasks";
 import type { OutlookEvent, Task } from "../types";
 import TaskModal from "../components/TaskModal";
 import QuickAdd from "../components/QuickAdd";
@@ -47,6 +53,7 @@ function iso(year: number, month: number, day: number): string {
 
 export default function Calendar() {
   const lists = useAppStore((s) => s.lists);
+  const config = useAppStore((s) => s.config);
   const dowLabels = useAppStore((s) => s.config?.cron_weekday_labels ?? true);
   const everydayLabel = useAppStore(
     (s) => s.config?.cron_everyday_label ?? true,
@@ -146,10 +153,39 @@ export default function Calendar() {
     setMonth(next.getMonth());
   };
 
-  const selectedTasks = byDate.get(selected) ?? [];
   const selectedOutlook = outlookByDate.get(selected) ?? [];
   const listName = (id: number | null) =>
     lists.find((l) => l.id === id)?.name ?? null;
+  // the same notion of "category" the day columns use: the {X} title
+  // prefix, or the list a generated task belongs to
+  const categoryOfTask = (task: Task) =>
+    categoryOf(task.title) ?? listName(task.list_id);
+  // one color per category for the whole month, so a category keeps its
+  // chip color as the selection moves from day to day
+  const colors = useMemo(
+    () =>
+      (config?.calendar_category_colors ?? true)
+        ? categoryColors(
+            monthTasks
+              .map((t) => categoryOf(t.title) ?? listName(t.list_id))
+              .filter((name): name is string => name !== null),
+            lists,
+          )
+        : new Map<string, string>(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [monthTasks, lists, config?.calendar_category_colors],
+  );
+  // tasks of the day grouped by category, so the alternating chip
+  // colors read as blocks instead of a stripe pattern
+  const selectedTasks = [...(byDate.get(selected) ?? [])].sort((a, b) => {
+    const ca = categoryOfTask(a) ?? "";
+    const cb = categoryOfTask(b) ?? "";
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    return a.id - b.id;
+  });
+  // chips follow the row text: 100% is exactly the size of the task
+  // title next to them (Settings > Calendar)
+  const chipSize = `${config?.calendar_chip_font_scale ?? 100}%`;
 
   return (
     <div className="flex h-full">
@@ -305,14 +341,29 @@ export default function Calendar() {
                 dowLabels &&
                 (task.dow_label !== "EVERYDAY" || everydayLabel) &&
                 `[${task.dow_label}] `}
-              {task.title}
+              {splitCategory(task.title).text}
             </span>
             {task.time && (
-              <span className="text-xs text-content-muted">{task.time}</span>
+              <span className="text-content-muted" style={{ fontSize: chipSize }}>
+                {task.time}
+              </span>
             )}
-            {listName(task.list_id) && (
-              <span className="rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
-                {listName(task.list_id)}
+            {categoryOfTask(task) && (
+              <span
+                className={`shrink-0 rounded px-1.5 py-0.5 font-medium ${
+                  colors.has(categoryOfTask(task)!)
+                    ? ""
+                    : "bg-line/40 text-content-muted"
+                }`}
+                style={{
+                  fontSize: chipSize,
+                  ...(colors.has(categoryOfTask(task)!)
+                    ? tintStyle(colors.get(categoryOfTask(task)!)!)
+                    : {}),
+                }}
+                title={`Category: ${categoryOfTask(task)}`}
+              >
+                {categoryOfTask(task)}
               </span>
             )}
           </button>
@@ -328,7 +379,10 @@ export default function Calendar() {
                 className="flex items-center gap-2 rounded-md border border-dashed border-line px-3 py-2 text-sm text-content-muted"
                 title="Not generated yet; appears as a task when the date nears"
               >
-                <span className="w-16 shrink-0 rounded bg-line/40 px-1.5 py-0.5 text-center text-[11px]">
+                <span
+                  className="w-16 shrink-0 rounded bg-line/40 px-1.5 py-0.5 text-center"
+                  style={{ fontSize: chipSize }}
+                >
                   {event.kind}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{event.title}</span>

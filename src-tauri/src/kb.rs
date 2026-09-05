@@ -258,6 +258,37 @@ pub fn create(root: &Path, rel: &str) -> Result<String> {
     Ok(rel)
 }
 
+/// Creates a folder (and any missing parents) under the KB root. An
+/// existing folder is fine - the tree just gains nothing; an existing
+/// FILE at the path is an error, since creating the folder would mean
+/// destroying it.
+pub fn create_dir(root: &Path, rel: &str) -> Result<String> {
+    let rel = rel.trim().trim_matches('/').to_string();
+    if rel.is_empty() {
+        return Err(Error::State("folder name is empty".into()));
+    }
+    let path = resolve(root, &rel)?;
+    if path.is_file() {
+        return Err(Error::State(format!("a file already exists at {rel}")));
+    }
+    fs::create_dir_all(&path)?;
+    Ok(rel)
+}
+
+/// Absolute on-disk path of a note or folder ("" = the KB root itself),
+/// for "copy path" and "show in the file manager".
+pub fn abs_path(root: &Path, rel: &str) -> Result<PathBuf> {
+    let path = if rel.trim().is_empty() {
+        root.to_path_buf()
+    } else {
+        resolve(root, rel)?
+    };
+    if !path.exists() {
+        return Err(Error::State(format!("no such file: {rel}")));
+    }
+    Ok(path)
+}
+
 /// A target without an extension inherits the source's extension, so
 /// renaming never silently changes a file's type.
 pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {

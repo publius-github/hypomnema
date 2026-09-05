@@ -17,6 +17,7 @@ import Dashboard from "./sections/Dashboard";
 import Lists from "./sections/Lists";
 import Days from "./sections/Days";
 import Upcoming from "./sections/Upcoming";
+import Reminders from "./sections/Reminders";
 import Calendar from "./sections/Calendar";
 import History from "./sections/History";
 import Journal from "./sections/Journal";
@@ -144,6 +145,7 @@ export default function App() {
           "lists",
           "days",
           "upcoming",
+          "reminders",
           "calendar",
           "history",
           "journal",
@@ -237,6 +239,7 @@ export default function App() {
         {section === "lists" && <Lists />}
         {section === "days" && <Days />}
         {section === "upcoming" && <Upcoming />}
+        {section === "reminders" && <Reminders />}
         {section === "calendar" && <Calendar />}
         {section === "history" && <History />}
         {section === "journal" && <Journal />}

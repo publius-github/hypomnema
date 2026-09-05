@@ -809,28 +809,37 @@ fn carry_over(
 /// columns (manual, list-bound, unscheduled or priority-pinned) are
 /// removed once their completion day has passed: the list is a working
 /// queue, not history. Subtasks cascade with the parent row.
+///
+/// A task checked off ahead of time on a future day column keeps that
+/// day: it stays there, done, until its own day is behind us, and goes
+/// on the rollover after that - ticking Friday's task on Monday must
+/// not empty Friday's column on Tuesday.
 fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usize> {
-    let today_start = now
-        .date_naive()
+    let today = now.date_naive();
+    let today_start = today
         .and_hms_opt(0, 0, 0)
         .and_then(|naive| Local.from_local_datetime(&naive).earliest())
         .unwrap_or(now);
     // completed_at is stored as UTC RFC3339, comparable lexicographically
     let cutoff = today_start.with_timezone(&Utc).to_rfc3339();
+    let today_str = today.format("%Y-%m-%d").to_string();
     Ok(conn.execute(
         "DELETE FROM tasks
          WHERE origin = 'manual' AND status = 'done'
            AND parent_task_id IS NULL
            AND list_id IS NOT NULL
            AND (scheduled_date IS NULL OR priority = 1)
+           AND (scheduled_date IS NULL OR scheduled_date < ?2)
            AND completed_at IS NOT NULL
            AND completed_at < ?1",
-        [cutoff],
+        (cutoff, today_str),
     )?)
 }
 
 /// Retention pruning (req. 9): with retention_days > 0, done tasks
 /// completed more than N days ago are deleted (subtasks cascade).
+/// A task ticked off far ahead of its day is exempt until that day is
+/// behind us - retention prunes history, and a future day is not one.
 fn prune(conn: &Connection, retention_days: u32, now: DateTime<Local>) -> Result<usize> {
     if retention_days == 0 {
         return Ok(0);
@@ -838,13 +847,15 @@ fn prune(conn: &Connection, retention_days: u32, now: DateTime<Local>) -> Result
     // completed_at is stored in UTC; the cutoff must be UTC too, since
     // RFC3339 strings with mixed offsets do not order chronologically.
     let cutoff = (now.with_timezone(&Utc) - Duration::days(i64::from(retention_days))).to_rfc3339();
+    let today_str = now.date_naive().format("%Y-%m-%d").to_string();
     let pruned = conn.execute(
         "DELETE FROM tasks
          WHERE status = 'done'
            AND parent_task_id IS NULL
            AND completed_at IS NOT NULL
-           AND completed_at < ?1",
-        [cutoff],
+           AND completed_at < ?1
+           AND (scheduled_date IS NULL OR scheduled_date < ?2)",
+        (cutoff, today_str),
     )?;
     Ok(pruned)
 }
@@ -1609,6 +1620,34 @@ mod tests {
         };
         run(&conn2, &dir2, &cfg, at("2026-08-28", "12:00:00")).unwrap();
         assert_eq!(count_tasks(&conn2), 1);
+    }
+
+    /// A task ticked off on a future day column keeps that day: neither
+    /// the list sweep nor retention may take it before the day is past.
+    #[test]
+    fn a_task_done_ahead_of_time_survives_until_its_day_is_past() {
+        let (conn, dir) = setup("done-ahead");
+        conn.execute(
+            "INSERT INTO lists (name, sort_order) VALUES ('Inbox', 0)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (title, list_id, scheduled_date, status, completed_at,
+                                priority, created_at)
+             VALUES ('friday', 1, '2026-08-30', 'done', '2026-08-27T15:00:00+00:00',
+                     1, '2026-08-25T00:00:00+00:00')",
+            [],
+        )
+        .unwrap();
+
+        // two days before its date: the day column still shows it done
+        run(&conn, &dir, &config(1, 7, 1), at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(count_tasks(&conn), 1);
+
+        // the day after its date: the sweep takes it
+        run(&conn, &dir, &config(1, 7, 1), at("2026-08-31", "12:00:00")).unwrap();
+        assert_eq!(count_tasks(&conn), 0);
     }
 
     #[test]

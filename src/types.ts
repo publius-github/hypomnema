@@ -11,6 +11,7 @@ export type { ConfigError } from "./bindings/ConfigError";
 export type { DailyStreak } from "./bindings/DailyStreak";
 export type { DashboardContext } from "./bindings/DashboardContext";
 export type { DayContext } from "./bindings/DayContext";
+export type { DayReminder } from "./bindings/DayReminder";
 export type { EngineOutcome } from "./bindings/EngineOutcome";
 export type { JournalEntry } from "./bindings/JournalEntry";
 export type { JournalSearchHit } from "./bindings/JournalSearchHit";
@@ -22,6 +23,7 @@ export type { RecurringResult } from "./bindings/RecurringResult";
 export type { RecurringRuleView } from "./bindings/RecurringRuleView";
 export type { UpcomingEventView } from "./bindings/UpcomingEventView";
 export type { RecurringRule } from "./bindings/RecurringRule";
+export type { RemindersOverview } from "./bindings/RemindersOverview";
 export type { ScheduleBlock } from "./bindings/ScheduleBlock";
 export type { ScheduledEvent } from "./bindings/ScheduledEvent";
 export type { Task } from "./bindings/Task";
@@ -40,6 +42,7 @@ export type Section =
   | "lists"
   | "days"
   | "upcoming"
+  | "reminders"
   | "calendar"
   | "history"
   | "journal"

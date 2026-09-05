@@ -3,6 +3,7 @@ const SECTION_LABELS: Record<string, string> = {
   lists: "Lists",
   days: "Days",
   upcoming: "Upcoming",
+  reminders: "Reminders",
   calendar: "Calendar",
   history: "History",
   journal: "Journal",

@@ -12,6 +12,11 @@
 //! line keeping its id updates that task, a line without an id creates a
 //! task, and a task whose line disappeared from its file is deleted
 //! (soft delete - restorable until the engine purges it after 24h).
+//!
+//! With `config.tasks_mirror_ids` off the key is left out of the files
+//! (they read as plain checklists) and a line is matched back to its
+//! task by title instead - editing the text of a line then replaces the
+//! task rather than renaming it.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
@@ -25,7 +30,11 @@ use crate::tasks::{self, NewTask, Task, TaskPatch};
 const SCHEDULED_MARKER: &str = "<!-- hypomnema:scheduled -->";
 const LIST_MARKER_PREFIX: &str = "<!-- hypomnema:list:";
 
-const FORMAT_HELP: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [>] = postponed; an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. The trailing ^id is the sync key: keep it when editing a line, leave it out on new lines, and deleting a whole line deletes that task. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
+const FORMAT_HELP: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed; an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. The trailing ^id is the sync key: keep it when editing a line, leave it out on new lines, and deleting a whole line deletes that task. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
+
+/// Same help, for vaults with the sync keys turned off: without an id a
+/// line is matched by its text, which changes what editing one means.
+const FORMAT_HELP_NO_IDS: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed; an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. Lines carry no sync key here (Settings > Files), so a line is matched to its task by text: retyping a title replaces the task, and deleting a whole line deletes it. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
 
 fn list_marker(id: i64) -> String {
     format!("{LIST_MARKER_PREFIX}{id} -->")
@@ -51,10 +60,10 @@ fn sanitize_name(name: &str) -> String {
     }
 }
 
-fn render_line(task: &Task, indent: usize) -> String {
+fn render_line(task: &Task, indent: usize, ids: bool) -> String {
     let mark = match task.status.as_str() {
         "done" => "x",
-        "postponed" => ">",
+        "postponed" => "z",
         _ => " ",
     };
     let mut line = format!("{}- [{mark}] ", "  ".repeat(indent));
@@ -66,7 +75,9 @@ fn render_line(task: &Task, indent: usize) -> String {
         line.push_str("! ");
     }
     line.push_str(task.title.trim());
-    line.push_str(&format!(" ^{}", task.id));
+    if ids {
+        line.push_str(&format!(" ^{}", task.id));
+    }
     line
 }
 
@@ -104,7 +115,9 @@ pub fn export(
     tasks_dir: &Path,
     today: &str,
     skip: &HashSet<PathBuf>,
+    ids: bool,
 ) -> Result<Vec<(PathBuf, String)>> {
+    let help = if ids { FORMAT_HELP } else { FORMAT_HELP_NO_IDS };
     fs::create_dir_all(tasks_dir)?;
     let lists = tasks::lists_all(conn)?;
     let parents = tasks::manual_parent_tasks(conn)?;
@@ -137,12 +150,12 @@ pub fn export(
             name = format!("{name} ({})", list.id);
             used_names.insert(name.to_lowercase());
         }
-        let mut content = format!("{}\n{FORMAT_HELP}\n\n", list_marker(list.id));
+        let mut content = format!("{}\n{help}\n\n", list_marker(list.id));
         for task in &backlog {
-            content.push_str(&render_line(task, 0));
+            content.push_str(&render_line(task, 0, ids));
             content.push('\n');
             for sub in subs.get(&task.id).into_iter().flatten() {
-                content.push_str(&render_line(sub, 1));
+                content.push_str(&render_line(sub, 1, ids));
                 content.push('\n');
             }
         }
@@ -165,15 +178,15 @@ pub fn export(
             }
         }
     }
-    let mut content = format!("{SCHEDULED_MARKER}\n{FORMAT_HELP}\n");
+    let mut content = format!("{SCHEDULED_MARKER}\n{help}\n");
     for (date, group) in &mut by_date {
         ui_order(group);
         content.push_str(&format!("\n## {date}\n\n"));
         for task in group.iter() {
-            content.push_str(&render_line(task, 0));
+            content.push_str(&render_line(task, 0, ids));
             content.push('\n');
             for sub in subs.get(&task.id).into_iter().flatten() {
-                content.push_str(&render_line(sub, 1));
+                content.push_str(&render_line(sub, 1, ids));
                 content.push('\n');
             }
         }
@@ -227,11 +240,16 @@ fn parse_task_line(t: &str) -> std::result::Result<Line, String> {
         .or_else(|| t.strip_prefix("- [X] "))
     {
         ("done", r)
-    } else if let Some(r) = t.strip_prefix("- [>] ") {
+    } else if let Some(r) = t
+        .strip_prefix("- [z] ")
+        .or_else(|| t.strip_prefix("- [Z] "))
+        // [>] is what versions before 0.41 wrote; still read, never written
+        .or_else(|| t.strip_prefix("- [>] "))
+    {
         ("postponed", r)
     } else if t.starts_with("- [") {
         return Err(format!(
-            "unrecognized checkbox in '{t}' (use [ ], [x] or [>])"
+            "unrecognized checkbox in '{t}' (use [ ], [x] or [z])"
         ));
     } else if let Some(r) = t.strip_prefix("- ") {
         // a plain bullet is accepted as a new open task (bulk paste)
@@ -337,7 +355,13 @@ enum Scope {
 /// Applies an edited mirror file to the database. Returns whether
 /// anything actually changed. `today` bounds the scheduled scope: only
 /// tasks the file is responsible for can be deleted by their absence.
-pub fn import_file(conn: &Connection, path: &Path, content: &str, today: &str) -> Result<bool> {
+pub fn import_file(
+    conn: &Connection,
+    path: &Path,
+    content: &str,
+    today: &str,
+    ids: bool,
+) -> Result<bool> {
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -403,15 +427,42 @@ pub fn import_file(conn: &Connection, path: &Path, content: &str, today: &str) -
         }
     }
 
+    // Which task each line stands for. An explicit ^id always wins;
+    // with the keys turned off the files carry none, so a line claims
+    // the first not-yet-claimed task in scope with the same text.
+    let mut resolved: Vec<Option<i64>> = entries
+        .iter()
+        .map(|entry| entry.line.id.filter(|id| by_id.contains_key(id)))
+        .collect();
+    if !ids {
+        let mut claimed: HashSet<i64> = resolved.iter().flatten().copied().collect();
+        for (slot, entry) in resolved.iter_mut().zip(entries.iter()) {
+            if slot.is_some() {
+                continue;
+            }
+            *slot = parents
+                .iter()
+                .find(|task| {
+                    scope_ids.contains(&task.id)
+                        && !claimed.contains(&task.id)
+                        && task.title == entry.line.title
+                })
+                .map(|task| task.id);
+            if let Some(id) = slot {
+                claimed.insert(*id);
+            }
+        }
+    }
+
     let mut seen: HashSet<i64> = HashSet::new();
     let mut counters: HashMap<String, i64> = HashMap::new();
-    for entry in &entries {
+    for (entry, resolved_id) in entries.iter().zip(resolved.iter()) {
         let group = entry.date.clone().unwrap_or_default();
         let index = counters.entry(group).or_insert(0);
         let sort_order = *index;
         *index += 1;
 
-        let existing = entry.line.id.and_then(|id| by_id.get(&id).copied());
+        let existing = resolved_id.and_then(|id| by_id.get(&id).copied());
         let pid = match existing {
             Some(task) => {
                 let mut patch = TaskPatch::default();
@@ -495,7 +546,21 @@ pub fn import_file(conn: &Connection, path: &Path, content: &str, today: &str) -
         let sub_by_id: HashMap<i64, &Task> = existing_subs.iter().map(|t| (t.id, *t)).collect();
         let mut sub_seen: HashSet<i64> = HashSet::new();
         for (i, sub) in entry.subs.iter().enumerate() {
-            match sub.id.and_then(|id| sub_by_id.get(&id).copied()) {
+            let matched = sub
+                .id
+                .and_then(|id| sub_by_id.get(&id).copied())
+                .or_else(|| {
+                    if ids {
+                        return None;
+                    }
+                    existing_subs
+                        .iter()
+                        .find(|existing| {
+                            !sub_seen.contains(&existing.id) && existing.title == sub.title
+                        })
+                        .copied()
+                });
+            match matched {
                 Some(existing_sub) => {
                     let mut patch = TaskPatch::default();
                     let mut dirty = false;
@@ -610,10 +675,10 @@ mod tests {
         )
         .unwrap();
 
-        let written = export(&conn, &dir, TODAY, &HashSet::new()).unwrap();
+        let written = export(&conn, &dir, TODAY, &HashSet::new(), true).unwrap();
         assert_eq!(written.len(), 2); // Groceries.md + scheduled.md
         for (path, content) in &written {
-            assert!(!import_file(&conn, path, content, TODAY).unwrap());
+            assert!(!import_file(&conn, path, content, TODAY, true).unwrap());
         }
         let _ = fs::remove_dir_all(&dir);
     }
@@ -645,7 +710,7 @@ mod tests {
             keep.id
         );
         let path = dir.join("Inbox.md");
-        assert!(import_file(&conn, &path, &content, TODAY).unwrap());
+        assert!(import_file(&conn, &path, &content, TODAY, true).unwrap());
 
         let kept = task_get(&conn, keep.id).unwrap();
         assert_eq!(kept.title, "keep me renamed");
@@ -697,7 +762,7 @@ mod tests {
             movable.id
         );
         let path = dir.join("scheduled.md");
-        assert!(import_file(&conn, &path, &content, TODAY).unwrap());
+        assert!(import_file(&conn, &path, &content, TODAY, true).unwrap());
 
         let moved = task_get(&conn, movable.id).unwrap();
         assert_eq!(moved.scheduled_date.as_deref(), Some("2026-09-05"));
@@ -715,7 +780,7 @@ mod tests {
     fn new_file_creates_a_list_and_malformed_lines_abort() {
         let (conn, dir) = setup("newlist");
         let path = dir.join("Reading.md");
-        assert!(import_file(&conn, &path, "- [ ] some book\n", TODAY).unwrap());
+        assert!(import_file(&conn, &path, "- [ ] some book\n", TODAY, true).unwrap());
         let lists = tasks::lists_all(&conn).unwrap();
         let list = lists.iter().find(|l| l.name == "Reading").unwrap();
         let parents = tasks::manual_parent_tasks(&conn).unwrap();
@@ -725,8 +790,71 @@ mod tests {
 
         // a bad checkbox aborts the whole file: nothing gets deleted
         let bad = format!("{}\n- [?] broken\n", list_marker(list.id));
-        assert!(import_file(&conn, &path, &bad, TODAY).is_err());
+        assert!(import_file(&conn, &path, &bad, TODAY, true).is_err());
         assert_eq!(tasks::manual_parent_tasks(&conn).unwrap().len(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// With the sync keys off the files carry no ids at all, and a
+    /// round trip still has to be a no-op: every line finds its task by
+    /// text, so nothing is recreated and nothing is deleted.
+    #[test]
+    fn id_less_mirror_round_trips_by_title() {
+        let (conn, dir) = setup("no-ids");
+        let list = list_create(&conn, "Errands", None, false).unwrap();
+        let parent = task_create(
+            &conn,
+            &NewTask {
+                list_id: Some(list.id),
+                ..new_task("post office")
+            },
+        )
+        .unwrap();
+        task_create(
+            &conn,
+            &NewTask {
+                parent_task_id: Some(parent.id),
+                ..new_task("stamps")
+            },
+        )
+        .unwrap();
+
+        let written = export(&conn, &dir, TODAY, &HashSet::new(), false).unwrap();
+        let (path, content) = written
+            .iter()
+            .find(|(p, _)| p.file_name().unwrap() == "Errands.md")
+            .unwrap();
+        assert!(!content.contains(&format!("^{}", parent.id)));
+        assert!(!import_file(&conn, path, content, TODAY, false).unwrap());
+        assert_eq!(tasks::manual_parent_tasks(&conn).unwrap().len(), 1);
+        assert_eq!(tasks::subtasks_all(&conn).unwrap().len(), 1);
+
+        // ticking the box off the file still reaches the same task
+        let edited = content.replace("- [ ] post office", "- [x] post office");
+        assert!(import_file(&conn, path, &edited, TODAY, false).unwrap());
+        assert_eq!(task_get(&conn, parent.id).unwrap().status, "done");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// [z] is what postponed tasks are written as now; [>] from older
+    /// versions still parses, so an un-rewritten file keeps working.
+    #[test]
+    fn postponed_reads_both_markers_and_writes_z() {
+        let (conn, dir) = setup("postponed");
+        let list = list_create(&conn, "Later", None, false).unwrap();
+        let path = dir.join("Later.md");
+        let content = format!("{}\n- [>] old marker\n", list_marker(list.id));
+        assert!(import_file(&conn, &path, &content, TODAY, true).unwrap());
+        let parents = tasks::manual_parent_tasks(&conn).unwrap();
+        assert_eq!(parents[0].status, "postponed");
+
+        let written = export(&conn, &dir, TODAY, &HashSet::new(), true).unwrap();
+        let (_, out) = written
+            .iter()
+            .find(|(p, _)| p.file_name().unwrap() == "Later.md")
+            .unwrap();
+        assert!(out.contains("- [z] old marker"));
+        assert!(!out.contains("- [>]"));
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -734,12 +862,12 @@ mod tests {
     fn export_removes_files_of_archived_lists_and_keeps_foreign_md() {
         let (conn, dir) = setup("stale");
         let list = list_create(&conn, "Temp", None, false).unwrap();
-        export(&conn, &dir, TODAY, &HashSet::new()).unwrap();
+        export(&conn, &dir, TODAY, &HashSet::new(), true).unwrap();
         assert!(dir.join("Temp.md").exists());
         fs::write(dir.join("notes.md"), "my own file\n").unwrap();
 
         tasks::list_archive(&conn, list.id).unwrap();
-        export(&conn, &dir, TODAY, &HashSet::new()).unwrap();
+        export(&conn, &dir, TODAY, &HashSet::new(), true).unwrap();
         assert!(!dir.join("Temp.md").exists());
         assert!(dir.join("notes.md").exists());
         assert!(dir.join("scheduled.md").exists());

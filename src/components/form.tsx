@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 // Shared settings form primitives (also usable elsewhere): committed
 // inputs, toggle rows, and the palette color picker.
@@ -205,6 +205,71 @@ export function TextInput({
         if (e.key === "Escape") {
           setDraft(value);
           e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * One logical line of text that wraps instead of scrolling sideways:
+ * the box grows with the content, so editing a long entry never turns
+ * into hunting for the caret with the arrow keys. Enter commits (the
+ * text has no newlines), Escape is left to the caller.
+ */
+export function GrowingTextarea({
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+  placeholder,
+  className = "",
+  autoFocus = false,
+  commitOnBlur = true,
+  maxRows = 8,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onCommit: () => void;
+  onCancel?: () => void;
+  placeholder?: string;
+  className?: string;
+  autoFocus?: boolean;
+  /** Off where committing means creating something (an add field). */
+  commitOnBlur?: boolean;
+  /** Beyond this the box stops growing and scrolls. */
+  maxRows?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // measured against the real line height, so the cap follows the
+    // configured font size instead of a hardcoded pixel budget
+    const line = parseFloat(getComputedStyle(el).lineHeight) || 20;
+    const padding = el.offsetHeight - el.clientHeight;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, line * maxRows + padding)}px`;
+  }, [value, maxRows]);
+
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      className={`resize-none ${className}`}
+      placeholder={placeholder}
+      value={value}
+      autoFocus={autoFocus}
+      onChange={(e) => onChange(e.target.value.replace(/\n/g, " "))}
+      onBlur={commitOnBlur ? onCommit : undefined}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onCommit();
+        }
+        if (e.key === "Escape" && onCancel) {
+          e.preventDefault();
+          onCancel();
         }
       }}
     />

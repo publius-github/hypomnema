@@ -217,10 +217,21 @@ export default function KnowledgeBase() {
 
   type Dialog =
     | { kind: "create"; dir?: string }
+    | { kind: "createFolder"; dir?: string }
     | { kind: "rename"; node: KbNode }
     | { kind: "delete"; node: KbNode }
     | { kind: "deleteMany"; paths: string[] };
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  // right-click menu over the tree; `node` null = the root row/space
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    node: KbNode | null;
+  } | null>(null);
+  // drop target highlight: a folder path, or "" for the tree root
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  // what a drag carries (same window, so a ref beats dataTransfer)
+  const dragPaths = useRef<string[]>([]);
 
   // IDE-style tree selection: click selects (and opens a file),
   // Ctrl/Cmd+click toggles, Shift+click ranges over the visible rows
@@ -285,6 +296,35 @@ export default function KnowledgeBase() {
     await loadTree();
   };
 
+  /**
+   * Moves files and folders into `toDir` ("" = the KB root), keeping
+   * their names. Backs both the tree's drag-and-drop and Ctrl+X/Ctrl+V.
+   * A note open in the editor follows the move instead of closing.
+   */
+  const moveInto = async (paths: string[], toDir: string) => {
+    let reopen: string | null = null;
+    for (const from of paths) {
+      const target = toDir ? `${toDir}/${basenameOf(from)}` : basenameOf(from);
+      if (target === from) continue;
+      if (toDir === from || toDir.startsWith(`${from}/`)) {
+        setError(`cannot move "${from}" into itself`);
+        continue;
+      }
+      try {
+        dropPendingFor(from);
+        await invoke("kb_rename", { from, to: target });
+        if (current?.kind === "note" && current.path === from) {
+          reopen = target;
+        }
+      } catch (e) {
+        setError(e);
+      }
+    }
+    setSelected([]);
+    await loadTree();
+    if (reopen) await openFile(reopen);
+  };
+
   const pasteClipboard = async () => {
     if (!clipboard) return;
     // paste target: the selected folder, a selected file's folder, or
@@ -295,31 +335,29 @@ export default function KnowledgeBase() {
       const node = nodes.find((n) => n.path === selected[0]);
       if (node) toDir = node.is_dir ? node.path : parentDirOf(node.path);
     }
+    if (clipboard.cut) {
+      await moveInto(clipboard.paths, toDir);
+      setClipboard(null);
+      return;
+    }
     for (const from of clipboard.paths) {
       try {
-        if (clipboard.cut) {
-          const target = toDir ? `${toDir}/${basenameOf(from)}` : basenameOf(from);
-          if (target === from) continue;
-          if (toDir === from || toDir.startsWith(`${from}/`)) {
-            setError(`cannot move "${from}" into itself`);
-            continue;
-          }
-          dropPendingFor(from);
-          await invoke("kb_rename", { from, to: target });
-          if (current?.path === from) {
-            setCurrent(null);
-            useAppStore.getState().setKbCurrent(null);
-          }
-        } else {
-          await invoke("kb_copy", { from, toDir });
-        }
+        await invoke("kb_copy", { from, toDir });
       } catch (e) {
         setError(e);
       }
     }
-    if (clipboard.cut) setClipboard(null);
     setSelected([]);
     await loadTree();
+  };
+
+  /** Drop handler shared by the folder rows and the root area. */
+  const dropOnto = (toDir: string) => {
+    const paths = dragPaths.current;
+    dragPaths.current = [];
+    setDropTarget(null);
+    if (paths.length === 0) return;
+    void moveInto(paths, toDir);
   };
 
   const onTreeKeyDown = (e: React.KeyboardEvent) => {
@@ -360,6 +398,44 @@ export default function KnowledgeBase() {
       const path = await invoke<string>("kb_create", { path: name });
       await loadTree();
       await openFile(path);
+    } catch (e) {
+      setError(e);
+    }
+  };
+
+  const createFolder = async (name: string) => {
+    setDialog(null);
+    try {
+      const path = await invoke<string>("kb_mkdir", { path: name });
+      await loadTree();
+      // a folder created invisibly (collapsed parents) reads as
+      // "nothing happened": open the path down to it
+      const store = useAppStore.getState();
+      const parents = path
+        .split("/")
+        .slice(0, -1)
+        .map((_, i, all) => all.slice(0, i + 1).join("/"));
+      store.setKbExpanded([
+        ...new Set([...store.kbExpanded, ...parents, path]),
+      ]);
+      setSelected([path]);
+    } catch (e) {
+      setError(e);
+    }
+  };
+
+  const copyPath = async (path: string) => {
+    try {
+      const absolute = await invoke<string>("kb_abs_path", { path });
+      await navigator.clipboard.writeText(absolute);
+    } catch (e) {
+      setError(e);
+    }
+  };
+
+  const revealPath = async (path: string) => {
+    try {
+      await invoke("kb_reveal", { path });
     } catch (e) {
       setError(e);
     }
@@ -455,15 +531,51 @@ export default function KnowledgeBase() {
     (h) => !nameMatchPaths.has(h.path),
   );
 
+  // dragging a row that is part of the selection carries the whole
+  // selection; dragging any other row carries just that row
+  const onDragStart = (node: KbNode) => {
+    dragPaths.current = selectedSet.has(node.path) ? [...selected] : [node.path];
+  };
+
   const renderNode = (node: KbNode, depth: number) => (
     <div key={node.path}>
       <div
+        draggable
+        onDragStart={() => onDragStart(node)}
+        onDragEnd={() => {
+          dragPaths.current = [];
+          setDropTarget(null);
+        }}
+        // dropping on a file means dropping into its folder, so the
+        // highlight lands on that folder's row (or the root area)
+        onDragOver={(e) => {
+          if (dragPaths.current.length === 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setDropTarget(node.is_dir ? node.path : parentDirOf(node.path));
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropOnto(node.is_dir ? node.path : parentDirOf(node.path));
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!selectedSet.has(node.path)) {
+            anchorRef.current = node.path;
+            setSelected([node.path]);
+          }
+          setMenu({ x: e.clientX, y: e.clientY, node });
+        }}
         className={`group flex items-center gap-1 rounded px-2 py-0.5 text-sm ${
-          selectedSet.has(node.path)
-            ? "bg-accent/20 text-content"
-            : !node.is_dir && current?.path === node.path
-              ? "bg-accent/15 text-accent"
-              : "text-content hover:bg-line/40"
+          dropTarget === node.path
+            ? "bg-accent/25 text-content ring-1 ring-accent"
+            : selectedSet.has(node.path)
+              ? "bg-accent/20 text-content"
+              : !node.is_dir && current?.path === node.path
+                ? "bg-accent/15 text-accent"
+                : "text-content hover:bg-line/40"
         } ${clipboard?.cut && clipboard.paths.includes(node.path) ? "opacity-50" : ""}`}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
       >
@@ -487,6 +599,13 @@ export default function KnowledgeBase() {
               onClick={() => setDialog({ kind: "create", dir: node.path })}
             >
               +
+            </button>
+            <button
+              className="px-0.5 opacity-0 hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
+              title="New folder inside this one"
+              onClick={() => setDialog({ kind: "createFolder", dir: node.path })}
+            >
+              <Icon name="folderPlus" className="h-3.5 w-3.5" />
             </button>
             <button
               className="opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
@@ -551,13 +670,42 @@ export default function KnowledgeBase() {
               >
                 +
               </button>
+              <button
+                className="rounded-md border border-line px-1.5 py-1 text-content-muted hover:border-accent hover:text-accent"
+                title="New folder"
+                onClick={() => setDialog({ kind: "createFolder" })}
+              >
+                <Icon name="folderPlus" className="h-3.5 w-3.5" />
+              </button>
             </div>
             {/* focusable so the tree takes IDE keys: F2 rename, Delete,
                 Ctrl+C/X/V copy-cut-paste, Ctrl+A select all */}
             <div
-              className="min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-none"
+              className={`min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-none ${
+                dropTarget === "" ? "bg-accent/10" : ""
+              }`}
               tabIndex={0}
               onKeyDown={onTreeKeyDown}
+              // the free space around the rows is the KB root as a drop
+              // target, the way an IDE's tree background is
+              onDragOver={(e) => {
+                if (dragPaths.current.length === 0) return;
+                e.preventDefault();
+                setDropTarget("");
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setDropTarget(null);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                dropOnto("");
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenu({ x: e.clientX, y: e.clientY, node: null });
+              }}
             >
               {searchResults
                 ? searchResults.map((node) => renderNode(node, 0))
@@ -619,13 +767,29 @@ export default function KnowledgeBase() {
           ))}
         </div>
         {kbPath && (
-          <button
-            className="border-t border-line px-3 py-2 text-left text-[11px] text-content-muted hover:text-content"
-            title={kbPath}
-            onClick={() => void pickFolder()}
-          >
-            Change folder
-          </button>
+          <div className="flex items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-content-muted">
+            <button
+              className="min-w-0 flex-1 truncate text-left hover:text-content"
+              title={kbPath}
+              onClick={() => void pickFolder()}
+            >
+              Change folder
+            </button>
+            <button
+              className="shrink-0 hover:text-content"
+              title="Show the notes folder in the file manager"
+              onClick={() => void revealPath("")}
+            >
+              Open
+            </button>
+            <button
+              className="shrink-0 hover:text-content"
+              title="Copy the absolute path of the notes folder"
+              onClick={() => void copyPath("")}
+            >
+              Copy path
+            </button>
+          </div>
         )}
       </aside>
 
@@ -719,10 +883,96 @@ export default function KnowledgeBase() {
           </div>
         )}
       </div>
+      {menu && (
+        <TreeMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={(() => {
+            const node = menu.node;
+            const dir = node ? (node.is_dir ? node.path : parentDirOf(node.path)) : "";
+            const many = selected.length > 1 && node !== null;
+            return [
+              { label: "New note", onClick: () => setDialog({ kind: "create", dir }) },
+              {
+                label: "New folder",
+                onClick: () => setDialog({ kind: "createFolder", dir }),
+              },
+              ...(node
+                ? [
+                    { separator: true as const },
+                    {
+                      label: "Rename",
+                      hint: "F2",
+                      disabled: many,
+                      onClick: () => setDialog({ kind: "rename", node }),
+                    },
+                    {
+                      label: "Copy",
+                      hint: "Ctrl+C",
+                      onClick: () =>
+                        setClipboard({ paths: [...selected], cut: false }),
+                    },
+                    {
+                      label: "Cut",
+                      hint: "Ctrl+X",
+                      onClick: () =>
+                        setClipboard({ paths: [...selected], cut: true }),
+                    },
+                  ]
+                : []),
+              ...(clipboard
+                ? [
+                    {
+                      label: `Paste into ${dir || "the notes root"}`,
+                      hint: "Ctrl+V",
+                      onClick: () => void pasteClipboard(),
+                    },
+                  ]
+                : []),
+              { separator: true as const },
+              {
+                label: "Show in file manager",
+                onClick: () => void revealPath(node ? node.path : ""),
+              },
+              {
+                label: "Copy absolute path",
+                onClick: () => void copyPath(node ? node.path : ""),
+              },
+              ...(node
+                ? [
+                    { separator: true as const },
+                    {
+                      label: many ? `Delete ${selected.length} items` : "Delete",
+                      hint: "Del",
+                      danger: true,
+                      onClick: () =>
+                        setDialog(
+                          many
+                            ? { kind: "deleteMany", paths: [...selected] }
+                            : { kind: "delete", node },
+                        ),
+                    },
+                  ]
+                : []),
+            ];
+          })()}
+        />
+      )}
       {dialog?.kind === "create" && (
         <CreateNoteModal
           initialDir={dialog.dir}
           onSubmit={(name) => void createFile(name)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "createFolder" && (
+        <PromptModal
+          title="New folder"
+          initial={dialog.dir ? `${dialog.dir}/` : ""}
+          placeholder="Path, e.g. projects/2026"
+          submitLabel="Create"
+          onSubmit={(name) => void createFolder(name)}
           onCancel={() => setDialog(null)}
         />
       )}
@@ -758,6 +1008,102 @@ export default function KnowledgeBase() {
         />
       )}
     </div>
+  );
+}
+
+type MenuItem =
+  | { separator: true }
+  | {
+      label: string;
+      hint?: string;
+      danger?: boolean;
+      disabled?: boolean;
+      onClick: () => void;
+    };
+
+/**
+ * IDE-style context menu for the file tree. Positioned at the cursor
+ * and flipped back inside the window when it would overflow; any click
+ * or Escape closes it, and picking an item runs its action first.
+ */
+function TreeMenu({
+  x,
+  y,
+  items,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  items: MenuItem[];
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    setPos({
+      left: Math.max(4, Math.min(x, window.innerWidth - width - 4)),
+      top: Math.max(4, Math.min(y, window.innerHeight - height - 4)),
+    });
+  }, [x, y]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40"
+        onMouseDown={onClose}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
+      />
+      <div
+        ref={ref}
+        className="fixed z-50 min-w-[190px] rounded-md border border-line bg-surface py-1 shadow-xl"
+        style={{ left: pos.left, top: pos.top }}
+      >
+        {items.map((item, i) =>
+          "separator" in item ? (
+            <div key={i} className="my-1 h-px bg-line" />
+          ) : (
+            <button
+              key={i}
+              disabled={item.disabled}
+              className={`flex w-full items-center gap-4 px-3 py-1 text-left text-sm disabled:opacity-40 ${
+                item.danger
+                  ? "text-danger hover:bg-danger/10"
+                  : "text-content hover:bg-line/40"
+              }`}
+              onClick={() => {
+                onClose();
+                item.onClick();
+              }}
+            >
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              {item.hint && (
+                <span className="shrink-0 text-[11px] text-content-muted">
+                  {item.hint}
+                </span>
+              )}
+            </button>
+          ),
+        )}
+      </div>
+    </>
   );
 }
 

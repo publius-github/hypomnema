@@ -137,6 +137,7 @@ fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
                             &vault::tasks_dir(&root),
                             &today_string(),
                             &Default::default(),
+                            config.tasks_mirror_ids,
                         ) {
                             *written.lock().unwrap() = files.into_iter().collect();
                         }
@@ -180,6 +181,7 @@ fn mirror_export_with(
         &vault::tasks_dir(&vault.root),
         &today_string(),
         &Default::default(),
+        vault.config.tasks_mirror_ids,
     ) {
         *written.lock().unwrap() = files.into_iter().collect();
     }
@@ -220,11 +222,15 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
             let state = app.state::<AppState>();
             let snapshot = {
                 let guard = state.vault.lock().unwrap();
-                guard
-                    .as_ref()
-                    .map(|vault| (vault.root.clone(), vault.config.tasks_mirror))
+                guard.as_ref().map(|vault| {
+                    (
+                        vault.root.clone(),
+                        vault.config.tasks_mirror,
+                        vault.config.tasks_mirror_ids,
+                    )
+                })
             };
-            let Some((root, enabled)) = snapshot else {
+            let Some((root, enabled, ids)) = snapshot else {
                 continue;
             };
             if !enabled {
@@ -272,7 +278,7 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                     if same {
                         continue;
                     }
-                    match tasks_mirror::import_file(&conn, &path, &content, &today) {
+                    match tasks_mirror::import_file(&conn, &path, &content, &today, ids) {
                         Ok(applied) => changed |= applied,
                         Err(e) => {
                             // the broken file stays untouched (skipped
@@ -286,7 +292,7 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                         }
                     }
                 }
-                if let Ok(files) = tasks_mirror::export(&conn, &dir, &today, &failed) {
+                if let Ok(files) = tasks_mirror::export(&conn, &dir, &today, &failed, ids) {
                     *written.lock().unwrap() = files.into_iter().collect();
                 }
             }
@@ -713,6 +719,94 @@ async fn birthday_edit(
     config_files::edit_birthday(&vault.config_dir(), original, replacement)
 }
 
+#[tauri::command]
+async fn reminders_overview(state: State<'_, AppState>) -> Result<reminders::RemindersOverview> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    reminders::overview(
+        &vault.conn,
+        &vault.config_dir(),
+        chrono::Local::now().date_naive(),
+    )
+}
+
+#[tauri::command]
+async fn focus_phrase_add(state: State<'_, AppState>, phrase: String) -> Result<()> {
+    backup_config(&state, "weekly-focus.yml");
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    config_files::append_focus_phrase(&vault.config_dir(), phrase)
+}
+
+#[tauri::command]
+async fn focus_phrase_edit(
+    state: State<'_, AppState>,
+    index: usize,
+    replacement: Option<String>,
+) -> Result<()> {
+    backup_config(&state, "weekly-focus.yml");
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    config_files::edit_focus_phrase(&vault.config_dir(), index, replacement)
+}
+
+#[tauri::command]
+async fn day_reminder_add(state: State<'_, AppState>, entry: reminders::DayReminder) -> Result<()> {
+    backup_config(&state, "day-reminders.yml");
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    config_files::append_day_reminder(&vault.config_dir(), entry)
+}
+
+#[tauri::command]
+async fn day_reminder_edit(
+    state: State<'_, AppState>,
+    index: usize,
+    replacement: Option<reminders::DayReminder>,
+) -> Result<()> {
+    backup_config(&state, "day-reminders.yml");
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    config_files::edit_day_reminder(&vault.config_dir(), index, replacement)
+}
+
+#[tauri::command]
+async fn schedule_block_add(
+    state: State<'_, AppState>,
+    block: reminders::ScheduleBlock,
+) -> Result<()> {
+    backup_config(&state, "day-schedule.yml");
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    config_files::append_schedule_block(&vault.config_dir(), block)
+}
+
+#[tauri::command]
+async fn schedule_block_edit(
+    state: State<'_, AppState>,
+    index: usize,
+    replacement: Option<reminders::ScheduleBlock>,
+) -> Result<()> {
+    backup_config(&state, "day-schedule.yml");
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    config_files::edit_schedule_block(&vault.config_dir(), index, replacement)
+}
+
 const EDITABLE_CONFIG_FILES: &[&str] = &[
     "recurring.yml",
     "scheduled.yml",
@@ -865,6 +959,62 @@ async fn kb_delete(state: State<'_, AppState>, path: String) -> Result<()> {
 }
 
 #[tauri::command]
+async fn kb_mkdir(state: State<'_, AppState>, path: String) -> Result<String> {
+    kb::create_dir(&kb_root(&state)?, &path)
+}
+
+/// Absolute path of a note or folder, for "copy path" in the tree.
+/// "" is the KB root itself.
+#[tauri::command]
+async fn kb_abs_path(state: State<'_, AppState>, path: String) -> Result<String> {
+    Ok(kb::abs_path(&kb_root(&state)?, &path)?
+        .to_string_lossy()
+        .into_owned())
+}
+
+/// Shows a note or folder in the system file manager. Only paths inside
+/// the KB root resolve, and the path is passed as a single argument -
+/// no shell is involved.
+#[tauri::command]
+async fn kb_reveal(state: State<'_, AppState>, path: String) -> Result<()> {
+    let target = kb::abs_path(&kb_root(&state)?, &path)?;
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut c = std::process::Command::new("explorer.exe");
+        if target.is_dir() {
+            c.arg(&target);
+        } else {
+            // /select, and the path must reach explorer as one argument
+            c.arg(format!("/select,{}", target.display()));
+        }
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut c = std::process::Command::new("open");
+        if target.is_dir() {
+            c.arg(&target);
+        } else {
+            c.arg("-R").arg(&target);
+        }
+        c
+    };
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let mut command = {
+        let mut c = std::process::Command::new("xdg-open");
+        // no portable "select the file" on Linux: open the folder
+        c.arg(if target.is_dir() {
+            target.clone()
+        } else {
+            target.parent().unwrap_or(&target).to_path_buf()
+        });
+        c
+    };
+    command.spawn()?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn kb_search(state: State<'_, AppState>, query: String) -> Result<Vec<kb::KbSearchHit>> {
     kb::search_content(&kb_root(&state)?, &query)
 }
@@ -997,6 +1147,9 @@ pub fn run() {
             kb_rename,
             kb_copy,
             kb_delete,
+            kb_mkdir,
+            kb_abs_path,
+            kb_reveal,
             dashboard_context,
             birthdays_list,
             calendar_outlook,
@@ -1007,6 +1160,13 @@ pub fn run() {
             recurring_edit,
             scheduled_edit,
             birthday_edit,
+            reminders_overview,
+            focus_phrase_add,
+            focus_phrase_edit,
+            day_reminder_add,
+            day_reminder_edit,
+            schedule_block_add,
+            schedule_block_edit,
             config_file_get,
             config_file_set,
             kb_search,

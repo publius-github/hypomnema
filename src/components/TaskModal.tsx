@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../store";
+import { GrowingTextarea } from "./form";
 import { priorityPatch, sortSubtasks } from "../lib/tasks";
 import { isExternalUrl } from "../lib/links";
 import { wikiTargetFromHref, wikiToMarkdownLinks } from "../lib/wiki";
@@ -420,29 +421,34 @@ export default function TaskModal({
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-content-muted">Subtasks</span>
           {/* the add field sits above the rows: with a long subtask
-              list it stays in view instead of scrolling away */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (subtaskTitle.trim()) {
-                void createTask({
-                  title: subtaskTitle.trim(),
-                  parent_task_id: task.id,
-                });
-                setSubtaskTitle("");
-              }
+              list it stays in view instead of scrolling away. It grows
+              with the text, so a long subtask is written in full view
+              instead of scrolling inside a one-line box. */}
+          <GrowingTextarea
+            className="input w-full text-xs"
+            placeholder="+ Add subtask"
+            value={subtaskTitle}
+            commitOnBlur={false}
+            onChange={setSubtaskTitle}
+            onCancel={() => setSubtaskTitle("")}
+            onCommit={() => {
+              if (!subtaskTitle.trim()) return;
+              void createTask({
+                title: subtaskTitle.trim(),
+                parent_task_id: task.id,
+              });
+              setSubtaskTitle("");
             }}
-          >
-            <input
-              className="input w-full text-xs"
-              placeholder="+ Add subtask"
-              value={subtaskTitle}
-              onChange={(e) => setSubtaskTitle(e.target.value)}
-            />
-          </form>
-          {subtasks.map((sub) => (
-            <SubtaskRow key={sub.id} sub={sub} />
-          ))}
+          />
+          {/* rows are separated by a rule in the border color: a long
+              list of wrapped subtasks otherwise reads as one block */}
+          {subtasks.length > 0 && (
+            <div className="divide-y divide-line rounded-md border border-line">
+              {subtasks.map((sub) => (
+                <SubtaskRow key={sub.id} sub={sub} />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between border-t border-line pt-3">
@@ -483,7 +489,7 @@ function SubtaskRow({ sub }: { sub: Task }) {
   };
 
   return (
-    <div className="flex items-start gap-2 text-sm">
+    <div className="flex items-start gap-2 px-2 py-1.5 text-sm">
       <input
         type="checkbox"
         className="mt-1"
@@ -496,30 +502,23 @@ function SubtaskRow({ sub }: { sub: Task }) {
         }
       />
       {editing ? (
-        <form
-          className="flex-1"
-          onSubmit={(e) => {
-            e.preventDefault();
-            commit();
+        /* the box wraps and grows with the text: editing a multiline
+           subtask in a one-line field meant arrowing along to find the
+           spot to change */
+        <GrowingTextarea
+          className="input w-full flex-1 py-0.5 text-sm"
+          value={title}
+          autoFocus
+          onChange={setTitle}
+          onCommit={commit}
+          onCancel={() => {
+            setTitle(sub.title);
+            setEditing(false);
           }}
-        >
-          <input
-            className="input w-full py-0.5 text-sm"
-            value={title}
-            autoFocus
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setTitle(sub.title);
-                setEditing(false);
-              }
-            }}
-          />
-        </form>
+        />
       ) : (
         <span
-          className={`flex-1 cursor-text ${
+          className={`flex-1 cursor-text whitespace-pre-wrap break-words ${
             sub.status === "done"
               ? "text-content-muted line-through"
               : sub.status === "postponed"
