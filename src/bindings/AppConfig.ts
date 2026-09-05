@@ -105,9 +105,16 @@ task_gap: number,
  */
 section_gap: number, 
 /**
- * Vertical gap between {Category} blocks inside a section, px.
+ * Vertical gap between {Category} blocks inside a section of a
+ * day column, px.
  */
 category_block_gap: number, 
+/**
+ * The same gap inside a custom list column and the list dialog:
+ * its own knob, because a backlog is usually denser than the day
+ * grid.
+ */
+list_category_block_gap: number, 
 /**
  * Vertical gaps before the Postponed and Done sections
  * (done_display = separate), px; each section and each column kind

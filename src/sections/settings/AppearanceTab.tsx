@@ -316,12 +316,24 @@ export default function AppearanceTab() {
             </label>
             <label className="flex w-40 flex-col gap-1">
               <span className="text-xs text-content-muted">
-                Between category blocks
+                Category blocks (days)
               </span>
               <NumberInput
                 value={config.category_block_gap}
                 min={0}
                 onCommit={(n) => void updateConfig({ category_block_gap: n })}
+              />
+            </label>
+            <label className="flex w-40 flex-col gap-1">
+              <span className="text-xs text-content-muted">
+                Category blocks (lists)
+              </span>
+              <NumberInput
+                value={config.list_category_block_gap}
+                min={0}
+                onCommit={(n) =>
+                  void updateConfig({ list_category_block_gap: n })
+                }
               />
             </label>
           </div>
@@ -351,7 +363,8 @@ export default function AppearanceTab() {
             take their own gaps, separately for the day columns and the
             custom list columns, so they can sit visibly lower. Category
             blocks group tasks by their {"{X}"} prefix or list inside a
-            section. All values in px.
+            section - in the day columns and, with its own gap, in the
+            custom list columns and the list dialog. All values in px.
           </span>
         </section>
     </>

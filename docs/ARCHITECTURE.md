@@ -18,7 +18,7 @@ All working files live under `<vault>/.hypomnema/` (like a repo's `.git`). Never
   .hypomnemaignore                 # gitignore-like filter for the Notes tree
   <user notes>                     # KB root = vault root unless config.kb_path set
   .hypomnema/
-    app.db (+wal/shm)              # WAL mode, migrations in db.rs (13 entries)
+    app.db (+wal/shm)              # WAL mode, migrations in db.rs (15 entries)
     settings/app.yml               # AppConfig, source of truth; SQLite `settings` is a mirror
     config/                        # user YAML configs, seeded with commented samples
       recurring.yml scheduled.yml birthdays.yml
@@ -56,7 +56,7 @@ Order configurable via `config.section_order`; Settings always last. Besides the
 
 Packs: subfolders of `config/` are walked recursively; a `*.yml` file contributes to whichever of the three task sections its top-level keys name. Errors carry the path relative to `config/`. Broken files never wipe state - last valid config stays active, error shows as a banner.
 
-`AppConfig` (~80 fields): theme + `theme_preset` chrome palettes (default/black/vscode/nord/gruvbox/solarized, per-theme variants in `src/lib/themePresets.ts`) with individual accent/surface/panel/border overrides, typography, dashboard layout, task display (cadence colors, done display/hold, `list_task_lines`/`list_dialog_task_lines` title clamps), engine (`retention_days`, `catchup_days`, `cron_ignore_time`), calendar outlook horizons, `section_order`, files (`kb_path`, `tasks_mirror`, `backup_keep`), `notify_system`, markdown editor color presets. Adding a setting = field + default + `sanitized()` clamp + `settings_pairs()` in `config.rs`, ts-rs regen via `cargo test`, control in the matching Settings tab.
+`AppConfig` (~80 fields): theme + `theme_preset` chrome palettes (default/black/vscode/nord/gruvbox/solarized, per-theme variants in `src/lib/themePresets.ts`) with individual accent/surface/panel/border overrides, typography, dashboard layout, task display (cadence colors, done display/hold, `list_task_lines`/`list_dialog_task_lines` title clamps), vertical rhythm (`task_gap`, `section_gap`, `category_block_gap` for day columns and `list_category_block_gap` for the list columns plus the list dialog, the four Postponed/Done gaps), engine (`retention_days`, `catchup_days`, `cron_ignore_time`), calendar outlook horizons, `section_order`, files (`kb_path`, `tasks_mirror`, `backup_keep`), `notify_system`, markdown editor color presets. Adding a setting = field + default + `sanitized()` clamp + `settings_pairs()` in `config.rs`, ts-rs regen via `cargo test`, control in the matching Settings tab.
 
 ## Engine (`engine.rs`)
 
@@ -70,14 +70,14 @@ Three generators per pass: recurring (cron), scheduled events, birthdays. No sep
 
 ## Core modules
 
-- `tasks.rs` - lists/tasks CRUD; `task_delete` is a hard delete (cascades to subtasks, drops the `rule_runs` row); `archived_at` remains only for the delete-done sweep tombstones; lists carry a `favorite` flag (sorts ahead in the list zone). The `overdue` flag survives the status cycle (done does not clear it; the UI just hides it on done cards).
+- `tasks.rs` - lists/tasks CRUD; list names are unique among **active** lists only (partial index `idx_lists_active_name`, migration 015): an archived namesake never blocks a create/rename, an auto list of that name is absorbed into the user list instead (its tasks move over, the auto row goes), a live manual namesake reports "a list named X already exists", and `list_unarchive` refuses a restore whose name is taken. `list_ensure` prefers the active list over an archived namesake. `task_delete` is a hard delete (cascades to subtasks, drops the `rule_runs` row); `archived_at` remains only for the delete-done sweep tombstones; lists carry a `favorite` flag (sorts ahead in the list zone). The `overdue` flag survives the status cycle (done does not clear it; the UI just hides it on done cards).
 - `tasks_mirror.rs` - Markdown mirror of manual tasks only: one file per list + `scheduled.md`; per-line `^<id>` sync keys; marker first line; gated by `config.tasks_mirror`; folder watcher imports outside edits.
 - `journal.rs` - entry open/save/list/search, template at `config/templates/journal.md`.
 - `kb.rs` - Notes FS layer; `resolve()` blocks path traversal; `.hypomnemaignore` glob filter; trash + 30-day prune.
 - `reminders.rs` - `dashboard_context`: weekly focus (ISO-week pinned via `weekly_focus_state`), day-type reminders, schedule blocks.
 - `views.rs` - read-only projections: upcoming, birthdays, recurring list, calendar outlook, daily streaks, cron weekday labels.
 - `backup.rs` - daily DB snapshot (`VACUUM INTO`) + pre-rewrite config backups, rotation by `backup_keep`, best effort.
-- `db.rs` - migrations (13), refuses a newer-than-known `user_version`; `mirror_settings`.
+- `db.rs` - migrations (15), refuses a newer-than-known `user_version`; `mirror_settings`.
 - `lib.rs` - commands, `AppState`, three debounced watchers: `config/`+settings (reload + engine + `vault-updated`), `tasks/` (mirror import), KB root.
 
 ## Frontend notes

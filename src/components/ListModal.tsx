@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { clampStyle, compareTasks, nextStatus, priorityPatch } from "../lib/tasks";
+import {
+  categoryOf,
+  clampStyle,
+  compareTasks,
+  nextStatus,
+  priorityPatch,
+} from "../lib/tasks";
 import { ColorPicker } from "./form";
 import TaskModal from "./TaskModal";
 import type { List, Task } from "../types";
@@ -186,13 +192,25 @@ export default function ListModal({
               onChange={(e) => setNewTitle(e.target.value)}
             />
           </form>
-          {sorted.map((task) => (
-            <ListTaskRow
+          {sorted.map((task, i) => (
+            <div
               key={task.id}
-              task={task}
-              titleLines={config?.list_dialog_task_lines ?? 3}
-              onOpen={() => setOpenTaskId(task.id)}
-            />
+              // the column's {Category} rhythm, so the dialog shows the
+              // same blocks the list column does
+              style={{
+                marginTop:
+                  i > 0 &&
+                  categoryOf(task.title) !== categoryOf(sorted[i - 1].title)
+                    ? (config?.list_category_block_gap ?? 12)
+                    : undefined,
+              }}
+            >
+              <ListTaskRow
+                task={task}
+                titleLines={config?.list_dialog_task_lines ?? 3}
+                onOpen={() => setOpenTaskId(task.id)}
+              />
+            </div>
           ))}
         </div>
 

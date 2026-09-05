@@ -107,6 +107,35 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE lists ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;",
     // 014: free-text list description shown in the list dialog.
     "ALTER TABLE lists ADD COLUMN description TEXT NOT NULL DEFAULT '';",
+    // 015: list names are unique among ACTIVE lists only. An archived
+    // list used to keep holding its name forever, so renaming (or
+    // creating) a list with a name used once before failed on the
+    // table-level UNIQUE - with nothing visible to explain why.
+    // Rebuilding the table is the only way to drop that constraint;
+    // the task -> list mapping is parked in a temp table first because
+    // DROP TABLE fires the tasks.list_id ON DELETE SET NULL action
+    // when foreign keys are on.
+    "CREATE TABLE lists_new (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        color TEXT,
+        archived INTEGER NOT NULL DEFAULT 0,
+        auto INTEGER NOT NULL DEFAULT 0,
+        favorite INTEGER NOT NULL DEFAULT 0,
+        description TEXT NOT NULL DEFAULT ''
+    );
+    INSERT INTO lists_new (id, name, sort_order, color, archived, auto, favorite, description)
+        SELECT id, name, sort_order, color, archived, auto, favorite, description FROM lists;
+    CREATE TABLE lists_task_map AS
+        SELECT id AS task_id, list_id FROM tasks WHERE list_id IS NOT NULL;
+    DROP TABLE lists;
+    ALTER TABLE lists_new RENAME TO lists;
+    UPDATE tasks SET list_id = (
+        SELECT list_id FROM lists_task_map WHERE task_id = tasks.id
+    ) WHERE list_id IS NULL AND id IN (SELECT task_id FROM lists_task_map);
+    DROP TABLE lists_task_map;
+    CREATE UNIQUE INDEX idx_lists_active_name ON lists(name) WHERE archived = 0;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -220,6 +249,43 @@ mod tests {
         assert_eq!(priority, 0);
         assert_eq!(cadence.as_deref(), Some("yearly"));
         assert_eq!(origin_date.as_deref(), Some("2026-03-14"));
+    }
+
+    /// The list-table rebuild in 015 runs with foreign keys ON in
+    /// production, where DROP TABLE lists would otherwise null every
+    /// tasks.list_id through the ON DELETE SET NULL action.
+    #[test]
+    fn migration_015_keeps_task_list_links_with_foreign_keys_on() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (idx, migration) in MIGRATIONS.iter().take(14).enumerate() {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", (idx + 1) as i64)
+                .unwrap();
+        }
+        conn.execute("INSERT INTO lists (name) VALUES ('Work')", [])
+            .unwrap();
+        let list_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, list_id)
+             VALUES ('report', '2026-01-01T00:00:00Z', 'manual', ?1)",
+            [list_id],
+        )
+        .unwrap();
+
+        migrate(&conn).unwrap();
+
+        let linked: Option<i64> = conn
+            .query_row("SELECT list_id FROM tasks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(linked, Some(list_id));
+        // archived namesakes are allowed now, active ones still are not
+        conn.execute("UPDATE lists SET archived = 1 WHERE id = ?1", [list_id])
+            .unwrap();
+        conn.execute("INSERT INTO lists (name) VALUES ('Work')", [])
+            .unwrap();
+        let clash = conn.execute("INSERT INTO lists (name) VALUES ('Work')", []);
+        assert!(clash.is_err(), "two active lists cannot share a name");
     }
 
     #[test]

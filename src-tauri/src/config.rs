@@ -88,8 +88,13 @@ pub struct AppConfig {
     /// Vertical gap before each section of a column (cadence groups,
     /// Postponed, Done), px.
     pub section_gap: u32,
-    /// Vertical gap between {Category} blocks inside a section, px.
+    /// Vertical gap between {Category} blocks inside a section of a
+    /// day column, px.
     pub category_block_gap: u32,
+    /// The same gap inside a custom list column and the list dialog:
+    /// its own knob, because a backlog is usually denser than the day
+    /// grid.
+    pub list_category_block_gap: u32,
     /// Vertical gaps before the Postponed and Done sections
     /// (done_display = separate), px; each section and each column kind
     /// (day grid vs custom lists) has its own knob, so they can sit
@@ -255,6 +260,7 @@ impl Default for AppConfig {
             task_gap: 6,
             section_gap: 12,
             category_block_gap: 12,
+            list_category_block_gap: 12,
             postponed_section_gap: 12,
             done_section_gap: 12,
             list_postponed_section_gap: 12,
@@ -385,6 +391,7 @@ impl AppConfig {
         self.task_gap = self.task_gap.min(48);
         self.section_gap = self.section_gap.min(48);
         self.category_block_gap = self.category_block_gap.min(48);
+        self.list_category_block_gap = self.list_category_block_gap.min(48);
         // deliberately roomier than the other gaps: their point is
         // pushing Postponed/Done visibly below the active tasks
         self.postponed_section_gap = self.postponed_section_gap.min(400);
@@ -542,6 +549,10 @@ impl AppConfig {
             ("task_gap", self.task_gap.to_string()),
             ("section_gap", self.section_gap.to_string()),
             ("category_block_gap", self.category_block_gap.to_string()),
+            (
+                "list_category_block_gap",
+                self.list_category_block_gap.to_string(),
+            ),
             (
                 "postponed_section_gap",
                 self.postponed_section_gap.to_string(),

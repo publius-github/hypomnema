@@ -169,10 +169,53 @@ pub fn lists_all(conn: &Connection) -> Result<Vec<List>> {
     Ok(lists)
 }
 
+/// The active (non-archived) list holding this name, if any. Names are
+/// unique among active lists only - archived ones keep their name but
+/// never block a new or renamed list (migration 015).
+fn active_list_named(conn: &Connection, name: &str) -> Result<Option<List>> {
+    conn.query_row(
+        "SELECT * FROM lists WHERE name = ?1 AND archived = 0",
+        [name],
+        row_to_list,
+    )
+    .optional()
+    .map_err(Into::into)
+}
+
+/// Folds an auto list into `target`: its tasks move over and the row
+/// goes away. An auto list is just the engine's holder for a `{List}`
+/// prefix, so a user list taking that name takes its tasks too - which
+/// is what `list_ensure` would have done had the user list existed
+/// first.
+fn absorb_auto_list(conn: &Connection, auto_id: i64, target_id: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE tasks SET list_id = ?1 WHERE list_id = ?2",
+        (target_id, auto_id),
+    )?;
+    conn.execute("DELETE FROM lists WHERE id = ?1", [auto_id])?;
+    Ok(())
+}
+
 pub fn list_create(conn: &Connection, name: &str, color: Option<&str>, auto: bool) -> Result<List> {
     let name = name.trim();
     if name.is_empty() {
         return Err(Error::State("list name cannot be empty".into()));
+    }
+    // an existing auto list of that name IS this list as far as the
+    // engine is concerned: adopt it instead of failing on the name
+    if !auto {
+        if let Some(existing) = active_list_named(conn, name)? {
+            if !existing.auto {
+                return Err(Error::State(format!(
+                    "a list named \"{name}\" already exists"
+                )));
+            }
+            conn.execute("UPDATE lists SET auto = 0 WHERE id = ?1", [existing.id])?;
+            return Ok(List {
+                auto: false,
+                ..existing
+            });
+        }
     }
     let next: i64 = conn.query_row(
         "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM lists",
@@ -193,8 +236,14 @@ pub fn list_create(conn: &Connection, name: &str, color: Option<&str>, auto: boo
 /// match is revived as an auto list: its tasks must keep grouping in
 /// the day columns, and the auto flag keeps it out of the list zone.
 pub fn list_ensure(conn: &Connection, name: &str) -> Result<List> {
+    // active lists win over archived namesakes: only one of them can
+    // be active, and that is the list the user is looking at
     let existing = conn
-        .query_row("SELECT * FROM lists WHERE name = ?1", [name], row_to_list)
+        .query_row(
+            "SELECT * FROM lists WHERE name = ?1 ORDER BY archived, id LIMIT 1",
+            [name],
+            row_to_list,
+        )
         .optional()?;
     match existing {
         Some(list) if list.archived => {
@@ -213,14 +262,32 @@ pub fn list_ensure(conn: &Connection, name: &str) -> Result<List> {
     }
 }
 
+/// Renames a list. Only another *active* list can block the name - an
+/// archived namesake is history the user cannot see, and an auto list
+/// of that name is absorbed (same rule as `list_create`).
 pub fn list_rename(conn: &Connection, id: i64, name: &str) -> Result<()> {
-    let updated = conn.execute(
-        "UPDATE lists SET name = ?1 WHERE id = ?2",
-        (name.trim(), id),
-    )?;
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(Error::State("list name cannot be empty".into()));
+    }
+    // absorbing and renaming are one step: a failure between them would
+    // leave the tasks moved and the list still under its old name
+    let tx = conn.unchecked_transaction()?;
+    if let Some(existing) = active_list_named(&tx, name)? {
+        if existing.id != id {
+            if !existing.auto {
+                return Err(Error::State(format!(
+                    "a list named \"{name}\" already exists"
+                )));
+            }
+            absorb_auto_list(&tx, existing.id, id)?;
+        }
+    }
+    let updated = tx.execute("UPDATE lists SET name = ?1 WHERE id = ?2", (name, id))?;
     if updated == 0 {
         return Err(Error::State(format!("list {id} not found")));
     }
+    tx.commit()?;
     Ok(())
 }
 
@@ -269,6 +336,21 @@ pub fn lists_archived(conn: &Connection) -> Result<Vec<List>> {
 /// Restores an archived list. The auto flag is cleared: an explicit
 /// restore means the user wants the list visible in the list zone.
 pub fn list_unarchive(conn: &Connection, id: i64) -> Result<()> {
+    // the name is free among archived lists, so a restore can collide
+    // with a list created in the meantime
+    let name: String = conn
+        .query_row("SELECT name FROM lists WHERE id = ?1", [id], |row| {
+            row.get(0)
+        })
+        .optional()?
+        .ok_or_else(|| Error::State(format!("list {id} not found")))?;
+    if let Some(existing) = active_list_named(conn, &name)? {
+        if existing.id != id {
+            return Err(Error::State(format!(
+                "a list named \"{name}\" already exists - rename it before restoring this one"
+            )));
+        }
+    }
     let updated = conn.execute(
         "UPDATE lists SET archived = 0, auto = 0 WHERE id = ?1",
         [id],
@@ -566,6 +648,74 @@ mod tests {
         .unwrap();
         assert_eq!(direct.list_id, Some(target.id));
         assert_eq!(direct.title, "{05 Finance} categorized");
+    }
+
+    #[test]
+    fn rename_over_an_archived_namesake_is_allowed() {
+        let conn = conn();
+        let old = list_create(&conn, "Work", None, false).unwrap();
+        list_archive(&conn, old.id).unwrap();
+        let current = list_create(&conn, "Stuff", None, false).unwrap();
+        list_rename(&conn, current.id, "Work").unwrap();
+        let names: Vec<String> = lists_all(&conn)
+            .unwrap()
+            .into_iter()
+            .map(|l| l.name)
+            .collect();
+        assert!(names.contains(&"Work".to_string()));
+        // the archived one keeps its name and stays archived
+        assert_eq!(lists_archived(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn rename_onto_a_live_list_reports_the_clash() {
+        let conn = conn();
+        list_create(&conn, "Work", None, false).unwrap();
+        let other = list_create(&conn, "Stuff", None, false).unwrap();
+        let err = list_rename(&conn, other.id, "Work").unwrap_err();
+        assert!(err.to_string().contains("already exists"), "{err}");
+    }
+
+    #[test]
+    fn rename_absorbs_an_auto_list_of_the_same_name() {
+        let conn = conn();
+        let auto = list_ensure(&conn, "Work").unwrap();
+        assert!(auto.auto);
+        let task = task_create(
+            &conn,
+            &NewTask {
+                title: "generated".into(),
+                list_id: Some(auto.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mine = list_create(&conn, "Stuff", None, false).unwrap();
+        list_rename(&conn, mine.id, "Work").unwrap();
+        let lists = lists_all(&conn).unwrap();
+        assert_eq!(lists.len(), 1, "the auto list folded into the renamed one");
+        assert_eq!(task_get(&conn, task.id).unwrap().list_id, Some(mine.id));
+        // and the engine keeps generating into the user's list now
+        assert_eq!(list_ensure(&conn, "Work").unwrap().id, mine.id);
+    }
+
+    #[test]
+    fn creating_a_list_adopts_the_auto_list_of_that_name() {
+        let conn = conn();
+        let auto = list_ensure(&conn, "Work").unwrap();
+        let created = list_create(&conn, "Work", None, false).unwrap();
+        assert_eq!(created.id, auto.id);
+        assert!(!created.auto);
+    }
+
+    #[test]
+    fn restoring_a_list_whose_name_was_taken_reports_the_clash() {
+        let conn = conn();
+        let old = list_create(&conn, "Work", None, false).unwrap();
+        list_archive(&conn, old.id).unwrap();
+        list_create(&conn, "Work", None, false).unwrap();
+        let err = list_unarchive(&conn, old.id).unwrap_err();
+        assert!(err.to_string().contains("rename it"), "{err}");
     }
 
     #[test]

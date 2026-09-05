@@ -8,7 +8,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { memo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { compareTasks, splitDone, tintStyle } from "../lib/tasks";
+import { categoryOf, compareTasks, splitDone, tintStyle } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import ListModal from "./ListModal";
@@ -76,23 +76,33 @@ function ListColumn({
   const rest = active.filter((t) => !t.priority);
 
   // configurable vertical rhythm, same tokens the day columns use;
-  // Postponed/Done sit behind list-specific gaps, separate from the
-  // day-grid ones
+  // Postponed/Done and the {Category} blocks sit behind list-specific
+  // gaps, separate from the day-grid ones
   const taskGap = config?.task_gap ?? 6;
   const sectionGap = config?.section_gap ?? 12;
+  const categoryGap = config?.list_category_block_gap ?? 12;
+
+  // extra air where one {Category} block ends and the next begins, the
+  // same rule the day columns follow; inside a list every task shares
+  // the list, so only the {X} title prefix separates the blocks
+  const gapBefore = (items: Task[], i: number) =>
+    i > 0 && categoryOf(items[i].title) !== categoryOf(items[i - 1].title)
+      ? categoryGap
+      : undefined;
 
   // multi-line task titles in list columns (list_task_lines); the day
   // grid keeps its single truncated line
   const titleLines = config?.list_task_lines ?? 1;
 
-  const card = (task: Task) => (
-    <TaskCard
-      key={task.id}
-      task={task}
-      onOpen={onOpenTask}
-      showList={false}
-      titleLines={titleLines}
-    />
+  const card = (task: Task, i: number, items: Task[]) => (
+    <div key={task.id} style={{ marginTop: gapBefore(items, i) }}>
+      <TaskCard
+        task={task}
+        onOpen={onOpenTask}
+        showList={false}
+        titleLines={titleLines}
+      />
+    </div>
   );
   // same plate style as the day-column section headers, optional color
   const section = (label: string, items: Task[], plateColor: string, gap: number) =>
@@ -253,12 +263,13 @@ function ListColumn({
               items={rest.map((t) => `task:${t.id}`)}
               strategy={verticalListSortingStrategy}
             >
-              {rest.map((task) => (
+              {rest.map((task, i) => (
                 <SortableCard
                   key={task.id}
                   task={task}
                   onOpenTask={onOpenTask}
                   titleLines={titleLines}
+                  gapBefore={gapBefore(rest, i)}
                 />
               ))}
             </SortableContext>
@@ -291,10 +302,13 @@ function SortableCard({
   task,
   onOpenTask,
   titleLines,
+  gapBefore,
 }: {
   task: Task;
   onOpenTask: (id: number) => void;
   titleLines: number;
+  /** px of extra air before a new {Category} block */
+  gapBefore?: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -304,7 +318,11 @@ function SortableCard({
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        marginTop: gapBefore,
+      }}
       className={isDragging ? "opacity-30" : ""}
       {...attributes}
       {...listeners}
