@@ -208,15 +208,49 @@ export default function AppearanceTab() {
             onChange={(color) => void updateConfig({ category_color: color })}
           />
           <span className="text-xs text-content-muted">
-            Used for every category with the toggle below off.
+            Used when the mode below is &quot;One color for all&quot;.
           </span>
         </div>
-        <Toggle
-          checked={config.category_colors_vary}
-          label="A color per category"
-          hint="Each category label takes its own hue - a list keeps the color of its own column, any other {Category} gets a palette color picked from its name - so two categories next to each other are told apart at a glance. Off = all of them in the color above."
-          onChange={(v) => void updateConfig({ category_colors_vary: v })}
-        />
+        <Field label="Category chip colors">
+          <select
+            className="input"
+            value={config.category_color_mode}
+            onChange={(e) =>
+              void updateConfig({
+                category_color_mode: e.target
+                  .value as AppConfig["category_color_mode"],
+              })
+            }
+          >
+            <option value="single">One color for all (above)</option>
+            <option value="varied">A color per category</option>
+            <option value="alternate">Alternate between two colors</option>
+          </select>
+        </Field>
+        <span className="-mt-1 text-xs text-content-muted">
+          {config.category_color_mode === "varied"
+            ? "Each category takes its own hue: a list keeps the color of its own column, any other {Category} gets a palette color picked from its name."
+            : config.category_color_mode === "alternate"
+              ? "The two colors below take turns, one category block after the next, running down a whole column - the turn carries on across the Daily/Weekly/Monthly sections and into Postponed and Done instead of restarting."
+              : "Every category label wears the single color above."}
+        </span>
+        {config.category_color_mode === "alternate" && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Alternating colors</span>
+            <ColorPicker
+              value={config.category_color_a}
+              onChange={(color) =>
+                void updateConfig({ category_color_a: color })
+              }
+            />
+            <ColorPicker
+              value={config.category_color_b}
+              onChange={(color) =>
+                void updateConfig({ category_color_b: color })
+              }
+            />
+          </div>
+        )}
         <Field label="Chip text size, % of the text beside it">
           <NumberInput
             value={config.chip_font_scale}

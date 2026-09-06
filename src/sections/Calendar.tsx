@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import {
+  categoryBlockIndex,
   categoryChipColor,
   categoryOf,
   splitCategory,
@@ -162,7 +163,8 @@ export default function Calendar() {
     categoryOf(task.title) ?? listName(task.list_id);
   // same chip color a category wears on the task cards, so a category
   // is recognisable across the app (Settings > Appearance)
-  const chipHue = (name: string) => categoryChipColor(name, lists, config);
+  const chipHue = (name: string, blockIndex?: number) =>
+    categoryChipColor(name, lists, config, blockIndex);
   // tasks of the day grouped by category, so the alternating chip
   // colors read as blocks instead of a stripe pattern
   const selectedTasks = [...(byDate.get(selected) ?? [])].sort((a, b) => {
@@ -171,8 +173,11 @@ export default function Calendar() {
     if (ca !== cb) return ca < cb ? -1 : 1;
     return a.id - b.id;
   });
+  // the alternating palette walks the day's list top to bottom, same
+  // rule the day columns follow
+  const blockIndex = categoryBlockIndex(selectedTasks, categoryOfTask);
   // chips follow the row text: 100% is exactly the size of the task
-  // title next to them (Settings > Calendar)
+  // title next to them (Settings > Appearance)
   const chipSize = `${config?.chip_font_scale ?? 100}%`;
 
   return (
@@ -340,7 +345,9 @@ export default function Calendar() {
               <span
                 className="shrink-0 rounded px-1.5 py-0.5 font-semibold"
                 style={{
-                  ...tintStyle(chipHue(categoryOfTask(task)!)),
+                  ...tintStyle(
+                    chipHue(categoryOfTask(task)!, blockIndex.get(task.id)),
+                  ),
                   fontSize: chipSize,
                 }}
                 title={`Category: ${categoryOfTask(task)}`}

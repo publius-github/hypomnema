@@ -97,12 +97,18 @@ category_color: string,
  */
 chip_font_scale: number, 
 /**
- * Give every category its own chip color instead of painting them
- * all in `category_color`: a list keeps the color it already wears,
- * any other name takes a hue from a fixed palette, so two
- * categories side by side are told apart at a glance.
+ * How a category chip is colored. "single" paints every category
+ * in `category_color`; "varied" gives each its own hue (a list
+ * keeps the color it already wears, any other name takes a palette
+ * hue from its own text); "alternate" walks the two colors below,
+ * category block by category block, straight through a column's
+ * cadence sections so the stripes never restart mid-column.
  */
-category_colors_vary: boolean, 
+category_color_mode: "single" | "varied" | "alternate", 
+/**
+ * The two colors "alternate" mode walks between.
+ */
+category_color_a: string, category_color_b: string, 
 /**
  * Checked (done) checkboxes on task cards and subtasks.
  */

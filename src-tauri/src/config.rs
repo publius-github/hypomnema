@@ -84,11 +84,17 @@ pub struct AppConfig {
     /// of the text beside them. Applies on the cards and in the
     /// Calendar day list alike.
     pub chip_font_scale: u32,
-    /// Give every category its own chip color instead of painting them
-    /// all in `category_color`: a list keeps the color it already wears,
-    /// any other name takes a hue from a fixed palette, so two
-    /// categories side by side are told apart at a glance.
-    pub category_colors_vary: bool,
+    /// How a category chip is colored. "single" paints every category
+    /// in `category_color`; "varied" gives each its own hue (a list
+    /// keeps the color it already wears, any other name takes a palette
+    /// hue from its own text); "alternate" walks the two colors below,
+    /// category block by category block, straight through a column's
+    /// cadence sections so the stripes never restart mid-column.
+    #[ts(type = "\"single\" | \"varied\" | \"alternate\"")]
+    pub category_color_mode: String,
+    /// The two colors "alternate" mode walks between.
+    pub category_color_a: String,
+    pub category_color_b: String,
     /// Checked (done) checkboxes on task cards and subtasks.
     pub done_color: String,
     /// Vertical gap between task cards inside a column, px.
@@ -218,6 +224,8 @@ pub struct AppConfig {
 
 pub const MD_PRESETS: &[&str] = &["vscode", "monokai", "one-dark", "github", "custom"];
 
+pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
+
 pub const THEME_PRESETS: &[&str] = &["default", "black", "vscode", "nord", "gruvbox", "solarized"];
 
 pub const SECTIONS: &[&str] = &[
@@ -273,7 +281,9 @@ impl Default for AppConfig {
             cadence_color_exact: "#0ea5e9".into(),
             category_color: "#3b82f6".into(),
             chip_font_scale: 100,
-            category_colors_vary: true,
+            category_color_mode: "varied".into(),
+            category_color_a: "#3b82f6".into(),
+            category_color_b: "#a855f7".into(),
             done_color: "#22c55e".into(),
             task_gap: 6,
             section_gap: 12,
@@ -446,6 +456,11 @@ impl AppConfig {
         );
         sanitize_color(&mut self.cadence_color_exact, defaults.cadence_color_exact);
         sanitize_color(&mut self.category_color, defaults.category_color);
+        sanitize_color(&mut self.category_color_a, defaults.category_color_a);
+        sanitize_color(&mut self.category_color_b, defaults.category_color_b);
+        if !CATEGORY_COLOR_MODES.contains(&self.category_color_mode.as_str()) {
+            self.category_color_mode = defaults.category_color_mode;
+        }
         self.chip_font_scale = self.chip_font_scale.clamp(50, 200);
         sanitize_color(&mut self.done_color, defaults.done_color);
         sanitize_color(&mut self.md_color_heading, defaults.md_color_heading);
@@ -566,10 +581,9 @@ impl AppConfig {
             ("cadence_color_exact", self.cadence_color_exact.clone()),
             ("category_color", self.category_color.clone()),
             ("chip_font_scale", self.chip_font_scale.to_string()),
-            (
-                "category_colors_vary",
-                self.category_colors_vary.to_string(),
-            ),
+            ("category_color_mode", self.category_color_mode.clone()),
+            ("category_color_a", self.category_color_a.clone()),
+            ("category_color_b", self.category_color_b.clone()),
             ("done_color", self.done_color.clone()),
             ("task_gap", self.task_gap.to_string()),
             ("section_gap", self.section_gap.to_string()),

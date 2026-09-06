@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   addDaysISO,
   cadenceColor,
+  categoryBlockIndex,
+  categoryChipColor,
   cadenceKeyOf,
   currentAndNextBlock,
   dayLabel,
@@ -281,5 +283,74 @@ describe("splitDone", () => {
     expect(active.map((t) => t.id)).toEqual([1, 2]);
     expect(postponed).toHaveLength(0);
     expect(done.map((t) => t.id)).toEqual([3]);
+  });
+});
+
+describe("categoryBlockIndex", () => {
+  const cat = (t: Task) => splitCategory(t.title).category;
+
+  it("advances once per category block and never restarts", () => {
+    // as a column renders them: Daily block, then Weekly, then Done -
+    // the counter runs straight through the section boundaries
+    const cards = [
+      task({ id: 1, title: "{Work} a" }),
+      task({ id: 2, title: "{Work} b" }),
+      task({ id: 3, title: "{Home} c" }),
+      task({ id: 4, title: "{Errands} d" }),
+      task({ id: 5, title: "{Errands} e" }),
+    ];
+    const index = categoryBlockIndex(cards, cat);
+    expect(cards.map((t) => index.get(t.id))).toEqual([0, 0, 1, 2, 2]);
+  });
+
+  it("keeps a category's run going across a section boundary", () => {
+    const cards = [
+      task({ id: 1, title: "{Work} daily" }),
+      task({ id: 2, title: "{Work} weekly" }),
+    ];
+    const index = categoryBlockIndex(cards, cat);
+    expect(index.get(2)).toBe(0);
+  });
+
+  it("lets uncategorized cards pass without advancing the turn", () => {
+    const cards = [
+      task({ id: 1, title: "{Work} a" }),
+      task({ id: 2, title: "no category" }),
+      task({ id: 3, title: "{Work} b" }),
+    ];
+    const index = categoryBlockIndex(cards, cat);
+    expect(index.get(3)).toBe(0);
+  });
+});
+
+describe("categoryChipColor", () => {
+  const config = (overrides: Partial<AppConfig>) =>
+    ({
+      category_color: "#111111",
+      category_color_mode: "varied",
+      category_color_a: "#aaaaaa",
+      category_color_b: "#bbbbbb",
+      ...overrides,
+    }) as AppConfig;
+
+  it("paints everything in one color in single mode", () => {
+    const c = config({ category_color_mode: "single" });
+    expect(categoryChipColor("Work", [], c, 3)).toBe("#111111");
+  });
+
+  it("takes turns between the two colors by block index", () => {
+    const c = config({ category_color_mode: "alternate" });
+    expect(categoryChipColor("Work", [], c, 0)).toBe("#aaaaaa");
+    expect(categoryChipColor("Home", [], c, 1)).toBe("#bbbbbb");
+    expect(categoryChipColor("Errands", [], c, 2)).toBe("#aaaaaa");
+    // the name is irrelevant here: only the position in the column is
+    expect(categoryChipColor("Work", [], c, 1)).toBe("#bbbbbb");
+  });
+
+  it("gives a name the same hue every time in varied mode", () => {
+    const c = config({});
+    expect(categoryChipColor("Work", [], c, 0)).toBe(
+      categoryChipColor("Work", [], c, 7),
+    );
   });
 });

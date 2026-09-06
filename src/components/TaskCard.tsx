@@ -36,6 +36,7 @@ function TaskCard({
   showList = true,
   inert = false,
   titleLines = 1,
+  blockIndex,
 }: {
   task: Task;
   overlay?: boolean;
@@ -46,6 +47,12 @@ function TaskCard({
   inert?: boolean;
   /** how many lines the title may wrap to before it is cut off */
   titleLines?: number;
+  /**
+   * Ordinal of this card's category block in its column, counted by
+   * the column itself (`categoryBlockIndex`). Only the alternating
+   * chip palette uses it; a card outside a column leaves it unset.
+   */
+  blockIndex?: number;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -111,10 +118,10 @@ function TaskCard({
   // unless the setting puts them all back on a single color. Both
   // selectors return a plain string, so memo still holds.
   const categoryHue = useAppStore((s) =>
-    category ? categoryChipColor(category, s.lists, s.config) : null,
+    category ? categoryChipColor(category, s.lists, s.config, blockIndex) : null,
   );
   const listHue = useAppStore((s) =>
-    listName ? categoryChipColor(listName, s.lists, s.config) : null,
+    listName ? categoryChipColor(listName, s.lists, s.config, blockIndex) : null,
   );
   // chips read at the size of the text they sit next to; 100% is
   // exactly the card's own text size (Settings > Appearance)

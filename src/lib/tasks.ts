@@ -272,22 +272,61 @@ function hash32(text: string): number {
 }
 
 /**
- * Chip color of a category label. A list of that name keeps the color
- * it already wears on its column; anything else takes a palette hue
- * picked by a hash of the name, so a category looks the same wherever
- * it appears and does not change when its neighbours come and go. With
- * the setting off every category shares `category_color`, as before.
+ * Chip color of a category label, per `category_color_mode`:
+ *
+ * - `single` - every category shares `category_color`.
+ * - `varied` - a list of that name keeps the color it already wears on
+ *   its column, anything else takes a palette hue hashed from its own
+ *   text, so a category looks the same wherever it appears and does not
+ *   change when its neighbours come and go.
+ * - `alternate` - the two picked colors, chosen by `blockIndex`: the
+ *   ordinal of the category block inside the column, counted straight
+ *   through the cadence sections (see `categoryBlockIndex`). Without an
+ *   index - a lone chip with no column around it - the first color.
  */
 export function categoryChipColor(
   name: string,
   lists: List[],
   config: AppConfig | null,
+  blockIndex?: number,
 ): string {
-  const fallback = config?.category_color || "#3b82f6";
-  if (!(config?.category_colors_vary ?? true)) return fallback;
+  const mode = config?.category_color_mode ?? "varied";
+  if (mode === "alternate") {
+    const a = config?.category_color_a || "#3b82f6";
+    const b = config?.category_color_b || "#a855f7";
+    return (blockIndex ?? 0) % 2 === 0 ? a : b;
+  }
+  if (mode !== "varied") return config?.category_color || "#3b82f6";
   const list = lists.find((l) => l.name === name && l.color);
   if (list?.color) return list.color;
   return CATEGORY_PALETTE[hash32(name) % CATEGORY_PALETTE.length];
+}
+
+/**
+ * Ordinal of each task's category block within one column, counted over
+ * the cards in the order they are rendered: the counter only advances
+ * where the category changes, and it never restarts at a section
+ * boundary - the point of the alternating palette is a stripe that runs
+ * down the whole column, across Daily/Weekly/Monthly and on into
+ * Postponed and Done. Uncategorized cards take the current index
+ * without advancing it; they show no chip anyway.
+ */
+export function categoryBlockIndex(
+  tasksInRenderOrder: Task[],
+  labelOf: (task: Task) => string | null,
+): Map<number, number> {
+  const index = new Map<number, number>();
+  let current = 0;
+  let previous: string | null = null;
+  for (const task of tasksInRenderOrder) {
+    const label = labelOf(task);
+    if (label !== null) {
+      if (previous !== null && label !== previous) current += 1;
+      previous = label;
+    }
+    index.set(task.id, current);
+  }
+  return index;
 }
 
 /** Inline style of a colored chip/plate: colored text on a soft tint. */

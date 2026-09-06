@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import {
   cadenceColor,
+  categoryBlockIndex,
   categoryOf,
   currentAndNextBlock,
   dayLabel,
@@ -74,6 +75,14 @@ function DayColumn({
   );
   const isToday = date === today;
 
+  // the alternating chip palette runs down the whole column: one
+  // counter over every card in render order, cadence sections and the
+  // Postponed/Done blocks included
+  const blockIndex = categoryBlockIndex(
+    [...groups.flatMap((g) => g.tasks), ...postponed, ...done],
+    taskCategory,
+  );
+
   // the section plate takes its cadence color (same palette that colors
   // the card stripes), framing the section like the priority label does
   const groupColor = (key: string): string | null => cadenceColor(config, key);
@@ -103,7 +112,12 @@ function DayColumn({
           <span className="h-px flex-1 bg-current opacity-30" />
         </div>
         {items.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
+          <TaskCard
+            key={task.id}
+            task={task}
+            onOpen={onOpenTask}
+            blockIndex={blockIndex.get(task.id)}
+          />
         ))}
       </div>
     );
@@ -200,7 +214,11 @@ function DayColumn({
                   key={task.id}
                   style={gapBefore ? { marginTop: categoryGap } : undefined}
                 >
-                  <TaskCard task={task} onOpen={onOpenTask} />
+                  <TaskCard
+                    task={task}
+                    onOpen={onOpenTask}
+                    blockIndex={blockIndex.get(task.id)}
+                  />
                 </div>
               );
             })}

@@ -8,7 +8,13 @@ import { CSS } from "@dnd-kit/utilities";
 import { memo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { categoryOf, compareTasks, splitDone, tintStyle } from "../lib/tasks";
+import {
+  categoryBlockIndex,
+  categoryOf,
+  compareTasks,
+  splitDone,
+  tintStyle,
+} from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import ListModal from "./ListModal";
@@ -94,6 +100,14 @@ function ListColumn({
   // grid keeps its single truncated line
   const titleLines = config?.list_task_lines ?? 1;
 
+  // one running counter for the alternating chip palette, over every
+  // card of the column in render order (priority block, backlog,
+  // Postponed, Done) - inside a list only the {X} prefix is a category
+  const blockIndex = categoryBlockIndex(
+    [...prioritized, ...rest, ...postponed, ...done],
+    (t: Task) => categoryOf(t.title),
+  );
+
   const card = (task: Task, i: number, items: Task[]) => (
     <div key={task.id} style={{ marginTop: gapBefore(items, i) }}>
       <TaskCard
@@ -101,6 +115,7 @@ function ListColumn({
         onOpen={onOpenTask}
         showList={false}
         titleLines={titleLines}
+        blockIndex={blockIndex.get(task.id)}
       />
     </div>
   );
@@ -270,6 +285,7 @@ function ListColumn({
                   onOpenTask={onOpenTask}
                   titleLines={titleLines}
                   gapBefore={gapBefore(rest, i)}
+                  blockIndex={blockIndex.get(task.id)}
                 />
               ))}
             </SortableContext>
@@ -303,12 +319,15 @@ function SortableCard({
   onOpenTask,
   titleLines,
   gapBefore,
+  blockIndex,
 }: {
   task: Task;
   onOpenTask: (id: number) => void;
   titleLines: number;
   /** px of extra air before a new {Category} block */
   gapBefore?: number;
+  /** ordinal of the card's category block, for the alternating palette */
+  blockIndex?: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -333,6 +352,7 @@ function SortableCard({
         showList={false}
         inert
         titleLines={titleLines}
+        blockIndex={blockIndex}
       />
     </div>
   );
