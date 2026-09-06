@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import {
-  categoryColors,
+  categoryChipColor,
   categoryOf,
   splitCategory,
   tintStyle,
@@ -160,21 +160,9 @@ export default function Calendar() {
   // prefix, or the list a generated task belongs to
   const categoryOfTask = (task: Task) =>
     categoryOf(task.title) ?? listName(task.list_id);
-  // one color per category for the whole month, so a category keeps its
-  // chip color as the selection moves from day to day
-  const colors = useMemo(
-    () =>
-      (config?.calendar_category_colors ?? true)
-        ? categoryColors(
-            monthTasks
-              .map((t) => categoryOf(t.title) ?? listName(t.list_id))
-              .filter((name): name is string => name !== null),
-            lists,
-          )
-        : new Map<string, string>(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [monthTasks, lists, config?.calendar_category_colors],
-  );
+  // same chip color a category wears on the task cards, so a category
+  // is recognisable across the app (Settings > Appearance)
+  const chipHue = (name: string) => categoryChipColor(name, lists, config);
   // tasks of the day grouped by category, so the alternating chip
   // colors read as blocks instead of a stripe pattern
   const selectedTasks = [...(byDate.get(selected) ?? [])].sort((a, b) => {
@@ -185,7 +173,7 @@ export default function Calendar() {
   });
   // chips follow the row text: 100% is exactly the size of the task
   // title next to them (Settings > Calendar)
-  const chipSize = `${config?.calendar_chip_font_scale ?? 100}%`;
+  const chipSize = `${config?.chip_font_scale ?? 100}%`;
 
   return (
     <div className="flex h-full">
@@ -350,16 +338,10 @@ export default function Calendar() {
             )}
             {categoryOfTask(task) && (
               <span
-                className={`shrink-0 rounded px-1.5 py-0.5 font-medium ${
-                  colors.has(categoryOfTask(task)!)
-                    ? ""
-                    : "bg-line/40 text-content-muted"
-                }`}
+                className="shrink-0 rounded px-1.5 py-0.5 font-semibold"
                 style={{
+                  ...tintStyle(chipHue(categoryOfTask(task)!)),
                   fontSize: chipSize,
-                  ...(colors.has(categoryOfTask(task)!)
-                    ? tintStyle(colors.get(categoryOfTask(task)!)!)
-                    : {}),
                 }}
                 title={`Category: ${categoryOfTask(task)}`}
               >

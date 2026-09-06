@@ -207,7 +207,27 @@ export default function AppearanceTab() {
             value={config.category_color}
             onChange={(color) => void updateConfig({ category_color: color })}
           />
+          <span className="text-xs text-content-muted">
+            Used for every category with the toggle below off.
+          </span>
         </div>
+        <Toggle
+          checked={config.category_colors_vary}
+          label="A color per category"
+          hint="Each category label takes its own hue - a list keeps the color of its own column, any other {Category} gets a palette color picked from its name - so two categories next to each other are told apart at a glance. Off = all of them in the color above."
+          onChange={(v) => void updateConfig({ category_colors_vary: v })}
+        />
+        <Field label="Chip text size, % of the text beside it">
+          <NumberInput
+            value={config.chip_font_scale}
+            min={50}
+            onCommit={(n) => void updateConfig({ chip_font_scale: n })}
+          />
+        </Field>
+        <span className="-mt-1 text-xs text-content-muted">
+          The category, list and date chips on the task cards and in the
+          Calendar day list. 100 = exactly the size of the task text.
+        </span>
 
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Done checkbox color</span>

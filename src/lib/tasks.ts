@@ -242,9 +242,9 @@ export function cadenceColor(
 }
 
 /**
- * Rotation used to tell one category from the next where the app has no
- * per-item color to fall back on (the Calendar day list): distinct hues
- * in an order that keeps neighbours apart.
+ * Hues a category chip can take when `category_colors_vary` is on.
+ * Distinct enough that two of them side by side never read as the same
+ * label.
  */
 export const CATEGORY_PALETTE = [
   "#3b82f6",
@@ -255,24 +255,39 @@ export const CATEGORY_PALETTE = [
   "#14b8a6",
   "#ef4444",
   "#0ea5e9",
+  "#84cc16",
+  "#f97316",
+  "#8b5cf6",
+  "#06b6d4",
 ];
 
+/** FNV-1a 32, the same stable hash the Rust side uses for rule keys. */
+function hash32(text: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash;
+}
+
 /**
- * Stable color per category name: a list keeps the color it already
- * wears elsewhere, everything else takes the next palette hue by its
- * position in the sorted set of names, so the assignment does not jump
- * around as tasks come and go within a month.
+ * Chip color of a category label. A list of that name keeps the color
+ * it already wears on its column; anything else takes a palette hue
+ * picked by a hash of the name, so a category looks the same wherever
+ * it appears and does not change when its neighbours come and go. With
+ * the setting off every category shares `category_color`, as before.
  */
-export function categoryColors(
-  names: string[],
+export function categoryChipColor(
+  name: string,
   lists: List[],
-): Map<string, string> {
-  const map = new Map<string, string>();
-  [...new Set(names)].sort().forEach((name, i) => {
-    const list = lists.find((l) => l.name === name && l.color);
-    map.set(name, list?.color || CATEGORY_PALETTE[i % CATEGORY_PALETTE.length]);
-  });
-  return map;
+  config: AppConfig | null,
+): string {
+  const fallback = config?.category_color || "#3b82f6";
+  if (!(config?.category_colors_vary ?? true)) return fallback;
+  const list = lists.find((l) => l.name === name && l.color);
+  if (list?.color) return list.color;
+  return CATEGORY_PALETTE[hash32(name) % CATEGORY_PALETTE.length];
 }
 
 /** Inline style of a colored chip/plate: colored text on a soft tint. */

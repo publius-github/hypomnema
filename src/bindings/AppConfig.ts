@@ -49,18 +49,6 @@ dashboard_split: number,
  */
 calendar_daily_days: number, calendar_weekly_weeks: number, calendar_monthly_months: number, calendar_yearly_years: number, calendar_dates_years: number, 
 /**
- * Font size of the Calendar day-detail chips (list/category, time,
- * projected kind) as a percent of the row text: 100 = exactly the
- * size of the task text next to them.
- */
-calendar_chip_font_scale: number, 
-/**
- * Give every category in the Calendar day list its own chip color,
- * rotating through a palette so neighbouring categories differ at
- * a glance; off = one neutral chip style for all of them.
- */
-calendar_category_colors: boolean, 
-/**
  * UI font family (empty = system default stack).
  */
 ui_font: string, 
@@ -101,6 +89,20 @@ cadence_color_exact: string,
  * Category/list label chips on day cards.
  */
 category_color: string, 
+/**
+ * Text size of the chips that sit next to a task title (category,
+ * list, date) as a percent of that title: 100 = exactly the size
+ * of the text beside them. Applies on the cards and in the
+ * Calendar day list alike.
+ */
+chip_font_scale: number, 
+/**
+ * Give every category its own chip color instead of painting them
+ * all in `category_color`: a list keeps the color it already wears,
+ * any other name takes a hue from a fixed palette, so two
+ * categories side by side are told apart at a glance.
+ */
+category_colors_vary: boolean, 
 /**
  * Checked (done) checkboxes on task cards and subtasks.
  */

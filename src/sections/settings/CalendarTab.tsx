@@ -1,4 +1,4 @@
-import { Field, NumberInput, Toggle } from "../../components/form";
+import { Field, NumberInput } from "../../components/form";
 import { useAppStore } from "../../store";
 
 export default function CalendarTab() {
@@ -51,23 +51,9 @@ export default function CalendarTab() {
         </Field>
 
         <p className="pt-2 text-xs text-content-muted">
-          The day list on the right of the Calendar.
+          The chips in the Calendar day list follow the app-wide chip
+          size and category colors (Settings &gt; Appearance).
         </p>
-        <Field label="Chip text size, % of the task text">
-          <NumberInput
-            value={config.calendar_chip_font_scale}
-            min={50}
-            onCommit={(n) =>
-              void updateConfig({ calendar_chip_font_scale: n })
-            }
-          />
-        </Field>
-        <Toggle
-          checked={config.calendar_category_colors}
-          label="Color the category chips"
-          hint="Each category gets its own chip color (a list keeps the color it wears on the dashboard), so neighbouring categories are told apart at a glance; off = one neutral chip style."
-          onChange={(v) => void updateConfig({ calendar_category_colors: v })}
-        />
     </>
   );
 }

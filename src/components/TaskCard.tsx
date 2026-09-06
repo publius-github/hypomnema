@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import {
   cadenceColor,
+  categoryChipColor,
   cadenceKeyOf,
   clampStyle,
   isListExact,
@@ -106,9 +107,18 @@ function TaskCard({
       : (listColor ?? (listExact ? null : cadColor)));
   const dateChipColor =
     listExact && !showList ? listChipColor || cadColor : cadColor;
-  const categoryColor = useAppStore(
-    (s) => s.config?.category_color ?? "#3b82f6",
+  // one hue per category (a list keeps the color of its own column)
+  // unless the setting puts them all back on a single color. Both
+  // selectors return a plain string, so memo still holds.
+  const categoryHue = useAppStore((s) =>
+    category ? categoryChipColor(category, s.lists, s.config) : null,
   );
+  const listHue = useAppStore((s) =>
+    listName ? categoryChipColor(listName, s.lists, s.config) : null,
+  );
+  // chips read at the size of the text they sit next to; 100% is
+  // exactly the card's own text size (Settings > Appearance)
+  const chipSize = useAppStore((s) => `${s.config?.chip_font_scale ?? 100}%`);
   // [SAT#1]-style marker for weekday-pinned recurring rules; rules
   // firing every day carry [EVERYDAY] behind its own toggle
   const dowLabel = useAppStore((s) =>
@@ -118,7 +128,7 @@ function TaskCard({
       : null,
   );
   const dowColor = useAppStore((s) => s.config?.dow_label_color || "");
-  const chipStyle = tintStyle(categoryColor);
+
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
   const tooltip = [
     task.title,
@@ -211,10 +221,13 @@ function TaskCard({
           // the same date label the scheduled/birthday cards wear, ahead
           // of the list chip - in the day column AND in the list column
           <span
-            className={`shrink-0 rounded px-1 text-[11px] font-medium ${
+            className={`shrink-0 rounded px-1 font-medium ${
               dateChipColor ? "" : "bg-info/15 text-info"
             }`}
-            style={dateChipColor ? tintStyle(dateChipColor) : undefined}
+            style={{
+              ...(dateChipColor ? tintStyle(dateChipColor) : {}),
+              fontSize: chipSize,
+            }}
             title={`Scheduled for ${task.scheduled_date}`}
           >
             {weekdayShort(task.scheduled_date)} {task.scheduled_date}
@@ -224,16 +237,16 @@ function TaskCard({
           // the list IS the category for engine-generated tasks, so it
           // reads as loud as the {Category} chip
           <span
-            className="shrink-0 rounded px-1 text-[11px] font-semibold"
-            style={chipStyle}
+            className="shrink-0 rounded px-1 font-semibold"
+            style={{ ...tintStyle(listHue!), fontSize: chipSize }}
           >
             {listName}
           </span>
         )}
         {category && !multiline && (
           <span
-            className="shrink-0 rounded px-1 text-[11px] font-semibold"
-            style={chipStyle}
+            className="shrink-0 rounded px-1 font-semibold"
+            style={{ ...tintStyle(categoryHue!), fontSize: chipSize }}
             title={`Category: ${category}`}
           >
             {category}
@@ -243,10 +256,13 @@ function TaskCard({
           // same color as the Exact date section plate these tasks
           // always live under
           <span
-            className={`shrink-0 rounded px-1 text-[11px] font-medium ${
+            className={`shrink-0 rounded px-1 font-medium ${
               cadColor ? "" : "bg-info/15 text-info"
             }`}
-            style={cadColor ? tintStyle(cadColor) : undefined}
+            style={{
+              ...(cadColor ? tintStyle(cadColor) : {}),
+              fontSize: chipSize,
+            }}
             title={`Scheduled for ${task.origin_date}`}
           >
             {weekdayShort(task.origin_date)} {task.origin_date}
@@ -269,7 +285,10 @@ function TaskCard({
               className={`inline-block rounded px-1 font-medium ${
                 dateChipColor ? "" : "bg-info/15 text-info"
               }`}
-              style={dateChipColor ? tintStyle(dateChipColor) : undefined}
+              style={{
+                ...(dateChipColor ? tintStyle(dateChipColor) : {}),
+                fontSize: chipSize,
+              }}
               title={`Scheduled for ${task.scheduled_date}`}
             >
               {weekdayShort(task.scheduled_date)} {task.scheduled_date}
@@ -279,7 +298,7 @@ function TaskCard({
           {category && multiline && (
             <span
               className="inline-block rounded px-1 font-semibold"
-              style={chipStyle}
+              style={{ ...tintStyle(categoryHue!), fontSize: chipSize }}
               title={`Category: ${category}`}
             >
               {category}
@@ -300,9 +319,10 @@ function TaskCard({
           {text}
         </div>
         <div
-          className={`flex shrink-0 items-center gap-1.5 text-[11px] text-content-muted ${
+          className={`flex shrink-0 items-center gap-1.5 text-content-muted ${
             multiline ? "mt-0.5" : ""
           }`}
+          style={{ fontSize: chipSize }}
         >
           {!overlay &&
             // any task can carry priority, generated ones included; in

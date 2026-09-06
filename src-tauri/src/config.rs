@@ -53,14 +53,6 @@ pub struct AppConfig {
     pub calendar_monthly_months: u32,
     pub calendar_yearly_years: u32,
     pub calendar_dates_years: u32,
-    /// Font size of the Calendar day-detail chips (list/category, time,
-    /// projected kind) as a percent of the row text: 100 = exactly the
-    /// size of the task text next to them.
-    pub calendar_chip_font_scale: u32,
-    /// Give every category in the Calendar day list its own chip color,
-    /// rotating through a palette so neighbouring categories differ at
-    /// a glance; off = one neutral chip style for all of them.
-    pub calendar_category_colors: bool,
     /// UI font family (empty = system default stack).
     pub ui_font: String,
     /// Editor font family for Journal/Notes/config files.
@@ -87,6 +79,16 @@ pub struct AppConfig {
     pub cadence_color_exact: String,
     /// Category/list label chips on day cards.
     pub category_color: String,
+    /// Text size of the chips that sit next to a task title (category,
+    /// list, date) as a percent of that title: 100 = exactly the size
+    /// of the text beside them. Applies on the cards and in the
+    /// Calendar day list alike.
+    pub chip_font_scale: u32,
+    /// Give every category its own chip color instead of painting them
+    /// all in `category_color`: a list keeps the color it already wears,
+    /// any other name takes a hue from a fixed palette, so two
+    /// categories side by side are told apart at a glance.
+    pub category_colors_vary: bool,
     /// Checked (done) checkboxes on task cards and subtasks.
     pub done_color: String,
     /// Vertical gap between task cards inside a column, px.
@@ -258,8 +260,6 @@ impl Default for AppConfig {
             calendar_monthly_months: 3,
             calendar_yearly_years: 1,
             calendar_dates_years: 1,
-            calendar_chip_font_scale: 100,
-            calendar_category_colors: true,
             ui_font: String::new(),
             editor_font: "Consolas".into(),
             editor_font_size: 16,
@@ -272,6 +272,8 @@ impl Default for AppConfig {
             cadence_color_yearly: "#f59e0b".into(),
             cadence_color_exact: "#0ea5e9".into(),
             category_color: "#3b82f6".into(),
+            chip_font_scale: 100,
+            category_colors_vary: true,
             done_color: "#22c55e".into(),
             task_gap: 6,
             section_gap: 12,
@@ -386,7 +388,6 @@ impl AppConfig {
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
         self.calendar_yearly_years = self.calendar_yearly_years.min(5);
         self.calendar_dates_years = self.calendar_dates_years.min(5);
-        self.calendar_chip_font_scale = self.calendar_chip_font_scale.clamp(50, 200);
         self.done_hold_seconds = self.done_hold_seconds.min(30);
         self.backup_keep = self.backup_keep.min(365);
         self.ui_font_size = self.ui_font_size.clamp(10, 28);
@@ -445,6 +446,7 @@ impl AppConfig {
         );
         sanitize_color(&mut self.cadence_color_exact, defaults.cadence_color_exact);
         sanitize_color(&mut self.category_color, defaults.category_color);
+        self.chip_font_scale = self.chip_font_scale.clamp(50, 200);
         sanitize_color(&mut self.done_color, defaults.done_color);
         sanitize_color(&mut self.md_color_heading, defaults.md_color_heading);
         sanitize_color(&mut self.md_color_bold, defaults.md_color_bold);
@@ -551,14 +553,6 @@ impl AppConfig {
                 "calendar_dates_years",
                 self.calendar_dates_years.to_string(),
             ),
-            (
-                "calendar_chip_font_scale",
-                self.calendar_chip_font_scale.to_string(),
-            ),
-            (
-                "calendar_category_colors",
-                self.calendar_category_colors.to_string(),
-            ),
             ("ui_font", self.ui_font.clone()),
             ("editor_font", self.editor_font.clone()),
             ("editor_font_size", self.editor_font_size.to_string()),
@@ -571,6 +565,11 @@ impl AppConfig {
             ("cadence_color_yearly", self.cadence_color_yearly.clone()),
             ("cadence_color_exact", self.cadence_color_exact.clone()),
             ("category_color", self.category_color.clone()),
+            ("chip_font_scale", self.chip_font_scale.to_string()),
+            (
+                "category_colors_vary",
+                self.category_colors_vary.to_string(),
+            ),
             ("done_color", self.done_color.clone()),
             ("task_gap", self.task_gap.to_string()),
             ("section_gap", self.section_gap.to_string()),
