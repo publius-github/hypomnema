@@ -20,6 +20,7 @@ import Upcoming from "./sections/Upcoming";
 import Reminders from "./sections/Reminders";
 import Calendar from "./sections/Calendar";
 import History from "./sections/History";
+import Review from "./sections/Review";
 import Journal from "./sections/Journal";
 import KnowledgeBase from "./sections/KnowledgeBase";
 import Settings from "./sections/Settings";
@@ -149,6 +150,7 @@ export default function App() {
           "reminders",
           "calendar",
           "history",
+          "review",
           "journal",
           "kb",
         ]),
@@ -243,6 +245,7 @@ export default function App() {
         {section === "reminders" && <Reminders />}
         {section === "calendar" && <Calendar />}
         {section === "history" && <History />}
+        {section === "review" && <Review />}
         {section === "journal" && <Journal />}
         {section === "kb" && <KnowledgeBase />}
         {section === "settings" && <Settings />}

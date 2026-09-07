@@ -13,6 +13,7 @@ const TABS: Record<string, { id: Section; label: string; icon: IconName }> = {
   reminders: { id: "reminders", label: "Reminders", icon: "bell" },
   calendar: { id: "calendar", label: "Calendar", icon: "calendar" },
   history: { id: "history", label: "History", icon: "chart" },
+  review: { id: "review", label: "Review", icon: "review" },
   journal: { id: "journal", label: "Journal", icon: "pencil" },
   kb: { id: "kb", label: "Notes", icon: "notes" },
 };
@@ -25,6 +26,7 @@ const DEFAULT_ORDER = [
   "reminders",
   "calendar",
   "history",
+  "review",
   "journal",
   "kb",
 ];

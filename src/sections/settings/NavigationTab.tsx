@@ -6,6 +6,7 @@ const SECTION_LABELS: Record<string, string> = {
   reminders: "Reminders",
   calendar: "Calendar",
   history: "History",
+  review: "Review",
   journal: "Journal",
   kb: "Notes",
 };

@@ -239,6 +239,7 @@ pub const SECTIONS: &[&str] = &[
     "reminders",
     "calendar",
     "history",
+    "review",
     "journal",
     "kb",
 ];
@@ -741,6 +742,7 @@ mod tests {
                 "reminders",
                 "calendar",
                 "history",
+                "review",
                 "journal"
             ]
         );

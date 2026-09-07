@@ -46,6 +46,7 @@ export type Section =
   | "reminders"
   | "calendar"
   | "history"
+  | "review"
   | "journal"
   | "kb"
   | "settings";
