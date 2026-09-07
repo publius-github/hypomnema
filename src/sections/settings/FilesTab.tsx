@@ -159,6 +159,46 @@ export default function FilesTab() {
           </span>
         </label>
 
+        <label className="ml-6 flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            disabled={!config.tasks_mirror}
+            checked={config.tasks_mirror_today}
+            onChange={(e) =>
+              void updateConfig({ tasks_mirror_today: e.target.checked })
+            }
+          />
+          <span className="flex flex-col">
+            <span className="text-sm font-medium">
+              Read-only today.md day sheet
+            </span>
+            <span className="text-xs text-content-muted">
+              A phone-readable summary of the day next to the other mirror
+              files: focus phrase, reminders, schedule blocks, overdue and
+              today&apos;s tasks grouped by category. Regenerated on every
+              change; edits to it are ignored.
+            </span>
+            {config.tasks_mirror_today && (
+              <span className="mt-1 flex items-center gap-2 text-xs text-content-muted">
+                Days covered (1-7):
+                <input
+                  type="number"
+                  className="input w-16 py-0.5"
+                  min={1}
+                  max={7}
+                  value={config.tasks_mirror_today_days}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (Number.isFinite(n) && n >= 1 && n <= 7)
+                      void updateConfig({ tasks_mirror_today_days: n });
+                  }}
+                />
+              </span>
+            )}
+          </span>
+        </label>
+
         <label className="flex items-start gap-2">
           <input
             type="checkbox"

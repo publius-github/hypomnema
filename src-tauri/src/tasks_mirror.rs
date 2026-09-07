@@ -40,7 +40,10 @@ use crate::tasks::{self, NewTask, Task, TaskPatch};
 
 const SCHEDULED_MARKER: &str = "<!-- hypomnema:scheduled -->";
 const AGENDA_MARKER: &str = "<!-- hypomnema:agenda -->";
+const TODAY_MARKER: &str = "<!-- hypomnema:today -->";
 const LIST_MARKER_PREFIX: &str = "<!-- hypomnema:list:";
+
+const TODAY_HELP: &str = "<!-- Read-only day sheet, regenerated on every change - edits here are ignored. Check tasks off in the app or in the other mirror files. -->";
 
 const AGENDA_HELP: &str = "<!-- Agenda of generated tasks (recurring, scheduled events, birthdays) from today onward, grouped by day. Check a box ([x] done, [z] postponed, [ ] open), set an HH:MM time after the checkbox or toggle the \"! \" priority mark and it syncs back. Title and date edits do NOT sync - the YAML files in .hypomnema/config/ own them. A new line without an id creates a manual task on that day; deleting lines changes nothing, the app rewrites this file. -->";
 
@@ -108,6 +111,168 @@ fn ui_order(tasks: &mut [&Task]) {
     });
 }
 
+/// Which optional mirror files an export writes - a snapshot of the
+/// config's tasks_mirror_* switches.
+pub struct ExportOptions {
+    /// Trailing `^id` sync keys on mirrored lines.
+    pub ids: bool,
+    /// Write agenda.md with the generated instances.
+    pub agenda: bool,
+    /// `Some(days)` writes the read-only today.md day sheet covering
+    /// that many days.
+    pub today_file: Option<u32>,
+}
+
+/// `{X}` title prefix as the category, like the day columns and the
+/// Calendar day list group it; the rest is the display text.
+fn split_category(title: &str) -> (Option<&str>, &str) {
+    let trimmed = title.trim_start();
+    if let Some(rest) = trimmed.strip_prefix('{') {
+        if let Some(end) = rest.find('}') {
+            let category = rest[..end].trim();
+            if !category.is_empty() {
+                return (Some(category), rest[end + 1..].trim_start());
+            }
+        }
+    }
+    (None, title)
+}
+
+/// A mirror-style task line without the `^id` key (nothing in today.md
+/// syncs back, so it carries no identity).
+fn render_plain_line(task: &Task, title: &str) -> String {
+    let mark = match task.status.as_str() {
+        "done" => "x",
+        "postponed" => "z",
+        _ => " ",
+    };
+    let mut line = format!("- [{mark}] ");
+    if let Some(time) = &task.time {
+        line.push_str(time);
+        line.push(' ');
+    }
+    if task.priority {
+        line.push_str("! ");
+    }
+    line.push_str(title.trim());
+    line.push('\n');
+    line
+}
+
+/// Content of the read-only today.md day sheet: focus phrase, today's
+/// reminders and schedule blocks, then Overdue and one section per
+/// covered day with the tasks grouped by category ({X} prefix, else the
+/// list name). Empty sections are omitted.
+fn today_content(conn: &Connection, config_dir: &Path, today: &str, days: u32) -> Result<String> {
+    let start = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d")
+        .map_err(|_| Error::State(format!("invalid date '{today}'")))?;
+    let dates: Vec<String> = (0..days.max(1) as i64)
+        .map(|i| {
+            (start + chrono::Duration::days(i))
+                .format("%Y-%m-%d")
+                .to_string()
+        })
+        .collect();
+    let end_exclusive = (start + chrono::Duration::days(days.max(1) as i64))
+        .format("%Y-%m-%d")
+        .to_string();
+    let context = crate::reminders::dashboard_context(conn, config_dir, &dates)?;
+    let lists = tasks::lists_all(conn)?;
+    let snapshot = tasks::tasks_snapshot(conn, today, &end_exclusive)?;
+    let in_window = |t: &Task| {
+        t.parent_task_id.is_none()
+            && t.scheduled_date
+                .as_deref()
+                .map(|d| d >= today && d < end_exclusive.as_str())
+                .unwrap_or(false)
+    };
+    let group_of = |t: &Task| -> String {
+        let (category, _) = split_category(&t.title);
+        category
+            .map(str::to_string)
+            .or_else(|| {
+                t.list_id
+                    .and_then(|id| lists.iter().find(|l| l.id == id).map(|l| l.name.clone()))
+            })
+            .unwrap_or_default()
+    };
+
+    let mut out = format!(
+        "{TODAY_MARKER}\n{TODAY_HELP}\n\n# {}\n",
+        start.format("%A, %Y-%m-%d")
+    );
+    if let Some(focus) = &context.focus {
+        out.push_str(&format!("\n> {focus}\n"));
+    }
+    if let Some(day) = context.days.first() {
+        if !day.reminders.is_empty() {
+            out.push_str("\n## Reminders\n\n");
+            for reminder in &day.reminders {
+                out.push_str(&format!("- {reminder}\n"));
+            }
+        }
+    }
+    if !context.blocks.is_empty() {
+        out.push_str("\n## Schedule\n\n");
+        for block in &context.blocks {
+            out.push_str(&format!(
+                "- {} - {} {}\n",
+                block.from, block.to, block.label
+            ));
+        }
+    }
+    // carried-over tasks sit on today wearing the overdue flag; they get
+    // their own section instead of blending into the day's plan
+    let overdue_open = |t: &Task| t.overdue && t.status != "done";
+    let mut overdue: Vec<&Task> = snapshot
+        .iter()
+        .filter(|t| in_window(t) && overdue_open(t))
+        .collect();
+    if !overdue.is_empty() {
+        ui_order(&mut overdue);
+        out.push_str("\n## Overdue\n\n");
+        for task in overdue {
+            let (_, title) = split_category(&task.title);
+            out.push_str(&render_plain_line(task, title));
+        }
+    }
+    for (i, date) in dates.iter().enumerate() {
+        let day_tasks: Vec<&Task> = snapshot
+            .iter()
+            .filter(|t| {
+                in_window(t) && t.scheduled_date.as_deref() == Some(date) && !overdue_open(t)
+            })
+            .collect();
+        if day_tasks.is_empty() {
+            continue;
+        }
+        if i == 0 {
+            out.push_str("\n## Today\n");
+        } else {
+            let day = start + chrono::Duration::days(i as i64);
+            out.push_str(&format!("\n## {}\n", day.format("%A, %Y-%m-%d")));
+        }
+        // BTreeMap: uncategorized ("") first, then categories by name
+        let mut groups: BTreeMap<String, Vec<&Task>> = BTreeMap::new();
+        for task in day_tasks {
+            groups.entry(group_of(task)).or_default().push(task);
+        }
+        for (category, mut group) in groups {
+            ui_order(&mut group);
+            if category.is_empty() {
+                out.push('\n');
+            } else {
+                out.push_str(&format!("\n### {category}\n\n"));
+            }
+            for task in group {
+                let (_, title) = split_category(&task.title);
+                out.push_str(&render_plain_line(task, title));
+            }
+        }
+    }
+    Ok(out)
+}
+
 fn write_if_changed(path: &Path, content: &str) -> Result<()> {
     if fs::read_to_string(path)
         .map(|c| c == content)
@@ -128,11 +293,12 @@ pub fn export(
     conn: &Connection,
     tasks_dir: &Path,
     base_dir: &Path,
+    config_dir: &Path,
     today: &str,
     skip: &HashSet<PathBuf>,
-    ids: bool,
-    agenda: bool,
+    opts: &ExportOptions,
 ) -> Result<Vec<(PathBuf, String)>> {
+    let ids = opts.ids;
     let help = if ids { FORMAT_HELP } else { FORMAT_HELP_NO_IDS };
     fs::create_dir_all(tasks_dir)?;
     let lists = tasks::lists_all(conn)?;
@@ -147,9 +313,12 @@ pub fn export(
 
     let mut written: Vec<(PathBuf, String)> = Vec::new();
     let mut expected: HashSet<PathBuf> = HashSet::new();
-    // "scheduled" and "agenda" are reserved for the managed files
-    let mut used_names: HashSet<String> =
-        HashSet::from(["scheduled".to_string(), "agenda".to_string()]);
+    // "scheduled", "agenda" and "today" are reserved for the managed files
+    let mut used_names: HashSet<String> = HashSet::from([
+        "scheduled".to_string(),
+        "agenda".to_string(),
+        "today".to_string(),
+    ]);
 
     for list in &lists {
         let mut backlog: Vec<&Task> = parents
@@ -217,7 +386,7 @@ pub fn export(
 
     // agenda.md: generated instances from today onward, statuses sync
     // back (see AGENDA_HELP); off = the file is cleaned up below
-    if agenda {
+    if opts.agenda {
         let generated = tasks::generated_parent_tasks(conn)?;
         let mut by_date: BTreeMap<&str, Vec<&Task>> = BTreeMap::new();
         for task in &generated {
@@ -248,6 +417,17 @@ pub fn export(
         }
     }
 
+    // today.md: the read-only day sheet; off = cleaned up below
+    if let Some(days) = opts.today_file {
+        let content = today_content(conn, config_dir, today, days)?;
+        let path = tasks_dir.join("today.md");
+        expected.insert(path.clone());
+        if !skip.contains(&path) {
+            write_if_changed(&path, &content)?;
+            written.push((path, content));
+        }
+    }
+
     // drop managed files whose list is gone (archived, renamed); files
     // without our marker are left alone
     if let Ok(entries) = fs::read_dir(tasks_dir) {
@@ -263,6 +443,7 @@ pub fn export(
             if first.trim().starts_with(LIST_MARKER_PREFIX)
                 || first.trim() == SCHEDULED_MARKER
                 || first.trim() == AGENDA_MARKER
+                || first.trim() == TODAY_MARKER
             {
                 let _ = fs::remove_file(&path);
             }
@@ -274,6 +455,10 @@ pub fn export(
     // of removed managed files go with them
     fs::create_dir_all(base_dir)?;
     for (path, content) in &written {
+        // today.md is never merged, so it needs no base copy
+        if path.file_name().and_then(|n| n.to_str()) == Some("today.md") {
+            continue;
+        }
         if let Some(name) = path.file_name() {
             write_if_changed(&base_dir.join(name), content)?;
         }
@@ -452,6 +637,11 @@ pub fn import_file(
         .unwrap_or("list")
         .to_string();
     let first = content.lines().next().unwrap_or("").trim().to_string();
+    // today.md is a read-only export: nothing in it syncs back, and it
+    // must never fall through to the new-list branch below
+    if first == TODAY_MARKER {
+        return Ok(false);
+    }
     let lists = tasks::lists_all(conn)?;
     let mut changed = false;
 
@@ -890,6 +1080,14 @@ mod tests {
         }
     }
 
+    fn opts(ids: bool, agenda: bool) -> ExportOptions {
+        ExportOptions {
+            ids,
+            agenda,
+            today_file: None,
+        }
+    }
+
     #[test]
     fn export_then_reimport_is_a_noop() {
         let (conn, dir) = setup("noop");
@@ -924,10 +1122,10 @@ mod tests {
             &conn,
             &dir,
             &dir.join("base"),
+            &dir.join("config"),
             TODAY,
             &HashSet::new(),
-            true,
-            false,
+            &opts(true, false),
         )
         .unwrap();
         assert_eq!(written.len(), 2); // Groceries.md + scheduled.md
@@ -1077,10 +1275,10 @@ mod tests {
             &conn,
             &dir,
             &dir.join("base"),
+            &dir.join("config"),
             TODAY,
             &HashSet::new(),
-            false,
-            false,
+            &opts(false, false),
         )
         .unwrap();
         let (path, content) = written
@@ -1115,10 +1313,10 @@ mod tests {
             &conn,
             &dir,
             &dir.join("base"),
+            &dir.join("config"),
             TODAY,
             &HashSet::new(),
-            true,
-            false,
+            &opts(true, false),
         )
         .unwrap();
         let (_, out) = written
@@ -1147,7 +1345,16 @@ mod tests {
         let base_dir = dir.join("base");
         let gen_id = make_generated(&conn, "morning routine", "2026-08-30");
 
-        let written = export(&conn, &dir, &base_dir, TODAY, &HashSet::new(), true, true).unwrap();
+        let written = export(
+            &conn,
+            &dir,
+            &base_dir,
+            &dir.join("config"),
+            TODAY,
+            &HashSet::new(),
+            &opts(true, true),
+        )
+        .unwrap();
         let (path, content) = written
             .iter()
             .find(|(p, _)| p.file_name().unwrap() == "agenda.md")
@@ -1179,7 +1386,16 @@ mod tests {
         assert_eq!(tasks::manual_parent_tasks(&conn).unwrap().len(), 1);
 
         // turning the agenda off cleans the file up
-        export(&conn, &dir, &base_dir, TODAY, &HashSet::new(), true, false).unwrap();
+        export(
+            &conn,
+            &dir,
+            &base_dir,
+            &dir.join("config"),
+            TODAY,
+            &HashSet::new(),
+            &opts(true, false),
+        )
+        .unwrap();
         assert!(!dir.join("agenda.md").exists());
         assert!(!base_dir.join("agenda.md").exists());
         let _ = fs::remove_dir_all(&dir);
@@ -1327,10 +1543,10 @@ mod tests {
             &conn,
             &dir,
             &dir.join("base"),
+            &dir.join("config"),
             TODAY,
             &HashSet::new(),
-            true,
-            false,
+            &opts(true, false),
         )
         .unwrap();
         assert!(dir.join("Temp.md").exists());
@@ -1341,15 +1557,113 @@ mod tests {
             &conn,
             &dir,
             &dir.join("base"),
+            &dir.join("config"),
             TODAY,
             &HashSet::new(),
-            true,
-            false,
+            &opts(true, false),
         )
         .unwrap();
         assert!(!dir.join("Temp.md").exists());
         assert!(dir.join("notes.md").exists());
         assert!(dir.join("scheduled.md").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn today_file_exports_a_read_only_day_sheet() {
+        let (conn, dir) = setup("today");
+        let list = list_create(&conn, "Work", None, false).unwrap();
+        task_create(
+            &conn,
+            &NewTask {
+                scheduled_date: Some(TODAY.into()),
+                time: Some("09:00".into()),
+                list_id: Some(list.id),
+                ..new_task("standup")
+            },
+        )
+        .unwrap();
+        task_create(
+            &conn,
+            &NewTask {
+                scheduled_date: Some("2026-08-30".into()),
+                ..new_task("{Health} run")
+            },
+        )
+        .unwrap();
+
+        let written = export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            &dir.join("config"),
+            TODAY,
+            &HashSet::new(),
+            &ExportOptions {
+                ids: true,
+                agenda: false,
+                today_file: Some(2),
+            },
+        )
+        .unwrap();
+        let (_, content) = written
+            .iter()
+            .find(|(p, _)| p.file_name().unwrap() == "today.md")
+            .unwrap();
+        assert!(content.starts_with(TODAY_MARKER));
+        assert!(content.contains("## Today"));
+        assert!(content.contains("### Work"));
+        assert!(content.contains("- [ ] 09:00 standup"));
+        // the extra day gets its own dated section; the category comes
+        // from the {X} prefix and the prefix leaves the line itself
+        assert!(content.contains("2026-08-30"));
+        assert!(content.contains("### Health"));
+        assert!(content.contains("- [ ] run"));
+        // read-only: no sync keys, no merge-base copy
+        assert!(!content.contains('^'));
+        assert!(!dir.join("base").join("today.md").exists());
+
+        // nothing in it syncs back, even a checked-off line
+        let edited = content.replace("- [ ] 09:00 standup", "- [x] 09:00 standup");
+        let applied =
+            import_file(&conn, &dir.join("today.md"), &edited, TODAY, true, None).unwrap();
+        assert!(!applied);
+        let parents = tasks::manual_parent_tasks(&conn).unwrap();
+        assert!(parents.iter().all(|t| t.status == "todo"));
+
+        // turning the flag off sweeps the file away like other managed files
+        export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            &dir.join("config"),
+            TODAY,
+            &HashSet::new(),
+            &opts(true, false),
+        )
+        .unwrap();
+        assert!(!dir.join("today.md").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_markerless_today_file_is_left_alone() {
+        let (conn, dir) = setup("today-markerless");
+        fs::write(dir.join("today.md"), "my own notes\n").unwrap();
+        export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            &dir.join("config"),
+            TODAY,
+            &HashSet::new(),
+            &opts(true, false),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(dir.join("today.md")).unwrap(),
+            "my own notes\n"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 }

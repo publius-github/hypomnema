@@ -140,10 +140,10 @@ fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
                             &conn,
                             &vault::tasks_dir(&root),
                             &vault::mirror_base_dir(&root),
+                            &vault::config_dir(&root),
                             &today_string(),
                             &Default::default(),
-                            config.tasks_mirror_ids,
-                            config.tasks_mirror_agenda,
+                            &export_options(&config),
                         ) {
                             *written.lock().unwrap() = files.into_iter().collect();
                         }
@@ -172,6 +172,17 @@ fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
         }
     });
     Ok(())
+}
+
+/// The optional-file switches of a mirror export, from the config.
+fn export_options(config: &AppConfig) -> tasks_mirror::ExportOptions {
+    tasks_mirror::ExportOptions {
+        ids: config.tasks_mirror_ids,
+        agenda: config.tasks_mirror_agenda,
+        today_file: config
+            .tasks_mirror_today
+            .then_some(config.tasks_mirror_today_days),
+    }
 }
 
 fn show_main(app: &AppHandle) {
@@ -291,10 +302,10 @@ fn mirror_export_with(
         &vault.conn,
         &vault::tasks_dir(&vault.root),
         &vault::mirror_base_dir(&vault.root),
+        &vault::config_dir(&vault.root),
         &today_string(),
         &Default::default(),
-        vault.config.tasks_mirror_ids,
-        vault.config.tasks_mirror_agenda,
+        &export_options(&vault.config),
     ) {
         *written.lock().unwrap() = files.into_iter().collect();
     }
@@ -335,22 +346,17 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
             let state = app.state::<AppState>();
             let snapshot = {
                 let guard = state.vault.lock().unwrap();
-                guard.as_ref().map(|vault| {
-                    (
-                        vault.root.clone(),
-                        vault.config.tasks_mirror,
-                        vault.config.tasks_mirror_ids,
-                        vault.config.tasks_mirror_agenda,
-                        vault.config.state_snapshot,
-                    )
-                })
+                guard
+                    .as_ref()
+                    .map(|vault| (vault.root.clone(), vault.config.clone()))
             };
-            let Some((root, enabled, ids, agenda, snapshot_on)) = snapshot else {
+            let Some((root, config)) = snapshot else {
                 continue;
             };
-            if !enabled {
+            if !config.tasks_mirror {
                 continue;
             }
+            let ids = config.tasks_mirror_ids;
             let engine_lock = state.engine_lock.clone();
             let written = state.mirror_written.clone();
             let today = today_string();
@@ -417,17 +423,17 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                         }
                     }
                 }
-                if snapshot_on {
+                if config.state_snapshot {
                     let _ = state_export::export(&conn, &vault::state_dir(&root));
                 }
                 if let Ok(files) = tasks_mirror::export(
                     &conn,
                     &dir,
                     &vault::mirror_base_dir(&root),
+                    &vault::config_dir(&root),
                     &today,
                     &failed,
-                    ids,
-                    agenda,
+                    &export_options(&config),
                 ) {
                     *written.lock().unwrap() = files.into_iter().collect();
                 }

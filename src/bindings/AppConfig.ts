@@ -197,6 +197,17 @@ tasks_mirror_agenda: boolean,
  */
 tasks_mirror_ids: boolean, 
 /**
+ * Also write <vault>/tasks/today.md: a read-only, phone-readable
+ * day sheet (focus, reminders, schedule, overdue and today's tasks).
+ * Regenerated on every change; edits to it are never imported.
+ */
+tasks_mirror_today: boolean, 
+/**
+ * How many days today.md covers (1 = today only; each extra day
+ * adds its own section).
+ */
+tasks_mirror_today_days: number, 
+/**
  * Show a [SAT#1]-style marker before recurring tasks whose cron
  * pins concrete weekdays.
  */

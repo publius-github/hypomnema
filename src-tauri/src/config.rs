@@ -153,6 +153,13 @@ pub struct AppConfig {
     /// is then matched back to its task by title, so renaming a task in
     /// the file replaces it instead of editing it.
     pub tasks_mirror_ids: bool,
+    /// Also write <vault>/tasks/today.md: a read-only, phone-readable
+    /// day sheet (focus, reminders, schedule, overdue and today's tasks).
+    /// Regenerated on every change; edits to it are never imported.
+    pub tasks_mirror_today: bool,
+    /// How many days today.md covers (1 = today only; each extra day
+    /// adds its own section).
+    pub tasks_mirror_today_days: u32,
     /// Show a [SAT#1]-style marker before recurring tasks whose cron
     /// pins concrete weekdays.
     pub cron_weekday_labels: bool,
@@ -334,6 +341,9 @@ impl Default for AppConfig {
             tasks_mirror: true,
             tasks_mirror_agenda: true,
             tasks_mirror_ids: true,
+            // opt-in: a synced vault must not grow a new file unasked
+            tasks_mirror_today: false,
+            tasks_mirror_today_days: 1,
             cron_weekday_labels: true,
             cron_everyday_label: true,
             lists_sort_alpha: false,
@@ -559,6 +569,7 @@ impl AppConfig {
         if self.capture_list.is_empty() {
             self.capture_list = defaults.capture_list;
         }
+        self.tasks_mirror_today_days = self.tasks_mirror_today_days.clamp(1, 7);
         self.capture_shortcut = self.capture_shortcut.trim().to_string();
         if !self.tray_icon {
             self.close_to_tray = false;
@@ -667,6 +678,11 @@ impl AppConfig {
             ("tasks_mirror", self.tasks_mirror.to_string()),
             ("tasks_mirror_agenda", self.tasks_mirror_agenda.to_string()),
             ("tasks_mirror_ids", self.tasks_mirror_ids.to_string()),
+            ("tasks_mirror_today", self.tasks_mirror_today.to_string()),
+            (
+                "tasks_mirror_today_days",
+                self.tasks_mirror_today_days.to_string(),
+            ),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
             ("cron_everyday_label", self.cron_everyday_label.to_string()),
             ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
