@@ -1,5 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { useAppStore } from "../store";
 import {
   categoryBlockIndex,
@@ -50,6 +60,59 @@ function taskKind(task: Task): string {
 
 function iso(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Month cell as a drop target: dropping a task row here reschedules it
+ *  to this date. */
+function MonthCell({
+  date,
+  onSelect,
+  className,
+  children,
+}: {
+  date: string;
+  onSelect: () => void;
+  className: string;
+  children: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `calday:${date}` });
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={onSelect}
+      className={`${className}${isOver ? " ring-2 ring-accent" : ""}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Task row of the selected day, draggable onto a month cell. */
+function DayTaskRow({
+  task,
+  onOpen,
+  children,
+}: {
+  task: Task;
+  onOpen: () => void;
+  children: ReactNode;
+}) {
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
+    id: `caltask:${task.id}`,
+  });
+  return (
+    <button
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={`flex items-center gap-2 rounded-md border border-line bg-surface-alt px-3 py-2 text-left text-sm hover:border-accent/60${
+        isDragging ? " opacity-40" : ""
+      }`}
+      onClick={onOpen}
+    >
+      {children}
+    </button>
+  );
 }
 
 export default function Calendar() {
@@ -154,6 +217,27 @@ export default function Calendar() {
     setMonth(next.getMonth());
   };
 
+  // drag a task row onto a month cell to reschedule it to that date
+  const updateTask = useAppStore((s) => s.updateTask);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+  const [dragTask, setDragTask] = useState<Task | null>(null);
+  const onDragEnd = (event: DragEndEvent) => {
+    setDragTask(null);
+    const { active, over } = event;
+    if (!over) return;
+    const target = String(over.id);
+    if (!target.startsWith("calday:")) return;
+    const date = target.slice(7);
+    const taskId = Number(String(active.id).replace("caltask:", ""));
+    const task = monthTasks.find((t) => t.id === taskId);
+    if (!task || task.scheduled_date === date) return;
+    void updateTask(taskId, { scheduled_date: date });
+    // follow the task to its new day so the move is visible immediately
+    setSelected(date);
+  };
+
   const selectedOutlook = outlookByDate.get(selected) ?? [];
   const listName = (id: number | null) =>
     lists.find((l) => l.id === id)?.name ?? null;
@@ -181,6 +265,18 @@ export default function Calendar() {
   const chipSize = `${config?.chip_font_scale ?? 100}%`;
 
   return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={(e) =>
+        setDragTask(
+          monthTasks.find(
+            (t) => t.id === Number(String(e.active.id).replace("caltask:", "")),
+          ) ?? null,
+        )
+      }
+      onDragCancel={() => setDragTask(null)}
+      onDragEnd={onDragEnd}
+    >
     <div className="flex h-full">
       <div className="flex w-[380px] shrink-0 flex-col gap-3 border-r border-line p-4">
         <div className="flex items-center justify-between">
@@ -232,9 +328,10 @@ export default function Calendar() {
             ]);
             const dots = KIND_ORDER.filter((k) => kinds.has(k)).slice(0, 5);
             return (
-              <button
+              <MonthCell
                 key={date}
-                onClick={() => setSelected(date)}
+                date={date}
+                onSelect={() => setSelected(date)}
                 className={`flex h-14 flex-col items-center justify-center gap-0.5 rounded-md border text-sm ${
                   selected === date
                     ? "border-accent bg-accent/15 text-accent"
@@ -274,7 +371,7 @@ export default function Calendar() {
                     ))}
                   </span>
                 )}
-              </button>
+              </MonthCell>
             );
           })}
         </div>
@@ -300,10 +397,10 @@ export default function Calendar() {
           </p>
         )}
         {selectedTasks.map((task) => (
-          <button
+          <DayTaskRow
             key={task.id}
-            className="flex items-center gap-2 rounded-md border border-line bg-surface-alt px-3 py-2 text-left text-sm hover:border-accent/60"
-            onClick={() => setOpenTask(task)}
+            task={task}
+            onOpen={() => setOpenTask(task)}
           >
             <span
               className={
@@ -355,7 +452,7 @@ export default function Calendar() {
                 {categoryOfTask(task)}
               </span>
             )}
-          </button>
+          </DayTaskRow>
         ))}
         {selectedOutlook.length > 0 && (
           <>
@@ -387,5 +484,15 @@ export default function Calendar() {
         <TaskModal task={openTask} onClose={() => setOpenTask(null)} />
       )}
     </div>
+    <DragOverlay>
+      {dragTask && (
+        <div className="flex items-center gap-2 rounded-md border border-accent/60 bg-surface-alt px-3 py-2 text-sm shadow-lg">
+          <span className="min-w-0 flex-1 truncate">
+            {splitCategory(dragTask.title).text}
+          </span>
+        </div>
+      )}
+    </DragOverlay>
+    </DndContext>
   );
 }
