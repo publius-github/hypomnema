@@ -280,6 +280,92 @@ pub const SECTIONS: &[&str] = &[
 
 pub const CADENCE_GROUPS: &[&str] = &["exact", "general", "daily", "weekly", "monthly", "yearly"];
 
+/// Fields a settings profile snapshots: the visual customization -
+/// appearance and layout - and nothing behavioral. Deliberately out:
+/// paths and data handling (kb_path, mirror, snapshots, backups),
+/// engine and calendar parameters, notifications, capture/tray, the
+/// view-mode toggles (*_today_only - flipped live on the pages, a
+/// profile changing them would be surprising), section_order, and the
+/// interaction timings (done_hold_seconds, undo_toast_seconds - the
+/// undo window is a safety net, not a look). Applying a profile resets
+/// every key here to its default and overlays the profile's values;
+/// keys outside this list in a profile file are ignored.
+pub const PROFILE_KEYS: &[&str] = &[
+    // theme and chrome
+    "theme",
+    "theme_preset",
+    "accent_color",
+    "surface_color",
+    "surface_alt_color",
+    "line_color",
+    // fonts
+    "ui_font",
+    "ui_font_size",
+    "editor_font",
+    "editor_font_size",
+    // text colors
+    "content_color",
+    "content_muted_color",
+    "weekly_focus_color",
+    "reminder_color",
+    "day_header_color",
+    "dow_label_color",
+    // task colors
+    "cadence_colors",
+    "cadence_color_daily",
+    "cadence_color_weekly",
+    "cadence_color_monthly",
+    "cadence_color_yearly",
+    "cadence_color_exact",
+    "done_color",
+    // category chips
+    "category_color",
+    "category_color_mode",
+    "category_color_a",
+    "category_color_b",
+    "chip_font_scale",
+    // section plates
+    "cadence_color_general",
+    "postponed_plate_color",
+    "done_plate_color",
+    // dated list tasks
+    "list_date_chip_color",
+    "list_exact_stripe",
+    // editor look
+    "md_preset",
+    "md_color_heading",
+    "md_color_bold",
+    "md_color_italic",
+    "md_color_code",
+    "md_color_link",
+    "md_color_quote",
+    "md_color_marker",
+    "kb_line_numbers",
+    // layout
+    "grid_columns",
+    "list_columns",
+    "dashboard_split",
+    "days_page_columns",
+    "lists_page_columns",
+    "lists_page_align_rows",
+    "day_header_centered",
+    "cadence_group_order",
+    "done_display",
+    "task_gap",
+    "section_gap",
+    "category_block_gap",
+    "list_category_block_gap",
+    "postponed_section_gap",
+    "done_section_gap",
+    "list_postponed_section_gap",
+    "list_done_section_gap",
+    "list_task_lines",
+    "list_dialog_task_lines",
+    // card markers
+    "cron_weekday_labels",
+    "cron_everyday_label",
+];
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -585,6 +671,21 @@ impl AppConfig {
         Ok(())
     }
 
+    /// The profile-scope subset as a YAML mapping with native value
+    /// types - the settings-profile file format.
+    pub fn profile_subset(&self) -> Result<serde_yaml::Mapping> {
+        let value = serde_yaml::to_value(self)?;
+        let mapping = value.as_mapping().cloned().unwrap_or_default();
+        Ok(mapping
+            .into_iter()
+            .filter(|(key, _)| {
+                key.as_str()
+                    .map(|key| PROFILE_KEYS.contains(&key))
+                    .unwrap_or(false)
+            })
+            .collect())
+    }
+
     pub fn settings_pairs(&self) -> Vec<(&'static str, String)> {
         vec![
             ("theme", self.theme.clone()),
@@ -834,6 +935,26 @@ mod tests {
             );
         }
         assert_eq!(pairs.len(), mapping.len());
+    }
+
+    /// PROFILE_KEYS is a hand-maintained whitelist over the serde field
+    /// names; a typo or a renamed field must fail loudly, not silently
+    /// drop the key from every profile.
+    #[test]
+    fn profile_keys_are_real_fields() {
+        let yaml = serde_yaml::to_value(AppConfig::default()).unwrap();
+        let mapping = yaml.as_mapping().unwrap();
+        for key in PROFILE_KEYS {
+            assert!(
+                mapping.contains_key(serde_yaml::Value::from(*key)),
+                "PROFILE_KEYS names unknown field '{key}'"
+            );
+        }
+        // no duplicates
+        let unique: std::collections::HashSet<_> = PROFILE_KEYS.iter().collect();
+        assert_eq!(unique.len(), PROFILE_KEYS.len());
+        let subset = AppConfig::default().profile_subset().unwrap();
+        assert_eq!(subset.len(), PROFILE_KEYS.len());
     }
 
     #[test]

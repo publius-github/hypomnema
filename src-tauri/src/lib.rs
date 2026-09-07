@@ -6,6 +6,7 @@ mod engine;
 mod error;
 mod journal;
 mod kb;
+mod profiles;
 mod reminders;
 mod state_export;
 mod tasks;
@@ -538,6 +539,66 @@ async fn config_set(app: AppHandle, state: State<'_, AppState>, config: AppConfi
         *state.tasks_watcher.lock().unwrap() = None;
     }
     Ok(())
+}
+
+/// Factory defaults - the frontend's only source of "is this field at
+/// its default?" for progressive disclosure and the Profiles tab.
+#[tauri::command]
+async fn config_default() -> Result<AppConfig> {
+    Ok(AppConfig::default())
+}
+
+#[tauri::command]
+async fn profiles_list(state: State<'_, AppState>) -> Result<Vec<String>> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    profiles::list(&vault.root)
+}
+
+/// Snapshots the live config under the given name; returns the fresh
+/// profile list so the UI updates in one round trip.
+#[tauri::command]
+async fn profile_save(state: State<'_, AppState>, name: String) -> Result<Vec<String>> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    profiles::save(&vault.root, &vault.config, &name)?;
+    profiles::list(&vault.root)
+}
+
+/// Applies a profile (or the built-in "Default") over the live config
+/// and saves it. app.yml is backed up first - unlike a field edit, a
+/// profile apply rewrites the whole visual surface in one move.
+#[tauri::command]
+async fn profile_apply(state: State<'_, AppState>, name: String) -> Result<AppConfig> {
+    let mut guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_mut()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let next = profiles::apply(&vault.root, &vault.config, &name)?;
+    if let Some(settings_dir) = vault::settings_file(&vault.root).parent() {
+        let _ = backup::backup_config_file(
+            settings_dir,
+            "app.yml",
+            vault.config.backup_keep,
+            chrono::Local::now(),
+        );
+    }
+    vault.save_config(next)?;
+    Ok(vault.config.clone())
+}
+
+#[tauri::command]
+async fn profile_delete(state: State<'_, AppState>, name: String) -> Result<Vec<String>> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    profiles::delete(&vault.root, &name)?;
+    profiles::list(&vault.root)
 }
 
 fn with_conn<T>(
@@ -1458,6 +1519,11 @@ pub fn run() {
             vault_select,
             config_get,
             config_set,
+            config_default,
+            profiles_list,
+            profile_save,
+            profile_apply,
+            profile_delete,
             lists_all,
             list_create,
             list_rename,
