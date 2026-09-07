@@ -72,6 +72,16 @@ interface AppState {
   setConfigErrors: (errors: ConfigError[]) => void;
   selectVault: (path: string) => Promise<void>;
   updateConfig: (patch: Partial<AppConfig>) => Promise<void>;
+  /// factory defaults, fetched once - drives "is this at its default?"
+  /// (settings group disclosure) and the Profiles tab
+  defaults: AppConfig | null;
+  /// saved settings-profile names (the built-in Default is not listed)
+  profiles: string[];
+  loadProfiles: () => Promise<void>;
+  saveProfile: (name: string) => Promise<boolean>;
+  deleteProfile: (name: string) => Promise<void>;
+  /// applies a saved profile (or "Default") over the live config
+  applyProfile: (name: string) => Promise<void>;
   setSection: (section: Section) => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
@@ -202,6 +212,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       applyTheme(config);
       set({ loaded: true, vaultPath, config });
+      invoke<AppConfig>("config_default")
+        .then((defaults) => set({ defaults }))
+        .catch(() => undefined);
       if (vaultPath) {
         await get().runEngine();
         await get().refresh();
@@ -523,6 +536,57 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       applyTheme(current);
       set({ config: current, error: String(e) });
+    }
+  },
+
+  defaults: null,
+  profiles: [],
+
+  loadProfiles: async () => {
+    try {
+      set({ profiles: await invoke<string[]>("profiles_list") });
+    } catch {
+      set({ profiles: [] });
+    }
+  },
+
+  saveProfile: async (name: string) => {
+    try {
+      const profiles = await invoke<string[]>("profile_save", { name });
+      set({ profiles });
+      return true;
+    } catch (e) {
+      set({ error: String(e) });
+      return false;
+    }
+  },
+
+  deleteProfile: async (name: string) => {
+    try {
+      const profiles = await invoke<string[]>("profile_delete", { name });
+      set({ profiles });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  applyProfile: async (name: string) => {
+    const current = get().config;
+    try {
+      const next = await invoke<AppConfig>("profile_apply", { name });
+      applyTheme(next);
+      set({ config: next });
+      // same contract as updateConfig: a changed day-grid width needs an
+      // engine pass and a refetch, not a wait for the settings watcher
+      if (
+        current &&
+        WINDOW_KEYS.some((key) => current[key] !== next[key])
+      ) {
+        await get().runEngine();
+        await get().refresh();
+      }
+    } catch (e) {
+      set({ error: String(e) });
     }
   },
 
