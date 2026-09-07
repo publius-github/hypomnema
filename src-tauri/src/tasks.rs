@@ -262,6 +262,48 @@ pub fn list_ensure(conn: &Connection, name: &str) -> Result<List> {
     }
 }
 
+/// Returns the quick-capture target list, creating it if missing. The
+/// capture surface must always be visible and easy to spot, so unlike
+/// `list_ensure` the list is created manual + favorite (never hidden
+/// while empty, sorts first in the list zone). An existing active list
+/// of that name - manual or auto, matched case-insensitively - is
+/// adopted as-is; an auto match is promoted to a manual favorite.
+pub fn ensure_inbox(conn: &Connection, name: &str) -> Result<List> {
+    let name = name.trim();
+    let name = if name.is_empty() { "Inbox" } else { name };
+    let existing = conn
+        .query_row(
+            "SELECT * FROM lists
+             WHERE name = ?1 COLLATE NOCASE AND archived = 0
+             ORDER BY auto, id LIMIT 1",
+            [name],
+            row_to_list,
+        )
+        .optional()?;
+    match existing {
+        Some(list) if list.auto => {
+            conn.execute(
+                "UPDATE lists SET auto = 0, favorite = 1 WHERE id = ?1",
+                [list.id],
+            )?;
+            Ok(List {
+                auto: false,
+                favorite: true,
+                ..list
+            })
+        }
+        Some(list) => Ok(list),
+        None => {
+            let list = list_create(conn, name, None, false)?;
+            list_set_favorite(conn, list.id, true)?;
+            Ok(List {
+                favorite: true,
+                ..list
+            })
+        }
+    }
+}
+
 /// Renames a list. Only another *active* list can block the name - an
 /// archived namesake is history the user cannot see, and an auto list
 /// of that name is absorbed (same rule as `list_create`).
@@ -781,6 +823,50 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         db::migrate(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn ensure_inbox_creates_a_manual_favorite_once() {
+        let conn = conn();
+        let inbox = ensure_inbox(&conn, "Inbox").unwrap();
+        assert!(!inbox.auto);
+        assert!(inbox.favorite);
+
+        // idempotent: the same list comes back, nothing new is created
+        let again = ensure_inbox(&conn, "Inbox").unwrap();
+        assert_eq!(again.id, inbox.id);
+        assert_eq!(lists_all(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn ensure_inbox_matches_case_insensitively_and_falls_back_on_empty() {
+        let conn = conn();
+        let inbox = ensure_inbox(&conn, "  ").unwrap();
+        assert_eq!(inbox.name, "Inbox");
+        let same = ensure_inbox(&conn, "inbox").unwrap();
+        assert_eq!(same.id, inbox.id);
+    }
+
+    #[test]
+    fn ensure_inbox_promotes_an_auto_namesake() {
+        let conn = conn();
+        let auto = list_ensure(&conn, "Inbox").unwrap();
+        assert!(auto.auto);
+        let inbox = ensure_inbox(&conn, "Inbox").unwrap();
+        assert_eq!(inbox.id, auto.id);
+        assert!(!inbox.auto);
+        assert!(inbox.favorite);
+    }
+
+    #[test]
+    fn ensure_inbox_adopts_an_existing_manual_list_untouched() {
+        let conn = conn();
+        let manual = list_create(&conn, "Inbox", None, false).unwrap();
+        assert!(!manual.favorite);
+        let inbox = ensure_inbox(&conn, "Inbox").unwrap();
+        assert_eq!(inbox.id, manual.id);
+        // adopting must not force the favorite flag onto a user's list
+        assert!(!inbox.favorite);
     }
 
     #[test]

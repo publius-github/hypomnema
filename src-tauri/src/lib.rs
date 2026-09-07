@@ -159,10 +159,110 @@ fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
                     message: msg,
                 });
             }
+            // a hand-edited app.yml can change the shortcut or tray too
+            if let Some(msg) = sync_global_shortcut(&app, &config) {
+                errors.push(config_files::ConfigError {
+                    file: "app.yml".into(),
+                    line: None,
+                    message: msg,
+                });
+            }
+            sync_tray(&app, &config);
             let _ = app.emit("vault-updated", errors);
         }
     });
     Ok(())
+}
+
+fn show_main(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+/// Shows and focuses the pre-created quick-capture window; the emit
+/// tells its frontend to clear and refocus the input.
+fn show_capture(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("capture") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        let _ = app.emit_to("capture", "capture-shown", ());
+    }
+}
+
+/// (Re-)registers the global capture shortcut from the config. Returns
+/// a message for the error banner when the combination cannot be
+/// parsed or is taken by another app - registration failure must never
+/// block saving the config that caused it.
+fn sync_global_shortcut(app: &AppHandle, config: &AppConfig) -> Option<String> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+    let shortcuts = app.global_shortcut();
+    let _ = shortcuts.unregister_all();
+    let spec = config.capture_shortcut.trim();
+    if spec.is_empty() {
+        return None;
+    }
+    let shortcut = match spec.parse::<Shortcut>() {
+        Ok(shortcut) => shortcut,
+        Err(e) => return Some(format!("invalid capture shortcut '{spec}': {e}")),
+    };
+    let result = shortcuts.on_shortcut(shortcut, |app, _shortcut, event| {
+        if event.state() == ShortcutState::Pressed {
+            show_capture(app);
+        }
+    });
+    result
+        .err()
+        .map(|e| format!("cannot register capture shortcut '{spec}': {e}"))
+}
+
+/// Creates or removes the tray icon to match the config. Best effort:
+/// a platform without a tray must not take the app down.
+fn sync_tray(app: &AppHandle, config: &AppConfig) {
+    if !config.tray_icon {
+        let _ = app.remove_tray_by_id("main");
+        return;
+    }
+    if app.tray_by_id("main").is_some() {
+        return;
+    }
+    let build = || -> tauri::Result<()> {
+        let show =
+            tauri::menu::MenuItem::with_id(app, "show", "Show Hypomnema", true, None::<&str>)?;
+        let capture =
+            tauri::menu::MenuItem::with_id(app, "capture", "Quick capture", true, None::<&str>)?;
+        let quit = tauri::menu::MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+        let menu = tauri::menu::Menu::with_items(app, &[&show, &capture, &quit])?;
+        let mut builder = tauri::tray::TrayIconBuilder::with_id("main")
+            .menu(&menu)
+            .show_menu_on_left_click(false)
+            .on_menu_event(|app, event| match event.id.as_ref() {
+                "show" => show_main(app),
+                "capture" => show_capture(app),
+                "quit" => app.exit(0),
+                _ => {}
+            })
+            .on_tray_icon_event(|tray, event| {
+                if let tauri::tray::TrayIconEvent::Click {
+                    button: tauri::tray::MouseButton::Left,
+                    button_state: tauri::tray::MouseButtonState::Up,
+                    ..
+                } = event
+                {
+                    show_main(tray.app_handle());
+                }
+            });
+        if let Some(icon) = app.default_window_icon() {
+            builder = builder.icon(icon.clone());
+        }
+        builder.build(app)?;
+        Ok(())
+    };
+    if let Err(e) = build() {
+        eprintln!("tray icon failed: {e}");
+    }
 }
 
 fn today_string() -> String {
@@ -345,6 +445,11 @@ fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Resu
     journal::ensure_template_location(root);
     let config = vault.config.clone();
     *state.vault.lock().unwrap() = Some(vault);
+    // the vault's config replaces the defaults the app started with
+    if let Some(msg) = sync_global_shortcut(app, &config) {
+        eprintln!("{msg}");
+    }
+    sync_tray(app, &config);
     // Always rebind: re-selecting a vault must watch the NEW config dir.
     // Replacing the watcher drops the old one, which closes its channel
     // and lets the old debounce thread exit.
@@ -390,15 +495,33 @@ async fn config_get(state: State<'_, AppState>) -> Result<AppConfig> {
 
 #[tauri::command]
 async fn config_set(app: AppHandle, state: State<'_, AppState>, config: AppConfig) -> Result<()> {
-    let (root, mirror_was, mirror_now) = {
+    let (root, mirror_was, mirror_now, saved) = {
         let mut guard = state.vault.lock().unwrap();
         let vault = guard
             .as_mut()
             .ok_or_else(|| Error::State("no vault selected".into()))?;
         let was = vault.config.tasks_mirror;
         vault.save_config(config)?;
-        (vault.root.clone(), was, vault.config.tasks_mirror)
+        (
+            vault.root.clone(),
+            was,
+            vault.config.tasks_mirror,
+            vault.config.clone(),
+        )
     };
+    // shortcut and tray follow the config immediately; a registration
+    // failure reaches the banner but never blocks the save
+    if let Some(msg) = sync_global_shortcut(&app, &saved) {
+        let _ = app.emit(
+            "vault-updated",
+            vec![config_files::ConfigError {
+                file: "app.yml".into(),
+                line: None,
+                message: msg,
+            }],
+        );
+    }
+    sync_tray(&app, &saved);
     // the task mirror toggle takes effect immediately
     if mirror_now && !mirror_was {
         mirror_export(&state);
@@ -499,6 +622,51 @@ async fn task_create(state: State<'_, AppState>, new: tasks::NewTask) -> Result<
     let task = with_conn(&state, |conn| tasks::task_create(conn, &new))?;
     mirror_export(&state);
     Ok(task)
+}
+
+/// Creates a task in the quick-capture list (config.capture_list,
+/// created on first use). Backs the capture window, which shares no
+/// frontend state with the main window - the vault-updated emit is how
+/// the main window learns about the new task.
+#[tauri::command]
+async fn capture_task(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    title: String,
+) -> Result<tasks::Task> {
+    let task = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let inbox = tasks::ensure_inbox(&vault.conn, &vault.config.capture_list)?;
+        tasks::task_create(
+            &vault.conn,
+            &tasks::NewTask {
+                title,
+                list_id: Some(inbox.id),
+                ..Default::default()
+            },
+        )?
+    };
+    mirror_export(&state);
+    let _ = app.emit("vault-updated", Vec::<config_files::ConfigError>::new());
+    Ok(task)
+}
+
+/// The quick-capture list, created on first use - the "move to backlog"
+/// target for tasks that have no list of their own.
+#[tauri::command]
+async fn inbox_list(state: State<'_, AppState>) -> Result<tasks::List> {
+    let list = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        tasks::ensure_inbox(&vault.conn, &vault.config.capture_list)?
+    };
+    mirror_export(&state);
+    Ok(list)
 }
 
 #[tauri::command]
@@ -1158,12 +1326,78 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             if let Ok(dir) = app.path().app_config_dir() {
                 let _ = std::fs::create_dir_all(&dir);
                 install_panic_logger(dir.join("hypomnema.log"));
             }
+            // the quick-capture window is pre-created hidden: a WebView
+            // spun up on demand takes long enough to defeat "quick"
+            if let Err(e) = tauri::WebviewWindowBuilder::new(
+                app,
+                "capture",
+                tauri::WebviewUrl::App("index.html#/capture".into()),
+            )
+            .title("Quick capture")
+            .inner_size(560.0, 132.0)
+            .resizable(false)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .center()
+            .visible(false)
+            .build()
+            {
+                eprintln!("quick-capture window failed to open: {e}");
+            }
+            // the vault (and its config) opens later, via vault_status
+            // from the frontend; until then the defaults keep the
+            // shortcut and tray alive so capture works pre-vault too
+            let defaults = AppConfig::default();
+            if let Some(msg) = sync_global_shortcut(app.handle(), &defaults) {
+                eprintln!("{msg}");
+            }
+            sync_tray(app.handle(), &defaults);
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // the capture window is never destroyed, only hidden - a
+            // destroyed WebView would have to be rebuilt on the next
+            // capture, and losing focus means the user moved on
+            if window.label() == "capture" {
+                match event {
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                    tauri::WindowEvent::Focused(false) => {
+                        let _ = window.hide();
+                    }
+                    _ => {}
+                }
+            }
+            // closing the main window hides it to the tray so the
+            // capture shortcut and due-task notifications stay alive
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    let state = window.state::<AppState>();
+                    let hide = {
+                        let guard = state.vault.lock().unwrap();
+                        guard
+                            .as_ref()
+                            .map(|v| v.config.tray_icon && v.config.close_to_tray)
+                            .unwrap_or_else(|| {
+                                let d = AppConfig::default();
+                                d.tray_icon && d.close_to_tray
+                            })
+                    };
+                    if hide {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                }
+            }
         })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
@@ -1181,6 +1415,8 @@ pub fn run() {
             list_unarchive,
             tasks_snapshot,
             task_create,
+            capture_task,
+            inbox_list,
             task_update,
             task_delete,
             task_restore,

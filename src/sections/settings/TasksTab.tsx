@@ -1,4 +1,10 @@
-import { ColorPicker, Field, NumberInput, Toggle } from "../../components/form";
+import {
+  ColorPicker,
+  Field,
+  NumberInput,
+  TextInput,
+  Toggle,
+} from "../../components/form";
 import type { DoneDisplay } from "../../types";
 import { useAppStore } from "../../store";
 
@@ -136,6 +142,46 @@ export default function TasksTab() {
           hint="Tasks checked off in a list column are removed from the database once their completion day has passed - the list is a working queue, not history."
           onChange={(v) => void updateConfig({ clear_done_list_tasks: v })}
         />
+
+        <SectionTitle>Quick capture</SectionTitle>
+
+        <Field label="Quick-capture list (created on first capture; empty = Inbox)">
+          <TextInput
+            value={config.capture_list}
+            placeholder="Inbox"
+            onCommit={(v) => void updateConfig({ capture_list: v })}
+          />
+        </Field>
+
+        <Field label="Global capture shortcut (empty = disabled)">
+          <TextInput
+            value={config.capture_shortcut}
+            placeholder="Ctrl+Alt+Space"
+            onCommit={(v) => void updateConfig({ capture_shortcut: v })}
+          />
+        </Field>
+
+        <Toggle
+          checked={config.tray_icon}
+          label="Tray icon"
+          hint="Show / Quick capture / Quit in the system tray; a left click brings the main window up."
+          onChange={(v) =>
+            void updateConfig(
+              v ? { tray_icon: v } : { tray_icon: v, close_to_tray: false },
+            )
+          }
+        />
+
+        {config.tray_icon && (
+          <div className="pl-6">
+            <Toggle
+              checked={config.close_to_tray}
+              label="Close to tray"
+              hint="Closing the main window hides it instead of quitting, so the capture shortcut and due-task notifications keep working. Quit from the tray menu."
+              onChange={(v) => void updateConfig({ close_to_tray: v })}
+            />
+          </div>
+        )}
 
         <SectionTitle>Dated list tasks</SectionTitle>
 

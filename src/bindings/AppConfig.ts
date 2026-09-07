@@ -313,4 +313,27 @@ md_preset: "vscode" | "monokai" | "one-dark" | "github" | "custom",
 /**
  * Custom markdown token colors (used when md_preset = custom).
  */
-md_color_heading: string, md_color_bold: string, md_color_italic: string, md_color_code: string, md_color_link: string, md_color_quote: string, md_color_marker: string, };
+md_color_heading: string, md_color_bold: string, md_color_italic: string, md_color_code: string, md_color_link: string, md_color_quote: string, md_color_marker: string, 
+/**
+ * Name of the list quick-captured tasks land in. The list is
+ * created on first capture (manual + favorite); empty falls back
+ * to "Inbox".
+ */
+capture_list: string, 
+/**
+ * OS-global shortcut opening the quick-capture window (works while
+ * the app runs, even minimized to tray). Empty disables it; an
+ * unparseable or taken combination fails at registration and shows
+ * in the error banner, never blocks saving.
+ */
+capture_shortcut: string, 
+/**
+ * Tray icon with Show / Quick capture / Quit.
+ */
+tray_icon: boolean, 
+/**
+ * Closing the main window hides it to the tray instead of quitting,
+ * keeping the capture shortcut and notifications alive. Forced off
+ * without the tray icon - a hidden window must stay reachable.
+ */
+close_to_tray: boolean, };

@@ -235,6 +235,21 @@ pub struct AppConfig {
     pub md_color_link: String,
     pub md_color_quote: String,
     pub md_color_marker: String,
+    /// Name of the list quick-captured tasks land in. The list is
+    /// created on first capture (manual + favorite); empty falls back
+    /// to "Inbox".
+    pub capture_list: String,
+    /// OS-global shortcut opening the quick-capture window (works while
+    /// the app runs, even minimized to tray). Empty disables it; an
+    /// unparseable or taken combination fails at registration and shows
+    /// in the error banner, never blocks saving.
+    pub capture_shortcut: String,
+    /// Tray icon with Show / Quick capture / Quit.
+    pub tray_icon: bool,
+    /// Closing the main window hides it to the tray instead of quitting,
+    /// keeping the capture shortcut and notifications alive. Forced off
+    /// without the tray icon - a hidden window must stay reachable.
+    pub close_to_tray: bool,
 }
 
 pub const MD_PRESETS: &[&str] = &["vscode", "monokai", "one-dark", "github", "custom"];
@@ -356,6 +371,10 @@ impl Default for AppConfig {
             md_color_link: "#ce9178".into(),
             md_color_quote: "#6a9955".into(),
             md_color_marker: "#6796e6".into(),
+            capture_list: "Inbox".into(),
+            capture_shortcut: "Ctrl+Alt+Space".into(),
+            tray_icon: true,
+            close_to_tray: true,
         }
     }
 }
@@ -536,6 +555,14 @@ impl AppConfig {
         };
         self.section_order = sanitize_order(&self.section_order, SECTIONS);
         self.cadence_group_order = sanitize_order(&self.cadence_group_order, CADENCE_GROUPS);
+        self.capture_list = self.capture_list.trim().to_string();
+        if self.capture_list.is_empty() {
+            self.capture_list = defaults.capture_list;
+        }
+        self.capture_shortcut = self.capture_shortcut.trim().to_string();
+        if !self.tray_icon {
+            self.close_to_tray = false;
+        }
         self
     }
 
@@ -696,6 +723,10 @@ impl AppConfig {
             ("md_color_link", self.md_color_link.clone()),
             ("md_color_quote", self.md_color_quote.clone()),
             ("md_color_marker", self.md_color_marker.clone()),
+            ("capture_list", self.capture_list.clone()),
+            ("capture_shortcut", self.capture_shortcut.clone()),
+            ("tray_icon", self.tray_icon.to_string()),
+            ("close_to_tray", self.close_to_tray.to_string()),
         ]
     }
 }
