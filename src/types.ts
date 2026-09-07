@@ -4,6 +4,8 @@
 // double-option patch semantics do not map cleanly to a derive.
 
 export type { AppConfig } from "./bindings/AppConfig";
+export type { BackupEntry } from "./bindings/BackupEntry";
+export type { BackupsOverview } from "./bindings/BackupsOverview";
 export type { BirthdayEntry } from "./bindings/BirthdayEntry";
 export type { BirthdayView } from "./bindings/BirthdayView";
 export type { BirthdaysResult } from "./bindings/BirthdaysResult";

@@ -772,6 +772,54 @@ async fn tasks_delete_done(state: State<'_, AppState>) -> Result<usize> {
 }
 
 #[tauri::command]
+async fn backups_list(state: State<'_, AppState>) -> Result<backup::BackupsOverview> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    backup::overview(&vault.root)
+}
+
+/// Restores app.db from a daily snapshot. The live connection is closed
+/// first (Windows cannot overwrite an open file, and swapping the file
+/// under an open SQLite handle is unsafe everywhere), the current
+/// database is copied aside as its own safety net, then the vault is
+/// reopened exactly as `vault_select` does.
+#[tauri::command]
+async fn backup_restore_db(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<AppConfig> {
+    let root = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        vault.root.clone()
+    };
+    // drop the connection before touching the file on disk
+    *state.vault.lock().unwrap() = None;
+    backup::restore_db_backup(&root, &id, chrono::Local::now())?;
+    open_vault(&app, &state, &root)
+}
+
+/// Restores one config or settings file from its backup in place; the
+/// existing config-file watcher picks up the change and reloads it,
+/// same as any other external edit.
+#[tauri::command]
+async fn backup_restore_config(state: State<'_, AppState>, id: String) -> Result<()> {
+    let (root, keep) = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        (vault.root.clone(), vault.config.backup_keep)
+    };
+    backup::restore_config_backup(&root, &id, keep, chrono::Local::now())
+}
+
+#[tauri::command]
 async fn tasks_reorder(
     state: State<'_, AppState>,
     list_id: i64,
@@ -1541,6 +1589,9 @@ pub fn run() {
             task_restore,
             tasks_delete_done,
             tasks_reorder,
+            backups_list,
+            backup_restore_db,
+            backup_restore_config,
             engine_run,
             upcoming_events,
             journal_open,

@@ -9,8 +9,11 @@ use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Local};
 use rusqlite::Connection;
+use serde::Serialize;
+use ts_rs::TS;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
+use crate::vault;
 
 /// Snapshots app.db to backups/db/app-YYYY-MM-DD.db, at most once per
 /// day, keeping the newest `keep` snapshots. VACUUM INTO produces a
@@ -84,6 +87,163 @@ fn rotate(dir: &Path, prefix: &str, keep: usize) -> Result<()> {
     Ok(())
 }
 
+/// One file under backups/db/ or backups/config/, as shown in the
+/// Maintenance tab's restore list.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct BackupEntry {
+    /// The file name on disk - opaque to the frontend, passed back
+    /// verbatim to request a restore.
+    pub id: String,
+    /// What the backup is a copy of: a date for a DB snapshot, the
+    /// original relative file name for a config backup.
+    pub label: String,
+    pub modified: String,
+    #[ts(type = "number")]
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct BackupsOverview {
+    pub db: Vec<BackupEntry>,
+    pub config: Vec<BackupEntry>,
+}
+
+fn list_entries(
+    dir: &Path,
+    keep: impl Fn(&str) -> bool,
+    label_of: impl Fn(&str) -> String,
+) -> Result<Vec<BackupEntry>> {
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(dir)?.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !keep(&name) {
+            continue;
+        }
+        let meta = entry.metadata()?;
+        let modified: DateTime<Local> = meta.modified()?.into();
+        entries.push(BackupEntry {
+            label: label_of(&name),
+            id: name,
+            modified: modified.format("%Y-%m-%d %H:%M:%S").to_string(),
+            size: meta.len(),
+        });
+    }
+    // newest first - the timestamp in "modified" sorts lexicographically
+    entries.sort_by(|a, b| b.modified.cmp(&a.modified));
+    Ok(entries)
+}
+
+/// Recovers the original relative config path from a backup file name
+/// (`backup_config_file` flattens it: "templates/journal.md" becomes
+/// "templates__journal.md.<ts>.bak").
+fn original_file_from_backup_name(name: &str) -> String {
+    let without_ext = name.strip_suffix(".bak").unwrap_or(name);
+    let flat = match without_ext.rsplit_once('.') {
+        // the timestamp suffix is exactly "YYYYMMDD-HHMMSS" (15 chars)
+        Some((base, ts)) if ts.len() == 15 && ts.as_bytes().get(8) == Some(&b'-') => base,
+        _ => without_ext,
+    };
+    flat.replace("__", "/")
+}
+
+/// Lists app.db snapshots under backups/db/, newest first.
+pub fn list_db_backups(root: &Path) -> Result<Vec<BackupEntry>> {
+    let dir = vault::work_dir(root).join("backups").join("db");
+    list_entries(
+        &dir,
+        |name| name.starts_with("app-") && name.ends_with(".db"),
+        |name| {
+            name.strip_prefix("app-")
+                .and_then(|s| s.strip_suffix(".db"))
+                .unwrap_or(name)
+                .to_string()
+        },
+    )
+}
+
+/// Lists config/settings file backups under backups/config/, newest
+/// first; `label` is the original file's path relative to config/ (or
+/// "app.yml" for the settings file).
+pub fn list_config_backups(root: &Path) -> Result<Vec<BackupEntry>> {
+    let dir = vault::work_dir(root).join("backups").join("config");
+    list_entries(
+        &dir,
+        |name| name.ends_with(".bak"),
+        original_file_from_backup_name,
+    )
+}
+
+pub fn overview(root: &Path) -> Result<BackupsOverview> {
+    Ok(BackupsOverview {
+        db: list_db_backups(root)?,
+        config: list_config_backups(root)?,
+    })
+}
+
+/// Restores app.db from a snapshot in backups/db/. The caller must have
+/// already closed the live connection - Windows refuses to overwrite a
+/// file that's still open, and SQLite must not see its file replaced
+/// out from under an open handle on any platform. The current app.db is
+/// itself copied aside first, so a restore is never a one-way door; the
+/// stale -wal/-shm siblings of the replaced database are dropped so no
+/// leftover frames apply to the restored file.
+pub fn restore_db_backup(root: &Path, id: &str, now: DateTime<Local>) -> Result<()> {
+    let dir = vault::work_dir(root).join("backups").join("db");
+    let source = dir.join(id);
+    if !source.is_file() {
+        return Err(Error::State(format!("backup not found: {id}")));
+    }
+    let target = vault::db_path(root);
+    if target.exists() {
+        let safety = dir.join(format!(
+            "app-pre-restore-{}.db",
+            now.format("%Y%m%d-%H%M%S")
+        ));
+        fs::copy(&target, &safety)?;
+    }
+    fs::copy(&source, &target)?;
+    let _ = fs::remove_file(target.with_extension("db-wal"));
+    let _ = fs::remove_file(target.with_extension("db-shm"));
+    Ok(())
+}
+
+/// Restores one config/settings file from its backup in backups/config/.
+/// The file currently in place is itself backed up first, same as
+/// before any other programmatic rewrite of that file.
+pub fn restore_config_backup(root: &Path, id: &str, keep: u32, now: DateTime<Local>) -> Result<()> {
+    let dir = vault::work_dir(root).join("backups").join("config");
+    let source = dir.join(id);
+    if !source.is_file() {
+        return Err(Error::State(format!("backup not found: {id}")));
+    }
+    let original = original_file_from_backup_name(id);
+    let (backup_source_dir, target) = if original == "app.yml" {
+        let settings_file = vault::settings_file(root);
+        let dir = settings_file
+            .parent()
+            .ok_or_else(|| Error::State("settings file has no parent directory".into()))?
+            .to_path_buf();
+        (dir, settings_file)
+    } else {
+        (
+            vault::config_dir(root),
+            vault::config_dir(root).join(&original),
+        )
+    };
+    let _ = backup_config_file(&backup_source_dir, &original, keep, now);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let content = fs::read_to_string(&source)?;
+    crate::vault::write_atomic(&target, &content)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,6 +263,16 @@ mod tests {
                 &chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap(),
             )
             .unwrap()
+    }
+
+    /// A vault root laid out like the real thing (`.hypomnema/...`), for
+    /// the listing/restore tests below which go through the `vault::`
+    /// path helpers rather than a bare `config_dir`.
+    fn fresh_vault(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("app-pkb-backup-restore-{name}"));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
     }
 
     #[test]
@@ -214,6 +384,151 @@ mod tests {
             fs::read_to_string(dir.join("recurring.yml.20260829-100002.bak")).unwrap(),
             "tasks: []\n"
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn list_db_backups_lists_and_labels() {
+        let root = fresh_vault("list-db");
+        let dir = vault::work_dir(&root).join("backups").join("db");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("app-2026-08-29.db"), b"a").unwrap();
+        fs::write(dir.join("app-2026-08-30.db"), b"bb").unwrap();
+        fs::write(dir.join("notes.txt"), b"ignore me").unwrap();
+
+        let mut entries = list_db_backups(&root).unwrap();
+        entries.sort_by(|a, b| a.id.cmp(&b.id));
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].id, "app-2026-08-29.db");
+        assert_eq!(entries[0].label, "2026-08-29");
+        assert_eq!(entries[0].size, 1);
+        assert_eq!(entries[1].label, "2026-08-30");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn list_config_backups_unflattens_original_name() {
+        let root = fresh_vault("list-config");
+        let dir = vault::work_dir(&root).join("backups").join("config");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("recurring.yml.20260829-100000.bak"), b"tasks: []").unwrap();
+        fs::write(
+            dir.join("templates__journal.md.20260830-110000.bak"),
+            b"# {{date}}",
+        )
+        .unwrap();
+        fs::write(dir.join("app.yml.20260831-120000.bak"), b"theme: dark").unwrap();
+
+        let mut entries = list_config_backups(&root).unwrap();
+        entries.sort_by(|a, b| a.id.cmp(&b.id));
+        let labels: Vec<&str> = entries.iter().map(|e| e.label.as_str()).collect();
+        assert_eq!(
+            labels,
+            vec!["app.yml", "recurring.yml", "templates/journal.md"]
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn restore_db_backup_swaps_file_and_keeps_a_safety_copy() {
+        let root = fresh_vault("restore-db");
+        fs::create_dir_all(vault::work_dir(&root)).unwrap();
+        let current_path = vault::db_path(&root);
+        fs::write(&current_path, b"CURRENT-DB-BYTES").unwrap();
+        // stale WAL/SHM siblings of the database being replaced must not
+        // survive the swap - they'd apply frames from the wrong file
+        fs::write(current_path.with_extension("db-wal"), b"wal").unwrap();
+        fs::write(current_path.with_extension("db-shm"), b"shm").unwrap();
+
+        let backup_dir = vault::work_dir(&root).join("backups").join("db");
+        fs::create_dir_all(&backup_dir).unwrap();
+        fs::write(backup_dir.join("app-2026-08-29.db"), b"BACKUP-DB-BYTES").unwrap();
+
+        restore_db_backup(&root, "app-2026-08-29.db", local("2026-09-01 09:00:00")).unwrap();
+
+        assert_eq!(fs::read(&current_path).unwrap(), b"BACKUP-DB-BYTES");
+        assert!(!current_path.with_extension("db-wal").exists());
+        assert!(!current_path.with_extension("db-shm").exists());
+        let safety = backup_dir.join("app-pre-restore-20260901-090000.db");
+        assert_eq!(fs::read(&safety).unwrap(), b"CURRENT-DB-BYTES");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn restore_db_backup_missing_id_errors() {
+        let root = fresh_vault("restore-db-missing");
+        fs::create_dir_all(vault::work_dir(&root).join("backups").join("db")).unwrap();
+        assert!(restore_db_backup(&root, "nope.db", local("2026-09-01 09:00:00")).is_err());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn restore_config_backup_restores_content_and_backs_up_current() {
+        let root = fresh_vault("restore-config");
+        let config_dir = vault::config_dir(&root);
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(config_dir.join("recurring.yml"), "tasks: [current]\n").unwrap();
+
+        let backup_dir = vault::work_dir(&root).join("backups").join("config");
+        fs::create_dir_all(&backup_dir).unwrap();
+        fs::write(
+            backup_dir.join("recurring.yml.20260829-100000.bak"),
+            "tasks: [restored]\n",
+        )
+        .unwrap();
+
+        restore_config_backup(
+            &root,
+            "recurring.yml.20260829-100000.bak",
+            3,
+            local("2026-09-01 09:00:00"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(config_dir.join("recurring.yml")).unwrap(),
+            "tasks: [restored]\n"
+        );
+        // the content about to be overwritten got its own backup first,
+        // same as any other programmatic rewrite of a config file
+        assert_eq!(
+            fs::read_to_string(backup_dir.join("recurring.yml.20260901-090000.bak")).unwrap(),
+            "tasks: [current]\n"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn restore_config_backup_targets_settings_file_for_app_yml() {
+        let root = fresh_vault("restore-app-yml");
+        let backup_dir = vault::work_dir(&root).join("backups").join("config");
+        fs::create_dir_all(&backup_dir).unwrap();
+        fs::write(
+            backup_dir.join("app.yml.20260829-100000.bak"),
+            "theme: dark\n",
+        )
+        .unwrap();
+
+        restore_config_backup(
+            &root,
+            "app.yml.20260829-100000.bak",
+            3,
+            local("2026-09-01 09:00:00"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(vault::settings_file(&root)).unwrap(),
+            "theme: dark\n"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn restore_config_backup_missing_id_errors() {
+        let root = fresh_vault("restore-config-missing");
+        fs::create_dir_all(vault::work_dir(&root).join("backups").join("config")).unwrap();
+        assert!(restore_config_backup(&root, "nope.bak", 3, local("2026-09-01 09:00:00")).is_err());
         let _ = fs::remove_dir_all(&root);
     }
 }
