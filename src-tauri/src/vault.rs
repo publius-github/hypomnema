@@ -65,12 +65,18 @@ pub fn tasks_dir(root: &Path) -> PathBuf {
     work_dir(root).join("tasks")
 }
 
+/// App-written text state (never the human-editing surface): the full
+/// database snapshot (state_export.rs) and the mirror merge base.
+pub fn state_dir(root: &Path) -> PathBuf {
+    work_dir(root).join("state")
+}
+
 /// Copies of the mirror files as the app last exported them - the merge
 /// base of the mirror import. Outside tasks_dir so the watcher never
 /// sees them, and file-sync friendly: a stale or concurrently edited
 /// mirror file merges against this instead of overwriting the database.
 pub fn mirror_base_dir(root: &Path) -> PathBuf {
-    work_dir(root).join("state").join("mirror-base")
+    state_dir(root).join("mirror-base")
 }
 
 /// One-time move of the pre-0.32 flat layout (app.db, config/, backups/,
@@ -133,8 +139,16 @@ impl Vault {
 
         let (config, config_error) = AppConfig::load_or_default(&settings_file(root));
 
+        // a vault without its .db (fresh sync copy, deleted cache) is
+        // rebuilt from the state snapshot BEFORE anything can export the
+        // empty database over it; a broken snapshot aborts the open for
+        // the same reason
+        let fresh_db = !db_path(root).exists();
         let conn = db::open(&db_path(root))?;
         db::migrate(&conn)?;
+        if fresh_db {
+            crate::state_export::restore(&conn, &state_dir(root))?;
+        }
         db::mirror_settings(&conn, &config)?;
         // Daily snapshot before the first engine pass of the day, so it
         // captures yesterday's end state. Best effort: a failed backup

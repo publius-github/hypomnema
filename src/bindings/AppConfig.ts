@@ -172,6 +172,12 @@ notify_system: boolean,
  */
 notify_snooze_minutes: number, 
 /**
+ * Keep a full text snapshot of the database under
+ * <vault>/.hypomnema/state/ (tasks, lists, engine ledgers), so a
+ * vault synced without its .db rebuilds the database on open.
+ */
+state_snapshot: boolean, 
+/**
  * Two-way Markdown mirror of the manual tasks under <vault>/tasks/
  * (one file per list + scheduled.md) for bulk editing in any editor.
  */

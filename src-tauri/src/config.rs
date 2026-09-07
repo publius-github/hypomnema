@@ -136,6 +136,10 @@ pub struct AppConfig {
     /// Snooze length of the due-task toast's Snooze button, minutes:
     /// the reminder comes back after this long.
     pub notify_snooze_minutes: u32,
+    /// Keep a full text snapshot of the database under
+    /// <vault>/.hypomnema/state/ (tasks, lists, engine ledgers), so a
+    /// vault synced without its .db rebuilds the database on open.
+    pub state_snapshot: bool,
     /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
     /// (one file per list + scheduled.md) for bulk editing in any editor.
     pub tasks_mirror: bool,
@@ -311,6 +315,7 @@ impl Default for AppConfig {
             backup_keep: 14,
             notify_system: true,
             notify_snooze_minutes: 10,
+            state_snapshot: true,
             tasks_mirror: true,
             tasks_mirror_agenda: true,
             tasks_mirror_ids: true,
@@ -631,6 +636,7 @@ impl AppConfig {
                 "notify_snooze_minutes",
                 self.notify_snooze_minutes.to_string(),
             ),
+            ("state_snapshot", self.state_snapshot.to_string()),
             ("tasks_mirror", self.tasks_mirror.to_string()),
             ("tasks_mirror_agenda", self.tasks_mirror_agenda.to_string()),
             ("tasks_mirror_ids", self.tasks_mirror_ids.to_string()),

@@ -66,6 +66,29 @@ export default function FilesTab() {
           <input
             type="checkbox"
             className="mt-0.5"
+            checked={config.state_snapshot}
+            onChange={(e) =>
+              void updateConfig({ state_snapshot: e.target.checked })
+            }
+          />
+          <span className="flex flex-col">
+            <span className="text-sm font-medium">
+              Text snapshot of the database
+            </span>
+            <span className="text-xs text-content-muted">
+              Keeps vault/.hypomnema/state/ up to date with everything the
+              database holds (tasks, lists, engine ledgers) as plain JSONL
+              files. A vault opened without its app.db - a fresh sync
+              copy, or after deleting the cache - rebuilds the database
+              from them automatically.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
             checked={config.tasks_mirror}
             onChange={(e) =>
               void updateConfig({ tasks_mirror: e.target.checked })

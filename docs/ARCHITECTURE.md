@@ -26,7 +26,8 @@ All working files live under `<vault>/.hypomnema/` (like a repo's `.git`). Never
       templates/journal.md
       <subfolder>/*.yml            # "packs": merged into recurring/scheduled/birthdays by top-level key
     tasks/                         # two-way Markdown task mirror + agenda.md (tasks_mirror.rs)
-    state/mirror-base/             # last-exported mirror copies: the import's merge base
+    state/                         # app-written text state (state_export.rs): *.jsonl DB snapshot
+      mirror-base/                 # last-exported mirror copies: the import's merge base
     backups/db/ backups/config/    # daily VACUUM INTO + pre-rewrite config copies (backup.rs)
 ```
 
@@ -80,6 +81,7 @@ Three generators per pass: recurring (cron), scheduled events, birthdays. No sep
 - `kb.rs` - Notes FS layer; `resolve()` blocks path traversal; `.hypomnemaignore` glob filter; trash + 30-day prune.
 - `reminders.rs` - `dashboard_context` (weekly focus, ISO-week pinned via `weekly_focus_state`; day-type reminders; schedule blocks) and `overview` behind the Reminders section.
 - `views.rs` - read-only projections: upcoming, birthdays, recurring list, calendar outlook, daily streaks, cron weekday labels.
+- `state_export.rs` - makes app.db a disposable cache: every mirror-export trigger also writes a full JSONL snapshot of the database's authoritative state under `state/` (tasks with ids/provenance/tombstones, lists, `rule_runs`, `rule_seen`, `weekly_focus_state`; gated by `config.state_snapshot`, on by default), and `Vault::open` on a vault without app.db restores from it before anything can export the empty database over it (a broken snapshot aborts the open for the same reason). Deleting app.db is the supported way to force a rebuild; ids are preserved so the mirror's `^id` keys stay valid.
 - `backup.rs` - daily DB snapshot (`VACUUM INTO`) + pre-rewrite config backups, rotation by `backup_keep`, best effort.
 - `db.rs` - migrations (15), refuses a newer-than-known `user_version`; `mirror_settings`.
 - `lib.rs` - commands, `AppState`, three debounced watchers: `config/`+settings (reload + engine + `vault-updated`), `tasks/` (mirror import), KB root.

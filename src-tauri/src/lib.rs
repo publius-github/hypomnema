@@ -7,6 +7,7 @@ mod error;
 mod journal;
 mod kb;
 mod reminders;
+mod state_export;
 mod tasks;
 mod tasks_mirror;
 mod vault;
@@ -131,6 +132,9 @@ fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
                     )?;
                     // the pass may have moved manual tasks (overdue
                     // carry-over), so the text mirror must follow
+                    if config.state_snapshot {
+                        let _ = state_export::export(&conn, &vault::state_dir(&root));
+                    }
                     if config.tasks_mirror {
                         if let Ok(files) = tasks_mirror::export(
                             &conn,
@@ -175,6 +179,11 @@ fn mirror_export_with(
     vault: &Vault,
     written: &Arc<Mutex<std::collections::HashMap<PathBuf, String>>>,
 ) {
+    // the state snapshot rides the same triggers as the mirror but is
+    // independent of it: it backs the db-less restore, not bulk editing
+    if vault.config.state_snapshot {
+        let _ = state_export::export(&vault.conn, &vault::state_dir(&vault.root));
+    }
     if !vault.config.tasks_mirror {
         return;
     }
@@ -232,10 +241,11 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                         vault.config.tasks_mirror,
                         vault.config.tasks_mirror_ids,
                         vault.config.tasks_mirror_agenda,
+                        vault.config.state_snapshot,
                     )
                 })
             };
-            let Some((root, enabled, ids, agenda)) = snapshot else {
+            let Some((root, enabled, ids, agenda, snapshot_on)) = snapshot else {
                 continue;
             };
             if !enabled {
@@ -306,6 +316,9 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                             });
                         }
                     }
+                }
+                if snapshot_on {
+                    let _ = state_export::export(&conn, &vault::state_dir(&root));
                 }
                 if let Ok(files) = tasks_mirror::export(
                     &conn,
