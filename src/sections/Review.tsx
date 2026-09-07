@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
-import { addDaysISO, splitCategory, todayISO, weekdayShort } from "../lib/tasks";
-import type { DashboardContext, OutlookEvent, Task } from "../types";
+import {
+  addDaysISO,
+  nextWeekTarget,
+  splitCategory,
+  todayISO,
+  weekdayShort,
+} from "../lib/tasks";
+import type { DashboardContext, List, OutlookEvent, Task } from "../types";
 import TaskModal from "../components/TaskModal";
 
 const ORIGIN_LABELS: Record<string, string> = {
@@ -39,6 +45,8 @@ export default function Review() {
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const storeTasks = useAppStore((s) => s.tasks);
   const openJournalDate = useAppStore((s) => s.openJournalDate);
+  const updateTask = useAppStore((s) => s.updateTask);
+  const deleteTask = useAppStore((s) => s.deleteTask);
   const today = todayISO();
   // 0 = the week containing today; negative = past weeks
   const [weekOffset, setWeekOffset] = useState(0);
@@ -157,45 +165,114 @@ export default function Review() {
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [nextTasks, nextOutlook]);
 
-  const taskRow = (task: Task, showDone: boolean) => (
+  // clearing an open leftover is the review's job: push it a week out,
+  // drop it back to its list's backlog, or close it right here
+  const pushNextWeek = (task: Task) =>
+    void updateTask(task.id, {
+      scheduled_date: nextWeekTarget(weekStart, today),
+    });
+  const toBacklog = async (task: Task) => {
+    let listId = task.list_id;
+    if (listId === null) {
+      // a listless task needs a home to be a backlog entry at all: the
+      // quick-capture Inbox, created on first use
+      try {
+        listId = (await invoke<List>("inbox_list")).id;
+      } catch (e) {
+        useAppStore.getState().setError(String(e));
+        return;
+      }
+    }
+    void updateTask(task.id, { list_id: listId, scheduled_date: null });
+  };
+
+  const rowAction = (label: string, tooltip: string, onClick: () => void) => (
     <button
-      key={task.id}
-      className="flex items-center gap-2 rounded-md border border-line bg-surface-alt px-3 py-1.5 text-left text-sm hover:border-accent/60"
-      onClick={() => setOpenTask(task)}
+      className="rounded border border-line px-1.5 py-0.5 text-[11px] text-content-muted hover:border-content-muted hover:text-content"
+      title={tooltip}
+      onClick={onClick}
     >
-      <span
-        className={
-          task.status === "postponed" ? "text-warn" : "text-content-muted"
-        }
-        style={
-          task.status === "done" ? { color: "var(--color-done)" } : undefined
-        }
-      >
-        {task.status === "done" ? "✓" : task.status === "postponed" ? "→" : "○"}
-      </span>
-      <span
-        className={`min-w-0 flex-1 truncate ${
-          showDone && task.status === "done"
-            ? "text-content-muted line-through"
-            : ""
-        }`}
-      >
-        {splitCategory(task.title).text}
-      </span>
-      {task.overdue && task.status !== "done" && (
-        <span className="rounded bg-danger/15 px-1.5 py-0.5 text-[11px] font-semibold text-danger">
-          OVERDUE
-        </span>
-      )}
-      {task.time && (
-        <span className="text-xs text-content-muted">{task.time}</span>
-      )}
-      {listName(task.list_id) && (
-        <span className="rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
-          {listName(task.list_id)}
-        </span>
-      )}
+      {label}
     </button>
+  );
+
+  const taskRow = (task: Task, showDone: boolean) => (
+    <div
+      key={task.id}
+      className="group flex items-center gap-2 rounded-md border border-line bg-surface-alt px-3 py-1.5 text-sm hover:border-accent/60"
+    >
+      <button
+        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        onClick={() => setOpenTask(task)}
+      >
+        <span
+          className={
+            task.status === "postponed" ? "text-warn" : "text-content-muted"
+          }
+          style={
+            task.status === "done" ? { color: "var(--color-done)" } : undefined
+          }
+        >
+          {task.status === "done"
+            ? "✓"
+            : task.status === "postponed"
+              ? "→"
+              : "○"}
+        </span>
+        <span
+          className={`min-w-0 flex-1 truncate ${
+            showDone && task.status === "done"
+              ? "text-content-muted line-through"
+              : ""
+          }`}
+        >
+          {splitCategory(task.title).text}
+        </span>
+        {task.overdue && task.status !== "done" && (
+          <span className="rounded bg-danger/15 px-1.5 py-0.5 text-[11px] font-semibold text-danger">
+            OVERDUE
+          </span>
+        )}
+        {task.time && (
+          <span className="text-xs text-content-muted">{task.time}</span>
+        )}
+        {listName(task.list_id) && (
+          <span className="rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+            {listName(task.list_id)}
+          </span>
+        )}
+      </button>
+      {!showDone && (
+        <div className="hidden shrink-0 items-center gap-1 group-focus-within:flex group-hover:flex">
+          {/* generated tasks keep their rule's date and list by design:
+              only closing or deleting the instance makes sense here */}
+          {task.origin === "manual" && (
+            <>
+              {rowAction(
+                "Next wk",
+                "Reschedule to Monday of the following week",
+                () => pushNextWeek(task),
+              )}
+              {rowAction(
+                "Backlog",
+                "Clear the date and keep the task in its list (Inbox when it has none)",
+                () => void toBacklog(task),
+              )}
+            </>
+          )}
+          {rowAction("Done", "Mark done", () =>
+            void updateTask(task.id, { status: "done" }),
+          )}
+          <button
+            className="rounded border border-line px-1.5 py-0.5 text-[11px] text-content-muted hover:border-danger hover:text-danger"
+            title="Delete the task (undo offered)"
+            onClick={() => void deleteTask(task.id)}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
   );
 
   return (

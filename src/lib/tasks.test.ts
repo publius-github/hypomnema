@@ -10,6 +10,7 @@ import {
   gridDates,
   groupByCadence,
   nextStatus,
+  nextWeekTarget,
   priorityPatch,
   sortSubtasks,
   splitCategory,
@@ -352,5 +353,22 @@ describe("categoryChipColor", () => {
     expect(categoryChipColor("Work", [], c, 0)).toBe(
       categoryChipColor("Work", [], c, 7),
     );
+  });
+});
+
+describe("nextWeekTarget", () => {
+  it("lands on Monday of the following week when reviewing the current week", () => {
+    // week of Mon 2026-09-07, reviewed mid-week on Wed
+    expect(nextWeekTarget("2026-09-07", "2026-09-09")).toBe("2026-09-14");
+  });
+
+  it("clamps to tomorrow when reviewing a past week", () => {
+    // week of Mon 2026-08-10 reviewed a month later: its "next Monday"
+    // is long gone, the push must not reschedule into the past
+    expect(nextWeekTarget("2026-08-10", "2026-09-09")).toBe("2026-09-10");
+  });
+
+  it("crosses a year boundary", () => {
+    expect(nextWeekTarget("2026-12-28", "2026-12-30")).toBe("2027-01-04");
   });
 });

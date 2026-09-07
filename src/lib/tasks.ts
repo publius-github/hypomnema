@@ -41,6 +41,18 @@ export function addDaysISO(dateISO: string, days: number): string {
   return todayISO(date);
 }
 
+/**
+ * Where a Review "next week" push lands: Monday of the week after the
+ * reviewed one - deterministic regardless of the weekday the review
+ * happens on - but never in the past: reviewing an old week clamps to
+ * tomorrow. ISO strings compare lexicographically.
+ */
+export function nextWeekTarget(weekStart: string, today: string): string {
+  const nextMonday = addDaysISO(weekStart, 7);
+  const tomorrow = addDaysISO(today, 1);
+  return nextMonday >= tomorrow ? nextMonday : tomorrow;
+}
+
 /** Whole days from one ISO date to another (negative = past). */
 export function daysBetweenISO(from: string, to: string): number {
   const [fy, fm, fd] = from.split("-").map(Number);
