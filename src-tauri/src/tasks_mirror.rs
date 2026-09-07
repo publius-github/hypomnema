@@ -4,9 +4,20 @@
 //! for bulk editing: the app rewrites them after every change, and a
 //! watcher imports outside edits back into the database.
 //!
-//! Only manual tasks are mirrored. Generated tasks (recurring, scheduled
-//! events, birthdays) already have a text source of truth in config/*.yml
-//! and mirroring them here would put two authorities in conflict.
+//! Manual tasks are mirrored with full authority (per-list files and
+//! scheduled.md). Generated tasks (recurring, scheduled events,
+//! birthdays) keep their text source of truth in config/*.yml; agenda.md
+//! mirrors their instances read-mostly - statuses, priority and time
+//! sync back, titles/dates do not, and deleting lines changes nothing -
+//! so a phone editing the vault over a file sync can drive the day
+//! without a second authority over the YAML.
+//!
+//! Every export also stores a copy of each file under
+//! `.hypomnema/state/mirror-base/` - the merge base. An import compares
+//! the incoming file against that base and applies only the fields the
+//! file actually changed, and deletes only tasks the base knew: a stale
+//! file arriving from a file sync (Dropbox and friends) neither clobbers
+//! newer app-side edits nor deletes tasks it never saw.
 //!
 //! Sync protocol per line: the trailing `^<id>` is the stable key. A
 //! line keeping its id updates that task, a line without an id creates a
@@ -28,7 +39,10 @@ use crate::error::{Error, Result};
 use crate::tasks::{self, NewTask, Task, TaskPatch};
 
 const SCHEDULED_MARKER: &str = "<!-- hypomnema:scheduled -->";
+const AGENDA_MARKER: &str = "<!-- hypomnema:agenda -->";
 const LIST_MARKER_PREFIX: &str = "<!-- hypomnema:list:";
+
+const AGENDA_HELP: &str = "<!-- Agenda of generated tasks (recurring, scheduled events, birthdays) from today onward, grouped by day. Check a box ([x] done, [z] postponed, [ ] open), set an HH:MM time after the checkbox or toggle the \"! \" priority mark and it syncs back. Title and date edits do NOT sync - the YAML files in .hypomnema/config/ own them. A new line without an id creates a manual task on that day; deleting lines changes nothing, the app rewrites this file. -->";
 
 const FORMAT_HELP: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed; an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. The trailing ^id is the sync key: keep it when editing a line, leave it out on new lines, and deleting a whole line deletes that task. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
 
@@ -113,9 +127,11 @@ fn write_if_changed(path: &Path, content: &str) -> Result<()> {
 pub fn export(
     conn: &Connection,
     tasks_dir: &Path,
+    base_dir: &Path,
     today: &str,
     skip: &HashSet<PathBuf>,
     ids: bool,
+    agenda: bool,
 ) -> Result<Vec<(PathBuf, String)>> {
     let help = if ids { FORMAT_HELP } else { FORMAT_HELP_NO_IDS };
     fs::create_dir_all(tasks_dir)?;
@@ -131,8 +147,9 @@ pub fn export(
 
     let mut written: Vec<(PathBuf, String)> = Vec::new();
     let mut expected: HashSet<PathBuf> = HashSet::new();
-    // "scheduled" is reserved for the dated file
-    let mut used_names: HashSet<String> = HashSet::from(["scheduled".to_string()]);
+    // "scheduled" and "agenda" are reserved for the managed files
+    let mut used_names: HashSet<String> =
+        HashSet::from(["scheduled".to_string(), "agenda".to_string()]);
 
     for list in &lists {
         let mut backlog: Vec<&Task> = parents
@@ -198,6 +215,39 @@ pub fn export(
         written.push((path, content));
     }
 
+    // agenda.md: generated instances from today onward, statuses sync
+    // back (see AGENDA_HELP); off = the file is cleaned up below
+    if agenda {
+        let generated = tasks::generated_parent_tasks(conn)?;
+        let mut by_date: BTreeMap<&str, Vec<&Task>> = BTreeMap::new();
+        for task in &generated {
+            if let Some(date) = &task.scheduled_date {
+                if date.as_str() >= today {
+                    by_date.entry(date).or_default().push(task);
+                }
+            }
+        }
+        let mut content = format!("{AGENDA_MARKER}\n{AGENDA_HELP}\n");
+        for (date, group) in &mut by_date {
+            ui_order(group);
+            content.push_str(&format!("\n## {date}\n\n"));
+            for task in group.iter() {
+                content.push_str(&render_line(task, 0, ids));
+                content.push('\n');
+                for sub in subs.get(&task.id).into_iter().flatten() {
+                    content.push_str(&render_line(sub, 1, ids));
+                    content.push('\n');
+                }
+            }
+        }
+        let path = tasks_dir.join("agenda.md");
+        expected.insert(path.clone());
+        if !skip.contains(&path) {
+            write_if_changed(&path, &content)?;
+            written.push((path, content));
+        }
+    }
+
     // drop managed files whose list is gone (archived, renamed); files
     // without our marker are left alone
     if let Ok(entries) = fs::read_dir(tasks_dir) {
@@ -210,14 +260,39 @@ pub fn export(
                 .ok()
                 .and_then(|c| c.lines().next().map(str::to_string))
                 .unwrap_or_default();
-            if first.trim().starts_with(LIST_MARKER_PREFIX) || first.trim() == SCHEDULED_MARKER {
+            if first.trim().starts_with(LIST_MARKER_PREFIX)
+                || first.trim() == SCHEDULED_MARKER
+                || first.trim() == AGENDA_MARKER
+            {
                 let _ = fs::remove_file(&path);
+            }
+        }
+    }
+
+    // the merge base follows every successful write; skipped files keep
+    // their previous base (their content was never applied), and bases
+    // of removed managed files go with them
+    fs::create_dir_all(base_dir)?;
+    for (path, content) in &written {
+        if let Some(name) = path.file_name() {
+            write_if_changed(&base_dir.join(name), content)?;
+        }
+    }
+    if let Ok(entries) = fs::read_dir(base_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if !expected
+                .iter()
+                .any(|p| p.file_name() == Some(name.as_os_str()))
+            {
+                let _ = fs::remove_file(entry.path());
             }
         }
     }
     Ok(written)
 }
 
+#[derive(PartialEq)]
 struct Line {
     status: &'static str,
     time: Option<String>,
@@ -350,17 +425,26 @@ fn parse_content(content: &str, scheduled: bool) -> Result<Vec<Entry>> {
 enum Scope {
     List(i64),
     Scheduled,
+    Agenda,
 }
 
 /// Applies an edited mirror file to the database. Returns whether
 /// anything actually changed. `today` bounds the scheduled scope: only
 /// tasks the file is responsible for can be deleted by their absence.
+///
+/// `base` is the file as the app last exported it (mirror-base copy).
+/// With a base at hand the import is a three-way merge: a field is
+/// applied only when the file differs from the base (a human changed
+/// it), a task is deleted by absence only when the base knew it, and a
+/// line whose task vanished app-side is not resurrected. Without a base
+/// the file wins wholesale, as before.
 pub fn import_file(
     conn: &Connection,
     path: &Path,
     content: &str,
     today: &str,
     ids: bool,
+    base: Option<&str>,
 ) -> Result<bool> {
     let stem = path
         .file_stem()
@@ -387,7 +471,23 @@ pub fn import_file(
         }
         Scope::List(id)
     } else if first == SCHEDULED_MARKER {
+        // a marker under the wrong name is a duplicate (a file-sync
+        // "conflicted copy"); importing it would double-apply its lines
+        if stem != "scheduled" {
+            return Err(Error::State(format!(
+                "{stem}.md: carries the scheduled marker but is not scheduled.md - \
+                 likely a sync conflict copy; merge or delete it"
+            )));
+        }
         Scope::Scheduled
+    } else if first == AGENDA_MARKER {
+        if stem != "agenda" {
+            return Err(Error::State(format!(
+                "{stem}.md: carries the agenda marker but is not agenda.md - \
+                 likely a sync conflict copy; merge or delete it"
+            )));
+        }
+        Scope::Agenda
     } else {
         // a brand-new file becomes a new list named after it
         match lists.iter().find(|l| l.name == stem) {
@@ -399,15 +499,28 @@ pub fn import_file(
         }
     };
 
-    let entries = parse_content(content, matches!(scope, Scope::Scheduled))?;
+    let agenda = matches!(scope, Scope::Agenda);
+    let dated = matches!(scope, Scope::Scheduled | Scope::Agenda);
+    let entries = parse_content(content, dated)?;
+    // an unparseable base was never our own export - ignore it
+    let base_entries: Option<Vec<Entry>> = base.and_then(|b| parse_content(b, dated).ok());
 
     // NOTE: no outer transaction - task_update opens its own; the parse
     // above already rejected every malformed line, so a mid-apply error
     // (disk, constraint) can only leave a prefix applied, which the
     // following export normalizes back into the file.
-    let parents = tasks::manual_parent_tasks(conn)?;
-    let by_id: HashMap<i64, &Task> = parents.iter().map(|t| (t.id, t)).collect();
-    let scope_ids: HashSet<i64> = parents
+    let manual_parents = tasks::manual_parent_tasks(conn)?;
+    let generated_parents = if agenda {
+        tasks::generated_parent_tasks(conn)?
+    } else {
+        Vec::new()
+    };
+    let parents: Vec<&Task> = manual_parents
+        .iter()
+        .chain(generated_parents.iter())
+        .collect();
+    let by_id: HashMap<i64, &Task> = parents.iter().map(|t| (t.id, *t)).collect();
+    let scope_ids: HashSet<i64> = manual_parents
         .iter()
         .filter(|t| match &scope {
             Scope::List(id) => t.scheduled_date.is_none() && t.list_id == Some(*id),
@@ -416,6 +529,8 @@ pub fn import_file(
                 .as_deref()
                 .map(|d| d >= today)
                 .unwrap_or(false),
+            // the agenda never deletes by absence
+            Scope::Agenda => false,
         })
         .map(|t| t.id)
         .collect();
@@ -427,9 +542,34 @@ pub fn import_file(
         }
     }
 
+    // Base lookups: entry index by id, by title for id-less vaults (the
+    // date joins the key in dated files - generated titles repeat across
+    // days), and each base entry's position within its group.
+    let mut base_by_id: HashMap<i64, usize> = HashMap::new();
+    let mut base_by_title: HashMap<(String, Option<String>), usize> = HashMap::new();
+    let mut base_order: HashMap<usize, i64> = HashMap::new();
+    if let Some(be) = &base_entries {
+        let mut counters: HashMap<String, i64> = HashMap::new();
+        for (i, e) in be.iter().enumerate() {
+            let group = e.date.clone().unwrap_or_default();
+            let index = counters.entry(group).or_insert(0);
+            base_order.insert(i, *index);
+            *index += 1;
+            if let Some(id) = e.line.id {
+                base_by_id.insert(id, i);
+            }
+            let key = (
+                e.line.title.clone(),
+                if dated { e.date.clone() } else { None },
+            );
+            base_by_title.entry(key).or_insert(i);
+        }
+    }
+
     // Which task each line stands for. An explicit ^id always wins;
     // with the keys turned off the files carry none, so a line claims
-    // the first not-yet-claimed task in scope with the same text.
+    // the first not-yet-claimed task in scope with the same text (in the
+    // agenda: the same text on the same day, any origin).
     let mut resolved: Vec<Option<i64>> = entries
         .iter()
         .map(|entry| entry.line.id.filter(|id| by_id.contains_key(id)))
@@ -443,9 +583,14 @@ pub fn import_file(
             *slot = parents
                 .iter()
                 .find(|task| {
-                    scope_ids.contains(&task.id)
-                        && !claimed.contains(&task.id)
-                        && task.title == entry.line.title
+                    if claimed.contains(&task.id) || task.title != entry.line.title {
+                        return false;
+                    }
+                    if agenda {
+                        task.scheduled_date == entry.date
+                    } else {
+                        scope_ids.contains(&task.id)
+                    }
                 })
                 .map(|task| task.id);
             if let Some(id) = slot {
@@ -462,47 +607,85 @@ pub fn import_file(
         let sort_order = *index;
         *index += 1;
 
+        let base_idx = resolved_id
+            .and_then(|id| base_by_id.get(&id).copied())
+            .or_else(|| {
+                if ids {
+                    return None;
+                }
+                let key = (
+                    entry.line.title.clone(),
+                    if dated { entry.date.clone() } else { None },
+                );
+                base_by_title.get(&key).copied()
+            });
+        let base_entry = base_idx.and_then(|i| base_entries.as_deref().map(|be| &be[i]));
+        let base_line = base_entry.map(|e| &e.line);
+
         let existing = resolved_id.and_then(|id| by_id.get(&id).copied());
         let pid = match existing {
             Some(task) => {
                 let mut patch = TaskPatch::default();
                 let mut dirty = false;
-                if task.title != entry.line.title {
+                // per-field three-way rule: the file value applies only
+                // when it differs from the base (or there is no base) -
+                // an unchanged line never overrides an app-side edit
+                if !agenda
+                    && task.title != entry.line.title
+                    && base_line.is_none_or(|b| b.title != entry.line.title)
+                {
                     patch.title = Some(entry.line.title.clone());
                     dirty = true;
                 }
-                if task.status != entry.line.status {
+                if task.status != entry.line.status
+                    && base_line.is_none_or(|b| b.status != entry.line.status)
+                {
                     patch.status = Some(entry.line.status.to_string());
                     dirty = true;
                 }
-                if task.time != entry.line.time {
+                if task.time != entry.line.time
+                    && base_line.is_none_or(|b| b.time != entry.line.time)
+                {
                     patch.time = Some(entry.line.time.clone());
                     dirty = true;
                 }
-                if task.priority != entry.line.priority {
+                if task.priority != entry.line.priority
+                    && base_line.is_none_or(|b| b.priority != entry.line.priority)
+                {
                     patch.priority = Some(entry.line.priority);
                     dirty = true;
                 }
-                if task.sort_order != sort_order {
-                    patch.sort_order = Some(sort_order);
-                    dirty = true;
-                }
-                match &scope {
-                    Scope::List(id) => {
-                        if task.list_id != Some(*id) {
-                            patch.list_id = Some(Some(*id));
-                            dirty = true;
-                        }
-                        if task.scheduled_date.is_some() {
-                            patch.scheduled_date = Some(None);
-                            dirty = true;
-                        }
+                if !agenda {
+                    let base_sort = base_idx.and_then(|i| base_order.get(&i)).copied();
+                    if task.sort_order != sort_order && base_sort.is_none_or(|b| b != sort_order) {
+                        patch.sort_order = Some(sort_order);
+                        dirty = true;
                     }
-                    Scope::Scheduled => {
-                        if task.scheduled_date != entry.date {
-                            patch.scheduled_date = Some(entry.date.clone());
-                            dirty = true;
+                    match &scope {
+                        Scope::List(id) => {
+                            // membership is presence in the file; a line
+                            // unchanged since the base is no signal to
+                            // pull a task the app moved elsewhere back
+                            if base_entry.is_none() {
+                                if task.list_id != Some(*id) {
+                                    patch.list_id = Some(Some(*id));
+                                    dirty = true;
+                                }
+                                if task.scheduled_date.is_some() {
+                                    patch.scheduled_date = Some(None);
+                                    dirty = true;
+                                }
+                            }
                         }
+                        Scope::Scheduled => {
+                            if task.scheduled_date != entry.date
+                                && base_entry.is_none_or(|e| e.date != entry.date)
+                            {
+                                patch.scheduled_date = Some(entry.date.clone());
+                                dirty = true;
+                            }
+                        }
+                        Scope::Agenda => {}
                     }
                 }
                 if dirty {
@@ -512,13 +695,29 @@ pub fn import_file(
                 task.id
             }
             None => {
+                // a line whose id the database no longer knows: when the
+                // base carries the identical line, the task was deleted
+                // app-side and this file is just stale - skip instead of
+                // resurrecting it
+                if entry.line.id.is_some() {
+                    if let Some(b) = entry
+                        .line
+                        .id
+                        .and_then(|id| base_by_id.get(&id).copied())
+                        .and_then(|i| base_entries.as_deref().map(|be| &be[i]))
+                    {
+                        if b.line == entry.line && b.date == entry.date {
+                            continue;
+                        }
+                    }
+                }
                 let created = tasks::task_create(
                     conn,
                     &NewTask {
                         title: entry.line.title.clone(),
                         list_id: match &scope {
                             Scope::List(id) => Some(*id),
-                            Scope::Scheduled => None,
+                            Scope::Scheduled | Scope::Agenda => None,
                         },
                         scheduled_date: entry.date.clone(),
                         time: entry.line.time.clone(),
@@ -544,6 +743,17 @@ pub fn import_file(
 
         let existing_subs: Vec<&Task> = subs_by_parent.get(&pid).cloned().unwrap_or_default();
         let sub_by_id: HashMap<i64, &Task> = existing_subs.iter().map(|t| (t.id, *t)).collect();
+        let base_subs: &[Line] = base_entry.map(|e| e.subs.as_slice()).unwrap_or(&[]);
+        let base_sub_for = |sub: &Line| -> Option<&Line> {
+            sub.id
+                .and_then(|id| base_subs.iter().find(|b| b.id == Some(id)))
+                .or_else(|| {
+                    if ids {
+                        return None;
+                    }
+                    base_subs.iter().find(|b| b.title == sub.title)
+                })
+        };
         let mut sub_seen: HashSet<i64> = HashSet::new();
         for (i, sub) in entry.subs.iter().enumerate() {
             let matched = sub
@@ -562,13 +772,18 @@ pub fn import_file(
                 });
             match matched {
                 Some(existing_sub) => {
+                    let base_sub = base_sub_for(sub);
                     let mut patch = TaskPatch::default();
                     let mut dirty = false;
-                    if existing_sub.title != sub.title {
+                    if existing_sub.title != sub.title
+                        && base_sub.is_none_or(|b| b.title != sub.title)
+                    {
                         patch.title = Some(sub.title.clone());
                         dirty = true;
                     }
-                    if existing_sub.status != sub.status {
+                    if existing_sub.status != sub.status
+                        && base_sub.is_none_or(|b| b.status != sub.status)
+                    {
                         patch.status = Some(sub.status.to_string());
                         dirty = true;
                     }
@@ -583,6 +798,13 @@ pub fn import_file(
                     sub_seen.insert(existing_sub.id);
                 }
                 None => {
+                    // a stale line of a sub deleted app-side: skip, like
+                    // the parent-level rule above
+                    if let (Some(_), Some(b)) = (sub.id, base_sub_for(sub)) {
+                        if *b == *sub {
+                            continue;
+                        }
+                    }
                     let created = tasks::task_create(
                         conn,
                         &NewTask {
@@ -606,16 +828,39 @@ pub fn import_file(
         }
         for existing_sub in existing_subs {
             if !sub_seen.contains(&existing_sub.id) {
-                tasks::task_delete(conn, existing_sub.id)?;
-                changed = true;
+                // with a base at hand, absence deletes only subs the
+                // file was told about
+                let known_to_base = base_entries.is_none()
+                    || base_subs.iter().any(|b| {
+                        b.id == Some(existing_sub.id) || (!ids && b.title == existing_sub.title)
+                    });
+                if known_to_base {
+                    tasks::task_delete(conn, existing_sub.id)?;
+                    changed = true;
+                }
             }
         }
     }
 
     for id in scope_ids {
         if !seen.contains(&id) {
-            tasks::task_delete(conn, id)?;
-            changed = true;
+            // same rule at the top level: a base-aware import deletes
+            // only tasks the file knew about - a stale file cannot
+            // delete a task created after it was written
+            let known_to_base = match &base_entries {
+                None => true,
+                Some(be) => be.iter().any(|e| {
+                    e.line.id == Some(id)
+                        || (!ids
+                            && by_id
+                                .get(&id)
+                                .is_some_and(|task| e.line.title == task.title))
+                }),
+            };
+            if known_to_base {
+                tasks::task_delete(conn, id)?;
+                changed = true;
+            }
         }
     }
     Ok(changed)
@@ -675,10 +920,19 @@ mod tests {
         )
         .unwrap();
 
-        let written = export(&conn, &dir, TODAY, &HashSet::new(), true).unwrap();
+        let written = export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            TODAY,
+            &HashSet::new(),
+            true,
+            false,
+        )
+        .unwrap();
         assert_eq!(written.len(), 2); // Groceries.md + scheduled.md
         for (path, content) in &written {
-            assert!(!import_file(&conn, path, content, TODAY, true).unwrap());
+            assert!(!import_file(&conn, path, content, TODAY, true, None).unwrap());
         }
         let _ = fs::remove_dir_all(&dir);
     }
@@ -710,7 +964,7 @@ mod tests {
             keep.id
         );
         let path = dir.join("Inbox.md");
-        assert!(import_file(&conn, &path, &content, TODAY, true).unwrap());
+        assert!(import_file(&conn, &path, &content, TODAY, true, None).unwrap());
 
         let kept = task_get(&conn, keep.id).unwrap();
         assert_eq!(kept.title, "keep me renamed");
@@ -762,7 +1016,7 @@ mod tests {
             movable.id
         );
         let path = dir.join("scheduled.md");
-        assert!(import_file(&conn, &path, &content, TODAY, true).unwrap());
+        assert!(import_file(&conn, &path, &content, TODAY, true, None).unwrap());
 
         let moved = task_get(&conn, movable.id).unwrap();
         assert_eq!(moved.scheduled_date.as_deref(), Some("2026-09-05"));
@@ -780,7 +1034,7 @@ mod tests {
     fn new_file_creates_a_list_and_malformed_lines_abort() {
         let (conn, dir) = setup("newlist");
         let path = dir.join("Reading.md");
-        assert!(import_file(&conn, &path, "- [ ] some book\n", TODAY, true).unwrap());
+        assert!(import_file(&conn, &path, "- [ ] some book\n", TODAY, true, None).unwrap());
         let lists = tasks::lists_all(&conn).unwrap();
         let list = lists.iter().find(|l| l.name == "Reading").unwrap();
         let parents = tasks::manual_parent_tasks(&conn).unwrap();
@@ -790,7 +1044,7 @@ mod tests {
 
         // a bad checkbox aborts the whole file: nothing gets deleted
         let bad = format!("{}\n- [?] broken\n", list_marker(list.id));
-        assert!(import_file(&conn, &path, &bad, TODAY, true).is_err());
+        assert!(import_file(&conn, &path, &bad, TODAY, true, None).is_err());
         assert_eq!(tasks::manual_parent_tasks(&conn).unwrap().len(), 1);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -819,19 +1073,28 @@ mod tests {
         )
         .unwrap();
 
-        let written = export(&conn, &dir, TODAY, &HashSet::new(), false).unwrap();
+        let written = export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            TODAY,
+            &HashSet::new(),
+            false,
+            false,
+        )
+        .unwrap();
         let (path, content) = written
             .iter()
             .find(|(p, _)| p.file_name().unwrap() == "Errands.md")
             .unwrap();
         assert!(!content.contains(&format!("^{}", parent.id)));
-        assert!(!import_file(&conn, path, content, TODAY, false).unwrap());
+        assert!(!import_file(&conn, path, content, TODAY, false, None).unwrap());
         assert_eq!(tasks::manual_parent_tasks(&conn).unwrap().len(), 1);
         assert_eq!(tasks::subtasks_all(&conn).unwrap().len(), 1);
 
         // ticking the box off the file still reaches the same task
         let edited = content.replace("- [ ] post office", "- [x] post office");
-        assert!(import_file(&conn, path, &edited, TODAY, false).unwrap());
+        assert!(import_file(&conn, path, &edited, TODAY, false, None).unwrap());
         assert_eq!(task_get(&conn, parent.id).unwrap().status, "done");
         let _ = fs::remove_dir_all(&dir);
     }
@@ -844,11 +1107,20 @@ mod tests {
         let list = list_create(&conn, "Later", None, false).unwrap();
         let path = dir.join("Later.md");
         let content = format!("{}\n- [>] old marker\n", list_marker(list.id));
-        assert!(import_file(&conn, &path, &content, TODAY, true).unwrap());
+        assert!(import_file(&conn, &path, &content, TODAY, true, None).unwrap());
         let parents = tasks::manual_parent_tasks(&conn).unwrap();
         assert_eq!(parents[0].status, "postponed");
 
-        let written = export(&conn, &dir, TODAY, &HashSet::new(), true).unwrap();
+        let written = export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            TODAY,
+            &HashSet::new(),
+            true,
+            false,
+        )
+        .unwrap();
         let (_, out) = written
             .iter()
             .find(|(p, _)| p.file_name().unwrap() == "Later.md")
@@ -858,16 +1130,223 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    fn make_generated(conn: &Connection, title: &str, date: &str) -> i64 {
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, rule_key, period_key,
+                                scheduled_date, cadence)
+             VALUES (?1, '2026-01-01T00:00:00Z', 'recurring', ?2, ?3, ?4, 'daily')",
+            (title, format!("rk-{title}"), date, date),
+        )
+        .unwrap();
+        conn.last_insert_rowid()
+    }
+
+    #[test]
+    fn agenda_mirrors_generated_and_syncs_status_only() {
+        let (conn, dir) = setup("agenda");
+        let base_dir = dir.join("base");
+        let gen_id = make_generated(&conn, "morning routine", "2026-08-30");
+
+        let written = export(&conn, &dir, &base_dir, TODAY, &HashSet::new(), true, true).unwrap();
+        let (path, content) = written
+            .iter()
+            .find(|(p, _)| p.file_name().unwrap() == "agenda.md")
+            .unwrap();
+        assert!(content.contains("## 2026-08-30"));
+        assert!(content.contains(&format!("- [ ] morning routine ^{gen_id}")));
+        // base copy follows the export
+        assert!(base_dir.join("agenda.md").exists());
+
+        // check the box, rename the title, and quick-add a manual line
+        let edited = content
+            .replace(
+                &format!("- [ ] morning routine ^{gen_id}"),
+                &format!("- [x] renamed by phone ^{gen_id}\n- [ ] buy milk"),
+            )
+            .to_string();
+        assert!(import_file(&conn, path, &edited, TODAY, true, Some(content)).unwrap());
+        let gen = task_get(&conn, gen_id).unwrap();
+        assert_eq!(gen.status, "done", "status syncs back");
+        assert_eq!(gen.title, "morning routine", "title edits do not sync");
+        let manual = tasks::manual_parent_tasks(&conn).unwrap();
+        let added = manual.iter().find(|t| t.title == "buy milk").unwrap();
+        assert_eq!(added.scheduled_date.as_deref(), Some("2026-08-30"));
+
+        // wiping the agenda deletes nothing
+        let wiped = format!("{AGENDA_MARKER}\n");
+        assert!(!import_file(&conn, path, &wiped, TODAY, true, Some(content)).unwrap());
+        assert!(task_get(&conn, gen_id).is_ok());
+        assert_eq!(tasks::manual_parent_tasks(&conn).unwrap().len(), 1);
+
+        // turning the agenda off cleans the file up
+        export(&conn, &dir, &base_dir, TODAY, &HashSet::new(), true, false).unwrap();
+        assert!(!dir.join("agenda.md").exists());
+        assert!(!base_dir.join("agenda.md").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn base_merge_keeps_app_side_edits_over_unchanged_lines() {
+        let (conn, dir) = setup("base-fields");
+        let list = list_create(&conn, "Inbox", None, false).unwrap();
+        let a = task_create(
+            &conn,
+            &NewTask {
+                list_id: Some(list.id),
+                ..new_task("alpha")
+            },
+        )
+        .unwrap();
+        let b = task_create(
+            &conn,
+            &NewTask {
+                list_id: Some(list.id),
+                ..new_task("beta")
+            },
+        )
+        .unwrap();
+        let base = format!(
+            "{}\n\n- [ ] alpha ^{}\n- [ ] beta ^{}\n",
+            list_marker(list.id),
+            a.id,
+            b.id
+        );
+        // app-side: alpha got done AFTER the base was written
+        task_update(
+            &conn,
+            a.id,
+            &TaskPatch {
+                status: Some("done".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // the file ticks beta but still shows alpha open (stale view)
+        let file = format!(
+            "{}\n\n- [ ] alpha ^{}\n- [x] beta ^{}\n",
+            list_marker(list.id),
+            a.id,
+            b.id
+        );
+        let path = dir.join("Inbox.md");
+        assert!(import_file(&conn, &path, &file, TODAY, true, Some(&base)).unwrap());
+        assert_eq!(
+            task_get(&conn, a.id).unwrap().status,
+            "done",
+            "unchanged line must not roll back the app-side edit"
+        );
+        assert_eq!(task_get(&conn, b.id).unwrap().status, "done");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn base_merge_deletes_only_what_the_base_knew() {
+        let (conn, dir) = setup("base-del");
+        let list = list_create(&conn, "Inbox", None, false).unwrap();
+        let old = task_create(
+            &conn,
+            &NewTask {
+                list_id: Some(list.id),
+                ..new_task("old task")
+            },
+        )
+        .unwrap();
+        let fresh = task_create(
+            &conn,
+            &NewTask {
+                list_id: Some(list.id),
+                ..new_task("created after the base")
+            },
+        )
+        .unwrap();
+        // the base knows only the old task; the file removed its line
+        let base = format!("{}\n\n- [ ] old task ^{}\n", list_marker(list.id), old.id);
+        let file = format!("{}\n", list_marker(list.id));
+        let path = dir.join("Inbox.md");
+        assert!(import_file(&conn, &path, &file, TODAY, true, Some(&base)).unwrap());
+        let parents = tasks::manual_parent_tasks(&conn).unwrap();
+        assert!(
+            !parents.iter().any(|t| t.id == old.id),
+            "a line removed by the user deletes its task"
+        );
+        assert!(
+            parents.iter().any(|t| t.id == fresh.id),
+            "a task the file never saw survives"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn base_merge_does_not_resurrect_a_deleted_task() {
+        let (conn, dir) = setup("base-resurrect");
+        let list = list_create(&conn, "Inbox", None, false).unwrap();
+        let gone = task_create(
+            &conn,
+            &NewTask {
+                list_id: Some(list.id),
+                ..new_task("deleted in app")
+            },
+        )
+        .unwrap();
+        let base = format!(
+            "{}\n\n- [ ] deleted in app ^{}\n",
+            list_marker(list.id),
+            gone.id
+        );
+        crate::tasks::task_delete(&conn, gone.id).unwrap();
+        // a stale file still carries the identical line
+        let path = dir.join("Inbox.md");
+        assert!(!import_file(&conn, &path, &base, TODAY, true, Some(&base)).unwrap());
+        assert!(tasks::manual_parent_tasks(&conn).unwrap().is_empty());
+
+        // but a line the user actually edited becomes a new task
+        let edited = base.replace("- [ ] deleted in app", "- [ ] deleted in app, take two");
+        assert!(import_file(&conn, &path, &edited, TODAY, true, Some(&base)).unwrap());
+        let parents = tasks::manual_parent_tasks(&conn).unwrap();
+        assert_eq!(parents.len(), 1);
+        assert_eq!(parents[0].title, "deleted in app, take two");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn conflicted_copy_of_a_managed_file_is_rejected() {
+        let (conn, dir) = setup("conflict-copy");
+        let content = format!("{SCHEDULED_MARKER}\n\n## 2026-09-01\n\n- [ ] duplicated\n");
+        let copy = dir.join("scheduled (conflicted copy).md");
+        let err = import_file(&conn, &copy, &content, TODAY, true, None).unwrap_err();
+        assert!(err.to_string().contains("conflict copy"), "{err}");
+        assert!(tasks::manual_parent_tasks(&conn).unwrap().is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn export_removes_files_of_archived_lists_and_keeps_foreign_md() {
         let (conn, dir) = setup("stale");
         let list = list_create(&conn, "Temp", None, false).unwrap();
-        export(&conn, &dir, TODAY, &HashSet::new(), true).unwrap();
+        export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            TODAY,
+            &HashSet::new(),
+            true,
+            false,
+        )
+        .unwrap();
         assert!(dir.join("Temp.md").exists());
         fs::write(dir.join("notes.md"), "my own file\n").unwrap();
 
         tasks::list_archive(&conn, list.id).unwrap();
-        export(&conn, &dir, TODAY, &HashSet::new(), true).unwrap();
+        export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            TODAY,
+            &HashSet::new(),
+            true,
+            false,
+        )
+        .unwrap();
         assert!(!dir.join("Temp.md").exists());
         assert!(dir.join("notes.md").exists());
         assert!(dir.join("scheduled.md").exists());

@@ -177,6 +177,13 @@ notify_snooze_minutes: number,
  */
 tasks_mirror: boolean, 
 /**
+ * Mirror generated tasks (recurring, scheduled events, birthdays)
+ * into <vault>/tasks/agenda.md too: statuses sync back, added lines
+ * become manual tasks, deleted lines change nothing. The file-sync
+ * surface for a phone.
+ */
+tasks_mirror_agenda: boolean, 
+/**
  * Write the trailing `^id` sync key on every mirrored line. Off
  * keeps the files clean to read, at the price of identity: a line
  * is then matched back to its task by title, so renaming a task in

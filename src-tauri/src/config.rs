@@ -139,6 +139,11 @@ pub struct AppConfig {
     /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
     /// (one file per list + scheduled.md) for bulk editing in any editor.
     pub tasks_mirror: bool,
+    /// Mirror generated tasks (recurring, scheduled events, birthdays)
+    /// into <vault>/tasks/agenda.md too: statuses sync back, added lines
+    /// become manual tasks, deleted lines change nothing. The file-sync
+    /// surface for a phone.
+    pub tasks_mirror_agenda: bool,
     /// Write the trailing `^id` sync key on every mirrored line. Off
     /// keeps the files clean to read, at the price of identity: a line
     /// is then matched back to its task by title, so renaming a task in
@@ -307,6 +312,7 @@ impl Default for AppConfig {
             notify_system: true,
             notify_snooze_minutes: 10,
             tasks_mirror: true,
+            tasks_mirror_agenda: true,
             tasks_mirror_ids: true,
             cron_weekday_labels: true,
             cron_everyday_label: true,
@@ -626,6 +632,7 @@ impl AppConfig {
                 self.notify_snooze_minutes.to_string(),
             ),
             ("tasks_mirror", self.tasks_mirror.to_string()),
+            ("tasks_mirror_agenda", self.tasks_mirror_agenda.to_string()),
             ("tasks_mirror_ids", self.tasks_mirror_ids.to_string()),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
             ("cron_everyday_label", self.cron_everyday_label.to_string()),

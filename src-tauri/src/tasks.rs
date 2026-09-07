@@ -429,6 +429,20 @@ pub fn manual_parent_tasks(conn: &Connection) -> Result<Vec<Task>> {
     Ok(tasks)
 }
 
+/// All live generated top-level tasks (recurring, scheduled events,
+/// birthdays) - the agenda mirror's source set.
+pub fn generated_parent_tasks(conn: &Connection) -> Result<Vec<Task>> {
+    let mut stmt = conn.prepare(
+        "SELECT * FROM tasks
+         WHERE archived_at IS NULL AND origin != 'manual' AND parent_task_id IS NULL
+         ORDER BY scheduled_date, time IS NULL, time, sort_order, id",
+    )?;
+    let tasks = stmt
+        .query_map([], row_to_task)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(tasks)
+}
+
 /// All live subtasks, ordered like the UI lists them under a parent.
 pub fn subtasks_all(conn: &Connection) -> Result<Vec<Task>> {
     let mut stmt = conn.prepare(

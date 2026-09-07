@@ -65,6 +65,14 @@ pub fn tasks_dir(root: &Path) -> PathBuf {
     work_dir(root).join("tasks")
 }
 
+/// Copies of the mirror files as the app last exported them - the merge
+/// base of the mirror import. Outside tasks_dir so the watcher never
+/// sees them, and file-sync friendly: a stale or concurrently edited
+/// mirror file merges against this instead of overwriting the database.
+pub fn mirror_base_dir(root: &Path) -> PathBuf {
+    work_dir(root).join("state").join("mirror-base")
+}
+
 /// One-time move of the pre-0.32 flat layout (app.db, config/, backups/,
 /// tasks/ in the vault root) into .hypomnema/, and of app.yml out of the
 /// user configs into settings/. Every step is skipped when the source is

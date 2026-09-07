@@ -79,9 +79,36 @@ export default function FilesTab() {
               Keeps vault/.hypomnema/tasks/ in two-way sync: one file per
               list plus scheduled.md with the dated tasks. Edit them in
               any editor for bulk changes; lines without a ^id become new
-              tasks, deleting a line deletes the task. Only manual tasks
-              are mirrored - generated ones are edited via the config
-              YAML files.
+              tasks, deleting a line deletes the task. Imports merge
+              against the last exported state, so a file arriving from a
+              file sync (Dropbox etc.) never rolls back newer app-side
+              edits or deletes tasks it did not know about.
+            </span>
+          </span>
+        </label>
+
+        <label className="ml-6 flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            disabled={!config.tasks_mirror}
+            checked={config.tasks_mirror_agenda}
+            onChange={(e) =>
+              void updateConfig({ tasks_mirror_agenda: e.target.checked })
+            }
+          />
+          <span className="flex flex-col">
+            <span className="text-sm font-medium">
+              Agenda file with generated tasks
+            </span>
+            <span className="text-xs text-content-muted">
+              agenda.md lists recurring/scheduled/birthday instances from
+              today onward, grouped by day. Checking a box, setting a time
+              or the ! priority mark syncs back; title and date edits do
+              not (the YAML rules own them), and deleting lines changes
+              nothing. A new line without an id becomes a manual task on
+              that day - handy as the phone-editing surface over a file
+              sync.
             </span>
           </span>
         </label>

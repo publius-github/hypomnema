@@ -25,7 +25,8 @@ All working files live under `<vault>/.hypomnema/` (like a repo's `.git`). Never
       weekly-focus.yml day-reminders.yml day-schedule.yml
       templates/journal.md
       <subfolder>/*.yml            # "packs": merged into recurring/scheduled/birthdays by top-level key
-    tasks/                         # two-way Markdown mirror of manual tasks (tasks_mirror.rs)
+    tasks/                         # two-way Markdown task mirror + agenda.md (tasks_mirror.rs)
+    state/mirror-base/             # last-exported mirror copies: the import's merge base
     backups/db/ backups/config/    # daily VACUUM INTO + pre-rewrite config copies (backup.rs)
 ```
 
@@ -74,7 +75,7 @@ Three generators per pass: recurring (cron), scheduled events, birthdays. No sep
 ## Core modules
 
 - `tasks.rs` - lists/tasks CRUD; list names are unique among **active** lists only (partial index `idx_lists_active_name`, migration 015): an archived namesake never blocks a create/rename, an auto list of that name is absorbed into the user list instead (its tasks move over, the auto row goes), a live manual namesake reports "a list named X already exists", and `list_unarchive` refuses a restore whose name is taken. `list_ensure` prefers the active list over an archived namesake. `task_delete` is a hard delete (cascades to subtasks, drops the `rule_runs` row) and returns a `DeletedTasks` snapshot (rows + ledger entry) that `task_restore` puts back - the Undo toast round-trips it through the frontend; original ids are kept while free, and a restore is skipped when the engine already regenerated the same (rule, period) instance. `archived_at` remains only for the delete-done sweep tombstones; lists carry a `favorite` flag (sorts ahead in the list zone). The `overdue` flag survives the status cycle (done does not clear it; the UI just hides it on done cards).
-- `tasks_mirror.rs` - Markdown mirror of manual tasks only: one file per list + `scheduled.md`; per-line `^<id>` sync keys (omitted with `config.tasks_mirror_ids` off, and a line is then matched to its task by title); `[x]` done, `[z]` postponed (`[>]` from older versions still parses); marker first line; gated by `config.tasks_mirror`; folder watcher imports outside edits.
+- `tasks_mirror.rs` - Markdown mirror of tasks: one file per list + `scheduled.md` (manual tasks, full authority) + `agenda.md` (generated instances from today onward, gated by `config.tasks_mirror_agenda`: status/priority/time sync back, title/date edits do not, absence never deletes, an id-less line creates a manual task on that day - the phone-over-file-sync surface). Per-line `^<id>` sync keys (omitted with `config.tasks_mirror_ids` off, and a line is then matched to its task by title; in the agenda the date joins the match key); `[x]` done, `[z]` postponed (`[>]` from older versions still parses); marker first line; gated by `config.tasks_mirror`; folder watcher imports outside edits. Every export also snapshots the files into `state/mirror-base/`; the import is a three-way merge against that base: a field applies only when the file changed it, absence deletes only tasks the base knew, a stale line of an app-side-deleted task is not resurrected, and a scheduled/agenda marker under a wrong file name (a sync "conflicted copy") is rejected instead of double-imported. Without a base the file wins wholesale, as before.
 - `journal.rs` - entry open/save/list/search, template at `config/templates/journal.md`.
 - `kb.rs` - Notes FS layer; `resolve()` blocks path traversal; `.hypomnemaignore` glob filter; trash + 30-day prune.
 - `reminders.rs` - `dashboard_context` (weekly focus, ISO-week pinned via `weekly_focus_state`; day-type reminders; schedule blocks) and `overview` behind the Reminders section.

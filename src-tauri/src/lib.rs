@@ -135,9 +135,11 @@ fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
                         if let Ok(files) = tasks_mirror::export(
                             &conn,
                             &vault::tasks_dir(&root),
+                            &vault::mirror_base_dir(&root),
                             &today_string(),
                             &Default::default(),
                             config.tasks_mirror_ids,
+                            config.tasks_mirror_agenda,
                         ) {
                             *written.lock().unwrap() = files.into_iter().collect();
                         }
@@ -179,9 +181,11 @@ fn mirror_export_with(
     if let Ok(files) = tasks_mirror::export(
         &vault.conn,
         &vault::tasks_dir(&vault.root),
+        &vault::mirror_base_dir(&vault.root),
         &today_string(),
         &Default::default(),
         vault.config.tasks_mirror_ids,
+        vault.config.tasks_mirror_agenda,
     ) {
         *written.lock().unwrap() = files.into_iter().collect();
     }
@@ -227,10 +231,11 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                         vault.root.clone(),
                         vault.config.tasks_mirror,
                         vault.config.tasks_mirror_ids,
+                        vault.config.tasks_mirror_agenda,
                     )
                 })
             };
-            let Some((root, enabled, ids)) = snapshot else {
+            let Some((root, enabled, ids, agenda)) = snapshot else {
                 continue;
             };
             if !enabled {
@@ -278,7 +283,17 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                     if same {
                         continue;
                     }
-                    match tasks_mirror::import_file(&conn, &path, &content, &today, ids) {
+                    // the merge base: this file as we last exported it
+                    let base =
+                        std::fs::read_to_string(vault::mirror_base_dir(&root).join(&name)).ok();
+                    match tasks_mirror::import_file(
+                        &conn,
+                        &path,
+                        &content,
+                        &today,
+                        ids,
+                        base.as_deref(),
+                    ) {
                         Ok(applied) => changed |= applied,
                         Err(e) => {
                             // the broken file stays untouched (skipped
@@ -292,7 +307,15 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                         }
                     }
                 }
-                if let Ok(files) = tasks_mirror::export(&conn, &dir, &today, &failed, ids) {
+                if let Ok(files) = tasks_mirror::export(
+                    &conn,
+                    &dir,
+                    &vault::mirror_base_dir(&root),
+                    &today,
+                    &failed,
+                    ids,
+                    agenda,
+                ) {
                     *written.lock().unwrap() = files.into_iter().collect();
                 }
             }
