@@ -1,6 +1,74 @@
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import MarkdownEditor from "../../components/MarkdownEditor";
 import { useAppStore } from "../../store";
+import type { KbBacklinks, KbSearchHit } from "../../types";
 import type { OpenDoc } from "./util";
+
+/**
+ * Collapsible backlinks strip under the editor: notes whose [[wiki
+ * links]] point at the open note, plus unlinked plain-text mentions.
+ * Fetched per note; a click opens the referencing note.
+ */
+function BacklinksPanel({ path }: { path: string }) {
+  const [data, setData] = useState<KbBacklinks | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setData(null);
+    invoke<KbBacklinks>("kb_backlinks", { path })
+      .then((result) => {
+        if (!cancelled) setData(result);
+      })
+      .catch(() => setData(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
+  const total = (data?.links.length ?? 0) + (data?.mentions.length ?? 0);
+  if (!data || total === 0) return null;
+
+  const hitRow = (hit: KbSearchHit) => (
+    <button
+      key={hit.path}
+      className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
+      onClick={() => useAppStore.getState().openKbNote(hit.path)}
+    >
+      <span className="block truncate text-sm text-content">{hit.name}</span>
+      <span className="block truncate text-[11px] text-content-muted">
+        {hit.line}: {hit.preview}
+      </span>
+    </button>
+  );
+
+  return (
+    <div className="shrink-0 border-t border-line">
+      <button
+        className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-content-muted hover:text-content"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>{open ? "▾" : "▸"}</span>
+        Backlinks ({data.links.length})
+        {data.mentions.length > 0 && ` · Mentions (${data.mentions.length})`}
+      </button>
+      {open && (
+        <div className="max-h-48 overflow-y-auto px-2 pb-2">
+          {data.links.map(hitRow)}
+          {data.mentions.length > 0 && (
+            <>
+              <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+                Unlinked mentions
+              </div>
+              {data.mentions.map(hitRow)}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** The right side of the Notes section: open-file header with the save
  *  status, config validation errors, and the CodeMirror editor. */
@@ -71,6 +139,9 @@ export default function EditorPane({
           }
         />
       </div>
+      {current.kind === "note" && current.path.toLowerCase().endsWith(".md") && (
+        <BacklinksPanel path={current.path} />
+      )}
     </>
   );
 }

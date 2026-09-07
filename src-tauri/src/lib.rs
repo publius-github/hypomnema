@@ -1030,6 +1030,11 @@ async fn kb_search(state: State<'_, AppState>, query: String) -> Result<Vec<kb::
 }
 
 #[tauri::command]
+async fn kb_backlinks(state: State<'_, AppState>, path: String) -> Result<kb::KbBacklinks> {
+    kb::backlinks(&kb_root(&state)?, &path)
+}
+
+#[tauri::command]
 async fn tasks_search(state: State<'_, AppState>, query: String) -> Result<Vec<tasks::Task>> {
     with_conn(&state, |conn| tasks::tasks_search(conn, &query))
 }
@@ -1181,6 +1186,7 @@ pub fn run() {
             config_file_get,
             config_file_set,
             kb_search,
+            kb_backlinks,
             tasks_search,
             daily_streaks,
             task_get,

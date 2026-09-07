@@ -225,6 +225,109 @@ pub fn search_content(root: &Path, query: &str) -> Result<Vec<KbSearchHit>> {
     Ok(hits)
 }
 
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct KbBacklinks {
+    /// Files whose [[wiki links]] point at the note.
+    pub links: Vec<KbSearchHit>,
+    /// Files mentioning the note's name outside a wiki link.
+    pub mentions: Vec<KbSearchHit>,
+}
+
+/// The `[[target]]` spans of a line, lowercased and trimmed.
+fn wiki_targets(line: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+    let mut rest = line;
+    while let Some(start) = rest.find("[[") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("]]") else { break };
+        targets.push(after[..end].trim().to_lowercase());
+        rest = &after[end + 2..];
+    }
+    targets
+}
+
+/// Minimum name length for unlinked mentions: a one- or two-letter note
+/// name as a plain substring would match half the vault.
+const MENTION_MIN_CHARS: usize = 3;
+
+/// Backlinks of a note: files whose `[[wiki links]]` point at it (the
+/// target is the note's file name, extension optional, case-insensitive),
+/// plus unlinked mentions - lines containing the note's name as plain
+/// text. One hit per file per group, first matching line as the preview;
+/// a file with a real link never doubles as a mention, and the note
+/// itself is skipped. Plain scan, same trade-off as `search_content`.
+pub fn backlinks(root: &Path, rel: &str) -> Result<KbBacklinks> {
+    let stem = Path::new(rel)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
+    let full_name = Path::new(rel)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
+    let mut result = KbBacklinks {
+        links: Vec::new(),
+        mentions: Vec::new(),
+    };
+    if stem.is_empty() {
+        return Ok(result);
+    }
+    let mut files = Vec::new();
+    collect_files(&tree(root)?, &mut files);
+    for (path, name) in files {
+        if path == rel {
+            continue;
+        }
+        let abs = resolve(root, &path)?;
+        if fs::metadata(&abs).map(|m| m.len()).unwrap_or(u64::MAX) > SEARCH_MAX_FILE_BYTES {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&abs) else {
+            continue;
+        };
+        let mut link_hit: Option<KbSearchHit> = None;
+        let mut mention_hit: Option<KbSearchHit> = None;
+        for (i, line) in content.lines().enumerate() {
+            let hit = |line: &str| KbSearchHit {
+                path: path.clone(),
+                name: name.clone(),
+                line: i + 1,
+                preview: line.trim().chars().take(120).collect(),
+            };
+            if link_hit.is_none()
+                && wiki_targets(line)
+                    .iter()
+                    .any(|t| *t == stem || *t == full_name)
+            {
+                link_hit = Some(hit(line));
+                break; // a link wins over any mention in this file
+            }
+            if mention_hit.is_none()
+                && stem.chars().count() >= MENTION_MIN_CHARS
+                && line.to_lowercase().contains(&stem)
+            {
+                mention_hit = Some(hit(line));
+            }
+        }
+        if let Some(hit) = link_hit {
+            result.links.push(hit);
+        } else if let Some(hit) = mention_hit {
+            result.mentions.push(hit);
+        }
+        if result.links.len() >= SEARCH_MAX_HITS && result.mentions.len() >= SEARCH_MAX_HITS {
+            break;
+        }
+    }
+    result.links.truncate(SEARCH_MAX_HITS);
+    result.mentions.truncate(SEARCH_MAX_HITS);
+    Ok(result)
+}
+
 pub fn read(root: &Path, rel: &str) -> Result<String> {
     Ok(fs::read_to_string(resolve(root, rel)?)?)
 }
@@ -419,6 +522,46 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn backlinks_split_links_from_plain_mentions() {
+        let root = root("backlinks");
+        fs::write(root.join("Alpha Note.md"), "the note itself").unwrap();
+        fs::write(root.join("linked.md"), "see [[Alpha Note]] for details").unwrap();
+        fs::write(root.join("linked-ext.md"), "also [[alpha note.md]]").unwrap();
+        fs::write(root.join("mention.md"), "alpha note came up today").unwrap();
+        fs::write(root.join("unrelated.md"), "nothing here").unwrap();
+        // a self-reference must not list the note as its own backlink
+        fs::write(root.join("other.md"), "[[Beta]]").unwrap();
+
+        let result = backlinks(&root, "Alpha Note.md").unwrap();
+        let link_paths: Vec<&str> = result.links.iter().map(|h| h.path.as_str()).collect();
+        assert_eq!(link_paths.len(), 2, "{link_paths:?}");
+        assert!(link_paths.contains(&"linked.md"));
+        assert!(link_paths.contains(&"linked-ext.md"));
+        let mention_paths: Vec<&str> = result.mentions.iter().map(|h| h.path.as_str()).collect();
+        assert_eq!(mention_paths, vec!["mention.md"]);
+        assert_eq!(result.mentions[0].line, 1);
+        assert!(result.mentions[0].preview.contains("alpha note"));
+    }
+
+    #[test]
+    fn backlinks_link_wins_over_mention_and_short_names_skip_mentions() {
+        let root = root("backlinks-precedence");
+        fs::write(root.join("Plan.md"), "x").unwrap();
+        // the same file both links and mentions: one hit, in links
+        fs::write(root.join("both.md"), "plan text\n[[Plan]] linked").unwrap();
+        let result = backlinks(&root, "Plan.md").unwrap();
+        assert_eq!(result.links.len(), 1);
+        assert!(result.mentions.is_empty());
+
+        // names shorter than the mention floor still collect links only
+        fs::write(root.join("ab.md"), "x").unwrap();
+        fs::write(root.join("uses-ab.md"), "abnormal abbey [[ab]]").unwrap();
+        let result = backlinks(&root, "ab.md").unwrap();
+        assert_eq!(result.links.len(), 1);
+        assert!(result.mentions.is_empty());
     }
 
     #[test]

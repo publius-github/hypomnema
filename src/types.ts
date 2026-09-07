@@ -16,6 +16,7 @@ export type { DayReminder } from "./bindings/DayReminder";
 export type { EngineOutcome } from "./bindings/EngineOutcome";
 export type { JournalEntry } from "./bindings/JournalEntry";
 export type { JournalSearchHit } from "./bindings/JournalSearchHit";
+export type { KbBacklinks } from "./bindings/KbBacklinks";
 export type { KbNode } from "./bindings/KbNode";
 export type { KbSearchHit } from "./bindings/KbSearchHit";
 export type { List } from "./bindings/List";
