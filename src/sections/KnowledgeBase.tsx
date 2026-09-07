@@ -3,40 +3,22 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
-import MarkdownEditor from "../components/MarkdownEditor";
 import Icon from "../components/icons";
 import { ConfirmModal, PromptModal } from "../components/dialogs";
+import TreeMenu from "./kb/TreeMenu";
+import CreateNoteModal from "./kb/CreateNoteModal";
+import NoteRow, { type TreeCtx } from "./kb/NoteRow";
+import EditorPane from "./kb/EditorPane";
+import {
+  CONFIG_FILES,
+  type OpenDoc,
+  basenameOf,
+  flattenAll,
+  flattenFiles,
+  parentDirOf,
+} from "./kb/util";
 
 import type { KbNode, KbSearchHit } from "../types";
-
-// Vault config files editable right in the KB editor (validated on save)
-const CONFIG_FILES = [
-  "recurring.yml",
-  "scheduled.yml",
-  "birthdays.yml",
-  "weekly-focus.yml",
-  "day-reminders.yml",
-  "day-schedule.yml",
-  "templates/journal.md",
-];
-
-interface OpenDoc {
-  kind: "note" | "config";
-  path: string;
-  content: string;
-}
-
-function flattenFiles(nodes: KbNode[]): KbNode[] {
-  return nodes.flatMap((n) => (n.is_dir ? flattenFiles(n.children) : [n]));
-}
-
-function flattenAll(nodes: KbNode[]): KbNode[] {
-  return nodes.flatMap((n) => [n, ...(n.is_dir ? flattenAll(n.children) : [])]);
-}
-
-const parentDirOf = (path: string) =>
-  path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-const basenameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 
 export default function KnowledgeBase() {
   const config = useAppStore((s) => s.config);
@@ -537,116 +519,29 @@ export default function KnowledgeBase() {
     dragPaths.current = selectedSet.has(node.path) ? [...selected] : [node.path];
   };
 
-  const renderNode = (node: KbNode, depth: number) => (
-    <div key={node.path}>
-      <div
-        draggable
-        onDragStart={() => onDragStart(node)}
-        onDragEnd={() => {
-          dragPaths.current = [];
-          setDropTarget(null);
-        }}
-        // dropping on a file means dropping into its folder, so the
-        // highlight lands on that folder's row (or the root area)
-        onDragOver={(e) => {
-          if (dragPaths.current.length === 0) return;
-          e.preventDefault();
-          e.stopPropagation();
-          setDropTarget(node.is_dir ? node.path : parentDirOf(node.path));
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          dropOnto(node.is_dir ? node.path : parentDirOf(node.path));
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (!selectedSet.has(node.path)) {
-            anchorRef.current = node.path;
-            setSelected([node.path]);
-          }
-          setMenu({ x: e.clientX, y: e.clientY, node });
-        }}
-        className={`group flex items-center gap-1 rounded px-2 py-0.5 text-sm ${
-          dropTarget === node.path
-            ? "bg-accent/25 text-content ring-1 ring-accent"
-            : selectedSet.has(node.path)
-              ? "bg-accent/20 text-content"
-              : !node.is_dir && current?.path === node.path
-                ? "bg-accent/15 text-accent"
-                : "text-content hover:bg-line/40"
-        } ${clipboard?.cut && clipboard.paths.includes(node.path) ? "opacity-50" : ""}`}
-        style={{ paddingLeft: `${8 + depth * 14}px` }}
-      >
-        {node.is_dir ? (
-          <>
-            <button
-              className="flex min-w-0 flex-1 items-center gap-1 text-left font-medium"
-              onClick={(e) => {
-                if (!selectRow(node, e)) toggleExpanded(node.path);
-              }}
-            >
-              <Icon
-                name={expanded.has(node.path) ? "chevronDown" : "chevronRight"}
-                className="h-3 w-3 shrink-0"
-              />
-              <span className="truncate">{node.name}</span>
-            </button>
-            <button
-              className="px-0.5 opacity-0 hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
-              title="New note in this folder"
-              onClick={() => setDialog({ kind: "create", dir: node.path })}
-            >
-              +
-            </button>
-            <button
-              className="px-0.5 opacity-0 hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
-              title="New folder inside this one"
-              onClick={() => setDialog({ kind: "createFolder", dir: node.path })}
-            >
-              <Icon name="folderPlus" className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
-              title="Delete folder"
-              onClick={() => setDialog({ kind: "delete", node })}
-            >
-              <Icon name="trash" className="h-3 w-3" />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              className="flex-1 truncate text-left"
-              onClick={(e) => {
-                if (!selectRow(node, e)) void openFile(node.path);
-              }}
-            >
-              {node.name}
-            </button>
-            <button
-              className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
-              title="Rename"
-              onClick={() => setDialog({ kind: "rename", node })}
-            >
-              <Icon name="pencil" className="h-3 w-3" />
-            </button>
-            <button
-              className="opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
-              title="Delete"
-              onClick={() => setDialog({ kind: "delete", node })}
-            >
-              <Icon name="trash" className="h-3 w-3" />
-            </button>
-          </>
-        )}
-      </div>
-      {node.is_dir &&
-        expanded.has(node.path) &&
-        node.children.map((child) => renderNode(child, depth + 1))}
-    </div>
-  );
+  const treeCtx: TreeCtx = {
+    expanded,
+    toggleExpanded,
+    selectedSet,
+    selectRow,
+    currentPath: current?.kind === "note" ? current.path : null,
+    dropTarget,
+    setDropTarget,
+    clipboard,
+    dragPaths,
+    onDragStart,
+    dropOnto,
+    openFile: (path) => void openFile(path),
+    openMenu: (x, y, node) => setMenu({ x, y, node }),
+    onNewNote: (dir) => setDialog({ kind: "create", dir }),
+    onNewFolder: (dir) => setDialog({ kind: "createFolder", dir }),
+    onRename: (node) => setDialog({ kind: "rename", node }),
+    onDelete: (node) => setDialog({ kind: "delete", node }),
+    anchorTo: (path) => {
+      anchorRef.current = path;
+      setSelected([path]);
+    },
+  };
 
   return (
     <div className="flex h-full">
@@ -707,9 +602,9 @@ export default function KnowledgeBase() {
                 setMenu({ x: e.clientX, y: e.clientY, node: null });
               }}
             >
-              {searchResults
-                ? searchResults.map((node) => renderNode(node, 0))
-                : tree.map((node) => renderNode(node, 0))}
+              {(searchResults ?? tree).map((node) => (
+                <NoteRow key={node.path} node={node} depth={0} ctx={treeCtx} />
+              ))}
               {searchResults && extraContentHits.length > 0 && (
                 <>
                   <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
@@ -818,65 +713,13 @@ export default function KnowledgeBase() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {current ? (
-          <>
-            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-sm">
-              <span className="truncate text-base font-semibold">
-                {current.kind === "config"
-                  ? `config/${current.path}`
-                  : current.path}
-              </span>
-              {/* the gesture is not guessable, and a link that looks
-                  dead is the same as no link */}
-              <span className="ml-auto shrink-0 text-xs text-content-muted">
-                Ctrl/Cmd+click a link to open it
-              </span>
-              <span
-                className={`text-xs ${
-                  configErrors.length > 0
-                    ? "text-danger"
-                    : "text-content-muted"
-                }`}
-              >
-                {configErrors.length > 0
-                  ? "Invalid, not saved"
-                  : saved
-                    ? "Saved"
-                    : "Saving..."}
-              </span>
-            </div>
-            {configErrors.length > 0 && (
-              <div className="border-b border-danger/40 bg-danger/10 px-4 py-2 text-xs text-danger">
-                {configErrors.map((err, i) => (
-                  <div key={i}>
-                    {err.line !== null ? `line ${err.line}: ` : ""}
-                    {err.message}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="min-h-0 flex-1">
-              <MarkdownEditor
-                docKey={`${current.kind}:${current.path}`}
-                value={current.content}
-                onChange={scheduleSave}
-                mode={
-                  current.path.toLowerCase().endsWith(".md")
-                    ? "markdown"
-                    : /\.ya?ml$/i.test(current.path)
-                      ? "yaml"
-                      : "plain"
-                }
-                showLineNumbers={
-                  (current.kind === "config" &&
-                    !current.path.endsWith(".md")) ||
-                  (config?.kb_line_numbers ?? false)
-                }
-                onWikiLink={(name) =>
-                  void useAppStore.getState().openKbNoteByName(name)
-                }
-              />
-            </div>
-          </>
+          <EditorPane
+            current={current}
+            saved={saved}
+            configErrors={configErrors}
+            lineNumbers={config?.kb_line_numbers ?? false}
+            onChange={scheduleSave}
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-content-muted">
             Select a note
@@ -1007,199 +850,6 @@ export default function KnowledgeBase() {
           onCancel={() => setDialog(null)}
         />
       )}
-    </div>
-  );
-}
-
-type MenuItem =
-  | { separator: true }
-  | {
-      label: string;
-      hint?: string;
-      danger?: boolean;
-      disabled?: boolean;
-      onClick: () => void;
-    };
-
-/**
- * IDE-style context menu for the file tree. Positioned at the cursor
- * and flipped back inside the window when it would overflow; any click
- * or Escape closes it, and picking an item runs its action first.
- */
-function TreeMenu({
-  x,
-  y,
-  items,
-  onClose,
-}: {
-  x: number;
-  y: number;
-  items: MenuItem[];
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: x, top: y });
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
-    setPos({
-      left: Math.max(4, Math.min(x, window.innerWidth - width - 4)),
-      top: Math.max(4, Math.min(y, window.innerHeight - height - 4)),
-    });
-  }, [x, y]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
-
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-40"
-        onMouseDown={onClose}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          onClose();
-        }}
-      />
-      <div
-        ref={ref}
-        className="fixed z-50 min-w-[190px] rounded-md border border-line bg-surface py-1 shadow-xl"
-        style={{ left: pos.left, top: pos.top }}
-      >
-        {items.map((item, i) =>
-          "separator" in item ? (
-            <div key={i} className="my-1 h-px bg-line" />
-          ) : (
-            <button
-              key={i}
-              disabled={item.disabled}
-              className={`flex w-full items-center gap-4 px-3 py-1 text-left text-sm disabled:opacity-40 ${
-                item.danger
-                  ? "text-danger hover:bg-danger/10"
-                  : "text-content hover:bg-line/40"
-              }`}
-              onClick={() => {
-                onClose();
-                item.onClick();
-              }}
-            >
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {item.hint && (
-                <span className="shrink-0 text-[11px] text-content-muted">
-                  {item.hint}
-                </span>
-              )}
-            </button>
-          ),
-        )}
-      </div>
-    </>
-  );
-}
-
-/**
- * New-note dialog with an explicit extension completion: a name typed
- * without an extension shows the ".md" completion the user accepts with
- * Tab (or a click) instead of the extension being appended silently.
- */
-function CreateNoteModal({
-  initialDir,
-  onSubmit,
-  onCancel,
-}: {
-  /** Folder the note starts in (the + on a folder row); editable text. */
-  initialDir?: string;
-  onSubmit: (name: string) => void;
-  onCancel: () => void;
-}) {
-  const [value, setValue] = useState(initialDir ? `${initialDir}/` : "");
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.focus();
-    // caret after the prefilled folder path, ready for the note name
-    el.setSelectionRange(el.value.length, el.value.length);
-  }, []);
-  const trimmed = value.trim();
-  const hasExtension = /\.[^./\\]+$/.test(trimmed);
-  const suggestion = trimmed && !hasExtension ? `${trimmed}.md` : null;
-  const submit = () => {
-    if (!trimmed) return;
-    onSubmit(suggestion ?? trimmed);
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-6"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="flex w-[400px] flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl"
-      >
-        <span className="text-sm font-semibold">New note</span>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <input
-            ref={inputRef}
-            className="input w-full"
-            placeholder="Path, e.g. ideas/note"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") onCancel();
-              if (e.key === "Tab" && suggestion) {
-                e.preventDefault();
-                setValue(suggestion);
-              }
-            }}
-          />
-        </form>
-        {suggestion ? (
-          <button
-            className="self-start rounded bg-accent/15 px-2 py-0.5 text-xs text-accent hover:bg-accent/25"
-            title="Tab or click to accept"
-            onClick={() => setValue(suggestion)}
-          >
-            {suggestion}
-          </button>
-        ) : (
-          <span className="text-xs text-content-muted">
-            {hasExtension
-              ? `Creates ${trimmed}`
-              : "Type a name; Tab completes the .md extension"}
-          </span>
-        )}
-        <div className="flex justify-end gap-2 pt-1">
-          <button
-            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-content-muted"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button className="btn-primary px-3" onClick={submit}>
-            Create
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
