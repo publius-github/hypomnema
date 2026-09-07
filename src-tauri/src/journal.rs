@@ -184,6 +184,76 @@ pub fn search_entries(vault: &Path, query: &str) -> Result<Vec<JournalSearchHit>
     Ok(hits)
 }
 
+#[derive(Debug, Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct JournalBacklinkHit {
+    pub date: String,
+    #[ts(type = "number")]
+    pub line: usize,
+    pub preview: String,
+    /// True for a [[wiki link]] hit, false for a plain-text mention.
+    pub is_link: bool,
+}
+
+/// Journal entries whose text points at a note: per entry a [[wiki
+/// link]] beats a plain mention, the same rules kb::backlinks applies
+/// to notes. Newest entries first, same caps as the note scan. The
+/// entry named like the note itself is skipped - with the KB rooted at
+/// the vault a journal entry is a note, and its own template date would
+/// always self-match.
+pub fn backlinks(vault: &Path, stem: &str, full_name: &str) -> Result<Vec<JournalBacklinkHit>> {
+    let stem = stem.trim().to_lowercase();
+    let full_name = full_name.trim().to_lowercase();
+    let mut hits = Vec::new();
+    if stem.is_empty() {
+        return Ok(hits);
+    }
+    for date in list_entries(vault)? {
+        if date.to_lowercase() == stem {
+            continue;
+        }
+        let path = entry_path(vault, &date)?;
+        if fs::metadata(&path).map(|m| m.len()).unwrap_or(u64::MAX)
+            > crate::kb::SEARCH_MAX_FILE_BYTES
+        {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let mut link_hit: Option<JournalBacklinkHit> = None;
+        let mut mention_hit: Option<JournalBacklinkHit> = None;
+        for (i, line) in content.lines().enumerate() {
+            let hit = |line: &str, is_link: bool| JournalBacklinkHit {
+                date: date.clone(),
+                line: i + 1,
+                preview: line.trim().chars().take(120).collect(),
+                is_link,
+            };
+            if crate::kb::wiki_targets(line)
+                .iter()
+                .any(|t| *t == stem || *t == full_name)
+            {
+                link_hit = Some(hit(line, true));
+                break;
+            }
+            if mention_hit.is_none()
+                && stem.chars().count() >= crate::kb::MENTION_MIN_CHARS
+                && line.to_lowercase().contains(&stem)
+            {
+                mention_hit = Some(hit(line, false));
+            }
+        }
+        if let Some(hit) = link_hit.or(mention_hit) {
+            hits.push(hit);
+        }
+        if hits.len() >= crate::kb::SEARCH_MAX_HITS {
+            break;
+        }
+    }
+    Ok(hits)
+}
+
 /// A missing template falls back to the built-in default; any other
 /// read failure (permissions, a sync client holding the file) is a real
 /// error - swallowing it here would show an empty template that a
@@ -218,6 +288,37 @@ mod tests {
         fs::create_dir_all(dir.join("journal").join("templates")).unwrap();
         fs::create_dir_all(dir.join("config")).unwrap();
         dir
+    }
+
+    #[test]
+    fn backlinks_split_links_and_mentions_and_skip_the_self_entry() {
+        let vault = vault("backlinks");
+        save_entry(&vault, "2026-09-01", "met [[Alpha Project]] team\n").unwrap();
+        save_entry(&vault, "2026-09-02", "alpha project moving along\n").unwrap();
+        save_entry(&vault, "2026-09-03", "nothing relevant\n").unwrap();
+        save_entry(&vault, "2026-09-04", "2026-09-04 self date\n").unwrap();
+
+        let hits = backlinks(&vault, "Alpha Project", "Alpha Project.md").unwrap();
+        assert_eq!(hits.len(), 2);
+        // newest first; a link is marked apart from a plain mention
+        assert_eq!(hits[0].date, "2026-09-02");
+        assert!(!hits[0].is_link);
+        assert_eq!(hits[1].date, "2026-09-01");
+        assert!(hits[1].is_link);
+
+        // the entry named like the note never self-matches on its date
+        let self_hits = backlinks(&vault, "2026-09-04", "2026-09-04.md").unwrap();
+        assert!(self_hits.iter().all(|h| h.date != "2026-09-04"));
+        let _ = fs::remove_dir_all(&vault);
+    }
+
+    #[test]
+    fn backlink_mentions_respect_the_min_name_length() {
+        let vault = vault("backlinks-short");
+        save_entry(&vault, "2026-09-01", "an ab mention\n").unwrap();
+        let hits = backlinks(&vault, "ab", "ab.md").unwrap();
+        assert!(hits.is_empty());
+        let _ = fs::remove_dir_all(&vault);
     }
 
     #[test]

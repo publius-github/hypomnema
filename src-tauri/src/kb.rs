@@ -174,8 +174,8 @@ pub struct KbSearchHit {
     pub preview: String,
 }
 
-const SEARCH_MAX_HITS: usize = 100;
-const SEARCH_MAX_FILE_BYTES: u64 = 2_000_000;
+pub(crate) const SEARCH_MAX_HITS: usize = 100;
+pub(crate) const SEARCH_MAX_FILE_BYTES: u64 = 2_000_000;
 
 fn collect_files(nodes: &[KbNode], out: &mut Vec<(String, String)>) {
     for node in nodes {
@@ -235,7 +235,7 @@ pub struct KbBacklinks {
 }
 
 /// The `[[target]]` spans of a line, lowercased and trimmed.
-fn wiki_targets(line: &str) -> Vec<String> {
+pub(crate) fn wiki_targets(line: &str) -> Vec<String> {
     let mut targets = Vec::new();
     let mut rest = line;
     while let Some(start) = rest.find("[[") {
@@ -249,7 +249,7 @@ fn wiki_targets(line: &str) -> Vec<String> {
 
 /// Minimum name length for unlinked mentions: a one- or two-letter note
 /// name as a plain substring would match half the vault.
-const MENTION_MIN_CHARS: usize = 3;
+pub(crate) const MENTION_MIN_CHARS: usize = 3;
 
 /// Backlinks of a note: files whose `[[wiki links]]` point at it (the
 /// target is the note's file name, extension optional, case-insensitive),

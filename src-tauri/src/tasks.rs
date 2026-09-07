@@ -498,6 +498,53 @@ pub fn subtasks_all(conn: &Connection) -> Result<Vec<Task>> {
     Ok(tasks)
 }
 
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct TaskBacklinkHit {
+    pub task: Task,
+    pub preview: String,
+}
+
+/// Live top-level tasks whose title or description carries a [[wiki
+/// link]] to the note. Links only - plain-text mentions inside short
+/// imperative titles are nearly all noise. Newest tasks first, same cap
+/// as the note scan.
+pub fn backlinks(conn: &Connection, stem: &str, full_name: &str) -> Result<Vec<TaskBacklinkHit>> {
+    let stem = stem.trim().to_lowercase();
+    let full_name = full_name.trim().to_lowercase();
+    if stem.is_empty() {
+        return Ok(vec![]);
+    }
+    // cheap SQL prefilter; the real match is verified per line below
+    let mut stmt = conn.prepare(
+        "SELECT * FROM tasks
+         WHERE archived_at IS NULL AND parent_task_id IS NULL
+           AND (title LIKE '%[[%' OR description_md LIKE '%[[%')
+         ORDER BY id DESC LIMIT 500",
+    )?;
+    let candidates = stmt
+        .query_map([], row_to_task)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut hits = Vec::new();
+    for task in candidates {
+        let preview: Option<String> = std::iter::once(task.title.as_str())
+            .chain(task.description_md.lines())
+            .find(|line| {
+                crate::kb::wiki_targets(line)
+                    .iter()
+                    .any(|t| *t == stem || *t == full_name)
+            })
+            .map(|line| line.trim().chars().take(120).collect());
+        if let Some(preview) = preview {
+            hits.push(TaskBacklinkHit { task, preview });
+            if hits.len() >= crate::kb::SEARCH_MAX_HITS {
+                break;
+            }
+        }
+    }
+    Ok(hits)
+}
+
 pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
     let title = new.title.trim().to_string();
     if title.is_empty() {
@@ -823,6 +870,45 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         db::migrate(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn backlinks_match_wiki_links_only_in_title_and_description() {
+        let conn = conn();
+        task_create(
+            &conn,
+            &NewTask {
+                title: "review [[Alpha Project]]".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        task_create(
+            &conn,
+            &NewTask {
+                title: "notes".into(),
+                description_md: "see [[alpha project.MD]] for details".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // a plain mention is not a task backlink - titles are short
+        // imperative strings, substring matches would be noise
+        task_create(
+            &conn,
+            &NewTask {
+                title: "alpha project standup".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let hits = backlinks(&conn, "Alpha Project", "Alpha Project.md").unwrap();
+        assert_eq!(hits.len(), 2);
+        assert!(hits.iter().all(|h| h.preview.contains("[[")));
+
+        let none = backlinks(&conn, "Beta", "Beta.md").unwrap();
+        assert!(none.is_empty());
     }
 
     #[test]

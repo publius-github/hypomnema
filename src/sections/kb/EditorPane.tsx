@@ -1,23 +1,27 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import MarkdownEditor from "../../components/MarkdownEditor";
+import TaskModal from "../../components/TaskModal";
 import { useAppStore } from "../../store";
-import type { KbBacklinks, KbSearchHit } from "../../types";
+import { splitCategory } from "../../lib/tasks";
+import type { BacklinksResult, KbSearchHit, Task } from "../../types";
 import type { OpenDoc } from "./util";
 
 /**
  * Collapsible backlinks strip under the editor: notes whose [[wiki
- * links]] point at the open note, plus unlinked plain-text mentions.
- * Fetched per note; a click opens the referencing note.
+ * links]] point at the open note, unlinked plain-text mentions, journal
+ * entries and tasks linking to it. A note/journal hit navigates there;
+ * a task hit opens the task dialog in place.
  */
 function BacklinksPanel({ path }: { path: string }) {
-  const [data, setData] = useState<KbBacklinks | null>(null);
+  const [data, setData] = useState<BacklinksResult | null>(null);
   const [open, setOpen] = useState(false);
+  const [openTask, setOpenTask] = useState<Task | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setData(null);
-    invoke<KbBacklinks>("kb_backlinks", { path })
+    invoke<BacklinksResult>("kb_backlinks", { path })
       .then((result) => {
         if (!cancelled) setData(result);
       })
@@ -27,8 +31,18 @@ function BacklinksPanel({ path }: { path: string }) {
     };
   }, [path]);
 
-  const total = (data?.links.length ?? 0) + (data?.mentions.length ?? 0);
+  const total =
+    (data?.links.length ?? 0) +
+    (data?.mentions.length ?? 0) +
+    (data?.journal.length ?? 0) +
+    (data?.tasks.length ?? 0);
   if (!data || total === 0) return null;
+
+  const groupHeader = (label: string) => (
+    <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+      {label}
+    </div>
+  );
 
   const hitRow = (hit: KbSearchHit) => (
     <button
@@ -43,6 +57,15 @@ function BacklinksPanel({ path }: { path: string }) {
     </button>
   );
 
+  const summary = [
+    `Backlinks (${data.links.length})`,
+    data.mentions.length > 0 && `Mentions (${data.mentions.length})`,
+    data.journal.length > 0 && `Journal (${data.journal.length})`,
+    data.tasks.length > 0 && `Tasks (${data.tasks.length})`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div className="shrink-0 border-t border-line">
       <button
@@ -50,21 +73,67 @@ function BacklinksPanel({ path }: { path: string }) {
         onClick={() => setOpen((o) => !o)}
       >
         <span>{open ? "▾" : "▸"}</span>
-        Backlinks ({data.links.length})
-        {data.mentions.length > 0 && ` · Mentions (${data.mentions.length})`}
+        {summary}
       </button>
       {open && (
         <div className="max-h-48 overflow-y-auto px-2 pb-2">
           {data.links.map(hitRow)}
           {data.mentions.length > 0 && (
             <>
-              <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
-                Unlinked mentions
-              </div>
+              {groupHeader("Unlinked mentions")}
               {data.mentions.map(hitRow)}
             </>
           )}
+          {data.journal.length > 0 && (
+            <>
+              {groupHeader("From journal")}
+              {data.journal.map((hit) => (
+                <button
+                  key={hit.date}
+                  className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
+                  onClick={() =>
+                    useAppStore.getState().openJournalDate(hit.date)
+                  }
+                >
+                  <span className="block truncate text-sm text-content">
+                    {hit.date}
+                    {!hit.is_link && (
+                      <span className="text-[11px] text-content-muted">
+                        {" "}
+                        (mention)
+                      </span>
+                    )}
+                  </span>
+                  <span className="block truncate text-[11px] text-content-muted">
+                    {hit.line}: {hit.preview}
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+          {data.tasks.length > 0 && (
+            <>
+              {groupHeader("From tasks")}
+              {data.tasks.map((hit) => (
+                <button
+                  key={hit.task.id}
+                  className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
+                  onClick={() => setOpenTask(hit.task)}
+                >
+                  <span className="block truncate text-sm text-content">
+                    {splitCategory(hit.task.title).text}
+                  </span>
+                  <span className="block truncate text-[11px] text-content-muted">
+                    {hit.preview}
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
         </div>
+      )}
+      {openTask && (
+        <TaskModal task={openTask} onClose={() => setOpenTask(null)} />
       )}
     </div>
   );

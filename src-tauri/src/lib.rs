@@ -1239,9 +1239,56 @@ async fn kb_search(state: State<'_, AppState>, query: String) -> Result<Vec<kb::
     kb::search_content(&kb_root(&state)?, &query)
 }
 
+/// Everything pointing at a note: notes (links and plain mentions),
+/// journal entries and tasks. Discriminated by field - the panel
+/// renders them as separate groups anyway.
+#[derive(serde::Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct BacklinksResult {
+    pub links: Vec<kb::KbSearchHit>,
+    pub mentions: Vec<kb::KbSearchHit>,
+    pub journal: Vec<journal::JournalBacklinkHit>,
+    pub tasks: Vec<tasks::TaskBacklinkHit>,
+}
+
 #[tauri::command]
-async fn kb_backlinks(state: State<'_, AppState>, path: String) -> Result<kb::KbBacklinks> {
-    kb::backlinks(&kb_root(&state)?, &path)
+async fn kb_backlinks(state: State<'_, AppState>, path: String) -> Result<BacklinksResult> {
+    let target = std::path::Path::new(&path);
+    let stem = target
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let full_name = target
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let kb_root = kb_root(&state)?;
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let notes = kb::backlinks(&kb_root, &path)?;
+    let journal = journal::backlinks(&vault.root, &stem, &full_name)?;
+    let tasks = tasks::backlinks(&vault.conn, &stem, &full_name)?;
+    // with the KB rooted at the vault, journal entries are inside the
+    // note tree too; the dedicated journal scan is authoritative there
+    let journal_inside = kb_root == vault.root;
+    let drop_journal_notes = |hits: Vec<kb::KbSearchHit>| -> Vec<kb::KbSearchHit> {
+        if !journal_inside {
+            return hits;
+        }
+        hits.into_iter()
+            .filter(|h| !h.path.starts_with("journal/"))
+            .collect()
+    };
+    Ok(BacklinksResult {
+        links: drop_journal_notes(notes.links),
+        mentions: drop_journal_notes(notes.mentions),
+        journal,
+        tasks,
+    })
 }
 
 #[tauri::command]
