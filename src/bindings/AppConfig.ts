@@ -167,6 +167,11 @@ backup_keep: number,
  */
 notify_system: boolean, 
 /**
+ * Snooze length of the due-task toast's Snooze button, minutes:
+ * the reminder comes back after this long.
+ */
+notify_snooze_minutes: number, 
+/**
  * Two-way Markdown mirror of the manual tasks under <vault>/tasks/
  * (one file per list + scheduled.md) for bulk editing in any editor.
  */

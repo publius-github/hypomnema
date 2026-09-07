@@ -133,6 +133,9 @@ pub struct AppConfig {
     /// OS notifications for timed tasks coming due (in-app toasts always
     /// show); useful when the window is minimized or behind others.
     pub notify_system: bool,
+    /// Snooze length of the due-task toast's Snooze button, minutes:
+    /// the reminder comes back after this long.
+    pub notify_snooze_minutes: u32,
     /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
     /// (one file per list + scheduled.md) for bulk editing in any editor.
     pub tasks_mirror: bool,
@@ -302,6 +305,7 @@ impl Default for AppConfig {
             subtasks_done_last: true,
             backup_keep: 14,
             notify_system: true,
+            notify_snooze_minutes: 10,
             tasks_mirror: true,
             tasks_mirror_ids: true,
             cron_weekday_labels: true,
@@ -405,6 +409,7 @@ impl AppConfig {
         self.calendar_dates_years = self.calendar_dates_years.min(5);
         self.done_hold_seconds = self.done_hold_seconds.min(30);
         self.undo_toast_seconds = self.undo_toast_seconds.min(30);
+        self.notify_snooze_minutes = self.notify_snooze_minutes.clamp(1, 180);
         self.backup_keep = self.backup_keep.min(365);
         self.ui_font_size = self.ui_font_size.clamp(10, 28);
         self.editor_font_size = self.editor_font_size.clamp(10, 28);
@@ -616,6 +621,10 @@ impl AppConfig {
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
             ("notify_system", self.notify_system.to_string()),
+            (
+                "notify_snooze_minutes",
+                self.notify_snooze_minutes.to_string(),
+            ),
             ("tasks_mirror", self.tasks_mirror.to_string()),
             ("tasks_mirror_ids", self.tasks_mirror_ids.to_string()),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),

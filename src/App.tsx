@@ -133,6 +133,23 @@ export default function App() {
     };
   }, []);
 
+  // snooze: hide the toast and forget the id after the configured pause,
+  // so the 30s due-check raises it again (if the task is still open)
+  const snooze = (id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+    const minutes =
+      useAppStore.getState().config?.notify_snooze_minutes ?? 10;
+    const timers = toastTimersRef.current;
+    const timer = setTimeout(
+      () => {
+        timers.delete(timer);
+        notifiedRef.current.delete(id);
+      },
+      minutes * 60 * 1000,
+    );
+    timers.add(timer);
+  };
+
   // global shortcuts: Ctrl/Cmd+K search palette, Ctrl/Cmd+1..6 sections
   const searchOpen = useAppStore((s) => s.searchOpen);
   const undoEntry = useAppStore((s) => s.undoEntry);
@@ -276,17 +293,29 @@ export default function App() {
       {toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-20 flex flex-col gap-2">
           {toasts.map((toast) => (
-            <button
+            <div
               key={toast.id}
-              className="rounded-lg border border-line bg-surface-alt px-4 py-2 text-left text-sm shadow-lg"
-              onClick={() =>
-                setToasts((prev) => prev.filter((t) => t.id !== toast.id))
-              }
+              className="flex items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-left text-sm shadow-lg"
             >
-              <span className="font-medium text-accent">Task due</span>
-              <br />
-              {toast.text}
-            </button>
+              <button
+                className="text-left"
+                title="Dismiss"
+                onClick={() =>
+                  setToasts((prev) => prev.filter((t) => t.id !== toast.id))
+                }
+              >
+                <span className="font-medium text-accent">Task due</span>
+                <br />
+                {toast.text}
+              </button>
+              <button
+                className="shrink-0 font-semibold text-accent"
+                title="Remind again later"
+                onClick={() => snooze(toast.id)}
+              >
+                Snooze
+              </button>
+            </div>
           ))}
         </div>
       )}

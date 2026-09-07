@@ -87,7 +87,7 @@ Three generators per pass: recurring (cron), scheduled events, birthdays. No sep
 
 - Store invalidation: `vaultVersion` counter bumped by engine runs and `vault-updated`; sections re-fetch on it.
 - `src/lib/`: date helpers, wiki-link codec, markdown lint/table, md color presets, updater flow (silent on failure, runs once on mount).
-- Global keys: Ctrl/Cmd+K search, Ctrl/Cmd+1..9 sections. 60s rollover engine re-run, 30s due-task notification timer.
+- Global keys: Ctrl/Cmd+K search, Ctrl/Cmd+1..9 sections. 60s rollover engine re-run, 30s due-task notification timer; the due toast's Snooze button hides it and forgets the notified id after `notify_snooze_minutes`, so the 30s check raises it again while the task stays open.
 - Undo toast (bottom center, `App.tsx`): deleting a task or archiving a list offers Undo for `undo_toast_seconds`; one pending entry at a time (`store.undoEntry`), task undo calls `task_restore` with the snapshot, list undo calls `list_unarchive`.
 
 ## Build, release, tests
