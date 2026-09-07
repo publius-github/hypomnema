@@ -1,4 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
+import { Field, NumberInput, Toggle } from "../../components/form";
+import SettingsGroup from "../../components/SettingsGroup";
 import { useAppStore } from "../../store";
 
 export default function FilesTab() {
@@ -9,7 +11,7 @@ export default function FilesTab() {
 
   return (
     <>
-
+      <SettingsGroup title="Vault & folders" alwaysOpen>
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Vault</span>
           <span className="select-text text-sm text-content-muted">
@@ -61,192 +63,89 @@ export default function FilesTab() {
             Edit in Notes
           </button>
         </section>
+      </SettingsGroup>
 
-        <label className="flex items-start gap-2">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={config.state_snapshot}
-            onChange={(e) =>
-              void updateConfig({ state_snapshot: e.target.checked })
-            }
-          />
-          <span className="flex flex-col">
-            <span className="text-sm font-medium">
-              Text snapshot of the database
-            </span>
-            <span className="text-xs text-content-muted">
-              Keeps vault/.hypomnema/state/ up to date with everything the
-              database holds (tasks, lists, engine ledgers) as plain JSONL
-              files. A vault opened without its app.db - a fresh sync
-              copy, or after deleting the cache - rebuilds the database
-              from them automatically.
-            </span>
-          </span>
-        </label>
+      <SettingsGroup
+        title="Snapshots & mirror"
+        keys={[
+          "state_snapshot",
+          "tasks_mirror",
+          "tasks_mirror_agenda",
+          "tasks_mirror_ids",
+          "tasks_mirror_today",
+          "tasks_mirror_today_days",
+        ]}
+      >
+        <Toggle
+          checked={config.state_snapshot}
+          label="Text snapshot of the database"
+          hint="Keeps vault/.hypomnema/state/ up to date with everything the database holds (tasks, lists, engine ledgers) as plain JSONL files. A vault opened without its app.db - a fresh sync copy, or after deleting the cache - rebuilds the database from them automatically."
+          onChange={(v) => void updateConfig({ state_snapshot: v })}
+        />
 
-        <label className="flex items-start gap-2">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={config.tasks_mirror}
-            onChange={(e) =>
-              void updateConfig({ tasks_mirror: e.target.checked })
-            }
-          />
-          <span className="flex flex-col">
-            <span className="text-sm font-medium">
-              Mirror tasks to Markdown files
-            </span>
-            <span className="text-xs text-content-muted">
-              Keeps vault/.hypomnema/tasks/ in two-way sync: one file per
-              list plus scheduled.md with the dated tasks. Edit them in
-              any editor for bulk changes; lines without a ^id become new
-              tasks, deleting a line deletes the task. Imports merge
-              against the last exported state, so a file arriving from a
-              file sync (Dropbox etc.) never rolls back newer app-side
-              edits or deletes tasks it did not know about.
-            </span>
-          </span>
-        </label>
+        <Toggle
+          checked={config.tasks_mirror}
+          label="Mirror tasks to Markdown files"
+          hint="Keeps vault/.hypomnema/tasks/ in two-way sync: one file per list plus scheduled.md with the dated tasks. Edit them in any editor for bulk changes; lines without a ^id become new tasks, deleting a line deletes the task. Imports merge against the last exported state, so a file arriving from a file sync (Dropbox etc.) never rolls back newer app-side edits or deletes tasks it did not know about."
+          onChange={(v) => void updateConfig({ tasks_mirror: v })}
+        />
 
-        <label className="ml-6 flex items-start gap-2">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            disabled={!config.tasks_mirror}
-            checked={config.tasks_mirror_agenda}
-            onChange={(e) =>
-              void updateConfig({ tasks_mirror_agenda: e.target.checked })
-            }
-          />
-          <span className="flex flex-col">
-            <span className="text-sm font-medium">
-              Agenda file with generated tasks
-            </span>
-            <span className="text-xs text-content-muted">
-              agenda.md lists recurring/scheduled/birthday instances from
-              today onward, grouped by day. Checking a box, setting a time
-              or the ! priority mark syncs back; title and date edits do
-              not (the YAML rules own them), and deleting lines changes
-              nothing. A new line without an id becomes a manual task on
-              that day - handy as the phone-editing surface over a file
-              sync.
-            </span>
-          </span>
-        </label>
+        {config.tasks_mirror && (
+          <div className="flex flex-col gap-3 pl-6">
+            <Toggle
+              checked={config.tasks_mirror_agenda}
+              label="Agenda file with generated tasks"
+              hint="agenda.md lists recurring/scheduled/birthday instances from today onward, grouped by day. Checking a box, setting a time or the ! priority mark syncs back; title and date edits do not (the YAML rules own them), and deleting lines changes nothing. A new line without an id becomes a manual task on that day - handy as the phone-editing surface over a file sync."
+              onChange={(v) => void updateConfig({ tasks_mirror_agenda: v })}
+            />
 
-        <label className="ml-6 flex items-start gap-2">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            disabled={!config.tasks_mirror}
-            checked={config.tasks_mirror_ids}
-            onChange={(e) =>
-              void updateConfig({ tasks_mirror_ids: e.target.checked })
-            }
-          />
-          <span className="flex flex-col">
-            <span className="text-sm font-medium">
-              Write the ^id sync key on every line
-            </span>
-            <span className="text-xs text-content-muted">
-              The trailing number is what ties a line to its task across
-              edits. Turning it off keeps the files clean to read, and a
-              line is then matched by its text instead: retyping a title
-              replaces the task rather than renaming it.
-            </span>
-          </span>
-        </label>
+            <Toggle
+              checked={config.tasks_mirror_ids}
+              label="Write the ^id sync key on every line"
+              hint="The trailing number is what ties a line to its task across edits. Turning it off keeps the files clean to read, and a line is then matched by its text instead: retyping a title replaces the task rather than renaming it."
+              onChange={(v) => void updateConfig({ tasks_mirror_ids: v })}
+            />
 
-        <label className="ml-6 flex items-start gap-2">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            disabled={!config.tasks_mirror}
-            checked={config.tasks_mirror_today}
-            onChange={(e) =>
-              void updateConfig({ tasks_mirror_today: e.target.checked })
-            }
-          />
-          <span className="flex flex-col">
-            <span className="text-sm font-medium">
-              Read-only today.md day sheet
-            </span>
-            <span className="text-xs text-content-muted">
-              A phone-readable summary of the day next to the other mirror
-              files: focus phrase, reminders, schedule blocks, overdue and
-              today&apos;s tasks grouped by category. Regenerated on every
-              change; edits to it are ignored.
-            </span>
+            <Toggle
+              checked={config.tasks_mirror_today}
+              label="Read-only today.md day sheet"
+              hint="A phone-readable summary of the day next to the other mirror files: focus phrase, reminders, schedule blocks, overdue and today's tasks grouped by category. Regenerated on every change; edits to it are ignored."
+              onChange={(v) => void updateConfig({ tasks_mirror_today: v })}
+            />
+
             {config.tasks_mirror_today && (
-              <span className="mt-1 flex items-center gap-2 text-xs text-content-muted">
-                Days covered (1-7):
-                <input
-                  type="number"
-                  className="input w-16 py-0.5"
-                  min={1}
-                  max={7}
-                  value={config.tasks_mirror_today_days}
-                  onChange={(e) => {
-                    const n = Number(e.target.value);
-                    if (Number.isFinite(n) && n >= 1 && n <= 7)
-                      void updateConfig({ tasks_mirror_today_days: n });
-                  }}
-                />
-              </span>
+              <div className="pl-6">
+                <Field label="Days covered by today.md (1-7)">
+                  <NumberInput
+                    value={config.tasks_mirror_today_days}
+                    min={1}
+                    onCommit={(n) =>
+                      void updateConfig({
+                        tasks_mirror_today_days: Math.min(7, n),
+                      })
+                    }
+                  />
+                </Field>
+              </div>
             )}
-          </span>
-        </label>
-
-        <label className="flex items-start gap-2">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={config.kb_line_numbers}
-            onChange={(e) =>
-              void updateConfig({ kb_line_numbers: e.target.checked })
-            }
-          />
-          <span className="flex flex-col">
-            <span className="text-sm font-medium">
-              Line numbers in the Notes editor
-            </span>
-            <span className="text-xs text-content-muted">
-              Config files always show them; this turns them on for notes
-              too.
-            </span>
-          </span>
-        </label>
-
-        <section className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Config files</span>
-          <p className="text-xs text-content-muted">
-            recurring.yml, scheduled.yml and the other config files are
-            edited in Notes under the Config group, with validation on save.
-            The three below also have a form UI in the Reminders section;
-            these are the raw files:
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {["weekly-focus.yml", "day-reminders.yml", "day-schedule.yml"].map(
-              (file) => (
-                <button
-                  key={file}
-                  className="btn-ghost px-3 py-1 text-xs"
-                  onClick={() => useAppStore.getState().openConfigFile(file)}
-                >
-                  {file}
-                </button>
-              ),
-            )}
-            <button
-              className="btn-ghost px-3 py-1 text-xs"
-              onClick={() => useAppStore.getState().setSection("kb")}
-            >
-              All in Notes
-            </button>
           </div>
-        </section>
+        )}
+      </SettingsGroup>
+
+      <SettingsGroup title="Backups" keys={["backup_keep"]}>
+        <Field label="Backups to keep (0 = disabled)">
+          <NumberInput
+            value={config.backup_keep}
+            min={0}
+            onCommit={(n) => void updateConfig({ backup_keep: n })}
+          />
+        </Field>
+        <span className="text-xs text-content-muted">
+          Daily snapshots of the task database plus a copy of each config
+          file before the app rewrites it, stored under backups/ in the
+          vault.
+        </span>
+      </SettingsGroup>
     </>
   );
 }

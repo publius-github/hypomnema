@@ -1,4 +1,5 @@
 import { Field, NumberInput, Toggle } from "../../components/form";
+import SettingsGroup from "../../components/SettingsGroup";
 import { useAppStore } from "../../store";
 
 /** Generation engine: cadence buckets, catch-up, retention. */
@@ -9,6 +10,14 @@ export default function EngineTab() {
 
   return (
     <>
+      <SettingsGroup
+        title="Cadence buckets"
+        keys={[
+          "cadence_daily_min_per_year",
+          "cadence_weekly_min_per_year",
+          "cadence_monthly_min_per_year",
+        ]}
+      >
         <section className="flex flex-col gap-2">
           <span className="text-sm font-medium">
             Cadence buckets: minimum firings per year
@@ -40,7 +49,12 @@ export default function EngineTab() {
             calendar outlook horizons.
           </span>
         </section>
+      </SettingsGroup>
 
+      <SettingsGroup
+        title="Generation"
+        keys={["catchup_days", "cron_ignore_time", "retention_days"]}
+      >
         <Field label="Recurring catch-up window, days">
           <NumberInput
             value={config.catchup_days}
@@ -63,6 +77,7 @@ export default function EngineTab() {
             onCommit={(n) => void updateConfig({ retention_days: n })}
           />
         </Field>
+      </SettingsGroup>
     </>
   );
 }
