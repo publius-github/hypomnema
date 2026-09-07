@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ProfilesTab from "./settings/ProfilesTab";
 import AppearanceTab from "./settings/AppearanceTab";
 import LayoutTab from "./settings/LayoutTab";
 import TasksTab from "./settings/TasksTab";
@@ -14,6 +15,7 @@ import MaintenanceTab from "./settings/MaintenanceTab";
 // smaller areas. Groups sitting fully at their defaults render
 // collapsed behind a Customize affordance (SettingsGroup).
 const TABS = [
+  { id: "profiles", label: "Profiles" },
   { id: "appearance", label: "Appearance" },
   { id: "layout", label: "Layout" },
   { id: "tasks", label: "Tasks & Lists" },
@@ -47,6 +49,7 @@ export default function Settings() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-10">
+        {tab === "profiles" && <ProfilesTab />}
         {tab === "appearance" && <AppearanceTab />}
         {tab === "layout" && <LayoutTab />}
         {tab === "tasks" && <TasksTab />}
