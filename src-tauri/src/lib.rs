@@ -477,10 +477,20 @@ async fn task_update(
 }
 
 #[tauri::command]
-async fn task_delete(state: State<'_, AppState>, id: i64) -> Result<()> {
-    with_conn(&state, |conn| tasks::task_delete(conn, id))?;
+async fn task_delete(state: State<'_, AppState>, id: i64) -> Result<tasks::DeletedTasks> {
+    let deleted = with_conn(&state, |conn| tasks::task_delete(conn, id))?;
     mirror_export(&state);
-    Ok(())
+    Ok(deleted)
+}
+
+#[tauri::command]
+async fn task_restore(
+    state: State<'_, AppState>,
+    deleted: tasks::DeletedTasks,
+) -> Result<Vec<tasks::Task>> {
+    let restored = with_conn(&state, |conn| tasks::task_restore(conn, &deleted))?;
+    mirror_export(&state);
+    Ok(restored)
 }
 
 #[tauri::command]
@@ -1132,6 +1142,7 @@ pub fn run() {
             task_create,
             task_update,
             task_delete,
+            task_restore,
             tasks_delete_done,
             tasks_reorder,
             engine_run,

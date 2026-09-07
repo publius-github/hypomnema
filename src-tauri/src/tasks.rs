@@ -573,24 +573,174 @@ pub fn list_reorder(conn: &Connection, list_id: i64, ordered_ids: &[i64]) -> Res
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct RuleRun {
+    pub rule_key: String,
+    pub period_key: String,
+    pub generated_at: String,
+}
+
+/// Everything a task delete removed, in restorable form: the task rows
+/// (parent first, then subtasks) plus the rule_runs ledger row of a
+/// generated instance. Round-trips through the frontend so an Undo
+/// toast can hand it back to `task_restore`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct DeletedTasks {
+    pub tasks: Vec<Task>,
+    pub rule_run: Option<RuleRun>,
+}
+
 /// Hard delete: the row and its subtasks disappear from the database as
 /// if they never existed. For a generated instance the rule_runs ledger
 /// row goes with it, so a still-current period regenerates on the next
 /// engine run - deleting a generated task is never how you get rid of
-/// it, editing its config file is.
-pub fn task_delete(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute(
+/// it, editing its config file is. Returns what was removed so the
+/// frontend can offer Undo.
+pub fn task_delete(conn: &Connection, id: i64) -> Result<DeletedTasks> {
+    let tx = conn.unchecked_transaction()?;
+    let mut stmt = tx.prepare(
+        "SELECT * FROM tasks WHERE id = ?1 OR parent_task_id = ?1
+         ORDER BY parent_task_id IS NOT NULL, id",
+    )?;
+    let rows = stmt
+        .query_map([id], row_to_task)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(stmt);
+    let rule_run = tx
+        .query_row(
+            "SELECT r.rule_key, r.period_key, r.generated_at FROM rule_runs r
+             JOIN tasks t ON t.rule_key = r.rule_key AND t.period_key = r.period_key
+             WHERE t.id = ?1",
+            [id],
+            |row| {
+                Ok(RuleRun {
+                    rule_key: row.get(0)?,
+                    period_key: row.get(1)?,
+                    generated_at: row.get(2)?,
+                })
+            },
+        )
+        .optional()?;
+    tx.execute(
         "DELETE FROM rule_runs
          WHERE (rule_key, period_key) IN
                (SELECT rule_key, period_key FROM tasks
                 WHERE id = ?1 AND rule_key IS NOT NULL AND period_key IS NOT NULL)",
         [id],
     )?;
-    conn.execute(
+    tx.execute(
         "DELETE FROM tasks WHERE id = ?1 OR parent_task_id = ?1",
         [id],
     )?;
-    Ok(())
+    tx.commit()?;
+    Ok(DeletedTasks {
+        tasks: rows,
+        rule_run,
+    })
+}
+
+/// Puts a just-deleted task (with its subtasks) back - the Undo of
+/// `task_delete`. Original ids are kept while still free; an occupied id
+/// gets a fresh one, with subtask parent links remapped. When the engine
+/// already regenerated the same (rule, period) instance in the meantime
+/// the restore is skipped (undoing then would duplicate the card) and an
+/// empty vec comes back. A subtask whose parent vanished, or a list_id
+/// whose list row is gone (auto-list absorb), degrade gracefully: the
+/// row is skipped / the reference is cleared.
+pub fn task_restore(conn: &Connection, deleted: &DeletedTasks) -> Result<Vec<Task>> {
+    let tx = conn.unchecked_transaction()?;
+    if let Some(run) = &deleted.rule_run {
+        let regenerated: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM tasks
+                           WHERE rule_key = ?1 AND period_key = ?2 AND archived_at IS NULL)",
+            (&run.rule_key, &run.period_key),
+            |row| row.get(0),
+        )?;
+        if regenerated {
+            return Ok(vec![]);
+        }
+        tx.execute(
+            "INSERT OR IGNORE INTO rule_runs (rule_key, period_key, generated_at)
+             VALUES (?1, ?2, ?3)",
+            (&run.rule_key, &run.period_key, &run.generated_at),
+        )?;
+    }
+    let mut id_map: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
+    let mut restored = Vec::new();
+    for task in &deleted.tasks {
+        let parent = match task.parent_task_id {
+            Some(pid) => match id_map.get(&pid) {
+                Some(mapped) => Some(*mapped),
+                // a subtask deleted alone: its parent must still be live
+                None => {
+                    let alive: bool = tx.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM tasks WHERE id = ?1)",
+                        [pid],
+                        |row| row.get(0),
+                    )?;
+                    if !alive {
+                        continue;
+                    }
+                    Some(pid)
+                }
+            },
+            None => None,
+        };
+        let list_id = match task.list_id {
+            Some(lid) => {
+                let exists: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM lists WHERE id = ?1)",
+                    [lid],
+                    |row| row.get(0),
+                )?;
+                exists.then_some(lid)
+            }
+            None => None,
+        };
+        let id_free: bool = tx.query_row(
+            "SELECT NOT EXISTS(SELECT 1 FROM tasks WHERE id = ?1)",
+            [task.id],
+            |row| row.get(0),
+        )?;
+        // NULL into INTEGER PRIMARY KEY = let SQLite assign a fresh id
+        tx.execute(
+            "INSERT INTO tasks (id, title, description_md, list_id, scheduled_date, time,
+                                status, color, sort_order, parent_task_id, created_at,
+                                completed_at, overdue, origin, cadence, origin_date,
+                                priority, rule_key, period_key, dow_label)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+                     ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+            rusqlite::params![
+                id_free.then_some(task.id),
+                &task.title,
+                &task.description_md,
+                list_id,
+                &task.scheduled_date,
+                &task.time,
+                &task.status,
+                &task.color,
+                task.sort_order,
+                parent,
+                &task.created_at,
+                &task.completed_at,
+                task.overdue as i64,
+                &task.origin,
+                &task.cadence,
+                &task.origin_date,
+                task.priority as i64,
+                &task.rule_key,
+                &task.period_key,
+                &task.dow_label,
+            ],
+        )?;
+        let actual_id = tx.last_insert_rowid();
+        id_map.insert(task.id, actual_id);
+        restored.push(task_get(&tx, actual_id)?);
+    }
+    tx.commit()?;
+    Ok(restored)
 }
 
 /// Maintenance helper (Settings): removes every task marked done, with
@@ -898,6 +1048,165 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows, 0);
+    }
+
+    #[test]
+    fn restore_brings_back_parent_and_subtask_with_original_ids() {
+        let conn = conn();
+        let list = list_create(&conn, "Inbox", None, false).unwrap();
+        let parent = task_create(
+            &conn,
+            &NewTask {
+                title: "parent".into(),
+                list_id: Some(list.id),
+                scheduled_date: Some("2026-09-07".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let sub = task_create(
+            &conn,
+            &NewTask {
+                title: "sub".into(),
+                parent_task_id: Some(parent.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let deleted = task_delete(&conn, parent.id).unwrap();
+        assert_eq!(deleted.tasks.len(), 2);
+
+        let restored = task_restore(&conn, &deleted).unwrap();
+        assert_eq!(restored.len(), 2);
+        let back = task_get(&conn, parent.id).unwrap();
+        assert_eq!(back.title, "parent");
+        assert_eq!(back.list_id, Some(list.id));
+        let sub_back = task_get(&conn, sub.id).unwrap();
+        assert_eq!(sub_back.parent_task_id, Some(parent.id));
+    }
+
+    #[test]
+    fn restore_remaps_ids_when_the_original_is_taken() {
+        let conn = conn();
+        let parent = task_create(
+            &conn,
+            &NewTask {
+                title: "parent".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        task_create(
+            &conn,
+            &NewTask {
+                title: "sub".into(),
+                parent_task_id: Some(parent.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let deleted = task_delete(&conn, parent.id).unwrap();
+        // both freed ids get taken by new rows before the undo
+        let usurper = task_create(
+            &conn,
+            &NewTask {
+                title: "usurper".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        task_create(
+            &conn,
+            &NewTask {
+                title: "usurper 2".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let restored = task_restore(&conn, &deleted).unwrap();
+        assert_eq!(restored.len(), 2);
+        let new_parent = restored.iter().find(|t| t.title == "parent").unwrap();
+        let new_sub = restored.iter().find(|t| t.title == "sub").unwrap();
+        assert_ne!(new_parent.id, parent.id);
+        assert_eq!(new_sub.parent_task_id, Some(new_parent.id));
+        assert_eq!(task_get(&conn, usurper.id).unwrap().title, "usurper");
+    }
+
+    #[test]
+    fn restore_skips_when_the_engine_regenerated_the_instance() {
+        let conn = conn();
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, rule_key, period_key)
+             VALUES ('gen', '2026-01-01T00:00:00Z', 'recurring', 'abc', '2026-09-07T06:00')",
+            [],
+        )
+        .unwrap();
+        let id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO rule_runs (rule_key, period_key, generated_at)
+             VALUES ('abc', '2026-09-07T06:00', '2026-09-07T06:00:00Z')",
+            [],
+        )
+        .unwrap();
+        let deleted = task_delete(&conn, id).unwrap();
+        assert!(deleted.rule_run.is_some());
+        // the engine brings the instance back before the undo click
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, rule_key, period_key)
+             VALUES ('gen', '2026-01-01T00:00:00Z', 'recurring', 'abc', '2026-09-07T06:00')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO rule_runs (rule_key, period_key, generated_at)
+             VALUES ('abc', '2026-09-07T06:00', '2026-09-07T06:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        let restored = task_restore(&conn, &deleted).unwrap();
+        assert!(
+            restored.is_empty(),
+            "regenerated instance must not duplicate"
+        );
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM tasks WHERE rule_key = 'abc'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn restore_reinstates_the_rule_runs_ledger_row() {
+        let conn = conn();
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, rule_key, period_key)
+             VALUES ('gen', '2026-01-01T00:00:00Z', 'recurring', 'abc', '2026-09-07T06:00')",
+            [],
+        )
+        .unwrap();
+        let id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO rule_runs (rule_key, period_key, generated_at)
+             VALUES ('abc', '2026-09-07T06:00', '2026-09-07T06:00:00Z')",
+            [],
+        )
+        .unwrap();
+        let deleted = task_delete(&conn, id).unwrap();
+        let ledger: i64 = conn
+            .query_row("SELECT COUNT(*) FROM rule_runs", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(ledger, 0, "delete drops the ledger row");
+
+        task_restore(&conn, &deleted).unwrap();
+        let ledger: i64 = conn
+            .query_row("SELECT COUNT(*) FROM rule_runs", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(ledger, 1, "restore puts the ledger row back");
     }
 
     #[test]

@@ -69,6 +69,11 @@ editor_font_size: number,
  */
 done_hold_seconds: number, 
 /**
+ * Seconds the Undo toast stays after deleting a task or archiving
+ * a list (0 = no toast, deletes apply without an undo offer).
+ */
+undo_toast_seconds: number, 
+/**
  * Center the day headers on the dashboard grid.
  */
 day_header_centered: boolean, 

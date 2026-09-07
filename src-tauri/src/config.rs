@@ -65,6 +65,9 @@ pub struct AppConfig {
     /// moving to its section, leaving room to fix a misclick (0 = move
     /// immediately). Only matters with done_display = separate.
     pub done_hold_seconds: u32,
+    /// Seconds the Undo toast stays after deleting a task or archiving
+    /// a list (0 = no toast, deletes apply without an undo offer).
+    pub undo_toast_seconds: u32,
     /// Center the day headers on the dashboard grid.
     pub day_header_centered: bool,
     /// Color task cards by their rule cadence (the same color stripe a
@@ -272,6 +275,7 @@ impl Default for AppConfig {
             editor_font: "Consolas".into(),
             editor_font_size: 16,
             done_hold_seconds: 3,
+            undo_toast_seconds: 6,
             day_header_centered: false,
             cadence_colors: true,
             cadence_color_daily: "#9ca3af".into(),
@@ -399,6 +403,7 @@ impl AppConfig {
         self.calendar_yearly_years = self.calendar_yearly_years.min(5);
         self.calendar_dates_years = self.calendar_dates_years.min(5);
         self.done_hold_seconds = self.done_hold_seconds.min(30);
+        self.undo_toast_seconds = self.undo_toast_seconds.min(30);
         self.backup_keep = self.backup_keep.min(365);
         self.ui_font_size = self.ui_font_size.clamp(10, 28);
         self.editor_font_size = self.editor_font_size.clamp(10, 28);
@@ -572,6 +577,7 @@ impl AppConfig {
             ("editor_font", self.editor_font.clone()),
             ("editor_font_size", self.editor_font_size.to_string()),
             ("done_hold_seconds", self.done_hold_seconds.to_string()),
+            ("undo_toast_seconds", self.undo_toast_seconds.to_string()),
             ("day_header_centered", self.day_header_centered.to_string()),
             ("cadence_colors", self.cadence_colors.to_string()),
             ("cadence_color_daily", self.cadence_color_daily.clone()),

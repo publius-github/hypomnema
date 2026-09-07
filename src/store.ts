@@ -4,6 +4,7 @@ import type {
   AppConfig,
   ConfigError,
   DashboardContext,
+  DeletedTasks,
   EngineOutcome,
   KbNode,
   List,
@@ -79,6 +80,15 @@ interface AppState {
   /// section until the hold expires (done_hold_seconds)
   statusHold: { id: number; status: TaskStatus }[];
   holdStatus: (id: number, shownStatus: TaskStatus) => void;
+  /// last destructive action, offered back through the Undo toast until
+  /// the hold (undo_toast_seconds) expires or another delete replaces it
+  undoEntry:
+    | { kind: "task"; label: string; deleted: DeletedTasks }
+    | { kind: "list"; label: string; listId: number }
+    | null;
+  offerUndo: (entry: NonNullable<AppState["undoEntry"]>) => void;
+  undoLast: () => Promise<void>;
+  dismissUndo: () => void;
   setError: (message: string) => void;
   clearError: () => void;
   refresh: () => Promise<void>;
@@ -111,6 +121,10 @@ function hexToTriplet(hex: string): string | null {
     .map((i) => parseInt(hex.slice(i, i + 2), 16))
     .join(" ");
 }
+
+/** One pending undo at a time: a new delete replaces the previous offer
+ *  and restarts the dismiss timer. */
+let undoTimer: ReturnType<typeof setTimeout> | null = null;
 
 function applyTheme(config: AppConfig | null) {
   const root = document.documentElement;
@@ -354,14 +368,63 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   deleteTask: async (id) => {
+    const title = get().tasks.find((t) => t.id === id)?.title;
     try {
       // hard delete, gone from the database; the backend cascades to
       // subtasks and drops the rule_runs ledger row, so a deleted
-      // generated instance of a live rule regenerates on the next run
-      await invoke("task_delete", { id });
+      // generated instance of a live rule regenerates on the next run.
+      // The returned snapshot backs the Undo toast.
+      const deleted = await invoke<DeletedTasks>("task_delete", { id });
       set((s) => ({
         tasks: s.tasks.filter((t) => t.id !== id && t.parent_task_id !== id),
       }));
+      get().offerUndo({
+        kind: "task",
+        label: title ? `Deleted "${title}"` : "Task deleted",
+        deleted,
+      });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  offerUndo: (entry) => {
+    const seconds = get().config?.undo_toast_seconds ?? 0;
+    if (seconds <= 0) return;
+    if (undoTimer) clearTimeout(undoTimer);
+    set({ undoEntry: entry });
+    undoTimer = setTimeout(() => {
+      undoTimer = null;
+      set({ undoEntry: null });
+    }, seconds * 1000);
+  },
+
+  dismissUndo: () => {
+    if (undoTimer) clearTimeout(undoTimer);
+    undoTimer = null;
+    set({ undoEntry: null });
+  },
+
+  undoLast: async () => {
+    const entry = get().undoEntry;
+    if (!entry) return;
+    get().dismissUndo();
+    try {
+      if (entry.kind === "task") {
+        const restored = await invoke<Task[]>("task_restore", {
+          deleted: entry.deleted,
+        });
+        if (restored.length > 0) {
+          set((s) => ({ tasks: [...s.tasks, ...restored] }));
+        } else {
+          // the engine regenerated the instance meanwhile; the card is
+          // already back, just make sure we show the current state
+          await get().refresh();
+        }
+      } else {
+        await invoke("list_unarchive", { id: entry.listId });
+        await get().refresh();
+      }
     } catch (e) {
       set({ error: String(e) });
     }
@@ -428,9 +491,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   archiveList: async (id) => {
+    const name = get().lists.find((l) => l.id === id)?.name;
     try {
       await invoke("list_archive", { id });
       set((s) => ({ lists: s.lists.filter((l) => l.id !== id) }));
+      get().offerUndo({
+        kind: "list",
+        label: name ? `Archived "${name}"` : "List archived",
+        listId: id,
+      });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -517,6 +586,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   openJournalDate: (date) => set({ section: "journal", journalOpenDate: date }),
   searchOpen: false,
   setSearchOpen: (searchOpen) => set({ searchOpen }),
+  undoEntry: null,
   statusHold: [],
   holdStatus: (id, shownStatus) => {
     const seconds = get().config?.done_hold_seconds ?? 0;

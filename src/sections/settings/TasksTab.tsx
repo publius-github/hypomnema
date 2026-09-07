@@ -45,6 +45,16 @@ export default function TasksTab() {
           />
         </Field>
 
+        <Field label="Undo toast after deleting a task or archiving a list, seconds (0 = no undo offer)">
+          <NumberInput
+            value={config.undo_toast_seconds}
+            min={0}
+            onCommit={(n) =>
+              void updateConfig({ undo_toast_seconds: Math.min(30, n) })
+            }
+          />
+        </Field>
+
         <Toggle
           checked={config.subtasks_done_last}
           label="Done subtasks sink to the bottom"

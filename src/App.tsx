@@ -134,6 +134,7 @@ export default function App() {
 
   // global shortcuts: Ctrl/Cmd+K search palette, Ctrl/Cmd+1..6 sections
   const searchOpen = useAppStore((s) => s.searchOpen);
+  const undoEntry = useAppStore((s) => s.undoEntry);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -250,6 +251,24 @@ export default function App() {
         <SearchPalette
           onClose={() => useAppStore.getState().setSearchOpen(false)}
         />
+      )}
+      {undoEntry && (
+        <div className="fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-sm shadow-lg">
+          <span className="max-w-md truncate">{undoEntry.label}</span>
+          <button
+            className="font-semibold text-accent"
+            onClick={() => void useAppStore.getState().undoLast()}
+          >
+            Undo
+          </button>
+          <button
+            className="text-content-muted"
+            title="Dismiss"
+            onClick={() => useAppStore.getState().dismissUndo()}
+          >
+            ✕
+          </button>
+        </div>
       )}
       {toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-20 flex flex-col gap-2">
