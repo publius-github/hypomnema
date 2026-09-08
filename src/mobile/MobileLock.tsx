@@ -147,7 +147,7 @@ export function LockScreen({
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col justify-center gap-4 px-6">
+    <div className="safe-area mx-auto flex h-full max-w-md flex-col justify-center gap-4 px-6">
       <h1 className="text-xl font-semibold">Passphrase</h1>
       <p className="text-sm text-content-muted">
         Needed to reach the Dropbox link on this device.

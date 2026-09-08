@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import DropboxLink from "../components/DropboxLink";
+import MobileVaultFolder from "./MobileVaultFolder";
 
 /**
  * First run on a phone.
@@ -14,7 +15,7 @@ import DropboxLink from "../components/DropboxLink";
  * storage model.
  */
 export default function MobileVaultSetup() {
-  const [dropbox, setDropbox] = useState(false);
+  const [screen, setScreen] = useState<"start" | "folder" | "dropbox">("start");
   const [path, setPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const setError = useAppStore((s) => s.setError);
@@ -25,24 +26,28 @@ export default function MobileVaultSetup() {
       .catch(() => {});
   }, []);
 
-  if (dropbox) {
+  if (screen !== "start") {
     return (
-      <div className="flex h-full flex-col">
+      <div className="safe-area flex h-full flex-col">
         <button
-          onClick={() => setDropbox(false)}
+          onClick={() => setScreen("start")}
           className="self-start px-4 py-3 text-content-muted"
         >
           ‹ Back
         </button>
-        <div className="min-h-0 flex-1 overflow-auto">
-          <DropboxLink />
+        <div className="min-h-0 flex-1 overflow-auto px-4 pb-6">
+          {screen === "dropbox" ? (
+            <DropboxLink />
+          ) : (
+            <MobileVaultFolder onChosen={() => setScreen("start")} />
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col justify-center gap-5 px-6 py-8">
+    <div className="safe-area mx-auto flex h-full max-w-md flex-col justify-center gap-5 px-6 py-8">
       <h1 className="text-2xl font-semibold">Welcome to Hypomnema</h1>
       <p className="text-sm text-content-muted">
         Everything lives in one vault folder on this device: tasks, journal
@@ -64,12 +69,21 @@ export default function MobileVaultSetup() {
       </button>
       {path && (
         <p className="break-all text-xs text-content-muted">
-          It will live at <code>{path}</code> — copy an existing vault there
-          from a computer to open it instead of starting empty.
+          It will live at <code>{path}</code>, which is private to the app.
         </p>
       )}
       <button
-        onClick={() => setDropbox(true)}
+        onClick={() => setScreen("folder")}
+        className="rounded-lg border border-line px-5 py-3"
+      >
+        Choose a different folder
+      </button>
+      <p className="text-xs text-content-muted">
+        Somewhere a computer can reach, if you want to copy an existing vault in
+        over USB.
+      </p>
+      <button
+        onClick={() => setScreen("dropbox")}
         className="rounded-lg border border-line px-5 py-3"
       >
         Sync with Dropbox instead

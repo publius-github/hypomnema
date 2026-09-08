@@ -198,6 +198,20 @@ sync_interval_minutes: number,
  */
 sync_on_leave: boolean, 
 /**
+ * Minimum gap, in pixels, between the top of the phone layout and
+ * the top of the screen - a floor under `env(safe-area-inset-top)`.
+ * Android draws the app under the status bar (API 35+), and the
+ * WebView does not always report an inset for it; when it doesn't,
+ * this is the only thing keeping the header out from under the
+ * clock. Zero means "trust the reported inset".
+ */
+mobile_safe_area_top: number, 
+/**
+ * The same floor at the bottom, under the gesture bar or the three
+ * navigation buttons.
+ */
+mobile_safe_area_bottom: number, 
+/**
  * Two-way Markdown mirror of the manual tasks under <vault>/tasks/
  * (one file per list + scheduled.md) for bulk editing in any editor.
  */

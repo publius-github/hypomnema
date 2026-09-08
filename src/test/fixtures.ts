@@ -71,6 +71,8 @@ export const defaultConfig: AppConfig = {
   sync_auto: true,
   sync_interval_minutes: 15,
   sync_on_leave: true,
+  mobile_safe_area_top: 0,
+  mobile_safe_area_bottom: 0,
   notify_snooze_minutes: 10,
   state_snapshot: true,
   tasks_mirror: true,

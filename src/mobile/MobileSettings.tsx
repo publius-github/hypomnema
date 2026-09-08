@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { LockSettings } from "./MobileLock";
+import MobileVaultFolder from "./MobileVaultFolder";
 
 /** Matches THEME_PRESETS in src-tauri/src/config.rs. */
 const THEME_PRESETS = [
@@ -40,6 +41,7 @@ export default function MobileSettings() {
   const [showConflicts, setShowConflicts] = useState(false);
   const [standing, setStanding] = useState<SyncStanding | null>(null);
   const [lock, setLock] = useState<LockState | null>(null);
+  const [folder, setFolder] = useState(false);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -361,6 +363,48 @@ export default function MobileSettings() {
               purpose: they describe a window, and this app's window on a
               phone is the phone. A layout tab here would be a list of
               settings that change nothing visible. */}
+          <div className="flex flex-col gap-2 border-t border-line pt-3">
+            <span className="text-sm">Screen edges</span>
+            <p className="text-xs text-content-muted">
+              Android draws this app under the status bar and the navigation
+              bar, and the layout normally learns where they are from the
+              system. If the header still sits under the clock, or the tabs
+              under the gesture bar, raise these until it clears. 0 means "trust
+              the system".
+            </p>
+            <div className="flex gap-3">
+              <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <span className="text-sm">Top</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={200}
+                  value={config.mobile_safe_area_top}
+                  onChange={(e) =>
+                    void updateConfig({
+                      mobile_safe_area_top: Number(e.target.value) || 0,
+                    })
+                  }
+                  className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+              </label>
+              <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <span className="text-sm">Bottom</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={200}
+                  value={config.mobile_safe_area_bottom}
+                  onChange={(e) =>
+                    void updateConfig({
+                      mobile_safe_area_bottom: Number(e.target.value) || 0,
+                    })
+                  }
+                  className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+              </label>
+            </div>
+          </div>
         </section>
       )}
 
@@ -404,9 +448,18 @@ export default function MobileSettings() {
         </p>
         <p className="text-xs text-content-muted">
           The vault lives on this device. Its database is rebuilt here from the
-          text files and is never uploaded. To load an existing vault, copy its
-          contents into the folder above from a computer.
+          text files and is never uploaded.
         </p>
+        {folder ? (
+          <MobileVaultFolder onChosen={() => setFolder(false)} />
+        ) : (
+          <button
+            onClick={() => setFolder(true)}
+            className="mt-2 self-start rounded-lg border border-line px-4 py-2 text-sm"
+          >
+            Move to another folder
+          </button>
+        )}
       </section>
     </div>
   );

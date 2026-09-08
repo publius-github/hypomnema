@@ -23,6 +23,7 @@ export type { DropboxSync } from "./bindings/DropboxSync";
 export type { ConflictEntry } from "./bindings/ConflictEntry";
 export type { SyncStanding } from "./bindings/SyncStanding";
 export type { LockState } from "./bindings/LockState";
+export type { VaultPlace } from "./bindings/VaultPlace";
 export type { EngineOutcome } from "./bindings/EngineOutcome";
 export type { JournalEntry } from "./bindings/JournalEntry";
 export type { JournalSearchHit } from "./bindings/JournalSearchHit";

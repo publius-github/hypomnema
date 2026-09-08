@@ -80,7 +80,7 @@ export default function MobileTaskEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-20 flex flex-col overflow-auto bg-surface">
+    <div className="safe-area fixed inset-0 z-20 flex flex-col overflow-auto bg-surface">
       <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-line bg-surface px-2 py-3">
         <button onClick={close} className="px-2 py-1 text-content-muted">
           ‹ Back

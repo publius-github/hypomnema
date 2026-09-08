@@ -154,6 +154,16 @@ pub struct AppConfig {
     /// so without it the last thing done before locking the screen sits
     /// on the device until the app is opened again.
     pub sync_on_leave: bool,
+    /// Minimum gap, in pixels, between the top of the phone layout and
+    /// the top of the screen - a floor under `env(safe-area-inset-top)`.
+    /// Android draws the app under the status bar (API 35+), and the
+    /// WebView does not always report an inset for it; when it doesn't,
+    /// this is the only thing keeping the header out from under the
+    /// clock. Zero means "trust the reported inset".
+    pub mobile_safe_area_top: u32,
+    /// The same floor at the bottom, under the gesture bar or the three
+    /// navigation buttons.
+    pub mobile_safe_area_bottom: u32,
     /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
     /// (one file per list + scheduled.md) for bulk editing in any editor.
     pub tasks_mirror: bool,
@@ -441,6 +451,11 @@ impl Default for AppConfig {
             sync_auto: true,
             sync_interval_minutes: 15,
             sync_on_leave: true,
+            // Trust the WebView first; a floor is for the device where
+            // it reports nothing, and guessing one by default would put
+            // dead space on every device where it works.
+            mobile_safe_area_top: 0,
+            mobile_safe_area_bottom: 0,
             tasks_mirror: true,
             tasks_mirror_agenda: true,
             tasks_mirror_ids: true,
@@ -532,6 +547,10 @@ impl AppConfig {
         // A pass under a minute apart would spend the battery on
         // listings; a day apart is not a sync, it is a weekly backup.
         self.sync_interval_minutes = self.sync_interval_minutes.clamp(1, 720);
+        // A status bar is ~24-48dp and a navigation bar about the same;
+        // past 200 the padding is no longer describing a system bar.
+        self.mobile_safe_area_top = self.mobile_safe_area_top.min(200);
+        self.mobile_safe_area_bottom = self.mobile_safe_area_bottom.min(200);
         if !["dark", "light"].contains(&self.theme.as_str()) {
             self.theme = "dark".into();
         }
@@ -802,6 +821,14 @@ impl AppConfig {
                 self.sync_interval_minutes.to_string(),
             ),
             ("sync_on_leave", self.sync_on_leave.to_string()),
+            (
+                "mobile_safe_area_top",
+                self.mobile_safe_area_top.to_string(),
+            ),
+            (
+                "mobile_safe_area_bottom",
+                self.mobile_safe_area_bottom.to_string(),
+            ),
             ("tasks_mirror", self.tasks_mirror.to_string()),
             ("tasks_mirror_agenda", self.tasks_mirror_agenda.to_string()),
             ("tasks_mirror_ids", self.tasks_mirror_ids.to_string()),

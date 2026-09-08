@@ -140,7 +140,7 @@ export default function MobileApp() {
 
   return (
     <EditingTaskContext.Provider value={{ editing, setEditing }}>
-      <div className="flex h-full flex-col">
+      <div className="safe-area flex h-full flex-col">
         {error && (
           <div className="flex items-start justify-between gap-3 border-b border-danger/40 bg-danger/15 px-4 py-2 text-sm text-danger">
             <span className="min-w-0 break-words">{error}</span>

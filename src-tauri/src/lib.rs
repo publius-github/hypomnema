@@ -26,6 +26,7 @@ mod sync_state;
 mod tasks;
 mod tasks_mirror;
 mod vault;
+mod vault_places;
 mod views;
 
 use std::collections::HashMap;
@@ -560,6 +561,49 @@ async fn vault_use_local(app: AppHandle, state: State<'_, AppState>) -> Result<S
 #[tauri::command]
 async fn vault_local_path(app: AppHandle) -> Result<String> {
     Ok(local_vault_dir(&app)?.to_string_lossy().into_owned())
+}
+
+/// The places a vault can live on this device, each probed for whether
+/// the app can actually write there.
+///
+/// Android's answer to "let me pick a folder": there is no directory
+/// picker to call - Tauri's dialog plugin picks files, and the Storage
+/// Access Framework hands back a content:// tree the Rust core cannot
+/// open as a path. So the app offers the places a vault plausibly goes
+/// and says which of them this phone allows, rather than a picker that
+/// would fail after the choice was made.
+#[tauri::command]
+async fn vault_places(app: AppHandle) -> Result<Vec<vault_places::VaultPlace>> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| Error::State(format!("cannot resolve the app data directory: {e}")))?;
+    Ok(vault_places::places(&base, &app.config().identifier))
+}
+
+/// Opens a vault at an arbitrary path, creating it if the directory is
+/// empty. The failure this exists to report clearly is a path the app
+/// cannot write to, which on Android is most of the filesystem and looks
+/// no different from one it can.
+#[tauri::command]
+async fn vault_use_path(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<String> {
+    let root = PathBuf::from(path.trim());
+    if root.as_os_str().is_empty() {
+        return Err(Error::State("no folder given".into()));
+    }
+    if !vault_places::probe_writable(&root) {
+        return Err(Error::State(format!(
+            "{} cannot be written to by this app. On Android only the app's              own folders are writable without a permission this build does              not request - pick one of the offered places instead.",
+            root.display()
+        )));
+    }
+    open_vault(&app, &state, &root)?;
+    vault::write_vault_path(&app_config_dir(&app)?, &root)?;
+    Ok(root.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -2030,6 +2074,8 @@ pub fn run() {
             vault_select,
             vault_use_local,
             vault_local_path,
+            vault_places,
+            vault_use_path,
             config_get,
             config_set,
             config_default,

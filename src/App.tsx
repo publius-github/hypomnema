@@ -59,6 +59,18 @@ export default function App() {
       .catch(() => setIsMobile(/Android/i.test(navigator.userAgent)));
   }, [init]);
 
+  // The safe-area floors reach CSS through the document root rather than
+  // a wrapper's inline style: the screens that need them include
+  // position:fixed overlays and the pre-vault setup screen, none of
+  // which share an ancestor to inherit from.
+  const safeTop = useAppStore((s) => s.config?.mobile_safe_area_top ?? 0);
+  const safeBottom = useAppStore((s) => s.config?.mobile_safe_area_bottom ?? 0);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--safe-top", `${safeTop}px`);
+    root.style.setProperty("--safe-bottom", `${safeBottom}px`);
+  }, [safeTop, safeBottom]);
+
   // Desktop-only: there is no updater on Android (ROADMAP.md §6).
   useEffect(() => {
     if (isMobile === false) {
@@ -151,8 +163,7 @@ export default function App() {
   // so the 30s due-check raises it again (if the task is still open)
   const snooze = (id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-    const minutes =
-      useAppStore.getState().config?.notify_snooze_minutes ?? 10;
+    const minutes = useAppStore.getState().config?.notify_snooze_minutes ?? 10;
     const timers = toastTimersRef.current;
     const timer = setTimeout(
       () => {

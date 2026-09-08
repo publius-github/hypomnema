@@ -109,3 +109,27 @@ throwaway app, the Dropbox sync modules, and the Android link screen. The
 plan is to land it as one batch with a minor version bump once the link
 screen is confirmed working on a real device - an unverified feature isn't
 one worth bumping for.
+
+
+## Two things the phone build learned the hard way (2026-09-08)
+
+**The app draws under the system bars.** `targetSdk = 36`, and Android has
+enforced edge-to-edge since API 35: the status bar and the navigation bar
+sit *over* the WebView, so the header lands under the clock and the tab bar
+under the gesture bar unless the layout moves out of the way itself. The
+fix is `viewport-fit=cover` in `index.html` plus `.safe-area` in
+`src/styles.css`, applied to every screen that owns the viewport - the
+`position: fixed` overlays included, since they ignore padding on an
+ancestor. `env(safe-area-inset-*)` is the real answer where the WebView
+reports insets; because it does not always (Chromium on Android has
+historically reported the display cutout and not the system bars), each
+edge takes `max(env(...), var(--safe-*))` and the floor is a setting.
+
+**There is no folder picker.** Tauri's dialog plugin picks files, not
+directories, and SAF hands back a `content://` tree rather than a path the
+Rust core can open - the same wall Spike A hit from the other side. So
+`vault_places.rs` offers the handful of places a vault plausibly goes and
+**probes** each by writing a file and deleting it again, because on
+Android 11+ two identical-looking paths differ only by permissions this
+build does not hold. A row that says "cannot write here" up front beats a
+picker that accepts the choice and fails after it.
