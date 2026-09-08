@@ -243,7 +243,7 @@ pub fn pull_vault<P: SyncProvider>(
                     save_manifest(local_root, &manifest)?;
                     return Err(Error::State(format!(
                         "pull stopped after {} files: {} downloads failed in a row, \
-                         last error: {e}",
+                         last error: {e}. Press Pull vault again to resume from here.",
                         report.files, consecutive_failures
                     )));
                 }

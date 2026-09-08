@@ -17,6 +17,12 @@
 //! the plain relative names used elsewhere in this crate ("tasks.jsonl"),
 //! never "/Apps/Hypomnema/tasks.jsonl".
 #![allow(dead_code)]
+// ureq's error type carries a whole Response, so anything handing one
+// back trips `result_large_err`. Boxing it would only move the cost and
+// obscure the retry logic; these errors are per-request, not per-row.
+#![allow(clippy::result_large_err)]
+
+use std::time::Duration;
 
 use crate::error::{Error, Result};
 use crate::sync_provider::{ChangeMarker, ChangedFile, SyncCursor, SyncProvider};
@@ -292,6 +298,62 @@ fn map_error_response(status: u16, body: String, conflict_path: Option<&str>) ->
     Error::State(format!("Dropbox API error ({status}): {body}"))
 }
 
+/// Attempts per request, including the first.
+const MAX_ATTEMPTS: usize = 4;
+/// Wait before the second attempt; tripled for each one after.
+const FIRST_RETRY_DELAY: Duration = Duration::from_millis(500);
+
+/// Is this worth trying again, or is it an answer?
+///
+/// A phone's network comes and goes - it sleeps with the screen, changes
+/// cell, loses DNS for a moment - and Dropbox rate-limits. None of that
+/// means the file is unavailable, and treating it as an answer is what
+/// turned one flaky moment into "pull stopped after 55 files".
+fn is_retryable(error: &ureq::Error) -> bool {
+    match error {
+        // Connect, DNS, TLS, timeout, connection reset.
+        ureq::Error::Transport(_) => true,
+        // 429 is Dropbox asking us to slow down; 5xx is Dropbox having a
+        // bad moment. Every other status is a real answer about the file.
+        ureq::Error::Status(code, _) => retryable_status(*code),
+    }
+}
+
+fn retryable_status(code: u16) -> bool {
+    code == 429 || (500..600).contains(&code)
+}
+
+/// Dropbox says how long to wait when it rate-limits; obeying it is both
+/// faster and politer than guessing.
+fn retry_after(error: &ureq::Error) -> Option<Duration> {
+    let ureq::Error::Status(_, response) = error else {
+        return None;
+    };
+    response
+        .header("Retry-After")?
+        .parse::<u64>()
+        .ok()
+        .map(Duration::from_secs)
+}
+
+fn send_with_retries(
+    mut send: impl FnMut() -> std::result::Result<ureq::Response, ureq::Error>,
+) -> std::result::Result<ureq::Response, ureq::Error> {
+    let mut delay = FIRST_RETRY_DELAY;
+    let mut attempt = 1;
+    loop {
+        match send() {
+            Ok(response) => return Ok(response),
+            Err(error) if attempt < MAX_ATTEMPTS && is_retryable(&error) => {
+                std::thread::sleep(retry_after(&error).unwrap_or(delay));
+                delay *= 3;
+                attempt += 1;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
 /// Real `DropboxTransport` backed by an HTTP round trip via `ureq`
 /// (rustls-based TLS - no native OpenSSL, so this cross-compiles cleanly
 /// for `aarch64-linux-android`, unlike a native-tls-backed client would).
@@ -316,33 +378,38 @@ impl HttpDropboxTransport {
 impl DropboxTransport for HttpDropboxTransport {
     fn rpc(&self, endpoint: &str, body: Value) -> Result<Value> {
         let url = format!("https://api.dropboxapi.com/2/{endpoint}");
-        let result = self
-            .agent
-            .post(&url)
-            .set("Authorization", &self.auth_header())
-            .send_json(body);
+        let result = send_with_retries(|| {
+            self.agent
+                .post(&url)
+                .set("Authorization", &self.auth_header())
+                .send_json(body.clone())
+        });
         parse_json_response(result, None)
     }
 
     fn upload(&self, api_arg: Value, contents: &[u8], conflict_path: &str) -> Result<Value> {
-        let result = self
-            .agent
-            .post("https://content.dropboxapi.com/2/files/upload")
-            .set("Authorization", &self.auth_header())
-            .set("Dropbox-API-Arg", &ascii_header_json(&api_arg))
-            .set("Content-Type", "application/octet-stream")
-            .send_bytes(contents);
+        let header = ascii_header_json(&api_arg);
+        let result = send_with_retries(|| {
+            self.agent
+                .post("https://content.dropboxapi.com/2/files/upload")
+                .set("Authorization", &self.auth_header())
+                .set("Dropbox-API-Arg", &header)
+                .set("Content-Type", "application/octet-stream")
+                .send_bytes(contents)
+        });
         parse_json_response(result, Some(conflict_path))
     }
 
     fn download(&self, api_arg: Value) -> Result<(Vec<u8>, Value)> {
         use std::io::Read;
-        let result = self
-            .agent
-            .post("https://content.dropboxapi.com/2/files/download")
-            .set("Authorization", &self.auth_header())
-            .set("Dropbox-API-Arg", &ascii_header_json(&api_arg))
-            .call();
+        let header = ascii_header_json(&api_arg);
+        let result = send_with_retries(|| {
+            self.agent
+                .post("https://content.dropboxapi.com/2/files/download")
+                .set("Authorization", &self.auth_header())
+                .set("Dropbox-API-Arg", &header)
+                .call()
+        });
         let response = match result {
             Ok(r) => r,
             Err(ureq::Error::Status(code, r)) => {
@@ -726,6 +793,21 @@ mod tests {
     fn ascii_paths_are_left_alone() {
         let value = json!({ "path": "/tasks.jsonl", "mode": { ".tag": "add" } });
         assert_eq!(ascii_header_json(&value), value.to_string());
+    }
+
+    #[test]
+    fn rate_limits_and_server_errors_are_retried_but_real_answers_are_not() {
+        // A phone loses DNS, changes cell, sleeps with the screen; Dropbox
+        // rate-limits. None of that is an answer about the file, and
+        // treating it as one is what stopped a pull 55 files in.
+        // (Transport errors are covered by is_retryable's first arm; only
+        // the status classification is constructible in a unit test.)
+        for code in [400, 401, 403, 404, 409] {
+            assert!(!retryable_status(code), "{code} should not be retried");
+        }
+        for code in [429, 500, 503] {
+            assert!(retryable_status(code), "{code} should be retried");
+        }
     }
 
     #[test]
