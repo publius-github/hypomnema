@@ -35,7 +35,7 @@ reasoning no longer holds.
   (NSIS via CI on a `v*` tag). Covered instead by Rust unit tests on the
   engine/business logic and Vitest component smoke tests with a mocked
   Tauri IPC; Windows-specific surfaces (tray, global capture hotkey,
-  autoupdate) get a manual smoke pass before `release.sh`, not automation.
+  autoupdate) get a manual smoke pass before `scripts/windows/release.sh`, not automation.
 - **UI is English-only.** No i18n layer. Single user, no localization need
   today; would need to be designed in rather than bolted on if that changes.
 - **No binary attachments in tasks/journal/notes.** Everything is Markdown

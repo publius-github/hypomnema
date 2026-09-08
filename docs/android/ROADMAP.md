@@ -1,0 +1,360 @@
+# Hypomnema Mobile — Roadmap
+
+Basis: `REQUIREMENTS.md` in this folder, cross-checked against
+`docs/general/ARCHITECTURE.md` / `docs/general/DECISIONS.md` and
+`src-tauri/src/{engine,tasks,tasks_mirror,state_export,vault}.rs` elsewhere
+in this same repo.
+
+## Decisions locked in for this roadmap
+
+| Question (REQUIREMENTS.md §8) | Decision |
+| --- | --- |
+| Platform | **Android only** — iOS is not planned |
+| Tech stack | **Tauri 2 + shared Rust core**, cross-compiled for `aarch64-linux-android` |
+| Dropbox integration | **Direct API only** — the dual-backend plan below was the working assumption until Spike A; Spike A failed (docs/android/SPIKES.md, 2026-09-08), so `DropboxApiSyncProvider` is the sole backend for v1, not a user-facing choice |
+| Comment-preserving YAML edits | Not required for v1 (P1, phases in later) |
+| Vault encryption at rest | **In scope for v1** (OS keystore-backed local cache encryption) |
+
+### Dropbox integration: dual-backend, not either/or (superseded — see verdict below)
+
+**Status: Spike A failed (2026-09-08, docs/android/SPIKES.md) — the section
+below is kept for its reasoning but its conclusion no longer holds.** The
+official Dropbox Android app doesn't expose a live-synced folder to other
+apps' filesystem access at all, so there was never a `FilesystemSyncProvider`
+to make the "dual" half of dual-backend real. `DropboxApiSyncProvider` is the
+sole backend for v1 — jump to Phase 1/Phase 2 below for what that means
+concretely.
+
+Initial plan picked filesystem-only sync (§5-A) to avoid OAuth/API work.
+That trade-off assumed the Dropbox API cost money or added scope beyond what
+it's worth — checked, and it doesn't: `files/upload`/`download`/
+`list_folder`, `App folder` scoping, and OAuth are all part of the free core
+Dropbox API (works on a free Basic account), and a personal-use app never
+comes close to the 500-linked-user cap that triggers production-approval
+requirements. So the "more work, no payoff" framing was wrong on the payoff
+side — decision revised to **support both backends**, switchable, rather
+than picking one.
+
+Concretely: a `SyncProvider` abstraction (Phase 1) with two implementations —
+`FilesystemSyncProvider` (SAF folder access) and `DropboxApiSyncProvider`
+(OAuth + `files/*`) — sitting behind the same interface the merge/conflict
+logic in §3 consumes. The per-record `updated_at`/`updated_by` merge design
+doesn't care which backend moved the bytes; what differs between backends is
+narrower than it first looks:
+
+- **Change detection / write safety:** API backend gets real optimistic
+  concurrency via `rev` (`mode: update(rev)` rejects a stale write outright).
+  Filesystem backend has no such guarantee — falls back to content hash/mtime
+  comparison, and treats a Dropbox `(conflicted copy)` file as a hard error,
+  mirroring desktop's existing `tasks_mirror.rs` convention.
+- **Setup UX:** API backend needs an OAuth consent screen; filesystem backend
+  needs a SAF folder picker. Both live in the vault-linking screen (Phase 2)
+  behind one toggle.
+- **At-rest scoping (§7 NFR):** API backend's `App folder` permission gives
+  real OS/Dropbox-enforced app-folder scoping for free. Filesystem backend
+  has no such enforcement — mitigation stays a documented setup step (user
+  points the picker at a dedicated subfolder), not a guarantee. Revisited in
+  Phase 4.
+
+This does add real surface: two providers to build, test, and keep correct
+under the same merge contract, instead of one. Worth it here because the
+filesystem path's Android feasibility is still unproven (next section) —
+having the API backend as a real, shipped alternative rather than a
+theoretical fallback means a Phase 0 failure on the filesystem side doesn't
+stall the project, just narrows which backend ships first.
+
+### Consequence of the filesystem backend's Android weakness — resolved 2026-09-08
+
+**This section is now history, not a live decision** — kept for the
+reasoning trail. Spike A confirmed the risk below for real: DropboxApiSyncProvider
+is the sole backend for v1, item 1's "if it fails" branch is what happened,
+and item 2 is moot since there's only one backend's guarantees to explain now.
+
+REQUIREMENTS.md §5 flags the filesystem approach as *"genuinely weak on
+Android: the official Dropbox app doesn't expose a live-synced arbitrary
+folder to other apps' file I/O the way desktop OSes do."* This risk now
+scopes to **one of the two providers**, not the whole project, but it still
+needs resolving early because it decides which backend is the Phase 2 launch
+default:
+
+1. Phase 0 runs a go/no-go spike on filesystem access (below) before UI work.
+   If it fails or proves flaky, the API backend becomes the sole/default
+   provider for launch and the filesystem provider either phases in later or
+   gets dropped — no project-level blocker either way, since the API backend
+   doesn't depend on this spike.
+2. The two backends' conflict-*detection* strength genuinely differs (`rev`
+   vs. hash/mtime), even though conflict *resolution* (the §3 merge logic)
+   is shared — worth surfacing in the Settings UI (Phase 2) so a user who
+   picks the filesystem backend understands it's the weaker-guarantee option.
+
+---
+
+## Phase 0 — Feasibility spikes
+
+Goal: resolve the filesystem backend's biggest unknown, and prove the
+toolchain, before real building starts. The API backend has no comparable
+feasibility risk (it's a documented, supported OAuth+REST flow) so it
+doesn't need a spike — it gets built for real in Phase 1.
+
+- **Spike A (go/no-go for the filesystem provider only):** get a synced
+  Dropbox folder's files readable *and writable* from a normal Android app,
+  persisted across app restarts and device reboots. Try, in order: Storage
+  Access Framework persistent URI permission over a folder the Dropbox app
+  manages; if that's insufficient, a third-party sync client with SAF
+  exposure (e.g. FolderSync/Autosync against Dropbox) as the sync layer
+  instead of the official Dropbox app. Document exactly what does and
+  doesn't work, including background-sync behavior when the app isn't
+  foregrounded.
+  - **Exit criteria:** a checked-in throwaway app that writes a file into the
+    synced folder from Android and confirms (manually, via desktop) it
+    lands in Dropbox, and vice versa.
+  - **If this fails:** drop or defer `FilesystemSyncProvider`; ship with
+    `DropboxApiSyncProvider` as the only backend for v1 and revisit the
+    filesystem provider later (e.g. if a cleaner Android mechanism appears).
+    Nothing else in the roadmap needs to change — Phase 1 builds the API
+    backend regardless of this outcome.
+- **Spike B:** cross-compile the existing desktop Rust core
+  (`engine.rs` at minimum) for `aarch64-linux-android` inside a Tauri 2
+  mobile shell, and get it calling into a trivial Android UI. Confirms the
+  toolchain (NDK, Tauri mobile CLI, signing) works before any real feature
+  code depends on it.
+  - **Exit criteria:** a "hello world" Tauri Android build running on a
+    device/emulator that calls one real function from `engine.rs` and shows
+    its output.
+
+**Deliverable:** written verdict on both spikes, committed to this repo,
+before Phase 1 begins.
+
+## Phase 1 — Shared core plumbing (no UI yet)
+
+Goal: the data layer conflict-resolution design from REQUIREMENTS.md §3
+actually exists in code, on both ends.
+
+- [x] Define the `SyncProvider` abstraction (roughly: list changed files
+  since a cursor/checkpoint, read a file + its change-marker, write a file
+  guarded by its last-known change-marker, surface a "write rejected,
+  remote changed" signal) — `src-tauri/src/sync_provider.rs`, trait +
+  types only, unit-tested against an in-memory mock (no real backend
+  wired up yet).
+  - [x] Implement `DropboxApiSyncProvider`'s API client half — `files/upload`
+    with `mode: update(rev)`/`add`, `files/download`, `files/list_folder`/
+    `continue` — `src-tauri/src/sync_dropbox.rs`, request/response shaping
+    and error mapping (409 → `Error::SyncConflict`) unit-tested against a
+    mock `DropboxTransport`, real transport (`HttpDropboxTransport`) via
+    `ureq` (rustls-backed, no native OpenSSL - cross-compiles cleanly for
+    `aarch64-linux-android`). Takes an already-issued bearer token; **not**
+    wired to any Tauri command yet.
+  - [x] OAuth2 PKCE — Rust half: `src-tauri/src/sync_dropbox_oauth.rs`.
+    Verifier/S256-challenge generation (checked against RFC 7636's test
+    vector), authorize-URL shaping with `token_access_type=offline`, code→
+    token exchange and refresh-token exchange, all unit-tested against a
+    mock transport. App key registered: `v775pphfltppmmv` (App folder
+    access, resolved 2026-09-08 — the vault this links to must live under
+    `Apps/Hypomnema/` in Dropbox, see the open item below). No client
+    secret anywhere: the app key is a public identifier under PKCE.
+  - [x] OAuth2 PKCE — Android half: `dropbox_auth_url` opens the consent
+    page in a real browser via `tauri-plugin-opener` (the existing
+    `open_external` can't: its non-Windows/macOS branch shells out to
+    `xdg-open`, which doesn't exist on Android). **First cut deliberately
+    skips redirect plumbing**: with no `redirect_uri`, Dropbox displays the
+    code for the user to paste into the app, so there's no intent-filter to
+    maintain in the regenerated `gen/android` project and no Custom Tabs
+    dependency. A real redirect can replace it later -
+    `authorize_url`/`exchange_code` already take it as an argument.
+    **Not yet verified on device.**
+  - [x] Token storage: `src-tauri/src/dropbox_link.rs` - refresh token kept
+    across restarts in the app's private config dir (never the vault, never
+    a synced folder), access token refreshed 5 min before expiry rather
+    than on a 401 so a sync pass never unwinds mid-flight. Unit-tested with
+    injected time. Plain JSON for now; keystore-backed encryption is
+    Phase 4.
+  - [x] Link screen + smoke test: `src/components/DropboxLink.tsx`, shown
+    by `VaultPicker` when `platform_is_mobile` — authorize, paste the code
+    Dropbox displays, then "List app folder" runs `sync_dropbox::census`
+    over the same paging code the provider uses, so a green result means
+    OAuth, token storage, the HTTP client and the App-folder scope all work
+    end to end. **Confirmed on a real device 2026-09-08**: browser consent
+    → pasted code → token → listing of a real vault's files. The census
+    reports folder and tombstone counts next to the file list on purpose:
+    during setup, "no files" and "no files because the vault went to a
+    different folder" look identical without them, and that distinction is
+    what actually diagnosed the first failed attempt.
+  - **Setup gotcha, learned the hard way:** the app folder is the one
+    *Dropbox* creates at authorization, named after the registered app -
+    not a folder of that name made by hand, and its parent is localized
+    (`Приложения/` on a Russian account, `Apps/` on English). A vault put
+    in a same-named folder the user created is invisible to the token, and
+    presents as an empty listing with a pile of tombstones from the vault's
+    brief stay in the real one. Never state the app-folder path from the
+    app's *name* - it comes from what was typed into the Dropbox console.
+  - [ ] Next: have the app write a marker file into its own app folder on
+    request, so "which folder is this actually?" is answerable from the
+    desktop by searching for that file instead of by inference. Doubles as
+    the first exercise of the write path (`files/upload`), which nothing
+    calls yet.
+  - [x] ~~Implement `FilesystemSyncProvider`~~ — **dropped for v1.** Spike A
+    (docs/android/SPIKES.md, 2026-09-08) failed: the official Dropbox
+    Android app doesn't expose a live-synced folder to other apps' SAF
+    access at all. Revisit only if a cleaner Android mechanism appears later.
+- [x] Implement the merge step: last-writer-wins per field, newest
+  `updated_at` wins on a same-field collision, discarded value logged to a
+  conflicts list (never silently dropped) — `src-tauri/src/sync_merge.rs`,
+  generic over a JSON field map, unit-tested (collision resolution, clean
+  merges, field removal, deletion-vs-edit). Not yet wired to real
+  tasks/lists/config/notes/journal records — see the schema item below.
+- [x] Implement `rule_runs` merge as plain set union of `(rule_key,
+  period_key)` — `sync_merge::merge_rule_runs`, unit-tested.
+- [ ] Extend the shared JSONL schema (`tasks.jsonl`, `lists.jsonl`,
+  `rule_runs.jsonl`, `rule_seen.jsonl`, `weekly_focus.jsonl`) with per-record
+  `updated_at` (UTC) and `updated_by` (device id). **Touches the desktop side
+  too — approved to modify now, no separate coordination cycle**: land it as
+  part of this phase's work directly, additive/optional fields so older
+  desktop builds reading the same files don't choke. Sequenced after the
+  merge primitives above on purpose — this one touches `state_export.rs`,
+  `tasks.rs`/`db.rs` migrations, and ts-rs bindings that the shipped desktop
+  app depends on, so it gets its own careful pass rather than landing in the
+  same breath as the new, inert scaffolding.
+- [ ] Confirm `app.db`/`-wal`/`-shm` never touch the synced folder at all —
+  on mobile, keep them in the app's private storage from day one, so
+  there's no "exclude from sync" step to get right, just a directory layout
+  that never puts them in the synced tree.
+- [ ] Vault bootstrap: `Vault::open`-equivalent on mobile — rebuild the
+  local `app.db` cache from JSONL + config YAML when the local cache is
+  missing or stale, matching desktop's existing disposable-cache model.
+- [ ] **Cross-engine parity test** (§7 NFR, don't defer this): a test
+  harness that feeds the same rule set into the desktop engine and the
+  mobile-built engine binary from the same starting state and asserts
+  identical task sets and identical `rule_key`/`period_key` values. This
+  should exist before Phase 2 UI work, since it's the cheapest point to
+  catch a divergence. (Moot as a *cross-binary* test until there's a second
+  binary to run against — right now "mobile-built engine" is the same
+  `engine.rs` cross-compiled, not a separate implementation, so the real
+  risk this guards against hasn't materialized yet.)
+
+**Deliverable:** a headless build that can open a real (test) vault folder,
+rebuild its cache, run the engine, and merge a manufactured two-sided edit
+correctly — verified by the parity test, no UI required yet.
+
+## Phase 2 — MVP UI (Android)
+
+Goal: the "Suggested MVP slice" from REQUIREMENTS.md §9, on real UI.
+
+- Vault linking screen: Dropbox API is the only backend (Spike A failed, no
+  toggle needed) — OAuth (PKCE) consent flow, app-folder or full-Dropbox
+  access depending on the choice made before Phase 1's `DropboxApiSyncProvider`
+  work; first-run detection, persisted token.
+- Day view + lists — single/tabbed phone layout (not desktop's multi-column
+  grid).
+- Manual task/list CRUD: create, edit, complete, postpone, delete, subtasks.
+- Journal: read + write, template-seeded.
+- Notes (KB): browse tree + read.
+- Settings: vault/folder linking with the backend toggle, sync status +
+  conflict log (even if conflicts are rare in testing, the screen needs to
+  exist and show real data from Phase 1's merge logic), a note on which
+  backend gives stronger conflict guarantees, engine on/off toggle.
+- In-app quick-add (stands in for desktop's capture window/global hotkey,
+  which don't apply on mobile).
+- Engine scheduling on-device: run on app foreground/resume at minimum;
+  background run via WorkManager where the OS permits, with a foreground
+  trigger as the reliable fallback (offline-first NFR — nothing here should
+  require connectivity to function locally).
+
+**Deliverable:** installable Android build a real user (you) can run
+against your actual vault day-to-day for task/journal/notes reading and
+task/journal editing, side by side with the desktop app, without corrupting
+shared state.
+
+## Phase 3 — Sync robustness & conflict UX
+
+Goal: move from "works when I test it" to "safe under real concurrent use."
+
+- Conflict log UI: surface discarded-field conflicts from Phase 1's merge
+  logic in a way that's actually readable, not just a debug dump.
+- API backend: rely on `rev`-rejected writes as the primary conflict signal
+  — on rejection, re-fetch and run the §3 merge before retrying the write.
+- Filesystem backend (if shipped): handle simultaneous-write collisions
+  surfaced as Dropbox `(conflicted copy)` files — reject/report per the
+  existing `tasks_mirror.rs` convention rather than silently double-applying.
+- Background sync scheduling hardened against OS battery/Doze restrictions;
+  explicit manual "sync now" as a user-triggered escape hatch.
+- Offline queuing: edits made with no connectivity apply locally immediately
+  and reconcile once the sync target is reachable again.
+- Dogfood period: run desktop + mobile against the same real vault
+  concurrently for a stretch (your own daily use is the test plan here),
+  ideally exercising both backends if both shipped, and track every
+  conflict-log entry as a bug or an expected result.
+
+**Deliverable:** confidence, backed by a dogfood log, that concurrent
+desktop+mobile editing doesn't lose data on either backend — the core
+promise of REQUIREMENTS.md §1.
+
+## Phase 4 — Security hardening (at-rest)
+
+- Local cache (`app.db`, cached JSONL) encrypted via Android Keystore
+  (e.g. SQLCipher with a keystore-backed key, or `EncryptedFile`/
+  `EncryptedSharedPreferences` for anything outside the DB).
+- API backend: use the `App folder` permission type — Dropbox enforces the
+  scoping itself, nothing extra to build here.
+- Filesystem backend (if shipped): no such enforcement is available, so
+  mitigation stays a documented setup step (vault lives in its own dedicated
+  Dropbox subfolder) plus the vault-linking screen nudging toward that layout
+  rather than pointing at a Dropbox root. Worth surfacing in the UI as a real
+  difference between the two backends, not just a README note.
+
+**Deliverable:** a phone-loss or Dropbox-account-compromise scenario doesn't
+hand over a readable vault.
+
+## Phase 5 — Parity expansion (P1/P2 desktop features)
+
+Work through the rest of REQUIREMENTS.md §6 roughly in priority order:
+
+- Reminders: read-only summary → CRUD.
+- Notes: editing, wiki-links, search, backlinks, trash.
+- Calendar: browse only.
+- History/Review: view-only.
+- Task color/priority, drag-to-reorder.
+- Comment-preserving YAML splice for Scheduled/Birthdays/Recurring edits
+  from mobile (upgrades the P0 CRUD from Phase 2 to match desktop's
+  comment-preserving behavior).
+- Share-sheet capture (P3), as a second on-ramp alongside Phase 2's
+  in-app quick-add.
+- Settings: appearance, layout, profiles.
+
+This phase is naturally sliceable — ship increments rather than batching
+all of §6 into one release.
+
+**No iOS phase.** Android is the only target — REQUIREMENTS.md and this
+roadmap both discuss Tauri 2's iOS support as a capability of the chosen
+stack, not a commitment; nothing here is planned or sequenced for iOS. If
+that changes later, most of Phase 0's Spike B (Rust core cross-compilation)
+and Phase 1's `SyncProvider`/merge logic carries over largely unchanged —
+only the filesystem backend's iOS feasibility (Files app + Dropbox
+extension, REQUIREMENTS.md §5-A) would need its own spike from scratch.
+
+---
+
+## Resolved before kickoff
+
+- **Desktop-side changes:** approved to modify the shared JSONL schema
+  directly as part of Phase 1, not gated behind a separate coordination
+  cycle.
+- **Default sync backend:** ~~Filesystem folder is the default~~ — Spike A
+  failed (2026-09-08), so this resolved as planned: Filesystem is dropped
+  from the picker entirely and Dropbox API is the sole option, no toggle.
+
+## Open items this roadmap does NOT resolve
+
+- ~~Dual-backend doubles part of the ongoing test matrix~~ — moot: Spike A
+  failed, so there's only ever one backend to build/test/maintain for v1.
+- ~~Access-type choice for the Dropbox app registration~~ — **resolved
+  2026-09-08: App folder.** Consequence: the vault the Android app links to
+  must live under `Apps/Hypomnema/` in Dropbox — either move/re-point the
+  existing desktop vault there, or run a second vault under that path for
+  mobile testing. Worth deciding before Phase 2's vault-linking screen
+  ships, since it changes the setup instructions shown there.
+
+## Suggested sequencing note
+
+No calendar estimate is attached above since pace depends on hours/week
+available — happy to convert this into dated milestones if you want to share
+a rough time budget (e.g., solo/part-time vs. dedicated full-time stretch).

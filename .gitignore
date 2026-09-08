@@ -433,3 +433,17 @@ FodyWeavers.xsd
 dist/
 src-tauri/target/
 src-tauri/gen/schemas/
+# Generated Android project: `tauri android init` recreates it from
+# tauri.conf.json, and the CLI rewrites parts of it (tauri.settings.gradle,
+# app/tauri.build.gradle.kts) on every build as plugins change. See
+# docs/android/SPIKES.md for the one hand-edit that has to be re-applied
+# after a regeneration.
+src-tauri/gen/android/
+releases/
+
+# Android SAF spike (spikes/android-saf-test/README.md) - Gradle build output
+# and machine-local SDK path, not source
+spikes/android-saf-test/local.properties
+spikes/android-saf-test/.gradle/
+spikes/android-saf-test/app/build/
+spikes/android-saf-test/build/

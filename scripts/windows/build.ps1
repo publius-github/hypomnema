@@ -23,7 +23,7 @@ function Exit-WithError {
 }
 
 function Get-RepoRoot {
-  Split-Path -Parent $PSScriptRoot
+  Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 }
 
 function Assert-Command {
@@ -150,7 +150,7 @@ function Publish-ReleaseArtifact {
     Exit-WithError "No .exe installer found in $nsisDir"
   }
 
-  $releaseDir = Join-Path $RepoRoot 'releases'
+  $releaseDir = Join-Path $RepoRoot 'releases/windows'
   New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
   $safeName = $productName -replace '[^A-Za-z0-9._-]', '-'
