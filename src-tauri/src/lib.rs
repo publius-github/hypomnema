@@ -1386,15 +1386,65 @@ fn backup_config(state: &State<'_, AppState>, file: &str) {
     }
 }
 
+/// Where the Notes tree is rooted.
+///
+/// The vault root unless `kb_path` names somewhere else that actually
+/// exists on this device. Two cases make the fallback the only sane
+/// answer, and both were errors before:
+///
+/// - **Nothing configured.** A vault always has notes in it - that is
+///   what a vault is - so refusing to show them until a folder is
+///   picked made the phone's Notes tab permanently empty.
+/// - **A path from another machine.** `settings/` is device-local and
+///   does not sync, but a vault copied wholesale from a desktop carries
+///   its app.yml along, and `D:\Projects\...` means nothing on a phone.
+///   Falling back beats reporting a drive letter the user cannot fix.
 fn kb_root(state: &State<'_, AppState>) -> Result<PathBuf> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    if vault.config.kb_path.trim().is_empty() {
-        return Err(Error::State("KB folder is not configured".into()));
+    let configured = vault.config.kb_path.trim();
+    if !configured.is_empty() {
+        let path = PathBuf::from(configured);
+        if path.is_dir() {
+            return Ok(path);
+        }
     }
-    Ok(PathBuf::from(vault.config.kb_path.trim()))
+    Ok(vault.root.clone())
+}
+
+/// What the Notes tree is actually rooted at, and whether that is what
+/// the settings asked for. A silent fallback would leave someone whose
+/// external notes drive is unplugged quietly writing into the vault
+/// instead, so the screens that can say so are given the means to.
+#[tauri::command]
+async fn kb_status(state: State<'_, AppState>) -> Result<KbStatus> {
+    let configured = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        vault.config.kb_path.trim().to_string()
+    };
+    let root = kb_root(&state)?;
+    let unreachable = !configured.is_empty() && Path::new(&configured) != root;
+    Ok(KbStatus {
+        root: root.to_string_lossy().into_owned(),
+        configured,
+        unreachable,
+    })
+}
+
+#[derive(serde::Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+struct KbStatus {
+    /// The folder the tree is being read from right now.
+    root: String,
+    /// What `kb_path` says, empty when unset.
+    configured: String,
+    /// `configured` is set but not usable here, so `root` is a fallback.
+    unreachable: bool,
 }
 
 /// (Re)arms the KB watcher when the tree is loaded, so external edits
@@ -2168,6 +2218,7 @@ pub fn run() {
             journal_list,
             journal_search,
             kb_tree,
+            kb_status,
             kb_read,
             kb_write,
             kb_create,

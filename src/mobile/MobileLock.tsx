@@ -147,29 +147,31 @@ export function LockScreen({
   };
 
   return (
-    <div className="safe-area mx-auto flex h-full max-w-md flex-col justify-center gap-4 px-6">
-      <h1 className="text-xl font-semibold">Passphrase</h1>
-      <p className="text-sm text-content-muted">
-        Needed to reach the Dropbox link on this device.
-      </p>
-      <input
-        autoFocus
-        type="password"
-        value={passphrase}
-        onChange={(e) => setPassphrase(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
-        className="rounded-lg border border-line bg-surface-alt px-3 py-3"
-      />
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <button
-        onClick={submit}
-        className="rounded-lg bg-accent px-4 py-3 font-medium text-white"
-      >
-        Unlock
-      </button>
-      <button onClick={onSkip} className="text-sm text-content-muted">
-        Continue without syncing
-      </button>
+    <div className="safe-area h-full">
+      <div className="mx-auto flex h-full max-w-md flex-col justify-center gap-4 px-6">
+        <h1 className="text-xl font-semibold">Passphrase</h1>
+        <p className="text-sm text-content-muted">
+          Needed to reach the Dropbox link on this device.
+        </p>
+        <input
+          autoFocus
+          type="password"
+          value={passphrase}
+          onChange={(e) => setPassphrase(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          className="rounded-lg border border-line bg-surface-alt px-3 py-3"
+        />
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <button
+          onClick={submit}
+          className="rounded-lg bg-accent px-4 py-3 font-medium text-white"
+        >
+          Unlock
+        </button>
+        <button onClick={onSkip} className="text-sm text-content-muted">
+          Continue without syncing
+        </button>
+      </div>
     </div>
   );
 }

@@ -52,47 +52,49 @@ export default function MobileVaultSetup() {
   }
 
   return (
-    <div className="safe-area mx-auto flex h-full max-w-md flex-col justify-center gap-5 px-6 py-8">
-      <h1 className="text-2xl font-semibold">Welcome to Hypomnema</h1>
-      <p className="text-sm text-content-muted">
-        Everything lives in one vault folder on this device: tasks, journal
-        entries, notes and the configuration behind them. Nothing needs an
-        account or a network.
-      </p>
-      <button
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          void invoke<string>("vault_use_local")
-            .then(() => useAppStore.getState().init())
-            .catch((e) => setError(String(e)))
-            .finally(() => setBusy(false));
-        }}
-        className="rounded-lg bg-accent px-5 py-3 font-medium text-white disabled:opacity-50"
-      >
-        Use a vault on this device
-      </button>
-      {path && (
-        <p className="break-all text-xs text-content-muted">
-          <code>{path}</code>
+    <div className="safe-area h-full">
+      <div className="mx-auto flex h-full max-w-md flex-col justify-center gap-5 px-6 py-8">
+        <h1 className="text-2xl font-semibold">Welcome to Hypomnema</h1>
+        <p className="text-sm text-content-muted">
+          Everything lives in one vault folder on this device: tasks, journal
+          entries, notes and the configuration behind them. Nothing needs an
+          account or a network.
         </p>
-      )}
-      <button
-        onClick={() => setScreen("folder")}
-        className="rounded-lg border border-line px-5 py-3"
-      >
-        Choose a folder…
-      </button>
-      <button
-        onClick={() => setScreen("dropbox")}
-        className="rounded-lg border border-line px-5 py-3"
-      >
-        Sync with Dropbox instead
-      </button>
-      <p className="text-xs text-content-muted">
-        Dropbox keeps a vault in step across devices. It can also be turned on
-        later, from Settings.
-      </p>
+        <button
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            void invoke<string>("vault_use_local")
+              .then(() => useAppStore.getState().init())
+              .catch((e) => setError(String(e)))
+              .finally(() => setBusy(false));
+          }}
+          className="rounded-lg bg-accent px-5 py-3 font-medium text-white disabled:opacity-50"
+        >
+          Use a vault on this device
+        </button>
+        {path && (
+          <p className="break-all text-xs text-content-muted">
+            <code>{path}</code>
+          </p>
+        )}
+        <button
+          onClick={() => setScreen("folder")}
+          className="rounded-lg border border-line px-5 py-3"
+        >
+          Choose a folder…
+        </button>
+        <button
+          onClick={() => setScreen("dropbox")}
+          className="rounded-lg border border-line px-5 py-3"
+        >
+          Sync with Dropbox instead
+        </button>
+        <p className="text-xs text-content-muted">
+          Dropbox keeps a vault in step across devices. It can also be turned on
+          later, from Settings.
+        </p>
+      </div>
     </div>
   );
 }

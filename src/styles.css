@@ -106,6 +106,12 @@ body {
  * floor the user can set in Settings - which costs nothing when env()
  * works, and is the difference between usable and not when it doesn't.
  */
+/*
+ * Put this on an element of its own, with no padding utilities beside
+ * it: Tailwind's `px-*`/`py-*` live in a later layer and silently win,
+ * which is how the welcome screen ended up running edge to edge under
+ * the system bars while every other screen behaved. Pad a child instead.
+ */
 .safe-area {
   padding-top: max(env(safe-area-inset-top, 0px), var(--safe-top, 0px));
   padding-bottom: max(

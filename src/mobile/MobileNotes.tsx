@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
-import type { BacklinksResult, KbNode, KbSearchHit } from "../types";
+import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -27,6 +27,13 @@ export default function MobileNotes() {
   const [note, setNote] = useState<Open | null>(null);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<KbSearchHit[] | null>(null);
+  const [status, setStatus] = useState<KbStatus | null>(null);
+
+  useEffect(() => {
+    void invoke<KbStatus>("kb_status")
+      .then(setStatus)
+      .catch(() => {});
+  }, []);
 
   const loadTree = useCallback(() => {
     void invoke<KbNode[]>("kb_tree")
@@ -109,6 +116,16 @@ export default function MobileNotes() {
           </button>
         )}
       </div>
+
+      {/* A vault copied from a desktop brings its app.yml along, and the
+          notes folder it names is a path on that machine. Saying so beats
+          showing the vault root as if it were what was asked for. */}
+      {status?.unreachable && (
+        <p className="border-b border-warn/40 bg-warn/10 px-4 py-2 text-xs text-warn">
+          Notes are being read from the vault: the configured folder (
+          {status.configured}) does not exist on this device.
+        </p>
+      )}
 
       {hits ? (
         <ul className="min-h-0 flex-1 overflow-auto">

@@ -34,6 +34,7 @@ export type { BacklinksResult } from "./bindings/BacklinksResult";
 export type { JournalBacklinkHit } from "./bindings/JournalBacklinkHit";
 export type { TaskBacklinkHit } from "./bindings/TaskBacklinkHit";
 export type { KbNode } from "./bindings/KbNode";
+export type { KbStatus } from "./bindings/KbStatus";
 export type { KbSearchHit } from "./bindings/KbSearchHit";
 export type { List } from "./bindings/List";
 export type { OutlookEvent } from "./bindings/OutlookEvent";
