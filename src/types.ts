@@ -15,6 +15,8 @@ export type { DeletedTasks } from "./bindings/DeletedTasks";
 export type { DashboardContext } from "./bindings/DashboardContext";
 export type { DayContext } from "./bindings/DayContext";
 export type { DayReminder } from "./bindings/DayReminder";
+export type { DropboxListing } from "./bindings/DropboxListing";
+export type { DropboxStatus } from "./bindings/DropboxStatus";
 export type { EngineOutcome } from "./bindings/EngineOutcome";
 export type { JournalEntry } from "./bindings/JournalEntry";
 export type { JournalSearchHit } from "./bindings/JournalSearchHit";

@@ -2,6 +2,7 @@ mod backup;
 mod config;
 mod config_files;
 mod db;
+mod dropbox_link;
 mod engine;
 mod error;
 mod journal;
@@ -9,6 +10,10 @@ mod kb;
 mod profiles;
 mod reminders;
 mod state_export;
+mod sync_dropbox;
+mod sync_dropbox_oauth;
+mod sync_merge;
+mod sync_provider;
 mod tasks;
 mod tasks_mirror;
 mod vault;
@@ -42,6 +47,12 @@ struct AppState {
     /// watcher skips files that still match, so our own exports never
     /// trigger an import round-trip.
     mirror_written: Arc<Mutex<HashMap<PathBuf, String>>>,
+    /// PKCE verifier for a Dropbox authorization currently in flight
+    /// (docs/android/ROADMAP.md Phase 1). In memory only and single-use:
+    /// if the app restarts between opening the browser and pasting the
+    /// code back, the user starts the link over, which is the correct
+    /// outcome - a verifier is per-authorization by design.
+    dropbox_verifier: Mutex<Option<String>>,
 }
 
 /// Shared filter for both filesystem watchers: access events carry no
@@ -186,6 +197,9 @@ fn export_options(config: &AppConfig) -> tasks_mirror::ExportOptions {
     }
 }
 
+// Only reached from the tray (`sync_tray`, desktop-only below) -
+// `unminimize` itself is a desktop-only WebviewWindow method on mobile.
+#[cfg(desktop)]
 fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -196,6 +210,7 @@ fn show_main(app: &AppHandle) {
 
 /// Shows and focuses the pre-created quick-capture window; the emit
 /// tells its frontend to clear and refocus the input.
+#[cfg(desktop)]
 fn show_capture(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("capture") {
         let _ = window.show();
@@ -208,6 +223,12 @@ fn show_capture(app: &AppHandle) {
 /// a message for the error banner when the combination cannot be
 /// parsed or is taken by another app - registration failure must never
 /// block saving the config that caused it.
+///
+/// Desktop-only: global shortcuts and the tray (below) are desktop
+/// concepts (REQUIREMENTS.md §6 mobile parity table) - mobile's quick-add
+/// is in-app instead, so both get a no-op stub on mobile rather than
+/// touching every call site.
+#[cfg(desktop)]
 fn sync_global_shortcut(app: &AppHandle, config: &AppConfig) -> Option<String> {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
     let shortcuts = app.global_shortcut();
@@ -232,6 +253,7 @@ fn sync_global_shortcut(app: &AppHandle, config: &AppConfig) -> Option<String> {
 
 /// Creates or removes the tray icon to match the config. Best effort:
 /// a platform without a tray must not take the app down.
+#[cfg(desktop)]
 fn sync_tray(app: &AppHandle, config: &AppConfig) {
     if !config.tray_icon {
         let _ = app.remove_tray_by_id("main");
@@ -276,6 +298,16 @@ fn sync_tray(app: &AppHandle, config: &AppConfig) {
         eprintln!("tray icon failed: {e}");
     }
 }
+
+/// Mobile stubs: no global shortcut / tray on Android, so every call
+/// site (config reload, vault open, initial setup) stays unchanged.
+#[cfg(mobile)]
+fn sync_global_shortcut(_app: &AppHandle, _config: &AppConfig) -> Option<String> {
+    None
+}
+
+#[cfg(mobile)]
+fn sync_tray(_app: &AppHandle, _config: &AppConfig) {}
 
 fn today_string() -> String {
     chrono::Local::now()
@@ -1461,6 +1493,91 @@ async fn open_external(url: String) -> Result<()> {
     Ok(())
 }
 
+/// True on Android. The frontend shows the Dropbox link screen instead of
+/// the desktop folder picker when this is set: a phone has no synced vault
+/// folder to point a picker at (docs/android/SPIKES.md, Spike A).
+#[tauri::command]
+fn platform_is_mobile() -> bool {
+    cfg!(mobile)
+}
+
+fn now_unix() -> i64 {
+    chrono::Utc::now().timestamp()
+}
+
+/// Step 1 of linking: a fresh PKCE pair, its verifier parked in memory,
+/// and the URL for the user to approve in a browser.
+#[tauri::command]
+async fn dropbox_auth_url(state: State<'_, AppState>) -> Result<String> {
+    let pkce = sync_dropbox_oauth::new_pkce_challenge()?;
+    // No redirect_uri: Dropbox shows the code on screen for the user to
+    // paste back, which keeps intent-filter plumbing out of the
+    // regenerated gen/android project (ROADMAP.md Phase 1).
+    let url = sync_dropbox_oauth::authorize_url(&pkce.challenge, None);
+    *state.dropbox_verifier.lock().unwrap() = Some(pkce.verifier);
+    Ok(url)
+}
+
+/// Step 2: trade the pasted code for tokens. Takes the in-flight verifier
+/// rather than borrowing it - code and verifier are both single-use, so a
+/// failed attempt has to restart from the browser instead of retrying
+/// against a spent pair.
+#[tauri::command]
+async fn dropbox_connect(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    code: String,
+) -> Result<dropbox_link::DropboxStatus> {
+    let verifier = state
+        .dropbox_verifier
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or_else(|| {
+            Error::State("no Dropbox authorization in flight - start the link again".into())
+        })?;
+    let dir = app_config_dir(&app)?;
+    let tokens = sync_dropbox_oauth::exchange_code(
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        code.trim(),
+        &verifier,
+        None,
+    )?;
+    dropbox_link::store_initial(&dir, &tokens, now_unix())?;
+    dropbox_link::status(&dir, now_unix())
+}
+
+#[tauri::command]
+async fn dropbox_status(app: AppHandle) -> Result<dropbox_link::DropboxStatus> {
+    dropbox_link::status(&app_config_dir(&app)?, now_unix())
+}
+
+#[tauri::command]
+async fn dropbox_disconnect(app: AppHandle) -> Result<()> {
+    dropbox_link::clear(&app_config_dir(&app)?)
+}
+
+/// Smoke test for a fresh link: report what the App folder actually holds,
+/// so a green result here means OAuth, token refresh, the HTTP client and
+/// the App-folder scope all work end to end. Reports folder and tombstone
+/// counts alongside the files, because "no files" alone doesn't say
+/// whether the vault failed to sync or was never copied to this folder.
+#[tauri::command]
+async fn dropbox_list_files(app: AppHandle) -> Result<dropbox_link::DropboxListing> {
+    let dir = app_config_dir(&app)?;
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let census = sync_dropbox::census(&sync_dropbox::HttpDropboxTransport::new(token))?;
+    Ok(dropbox_link::DropboxListing {
+        files: census.files,
+        folders: census.folders,
+        deleted: census.deleted,
+    })
+}
+
 /// Panics land in <app-config-dir>/hypomnema.log so field errors are
 /// diagnosable without a console (M7 error reporting).
 fn install_panic_logger(log_path: PathBuf) {
@@ -1482,20 +1599,33 @@ fn install_panic_logger(log_path: PathBuf) {
     }));
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        // opener works on Android too, unlike open_external's xdg-open
+        // fallback - the Dropbox consent page has to reach a real browser.
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init());
+    // updater (GitHub-releases) and the global capture shortcut are
+    // desktop-only concepts (REQUIREMENTS.md §6) - mobile has no
+    // equivalent plugin to register in their place.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    builder
         .setup(|app| {
             if let Ok(dir) = app.path().app_config_dir() {
                 let _ = std::fs::create_dir_all(&dir);
                 install_panic_logger(dir.join("hypomnema.log"));
             }
             // the quick-capture window is pre-created hidden: a WebView
-            // spun up on demand takes long enough to defeat "quick"
+            // spun up on demand takes long enough to defeat "quick".
+            // Desktop-only - mobile's quick-add is in-app (§6), not a
+            // second always-on-top borderless window.
+            #[cfg(desktop)]
             if let Err(e) = tauri::WebviewWindowBuilder::new(
                 app,
                 "capture",
@@ -1516,6 +1646,7 @@ pub fn run() {
             // the vault (and its config) opens later, via vault_status
             // from the frontend; until then the defaults keep the
             // shortcut and tray alive so capture works pre-vault too
+            // (no-op on mobile, see the stubs above)
             let defaults = AppConfig::default();
             if let Some(msg) = sync_global_shortcut(app.handle(), &defaults) {
                 eprintln!("{msg}");
@@ -1632,7 +1763,13 @@ pub fn run() {
             tasks_search,
             daily_streaks,
             task_get,
-            open_external
+            open_external,
+            platform_is_mobile,
+            dropbox_auth_url,
+            dropbox_connect,
+            dropbox_status,
+            dropbox_disconnect,
+            dropbox_list_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");

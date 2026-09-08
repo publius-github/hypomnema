@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.55.0"
+version = "0.56.0"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
@@ -27,6 +27,11 @@ thiserror = "2"
 croner = "2"
 notify = "6"
 ts-rs = "10"
+ureq = { version = "2", features = ["json"] }
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.2"
+tauri-plugin-opener = "2.5.5"
 
 [profile.release]
 panic = "abort"

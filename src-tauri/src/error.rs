@@ -10,6 +10,12 @@ pub enum Error {
     Yaml(#[from] serde_yaml::Error),
     #[error("{0}")]
     State(String),
+    // Raised by sync_provider.rs's mock and sync_dropbox.rs's real
+    // DropboxApiSyncProvider on a stale-marker write (docs/android/
+    // ROADMAP.md Phase 1). Not yet raised from any command reachable by
+    // the frontend - that lands with the vault-sync wiring above these.
+    #[error("write rejected, remote changed: {path}")]
+    SyncConflict { path: String },
 }
 
 impl Serialize for Error {
