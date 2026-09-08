@@ -26,7 +26,16 @@ export default function MobileVaultSetup() {
       .catch(() => {});
   }, []);
 
-  if (screen !== "start") {
+  if (screen === "folder") {
+    return (
+      <MobileVaultFolder
+        onChosen={() => setScreen("start")}
+        onCancel={() => setScreen("start")}
+      />
+    );
+  }
+
+  if (screen === "dropbox") {
     return (
       <div className="safe-area flex h-full flex-col">
         <button
@@ -36,11 +45,7 @@ export default function MobileVaultSetup() {
           ‹ Back
         </button>
         <div className="min-h-0 flex-1 overflow-auto px-4 pb-6">
-          {screen === "dropbox" ? (
-            <DropboxLink />
-          ) : (
-            <MobileVaultFolder onChosen={() => setScreen("start")} />
-          )}
+          <DropboxLink />
         </div>
       </div>
     );

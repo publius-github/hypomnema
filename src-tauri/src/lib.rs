@@ -1,3 +1,4 @@
+mod android_storage;
 mod backup;
 mod config;
 mod config_files;
@@ -598,6 +599,26 @@ async fn vault_browse(app: AppHandle, path: Option<String>) -> Result<vault_plac
         }
     };
     vault_places::browse(&start, &base, identifier)
+}
+
+/// Whether this app may reach ordinary folders on shared storage.
+///
+/// Not a cosmetic detail: without it the folder browser can only show
+/// the two directories the app owns outright, and a folder the user
+/// picks anywhere else fails on the first write.
+#[tauri::command]
+async fn storage_access(app: AppHandle) -> Result<bool> {
+    Ok(android_storage::all_files_access(&app))
+}
+
+/// Opens the system screen that grants it.
+///
+/// `MANAGE_EXTERNAL_STORAGE` has no runtime dialog - Android only offers
+/// a settings page - so this is as close to "the app asks" as the
+/// platform allows, and closer than telling someone to go and find it.
+#[tauri::command]
+async fn storage_access_request(app: AppHandle) -> Result<()> {
+    android_storage::request_all_files_access(&app)
 }
 
 /// Makes a subfolder from the browser, so choosing a new home for the
@@ -2110,6 +2131,8 @@ pub fn run() {
             vault_local_path,
             vault_browse,
             vault_browse_mkdir,
+            storage_access,
+            storage_access_request,
             vault_use_path,
             config_get,
             config_set,

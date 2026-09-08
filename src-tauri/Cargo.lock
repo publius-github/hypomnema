@@ -1782,7 +1782,7 @@ dependencies = [
 
 [[package]]
 name = "hypomnema"
-version = "0.64.3"
+version = "0.64.4"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -1790,6 +1790,7 @@ dependencies = [
  "chrono",
  "croner",
  "getrandom 0.2.17",
+ "jni 0.21.1",
  "notify",
  "rusqlite",
  "serde",

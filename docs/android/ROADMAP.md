@@ -571,6 +571,14 @@ extension, REQUIREMENTS.md §5-A) would need its own spike from scratch.
   code as a Tauri plugin with its own source set; or keep both features
   unbuilt and rely on the app's own sync moments, which is where things
   stand. Worth deciding deliberately rather than by default.
+  - **Narrower than it first looked** (2026-09-08). Plain Android calls
+    need no Kotlin at all: `PlatformWebview::jni_handle().exec()` hands
+    the JNI environment to tracked Rust, which is how
+    `android_storage.rs` checks and requests all-files access. What still
+    needs the generated project is anything receiving an activity
+    *result* (`startActivityForResult` - so a SAF folder picker) or a
+    component the OS instantiates on its own (a WorkManager worker, an
+    intent filter). Those three, and nothing else.
 
 ## Suggested sequencing note
 

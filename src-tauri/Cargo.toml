@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.64.3"
+version = "0.64.4"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
@@ -36,6 +36,12 @@ getrandom = "0.2"
 aes-gcm = "0.10"
 argon2 = "0.5"
 tauri-plugin-opener = "2.5.5"
+
+# JNI is how the app asks Android for all-files access itself, rather
+# than telling the user to go find a settings screen. Android-only, and
+# already in the tree via tauri - named here so this crate can call it.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
 
 [profile.release]
 panic = "abort"

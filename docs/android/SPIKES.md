@@ -136,7 +136,22 @@ and reports per directory whether the app can **write** there (probed by
 writing a file and deleting it again) and whether a vault is already
 there, since on Android neither is visible from the path and both change
 what the button should say. `build-android.sh` declares
-`MANAGE_EXTERNAL_STORAGE` so the browser can leave the app's own folders;
-that permission is granted by hand in Settings > Apps > Special app access
-> All files access, and until it is, a directory reports itself unreadable
-rather than looking empty.
+`MANAGE_EXTERNAL_STORAGE` so the browser can leave the app's own folders,
+and the app asks for it itself rather than sending anyone hunting through
+Settings.
+
+**Calling Android from Rust needs no Kotlin.** That was the assumption
+behind "this is blocked on `gen/android`", and it was wrong for this
+case: `PlatformWebview::jni_handle().exec(|env, activity, _|)` hands the
+JNI environment to ordinary tracked Rust (`src-tauri/src/android_storage.rs`).
+`Environment.isExternalStorageManager()` answers whether access is
+granted, and an `Intent` on
+`android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` opens this
+app's own entry on the permission screen - `MANAGE_EXTERNAL_STORAGE` has
+no runtime dialog, so a settings screen is as close to "the app asks" as
+Android allows.
+
+What this does *not* reach is anything needing an activity **result**
+(`startActivityForResult`), which is what a SAF folder picker would
+need - receiving one still means Kotlin in the generated project. Fire
+-and-forget intents and plain method calls are enough here.

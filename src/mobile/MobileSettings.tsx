@@ -450,15 +450,17 @@ export default function MobileSettings() {
           The vault lives on this device. Its database is rebuilt here from the
           text files and is never uploaded.
         </p>
-        {folder ? (
-          <MobileVaultFolder onChosen={() => setFolder(false)} />
-        ) : (
-          <button
-            onClick={() => setFolder(true)}
-            className="mt-2 self-start rounded-lg border border-line px-4 py-2 text-sm"
-          >
-            Move to another folder
-          </button>
+        <button
+          onClick={() => setFolder(true)}
+          className="mt-2 self-start rounded-lg border border-line px-4 py-2 text-sm"
+        >
+          Move to another folder
+        </button>
+        {folder && (
+          <MobileVaultFolder
+            onChosen={() => setFolder(false)}
+            onCancel={() => setFolder(false)}
+          />
         )}
       </section>
     </div>
