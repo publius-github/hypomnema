@@ -118,7 +118,16 @@ pub struct PullReport {
     pub vault_root: String,
     pub files: usize,
     pub bytes: usize,
+    /// Files that could not be fetched. A vault is hundreds of files, and
+    /// one unreadable file is not a reason to throw away the other four
+    /// hundred - the caller is told what is missing instead.
+    pub failed: Vec<String>,
 }
+
+/// Consecutive failures that mean the problem is the connection or the
+/// token rather than the file. Grinding through hundreds of doomed
+/// requests to reach the same conclusion helps nobody.
+const CONSECUTIVE_FAILURE_LIMIT: usize = 5;
 
 /// Downloads the shared vault into `local_root`, a directory this device
 /// owns privately.
@@ -128,31 +137,63 @@ pub struct PullReport {
 /// stays there. Nothing puts it back into the app folder, because
 /// `sync_paths` never lists it as shared - which is why "the database
 /// never travels" holds without a separate exclude step to maintain.
+/// `on_progress(done, total)` is called after each file so a caller can
+/// show something moving: a vault is hundreds of files over the network,
+/// and a screen that sits silent for minutes reads as a hang.
 pub fn pull_vault<P: SyncProvider>(
     provider: &P,
     local_root: &Path,
     listing: &[String],
+    mut on_progress: impl FnMut(usize, usize),
 ) -> Result<PullReport> {
     let root = detect_vault_root(listing)?;
     let wanted = files_to_pull(listing, &root);
+    let total = wanted.len();
     let mut report = PullReport {
         vault_root: root.0.clone(),
         ..Default::default()
     };
-    for remote in &wanted {
+    let mut consecutive_failures = 0;
+    for (done, remote) in wanted.iter().enumerate() {
         let relative = root
             .relative(remote.trim_start_matches('/'))
             .ok_or_else(|| Error::State(format!("{remote} is outside the vault")))?;
-        let (bytes, _marker) = provider.read_file(remote)?;
-        let target = local_root.join(relative);
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent)?;
+        match fetch_one(provider, local_root, remote, relative) {
+            Ok(bytes) => {
+                report.files += 1;
+                report.bytes += bytes;
+                consecutive_failures = 0;
+            }
+            Err(e) => {
+                report.failed.push(remote.clone());
+                consecutive_failures += 1;
+                if consecutive_failures >= CONSECUTIVE_FAILURE_LIMIT {
+                    return Err(Error::State(format!(
+                        "pull stopped after {} files: {} downloads failed in a row, \
+                         last error: {e}",
+                        report.files, consecutive_failures
+                    )));
+                }
+            }
         }
-        fs::write(&target, &bytes)?;
-        report.files += 1;
-        report.bytes += bytes.len();
+        on_progress(done + 1, total);
     }
     Ok(report)
+}
+
+fn fetch_one<P: SyncProvider>(
+    provider: &P,
+    local_root: &Path,
+    remote: &str,
+    relative: &str,
+) -> Result<usize> {
+    let (bytes, _marker) = provider.read_file(remote)?;
+    let target = local_root.join(relative);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&target, &bytes)?;
+    Ok(bytes.len())
 }
 
 #[cfg(test)]
@@ -278,7 +319,7 @@ mod tests {
         ]);
         let local = temp_dir("pull");
 
-        let report = pull_vault(&provider, &local, &listing).unwrap();
+        let report = pull_vault(&provider, &local, &listing, |_, _| {}).unwrap();
 
         assert_eq!(report.vault_root, "vault/");
         assert_eq!(report.files, 2);
@@ -303,8 +344,69 @@ mod tests {
         let local = temp_dir("pull-empty");
         let listing = paths(&["HYPOMNEMA-APP-FOLDER.md", "desktop.ini"]);
 
-        assert!(pull_vault(&provider, &local, &listing).is_err());
+        assert!(pull_vault(&provider, &local, &listing, |_, _| {}).is_err());
         assert!(!local.exists());
+    }
+
+    #[test]
+    fn one_unreadable_file_does_not_cost_the_rest_of_the_vault() {
+        let provider = MockProvider::new();
+        provider
+            .write_file("vault/.hypomnema/state/tasks.jsonl", b"rows", None)
+            .unwrap();
+        provider
+            .write_file("vault/journal/kept.md", b"kept", None)
+            .unwrap();
+        // Listed but absent from the provider: fetching it fails.
+        let listing = paths(&[
+            "vault/.hypomnema/state/tasks.jsonl",
+            "vault/journal/missing.md",
+            "vault/journal/kept.md",
+        ]);
+        let local = temp_dir("pull-partial");
+
+        let report = pull_vault(&provider, &local, &listing, |_, _| {}).unwrap();
+
+        assert_eq!(report.files, 2);
+        assert_eq!(report.failed, paths(&["vault/journal/missing.md"]));
+        assert!(local.join("journal/kept.md").exists());
+    }
+
+    #[test]
+    fn a_run_of_failures_stops_the_pull_instead_of_grinding_on() {
+        // Nothing is in the provider, so every fetch fails: the shape of
+        // an expired token or a dropped connection, not a bad file.
+        let provider = MockProvider::new();
+        let listing: Vec<String> = (0..50)
+            .map(|i| format!("vault/journal/{i}.md"))
+            .chain(std::iter::once("vault/.hypomnema/state/tasks.jsonl".into()))
+            .collect();
+        let local = temp_dir("pull-doomed");
+
+        let err = pull_vault(&provider, &local, &listing, |_, _| {}).unwrap_err();
+
+        assert!(matches!(err, Error::State(_)));
+    }
+
+    #[test]
+    fn progress_is_reported_for_every_file() {
+        let provider = MockProvider::new();
+        provider
+            .write_file("vault/.hypomnema/state/tasks.jsonl", b"rows", None)
+            .unwrap();
+        provider
+            .write_file("vault/journal/a.md", b"a", None)
+            .unwrap();
+        let listing = paths(&["vault/.hypomnema/state/tasks.jsonl", "vault/journal/a.md"]);
+        let local = temp_dir("pull-progress");
+
+        let mut seen = Vec::new();
+        pull_vault(&provider, &local, &listing, |done, total| {
+            seen.push((done, total))
+        })
+        .unwrap();
+
+        assert_eq!(seen, vec![(1, 2), (2, 2)]);
     }
 
     #[test]

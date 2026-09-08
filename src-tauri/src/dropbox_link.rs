@@ -85,6 +85,10 @@ pub struct DropboxPull {
     pub files: usize,
     #[ts(type = "number")]
     pub bytes: usize,
+    /// Files that could not be fetched. Shown rather than swallowed: a
+    /// vault missing three notes is a different situation from a vault
+    /// that arrived whole, and only the user can judge which files matter.
+    pub failed: Vec<String>,
 }
 
 /// What the link screen's smoke test found in the App folder. The counts

@@ -252,6 +252,32 @@ fn changed_file_from_entry(entry: &Value) -> Result<Option<ChangedFile>> {
     }))
 }
 
+/// Serializes call arguments for the `Dropbox-API-Arg` header.
+///
+/// Dropbox passes them in an HTTP header, and headers are ASCII-only, so
+/// every non-ASCII character has to travel as a `\uXXXX` escape - which
+/// `serde_json` does not do, since raw UTF-8 is perfectly good JSON
+/// everywhere else. Without this, any vault whose file names are not
+/// English fails at the first such file.
+fn ascii_header_json(value: &Value) -> String {
+    let json = value.to_string();
+    let mut out = String::with_capacity(json.len());
+    for ch in json.chars() {
+        if ch.is_ascii() {
+            out.push(ch);
+            continue;
+        }
+        // JSON escapes address UTF-16 code units, so anything outside the
+        // basic plane (emoji in a file name) becomes a surrogate pair of
+        // two escapes rather than one.
+        let mut units = [0u16; 2];
+        for unit in ch.encode_utf16(&mut units) {
+            out.push_str(&format!("\\u{unit:04x}"));
+        }
+    }
+    out
+}
+
 /// Maps a non-2xx Dropbox response to an `Error`. A bare function (status +
 /// body, not a `ureq::Response`) so it's unit-testable without a real HTTP
 /// round trip - see the tests below.
@@ -303,7 +329,7 @@ impl DropboxTransport for HttpDropboxTransport {
             .agent
             .post("https://content.dropboxapi.com/2/files/upload")
             .set("Authorization", &self.auth_header())
-            .set("Dropbox-API-Arg", &api_arg.to_string())
+            .set("Dropbox-API-Arg", &ascii_header_json(&api_arg))
             .set("Content-Type", "application/octet-stream")
             .send_bytes(contents);
         parse_json_response(result, Some(conflict_path))
@@ -315,7 +341,7 @@ impl DropboxTransport for HttpDropboxTransport {
             .agent
             .post("https://content.dropboxapi.com/2/files/download")
             .set("Authorization", &self.auth_header())
-            .set("Dropbox-API-Arg", &api_arg.to_string())
+            .set("Dropbox-API-Arg", &ascii_header_json(&api_arg))
             .call();
         let response = match result {
             Ok(r) => r,
@@ -668,6 +694,38 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, Error::SyncConflict { path } if path == "tasks.jsonl"));
+    }
+
+    /// Found on a real vault, not by these tests: every fixture here was
+    /// ASCII, and the first Cyrillic file name in a real pull made ureq
+    /// refuse the header outright.
+    #[test]
+    fn non_ascii_paths_are_escaped_for_the_header() {
+        let header = ascii_header_json(&json!({ "path": "/essay/О алкоголе.md" }));
+
+        assert!(header.is_ascii(), "header must be ASCII, got: {header}");
+        assert!(header.contains("\\u041e"), "got: {header}");
+        // Still JSON, and still the same value once Dropbox decodes it.
+        let parsed: Value = serde_json::from_str(&header).unwrap();
+        assert_eq!(parsed["path"], "/essay/О алкоголе.md");
+    }
+
+    #[test]
+    fn characters_outside_the_basic_plane_become_surrogate_pairs() {
+        let header = ascii_header_json(&json!({ "path": "/notes/🎉.md" }));
+
+        assert!(header.is_ascii());
+        // One char, two escapes - a lone \uXXXX would be a different
+        // (and invalid) string.
+        assert!(header.contains("\\ud83c\\udf89"), "got: {header}");
+        let parsed: Value = serde_json::from_str(&header).unwrap();
+        assert_eq!(parsed["path"], "/notes/🎉.md");
+    }
+
+    #[test]
+    fn ascii_paths_are_left_alone() {
+        let value = json!({ "path": "/tasks.jsonl", "mode": { ".tag": "add" } });
+        assert_eq!(ascii_header_json(&value), value.to_string());
     }
 
     #[test]

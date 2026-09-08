@@ -1597,11 +1597,17 @@ async fn dropbox_pull_vault(app: AppHandle) -> Result<dropbox_link::DropboxPull>
     let census = sync_dropbox::census(&transport)?;
     let provider = sync_dropbox::DropboxApiSyncProvider::new(transport);
     let local_root = dir.join("vault");
-    let report = sync_bootstrap::pull_vault(&provider, &local_root, &census.files)?;
+    let report =
+        sync_bootstrap::pull_vault(&provider, &local_root, &census.files, |done, total| {
+            // Hundreds of files over the network: without this the screen
+            // sits still long enough to read as a hang.
+            let _ = app.emit("dropbox-pull-progress", (done, total));
+        })?;
     Ok(dropbox_link::DropboxPull {
         vault_root: report.vault_root,
         files: report.files,
         bytes: report.bytes,
+        failed: report.failed,
     })
 }
 

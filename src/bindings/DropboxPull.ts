@@ -9,4 +9,10 @@ export type DropboxPull = {
  * app folder itself. Shown because a user who put the vault one
  * level deeper than they meant to should be able to see that.
  */
-vault_root: string, files: number, bytes: number, };
+vault_root: string, files: number, bytes: number, 
+/**
+ * Files that could not be fetched. Shown rather than swallowed: a
+ * vault missing three notes is a different situation from a vault
+ * that arrived whole, and only the user can judge which files matter.
+ */
+failed: Array<string>, };

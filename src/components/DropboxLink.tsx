@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { DropboxListing, DropboxPull, DropboxStatus } from "../types";
 
@@ -21,8 +22,18 @@ export default function DropboxLink() {
   const [listing, setListing] = useState<DropboxListing | null>(null);
   const [marker, setMarker] = useState<string | null>(null);
   const [pull, setPull] = useState<DropboxPull | null>(null);
+  const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A pull is hundreds of round trips; the backend reports how far it
+  // has got so this does not look like a frozen screen.
+  useEffect(() => {
+    const unlisten = listen<[number, number]>("dropbox-pull-progress", (e) =>
+      setProgress(e.payload),
+    );
+    return () => void unlisten.then((fn) => fn());
+  }, []);
 
   useEffect(() => {
     void invoke<DropboxStatus>("dropbox_status")
@@ -67,7 +78,13 @@ export default function DropboxLink() {
 
   const pullVault = () =>
     run(async () => {
-      setPull(await invoke<DropboxPull>("dropbox_pull_vault"));
+      setPull(null);
+      setProgress([0, 0]);
+      try {
+        setPull(await invoke<DropboxPull>("dropbox_pull_vault"));
+      } finally {
+        setProgress(null);
+      }
     });
 
   const writeMarker = () =>
@@ -164,17 +181,33 @@ export default function DropboxLink() {
               Disconnect
             </button>
           </div>
-          {pull && (
-            <p className="text-sm">
-              Pulled {pull.files} file{pull.files === 1 ? "" : "s"} (
-              {Math.round(pull.bytes / 1024)} KB) from{" "}
-              {pull.vault_root === "" ? (
-                "the app folder itself"
-              ) : (
-                <code>{pull.vault_root}</code>
-              )}
-              .
+          {progress && (
+            <p className="text-sm text-content-muted">
+              Pulling {progress[0]}
+              {progress[1] > 0 ? ` / ${progress[1]}` : ""} files...
             </p>
+          )}
+          {pull && (
+            <div className="text-sm">
+              <p>
+                Pulled {pull.files} file{pull.files === 1 ? "" : "s"} (
+                {Math.round(pull.bytes / 1024)} KB) from{" "}
+                {pull.vault_root === "" ? (
+                  "the app folder itself"
+                ) : (
+                  <code>{pull.vault_root}</code>
+                )}
+                .
+              </p>
+              {pull.failed.length > 0 && (
+                <p className="mt-1 text-warn">
+                  {pull.failed.length} file
+                  {pull.failed.length === 1 ? "" : "s"} could not be fetched:{" "}
+                  {pull.failed.slice(0, 3).join(", ")}
+                  {pull.failed.length > 3 ? ", ..." : ""}
+                </p>
+              )}
+            </div>
           )}
           {marker && (
             <p className="text-sm">
