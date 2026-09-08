@@ -5,6 +5,19 @@ Basis: `REQUIREMENTS.md` in this folder, cross-checked against
 `src-tauri/src/{engine,tasks,tasks_mirror,state_export,vault}.rs` elsewhere
 in this same repo.
 
+## Where this stands (2026-09-08)
+
+Phases 0-5 are built. Three items remain, and none of them is waiting on
+a decision about how to write the code:
+
+- **The dogfood run** (Phase 3) — the one item no amount of code closes.
+  `DOGFOOD.md` holds the protocol and the table.
+- **History** (Phase 5) — deliberately not ported; Review already answers
+  "how did the week go?" on a phone.
+- **Share-sheet capture** (Phase 5) — blocked on the `gen/android`
+  question in "Open items" at the end of this file, the same thing that
+  blocks OS-scheduled background sync.
+
 ## Decisions locked in for this roadmap
 
 | Question (REQUIREMENTS.md §8) | Decision |
@@ -13,8 +26,8 @@ in this same repo.
 | Tech stack | **Tauri 2 + shared Rust core**, cross-compiled for `aarch64-linux-android` |
 | Vault storage on the phone | **A local folder the app owns.** The app is local-first and works with no network and no account; Dropbox is one way to *sync* a vault, not the way to *have* one. Spike A's finding (no reachable Dropbox-synced folder on Android) was read too broadly at first and made the API backend a precondition for opening a vault at all - corrected 2026-09-08 |
 | Dropbox integration | **Direct API only, and optional** — the dual-backend plan below was the working assumption until Spike A; Spike A failed (docs/android/SPIKES.md, 2026-09-08), so `DropboxApiSyncProvider` is the sole backend for v1, not a user-facing choice |
-| Comment-preserving YAML edits | Not required for v1 (P1, phases in later) |
-| Vault encryption at rest | **In scope for v1** (OS keystore-backed local cache encryption) |
+| Comment-preserving YAML edits | ~~Not required for v1~~ — **shipped anyway**, for free: the phone writes through the desktop's own splice commands rather than a second writer (Phase 5) |
+| Vault encryption at rest | ~~In scope for v1~~ — **out of scope, deliberately** (Phase 4): the vault is plain files the desktop reads directly and Dropbox moves as-is, so encrypting either end breaks the other. What shipped instead is a passphrase over the Dropbox refresh token, the one standing secret on the device |
 
 ### Dropbox integration: dual-backend, not either/or (superseded — see verdict below)
 
