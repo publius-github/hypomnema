@@ -91,12 +91,15 @@ Cargo dependency was enough for it to rewrite `tauri.settings.gradle` and
 `app/tauri.build.gradle.kts` with the plugin's Gradle module, with no
 manual step.
 
-**One hand-edit lives in there and does not survive a regeneration.**
-`app/build.gradle.kts`'s release build type was changed to sign with the
-auto-generated debug keystore, so a release-variant APK is installable for
-local testing (real signing is Phase 4). If the folder is ever deleted and
-re-inited, re-apply that or `build-android.sh release` produces an
-unsigned, uninstallable APK. Debug builds are unaffected.
+**Nothing in there is hand-edited any more.** It used to be: the release
+build type was changed by hand to sign with the auto-generated debug
+keystore, and that edit had to be re-applied after every regeneration or a
+release build came out unsigned and uninstallable. `build-android.sh` now
+does the signing setup itself on every run (`configure_signing`), writing
+`keystore.properties` and injecting a real `signingConfigs` block when
+`ANDROID_KEYSTORE` is set. The script that needs the file is the script
+that writes it, which is the only arrangement a regenerated directory can
+support.
 
 ## Working tree note
 

@@ -408,19 +408,56 @@ promise of REQUIREMENTS.md §1.
 
 ## Phase 4 — Security hardening (at-rest)
 
-- Local cache (`app.db`, cached JSONL) encrypted via Android Keystore
-  (e.g. SQLCipher with a keystore-backed key, or `EncryptedFile`/
-  `EncryptedSharedPreferences` for anything outside the DB).
-- API backend: use the `App folder` permission type — Dropbox enforces the
-  scoping itself, nothing extra to build here.
-- Filesystem backend (if shipped): no such enforcement is available, so
-  mitigation stays a documented setup step (vault lives in its own dedicated
-  Dropbox subfolder) plus the vault-linking screen nudging toward that layout
-  rather than pointing at a Dropbox root. Worth surfacing in the UI as a real
-  difference between the two backends, not just a README note.
+- [x] **The Dropbox refresh token** is the one secret on the device worth
+  encrypting, and it now can be: `crypto.rs` (Argon2id + AES-256-GCM, pure
+  Rust so the cross-compile stays free of native deps) under
+  `secret_store.rs`, behind an optional passphrase set in phone Settings.
+  Turning the lock on seals what is already on disk rather than leaving a
+  plaintext copy behind; turning it off requires the passphrase, or
+  "disable the lock" would be the way around it. Off by default — a
+  passphrase after every cold start is a real cost, and it is the phone's
+  owner who should weigh it.
+  - Why the token specifically: it is a *standing* grant to the whole app
+    folder that survives reboots and every access-token expiry. An access
+    token is worth minutes; this one is worth everything the folder holds.
+- [x] API backend uses the `App folder` permission type — Dropbox enforces
+  the scoping itself, nothing to build.
+- [x] Release signing: `build-android.sh` writes `keystore.properties` and
+  injects a real `signingConfigs` block when `ANDROID_KEYSTORE` is set,
+  on every run. It has to be every run because `gen/android` is
+  regenerated (SPIKES.md), which is exactly why the previous arrangement —
+  a hand-edit that signed release with the debug key — kept evaporating.
+  Without the variable a release build still signs with the debug key and
+  says so loudly.
+- ~~Filesystem backend's lack of enforcement~~ — moot, Spike A.
 
-**Deliverable:** a phone-loss or Dropbox-account-compromise scenario doesn't
-hand over a readable vault.
+### What this does *not* cover, and why
+
+**The vault is not encrypted at rest, on any device.** REQUIREMENTS.md §7
+asked for the local cache to be, and that turns out to be the wrong shape
+for this app rather than merely unimplemented:
+
+- The vault is plain files by design. The desktop opens them directly, the
+  engine reads them, and Dropbox moves them as-is. Encrypting the phone's
+  copy would break the phone's own reads; encrypting what goes to Dropbox
+  would leave the desktop unable to read its own vault. Real end-to-end
+  encryption is a whole-product decision — both clients, key distribution,
+  losing the key means losing the vault — not a mobile hardening step.
+- What the phone's copy actually has: Android app-private storage, which
+  no other app can read, under the OS's file-based encryption while the
+  device is locked. That covers a lost phone in the ordinary case. It does
+  not cover a rooted or already-unlocked device, and this section does not
+  pretend otherwise.
+
+The UI says the same thing in the same words: the passphrase screen states
+that notes and tasks stay plain files. Claiming more protection than
+exists is the failure worth avoiding here — someone trusting a phone with
+something they should not is a worse outcome than an honest limitation.
+
+**Deliverable:** a lost phone does not hand over a standing grant to the
+Dropbox folder; a Dropbox account compromise reaches one app folder, not
+an account. The vault's contents on a rooted device remain readable, by
+the design above.
 
 ## Phase 5 — Parity expansion (P1/P2 desktop features)
 

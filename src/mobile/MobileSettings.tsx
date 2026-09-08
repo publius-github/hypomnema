@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
+import { LockSettings } from "./MobileLock";
 import type {
   ConflictEntry,
   DropboxPull,
   DropboxStatus,
   DropboxSync,
+  LockState,
   SyncStanding,
 } from "../types";
 
@@ -27,6 +29,7 @@ export default function MobileSettings() {
   const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
   const [showConflicts, setShowConflicts] = useState(false);
   const [standing, setStanding] = useState<SyncStanding | null>(null);
+  const [lock, setLock] = useState<LockState | null>(null);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -42,6 +45,9 @@ export default function MobileSettings() {
   useEffect(() => {
     void invoke<DropboxStatus>("dropbox_status")
       .then(setStatus)
+      .catch(() => {});
+    void invoke<LockState>("app_lock_state")
+      .then(setLock)
       .catch(() => {});
     loadConflicts();
     const unlisten = Promise.all([
@@ -287,6 +293,8 @@ export default function MobileSettings() {
           </>
         )}
       </section>
+
+      {lock && <LockSettings state={lock} onChange={setLock} />}
 
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold">Engine</h2>

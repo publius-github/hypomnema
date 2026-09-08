@@ -3,10 +3,11 @@
 //!
 //! The token file lives in the app's **private config dir**, never in the
 //! vault and never in anything synced - on Android that's app-private
-//! storage no other app can read. That placement is also why the tokens
-//! are plain JSON for now rather than encrypted: keystore-backed
-//! encryption is Phase 4, and it protects against a rooted/stolen device,
-//! not against other apps.
+//! storage no other app can read. Reads and writes go through
+//! `secret_store.rs`, which leaves it plain by default and seals it under
+//! a passphrase when the device's owner turns the lock on: the refresh
+//! token is a standing grant to the whole app folder, so it is the one
+//! thing here worth encrypting against a phone in someone else's hands.
 //!
 //! Access tokens from Dropbox are short-lived (hours); the refresh token
 //! is the long-lived one. `valid_access_token` hides that: it refreshes
@@ -20,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::{Error, Result};
+use crate::secret_store;
 use crate::sync_dropbox_oauth::{self, DropboxTokens, OauthTransport};
 
 /// Refresh this long before the token actually expires, so a request
@@ -159,23 +161,25 @@ pub fn tokens_file(config_dir: &Path) -> PathBuf {
     config_dir.join(TOKENS_FILE)
 }
 
+/// Every file `secret_store` protects when the lock is turned on. The
+/// pending-auth verifier is deliberately not here: it is single-use,
+/// expires in half an hour, and is worth nothing to anyone who did not
+/// also start the browser flow.
+pub const SECRET_FILES: &[&str] = &[TOKENS_FILE];
+
 pub fn load(config_dir: &Path) -> Result<Option<StoredTokens>> {
-    let path = tokens_file(config_dir);
-    if !path.is_file() {
+    let Some(bytes) = secret_store::read_secret(config_dir, TOKENS_FILE)? else {
         return Ok(None);
-    }
-    let text = fs::read_to_string(&path)?;
-    serde_json::from_str(&text)
+    };
+    serde_json::from_slice(&bytes)
         .map(Some)
         .map_err(|e| Error::State(format!("unreadable Dropbox token file: {e}")))
 }
 
 pub fn save(config_dir: &Path, tokens: &StoredTokens) -> Result<()> {
-    fs::create_dir_all(config_dir)?;
     let text = serde_json::to_string_pretty(tokens)
         .map_err(|e| Error::State(format!("cannot serialize Dropbox tokens: {e}")))?;
-    fs::write(tokens_file(config_dir), text)?;
-    Ok(())
+    secret_store::write_secret(config_dir, TOKENS_FILE, text.as_bytes())
 }
 
 /// Unlink this device, including any half-finished authorization. Missing

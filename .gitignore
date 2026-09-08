@@ -441,6 +441,14 @@ src-tauri/gen/schemas/
 src-tauri/gen/android/
 releases/
 
+# Android release signing. gen/android is already ignored above, but a
+# keystore or its passwords put anywhere else in the tree must not be
+# committed either - losing control of the signing key is the one build
+# mistake that cannot be undone.
+*.jks
+*.keystore
+keystore.properties
+
 # Android SAF spike (spikes/android-saf-test/README.md) - Gradle build output
 # and machine-local SDK path, not source
 spikes/android-saf-test/local.properties

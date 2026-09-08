@@ -1,6 +1,7 @@
 mod backup;
 mod config;
 mod config_files;
+mod crypto;
 mod db;
 mod device;
 mod dropbox_link;
@@ -10,6 +11,7 @@ mod journal;
 mod kb;
 mod profiles;
 mod reminders;
+mod secret_store;
 mod state_export;
 mod sync_bootstrap;
 mod sync_conflicts;
@@ -1803,6 +1805,43 @@ fn rebuild_cache(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> R
     Ok(())
 }
 
+/// Is a passphrase set on this device, and are its secrets readable?
+#[tauri::command]
+async fn app_lock_state(app: AppHandle) -> Result<secret_store::LockState> {
+    Ok(secret_store::state(&app_config_dir(&app)?))
+}
+
+/// Turn the lock on. Seals every secret already on disk under the new
+/// passphrase, so nothing is left behind in plaintext.
+#[tauri::command]
+async fn app_lock_enable(app: AppHandle, passphrase: String) -> Result<secret_store::LockState> {
+    let dir = app_config_dir(&app)?;
+    secret_store::enable(&dir, &passphrase, dropbox_link::SECRET_FILES)?;
+    Ok(secret_store::state(&dir))
+}
+
+#[tauri::command]
+async fn app_lock_disable(app: AppHandle, passphrase: String) -> Result<secret_store::LockState> {
+    let dir = app_config_dir(&app)?;
+    secret_store::disable(&dir, &passphrase, dropbox_link::SECRET_FILES)?;
+    Ok(secret_store::state(&dir))
+}
+
+#[tauri::command]
+async fn app_unlock(app: AppHandle, passphrase: String) -> Result<secret_store::LockState> {
+    let dir = app_config_dir(&app)?;
+    secret_store::unlock(&dir, &passphrase)?;
+    Ok(secret_store::state(&dir))
+}
+
+/// Forget the passphrase for this session. Cheap, and the only thing
+/// between a handed-over phone and a standing grant to the vault.
+#[tauri::command]
+async fn app_lock_now(app: AppHandle) -> Result<secret_store::LockState> {
+    secret_store::lock();
+    Ok(secret_store::state(&app_config_dir(&app)?))
+}
+
 /// Whether this device is in step, answered without touching the
 /// network - so a phone with no signal can still say what it is holding.
 #[tauri::command]
@@ -2071,7 +2110,12 @@ pub fn run() {
             dropbox_sync,
             sync_conflicts_list,
             sync_conflicts_clear,
-            sync_standing
+            sync_standing,
+            app_lock_state,
+            app_lock_enable,
+            app_lock_disable,
+            app_lock_now,
+            app_unlock
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");
