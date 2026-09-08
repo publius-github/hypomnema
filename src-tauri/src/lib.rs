@@ -11,6 +11,7 @@ mod kb;
 mod profiles;
 mod reminders;
 mod state_export;
+mod sync_bootstrap;
 mod sync_dropbox;
 mod sync_dropbox_oauth;
 mod sync_merge;
@@ -1576,6 +1577,34 @@ async fn dropbox_list_files(app: AppHandle) -> Result<dropbox_link::DropboxListi
     })
 }
 
+/// Pulls the shared vault from the linked app folder into this device's
+/// private storage.
+///
+/// The local copy is where `app.db` will be rebuilt and where the engine
+/// will run - it never goes back up, because `sync_paths` does not list
+/// it as shared. Nothing opens the vault yet; this lands the files.
+#[tauri::command]
+async fn dropbox_pull_vault(app: AppHandle) -> Result<dropbox_link::DropboxPull> {
+    let dir = app_config_dir(&app)?;
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let transport = sync_dropbox::HttpDropboxTransport::new(token);
+    // The listing comes first and borrows the transport; the provider
+    // then takes it over for the downloads.
+    let census = sync_dropbox::census(&transport)?;
+    let provider = sync_dropbox::DropboxApiSyncProvider::new(transport);
+    let local_root = dir.join("vault");
+    let report = sync_bootstrap::pull_vault(&provider, &local_root, &census.files)?;
+    Ok(dropbox_link::DropboxPull {
+        vault_root: report.vault_root,
+        files: report.files,
+        bytes: report.bytes,
+    })
+}
+
 /// Drops a marker file into the linked app folder and returns its name.
 ///
 /// Answers "which folder is this app actually talking to?" from the other
@@ -1797,7 +1826,8 @@ pub fn run() {
             dropbox_status,
             dropbox_disconnect,
             dropbox_list_files,
-            dropbox_write_marker
+            dropbox_write_marker,
+            dropbox_pull_vault
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");

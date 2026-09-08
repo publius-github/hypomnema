@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { DropboxListing, DropboxStatus } from "../types";
+import type { DropboxListing, DropboxPull, DropboxStatus } from "../types";
 
 /**
  * Android vault linking (docs/android/ROADMAP.md Phase 2). A phone has no
@@ -20,6 +20,7 @@ export default function DropboxLink() {
   const [awaitingCode, setAwaitingCode] = useState(false);
   const [listing, setListing] = useState<DropboxListing | null>(null);
   const [marker, setMarker] = useState<string | null>(null);
+  const [pull, setPull] = useState<DropboxPull | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +63,11 @@ export default function DropboxLink() {
   const listFiles = () =>
     run(async () => {
       setListing(await invoke<DropboxListing>("dropbox_list_files"));
+    });
+
+  const pullVault = () =>
+    run(async () => {
+      setPull(await invoke<DropboxPull>("dropbox_pull_vault"));
     });
 
   const writeMarker = () =>
@@ -138,6 +144,13 @@ export default function DropboxLink() {
             </button>
             <button
               disabled={busy}
+              onClick={() => void pullVault()}
+              className="rounded-lg bg-accent px-4 py-2 font-medium text-white disabled:opacity-50"
+            >
+              Pull vault
+            </button>
+            <button
+              disabled={busy}
               onClick={() => void writeMarker()}
               className="rounded-lg border border-line px-4 py-2 disabled:opacity-50"
             >
@@ -151,6 +164,18 @@ export default function DropboxLink() {
               Disconnect
             </button>
           </div>
+          {pull && (
+            <p className="text-sm">
+              Pulled {pull.files} file{pull.files === 1 ? "" : "s"} (
+              {Math.round(pull.bytes / 1024)} KB) from{" "}
+              {pull.vault_root === "" ? (
+                "the app folder itself"
+              ) : (
+                <code>{pull.vault_root}</code>
+              )}
+              .
+            </p>
+          )}
           {marker && (
             <p className="text-sm">
               Wrote <code>{marker}</code> into the linked folder. Search

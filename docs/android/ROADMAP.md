@@ -229,9 +229,15 @@ actually exists in code, on both ends.
   `backups/` does not (a per-device safety net); the task mirror does not
   (derived from the database - syncing it would give one row two writers
   racing to describe it).
-- [ ] Vault bootstrap: `Vault::open`-equivalent on mobile — rebuild the
-  local `app.db` cache from JSONL + config YAML when the local cache is
-  missing or stale, matching desktop's existing disposable-cache model.
+- [~] Vault bootstrap. Done: `src-tauri/src/sync_bootstrap.rs` finds the
+  vault inside the app folder and pulls its shared files into this
+  device's private storage (`dropbox_pull_vault`). The vault root is
+  *detected*, not configured - Dropbox's own `desktop.ini` and this app's
+  marker live at the app-folder root, so keeping the vault in a subfolder
+  there is the natural layout, and both that and a root-level vault work
+  with no setup step. Two vaults side by side are refused rather than
+  guessed between. Still to do: open the pulled copy as a real vault so
+  `app.db` is rebuilt from the JSONL, and run the engine against it.
 - [ ] **Cross-engine parity test** (§7 NFR, don't defer this): a test
   harness that feeds the same rule set into the desktop engine and the
   mobile-built engine binary from the same starting state and asserts

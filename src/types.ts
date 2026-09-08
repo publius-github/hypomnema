@@ -16,6 +16,7 @@ export type { DashboardContext } from "./bindings/DashboardContext";
 export type { DayContext } from "./bindings/DayContext";
 export type { DayReminder } from "./bindings/DayReminder";
 export type { DropboxListing } from "./bindings/DropboxListing";
+export type { DropboxPull } from "./bindings/DropboxPull";
 export type { DropboxStatus } from "./bindings/DropboxStatus";
 export type { EngineOutcome } from "./bindings/EngineOutcome";
 export type { JournalEntry } from "./bindings/JournalEntry";

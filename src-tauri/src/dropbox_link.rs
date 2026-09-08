@@ -73,6 +73,20 @@ pub struct DropboxStatus {
     pub expires_in_secs: i64,
 }
 
+/// Outcome of pulling the shared vault down to this device.
+#[derive(Debug, Clone, Serialize, TS, PartialEq, Eq)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct DropboxPull {
+    /// Where the vault sat inside the app folder - empty when it is the
+    /// app folder itself. Shown because a user who put the vault one
+    /// level deeper than they meant to should be able to see that.
+    pub vault_root: String,
+    #[ts(type = "number")]
+    pub files: usize,
+    #[ts(type = "number")]
+    pub bytes: usize,
+}
+
 /// What the link screen's smoke test found in the App folder. The counts
 /// matter as much as the list: an empty `files` with a non-zero `folders`
 /// says the directory tree arrived but its contents did not, which is a
