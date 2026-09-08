@@ -144,8 +144,9 @@ export default function MobileSettings() {
           {vaultPath ?? "none"}
         </p>
         <p className="text-xs text-content-muted">
-          This is the local copy on this device. The database is rebuilt
-          here and never uploaded.
+          The vault lives on this device. Its database is rebuilt here from
+          the text files and is never uploaded. To load an existing vault,
+          copy its contents into the folder above from a computer.
         </p>
       </section>
     </div>

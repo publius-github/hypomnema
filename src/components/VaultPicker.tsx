@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
-import DropboxLink from "./DropboxLink";
+import MobileVaultSetup from "../mobile/MobileVaultSetup";
 
 export default function VaultPicker() {
   const selectVault = useAppStore((s) => s.selectVault);
@@ -43,7 +43,7 @@ export default function VaultPicker() {
   };
 
   if (isMobile === null) return null;
-  if (isMobile) return <DropboxLink />;
+  if (isMobile) return <MobileVaultSetup />;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">

@@ -11,7 +11,8 @@ in this same repo.
 | --- | --- |
 | Platform | **Android only** — iOS is not planned |
 | Tech stack | **Tauri 2 + shared Rust core**, cross-compiled for `aarch64-linux-android` |
-| Dropbox integration | **Direct API only** — the dual-backend plan below was the working assumption until Spike A; Spike A failed (docs/android/SPIKES.md, 2026-09-08), so `DropboxApiSyncProvider` is the sole backend for v1, not a user-facing choice |
+| Vault storage on the phone | **A local folder the app owns.** The app is local-first and works with no network and no account; Dropbox is one way to *sync* a vault, not the way to *have* one. Spike A's finding (no reachable Dropbox-synced folder on Android) was read too broadly at first and made the API backend a precondition for opening a vault at all - corrected 2026-09-08 |
+| Dropbox integration | **Direct API only, and optional** — the dual-backend plan below was the working assumption until Spike A; Spike A failed (docs/android/SPIKES.md, 2026-09-08), so `DropboxApiSyncProvider` is the sole backend for v1, not a user-facing choice |
 | Comment-preserving YAML edits | Not required for v1 (P1, phases in later) |
 | Vault encryption at rest | **In scope for v1** (OS keystore-backed local cache encryption) |
 

@@ -521,6 +521,42 @@ async fn vault_status(app: AppHandle, state: State<'_, AppState>) -> Result<Opti
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
+/// Where a phone keeps its vault when it is not syncing with anything.
+///
+/// A phone has no folder picker worth the name and no obvious place a
+/// user would point one at, so this is a fixed location the app owns.
+/// It is a normal directory read and written with normal file I/O - the
+/// Dropbox backend exists to *sync* a vault, and treating it as the only
+/// way to *have* one was a mistake this corrects.
+fn local_vault_dir(app: &AppHandle) -> Result<PathBuf> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| Error::State(format!("cannot resolve the app data directory: {e}")))?;
+    Ok(base.join("vault"))
+}
+
+/// Opens (creating if needed) this device's own vault, with no sync
+/// involved. `Vault::open` lays out an empty vault the same way it does
+/// on a first desktop run, so this works on a phone that has never seen
+/// Dropbox.
+#[tauri::command]
+async fn vault_use_local(app: AppHandle, state: State<'_, AppState>) -> Result<String> {
+    let root = local_vault_dir(&app)?;
+    std::fs::create_dir_all(&root)?;
+    open_vault(&app, &state, &root)?;
+    vault::write_vault_path(&app_config_dir(&app)?, &root)?;
+    Ok(root.to_string_lossy().into_owned())
+}
+
+/// The vault directory this device would use locally, whether or not it
+/// exists yet. Shown in Settings so files can be copied into it from a
+/// computer without guessing where it lives.
+#[tauri::command]
+async fn vault_local_path(app: AppHandle) -> Result<String> {
+    Ok(local_vault_dir(&app)?.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 async fn vault_select(
     app: AppHandle,
@@ -1815,6 +1851,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             vault_status,
             vault_select,
+            vault_use_local,
+            vault_local_path,
             config_get,
             config_set,
             config_default,
