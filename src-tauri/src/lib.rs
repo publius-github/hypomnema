@@ -1584,29 +1584,37 @@ async fn dropbox_list_files(app: AppHandle) -> Result<dropbox_link::DropboxListi
 /// will run - it never goes back up, because `sync_paths` does not list
 /// it as shared. Nothing opens the vault yet; this lands the files.
 #[tauri::command]
-async fn dropbox_pull_vault(app: AppHandle) -> Result<dropbox_link::DropboxPull> {
+async fn dropbox_pull_vault(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<dropbox_link::DropboxPull> {
     let dir = app_config_dir(&app)?;
     let token = dropbox_link::valid_access_token(
         &dir,
         &sync_dropbox_oauth::HttpOauthTransport::new(),
         now_unix(),
     )?;
-    let transport = sync_dropbox::HttpDropboxTransport::new(token);
-    // The listing comes first and borrows the transport; the provider
-    // then takes it over for the downloads.
-    let census = sync_dropbox::census(&transport)?;
-    let provider = sync_dropbox::DropboxApiSyncProvider::new(transport);
+    let provider =
+        sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
     let local_root = dir.join("vault");
-    let report =
-        sync_bootstrap::pull_vault(&provider, &local_root, &census.files, |done, total| {
-            // Hundreds of files over the network: without this the screen
-            // sits still long enough to read as a hang.
-            let _ = app.emit("dropbox-pull-progress", (done, total));
-        })?;
+    let report = sync_bootstrap::pull_vault(&provider, &local_root, |done, total| {
+        // Hundreds of files over the network: without this the screen
+        // sits still long enough to read as a hang.
+        let _ = app.emit("dropbox-pull-progress", (done, total));
+    })?;
+    // The pulled copy is a vault like any other: opening it runs the
+    // migrations and rebuilds app.db from the JSONL snapshot through the
+    // same disposable-cache path the desktop uses, then the engine and
+    // every existing command work against it unchanged. Remembering it as
+    // the selected vault is what makes the app come back to it on the
+    // next launch instead of the link screen.
+    open_vault(&app, &state, &local_root)?;
+    vault::write_vault_path(&dir, &local_root)?;
     Ok(dropbox_link::DropboxPull {
         vault_root: report.vault_root,
         files: report.files,
         bytes: report.bytes,
+        skipped: report.skipped,
         failed: report.failed,
     })
 }

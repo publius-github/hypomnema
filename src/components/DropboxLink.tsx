@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useAppStore } from "../store";
 import type { DropboxListing, DropboxPull, DropboxStatus } from "../types";
 
 /**
@@ -82,6 +83,9 @@ export default function DropboxLink() {
       setProgress([0, 0]);
       try {
         setPull(await invoke<DropboxPull>("dropbox_pull_vault"));
+        // The backend opened the pulled copy as this device's vault, so
+        // re-initialising the store swaps this screen for the real app.
+        await useAppStore.getState().init();
       } finally {
         setProgress(null);
       }

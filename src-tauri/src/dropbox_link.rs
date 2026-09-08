@@ -85,6 +85,10 @@ pub struct DropboxPull {
     pub files: usize,
     #[ts(type = "number")]
     pub bytes: usize,
+    /// Already on the device at the same revision - a resumed pull skips
+    /// them instead of fetching hundreds of files a second time.
+    #[ts(type = "number")]
+    pub skipped: usize,
     /// Files that could not be fetched. Shown rather than swallowed: a
     /// vault missing three notes is a different situation from a vault
     /// that arrived whole, and only the user can judge which files matter.

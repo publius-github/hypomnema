@@ -79,11 +79,19 @@ pub(crate) mod mock {
     pub struct MockProvider {
         // path -> (bytes, revision counter)
         files: Mutex<HashMap<String, (Vec<u8>, u64)>>,
+        // Paths whose reads fail, so callers that must survive a partial
+        // failure can be tested without a real flaky network.
+        unreadable: Mutex<std::collections::HashSet<String>>,
     }
 
     impl MockProvider {
         pub fn new() -> Self {
             Self::default()
+        }
+
+        /// Make this path exist in listings but fail to download.
+        pub fn make_unreadable(&self, path: &str) {
+            self.unreadable.lock().unwrap().insert(path.to_string());
         }
 
         fn marker_for(rev: u64) -> ChangeMarker {
@@ -106,6 +114,9 @@ pub(crate) mod mock {
         }
 
         fn read_file(&self, path: &str) -> Result<(Vec<u8>, ChangeMarker)> {
+            if self.unreadable.lock().unwrap().contains(path) {
+                return Err(Error::State(format!("mock: unreadable: {path}")));
+            }
             let files = self.files.lock().unwrap();
             let (bytes, rev) = files
                 .get(path)

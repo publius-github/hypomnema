@@ -11,6 +11,11 @@ export type DropboxPull = {
  */
 vault_root: string, files: number, bytes: number, 
 /**
+ * Already on the device at the same revision - a resumed pull skips
+ * them instead of fetching hundreds of files a second time.
+ */
+skipped: number, 
+/**
  * Files that could not be fetched. Shown rather than swallowed: a
  * vault missing three notes is a different situation from a vault
  * that arrived whole, and only the user can judge which files matter.

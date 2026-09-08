@@ -12,12 +12,13 @@
 //! directory `vault.rs` creates and every vault has.
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 use crate::sync_paths;
-use crate::sync_provider::SyncProvider;
+use crate::sync_provider::{ChangeMarker, SyncCursor, SyncProvider};
 use crate::vault::WORK_DIR;
 
 /// Where the vault sits inside the app folder: `""` when its contents are
@@ -118,10 +119,51 @@ pub struct PullReport {
     pub vault_root: String,
     pub files: usize,
     pub bytes: usize,
+    /// Already present at the same revision, so not fetched again.
+    pub skipped: usize,
     /// Files that could not be fetched. A vault is hundreds of files, and
     /// one unreadable file is not a reason to throw away the other four
     /// hundred - the caller is told what is missing instead.
     pub failed: Vec<String>,
+}
+
+/// Which revision of each file this device has already pulled.
+///
+/// Android freezes a backgrounded app, so a pull of several hundred files
+/// will not survive the screen locking, and asking the user to sit and
+/// watch their phone for two minutes is not a design. With this, a pull
+/// interrupted at file 300 resumes at file 300 instead of starting over,
+/// and pressing the button again is a sane thing to do at any point.
+const MANIFEST_FILE: &str = "pull-manifest.json";
+
+/// Rewrite the manifest at most this often; every file would be hundreds
+/// of writes for no added safety, since a lost tail just re-downloads.
+const MANIFEST_FLUSH_EVERY: usize = 25;
+
+fn manifest_path(local_root: &Path) -> PathBuf {
+    local_root.join(MANIFEST_FILE)
+}
+
+fn load_manifest(local_root: &Path) -> BTreeMap<String, String> {
+    fs::read_to_string(manifest_path(local_root))
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn save_manifest(local_root: &Path, manifest: &BTreeMap<String, String>) -> Result<()> {
+    fs::create_dir_all(local_root)?;
+    let text = serde_json::to_string(manifest)
+        .map_err(|e| Error::State(format!("cannot serialize the pull manifest: {e}")))?;
+    fs::write(manifest_path(local_root), text)?;
+    Ok(())
+}
+
+fn marker_key(marker: &ChangeMarker) -> String {
+    match marker {
+        ChangeMarker::Rev(rev) => rev.clone(),
+        ChangeMarker::HashMtime { hash, mtime_unix } => format!("{hash}:{mtime_unix}"),
+    }
 }
 
 /// Consecutive failures that mean the problem is the connection or the
@@ -143,31 +185,62 @@ const CONSECUTIVE_FAILURE_LIMIT: usize = 5;
 pub fn pull_vault<P: SyncProvider>(
     provider: &P,
     local_root: &Path,
-    listing: &[String],
     mut on_progress: impl FnMut(usize, usize),
 ) -> Result<PullReport> {
-    let root = detect_vault_root(listing)?;
-    let wanted = files_to_pull(listing, &root);
+    // list_changes rather than a plain listing: it carries each file's
+    // revision, which is what makes "already have this one" answerable.
+    let (changes, _cursor) = provider.list_changes(&SyncCursor::default())?;
+    let live: Vec<_> = changes.into_iter().filter(|c| !c.deleted).collect();
+    let paths: Vec<String> = live.iter().map(|c| c.path.clone()).collect();
+    let root = detect_vault_root(&paths)?;
+
+    let wanted: Vec<_> = live
+        .iter()
+        .filter(|c| {
+            root.relative(c.path.trim_start_matches('/'))
+                .is_some_and(sync_paths::is_synced)
+        })
+        .collect();
     let total = wanted.len();
+    let mut manifest = load_manifest(local_root);
     let mut report = PullReport {
         vault_root: root.0.clone(),
         ..Default::default()
     };
     let mut consecutive_failures = 0;
-    for (done, remote) in wanted.iter().enumerate() {
+    let mut since_flush = 0;
+
+    for (done, change) in wanted.iter().enumerate() {
+        let remote = change.path.as_str();
         let relative = root
             .relative(remote.trim_start_matches('/'))
             .ok_or_else(|| Error::State(format!("{remote} is outside the vault")))?;
+        let rev = marker_key(&change.marker);
+        // Resuming: same revision already on disk, nothing to fetch.
+        if manifest.get(remote) == Some(&rev) && local_root.join(relative).exists() {
+            report.skipped += 1;
+            on_progress(done + 1, total);
+            continue;
+        }
         match fetch_one(provider, local_root, remote, relative) {
             Ok(bytes) => {
                 report.files += 1;
                 report.bytes += bytes;
+                manifest.insert(remote.to_string(), rev);
                 consecutive_failures = 0;
+                since_flush += 1;
+                if since_flush >= MANIFEST_FLUSH_EVERY {
+                    save_manifest(local_root, &manifest)?;
+                    since_flush = 0;
+                }
             }
             Err(e) => {
-                report.failed.push(remote.clone());
+                report.failed.push(remote.to_string());
                 consecutive_failures += 1;
                 if consecutive_failures >= CONSECUTIVE_FAILURE_LIMIT {
+                    // Keep what did arrive: the next attempt resumes here
+                    // instead of re-fetching everything before it.
+                    save_manifest(local_root, &manifest)?;
                     return Err(Error::State(format!(
                         "pull stopped after {} files: {} downloads failed in a row, \
                          last error: {e}",
@@ -178,6 +251,7 @@ pub fn pull_vault<P: SyncProvider>(
         }
         on_progress(done + 1, total);
     }
+    save_manifest(local_root, &manifest)?;
     Ok(report)
 }
 
@@ -311,15 +385,9 @@ mod tests {
         provider
             .write_file("vault/.hypomnema/app.db", b"binary", None)
             .unwrap();
-        let listing: Vec<String> = paths(&[
-            "vault/.hypomnema/state/tasks.jsonl",
-            "vault/journal/2026-09-08.md",
-            "vault/.hypomnema/app.db",
-            "HYPOMNEMA-APP-FOLDER.md",
-        ]);
         let local = temp_dir("pull");
 
-        let report = pull_vault(&provider, &local, &listing, |_, _| {}).unwrap();
+        let report = pull_vault(&provider, &local, |_, _| {}).unwrap();
 
         assert_eq!(report.vault_root, "vault/");
         assert_eq!(report.files, 2);
@@ -342,9 +410,8 @@ mod tests {
     fn a_pull_from_an_app_folder_without_a_vault_fails_before_writing_anything() {
         let provider = MockProvider::new();
         let local = temp_dir("pull-empty");
-        let listing = paths(&["HYPOMNEMA-APP-FOLDER.md", "desktop.ini"]);
 
-        assert!(pull_vault(&provider, &local, &listing, |_, _| {}).is_err());
+        assert!(pull_vault(&provider, &local, |_, _| {}).is_err());
         assert!(!local.exists());
     }
 
@@ -357,33 +424,36 @@ mod tests {
         provider
             .write_file("vault/journal/kept.md", b"kept", None)
             .unwrap();
-        // Listed but absent from the provider: fetching it fails.
-        let listing = paths(&[
-            "vault/.hypomnema/state/tasks.jsonl",
-            "vault/journal/missing.md",
-            "vault/journal/kept.md",
-        ]);
+        provider
+            .write_file("vault/journal/broken.md", b"x", None)
+            .unwrap();
+        provider.make_unreadable("vault/journal/broken.md");
         let local = temp_dir("pull-partial");
 
-        let report = pull_vault(&provider, &local, &listing, |_, _| {}).unwrap();
+        let report = pull_vault(&provider, &local, |_, _| {}).unwrap();
 
         assert_eq!(report.files, 2);
-        assert_eq!(report.failed, paths(&["vault/journal/missing.md"]));
+        assert_eq!(report.failed, paths(&["vault/journal/broken.md"]));
         assert!(local.join("journal/kept.md").exists());
     }
 
     #[test]
     fn a_run_of_failures_stops_the_pull_instead_of_grinding_on() {
-        // Nothing is in the provider, so every fetch fails: the shape of
-        // an expired token or a dropped connection, not a bad file.
+        // Every file fails: the shape of an expired token or a dropped
+        // connection, not one bad file.
         let provider = MockProvider::new();
-        let listing: Vec<String> = (0..50)
-            .map(|i| format!("vault/journal/{i}.md"))
-            .chain(std::iter::once("vault/.hypomnema/state/tasks.jsonl".into()))
-            .collect();
+        provider
+            .write_file("vault/.hypomnema/state/tasks.jsonl", b"rows", None)
+            .unwrap();
+        for i in 0..50 {
+            let path = format!("vault/journal/{i}.md");
+            provider.write_file(&path, b"x", None).unwrap();
+            provider.make_unreadable(&path);
+        }
+        provider.make_unreadable("vault/.hypomnema/state/tasks.jsonl");
         let local = temp_dir("pull-doomed");
 
-        let err = pull_vault(&provider, &local, &listing, |_, _| {}).unwrap_err();
+        let err = pull_vault(&provider, &local, |_, _| {}).unwrap_err();
 
         assert!(matches!(err, Error::State(_)));
     }
@@ -397,14 +467,10 @@ mod tests {
         provider
             .write_file("vault/journal/a.md", b"a", None)
             .unwrap();
-        let listing = paths(&["vault/.hypomnema/state/tasks.jsonl", "vault/journal/a.md"]);
         let local = temp_dir("pull-progress");
 
         let mut seen = Vec::new();
-        pull_vault(&provider, &local, &listing, |done, total| {
-            seen.push((done, total))
-        })
-        .unwrap();
+        pull_vault(&provider, &local, |done, total| seen.push((done, total))).unwrap();
 
         assert_eq!(seen, vec![(1, 2), (2, 2)]);
     }

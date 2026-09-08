@@ -236,8 +236,13 @@ actually exists in code, on both ends.
   marker live at the app-folder root, so keeping the vault in a subfolder
   there is the natural layout, and both that and a root-level vault work
   with no setup step. Two vaults side by side are refused rather than
-  guessed between. Still to do: open the pulled copy as a real vault so
-  `app.db` is rebuilt from the JSONL, and run the engine against it.
+  guessed between. The pull is resumable: each file's revision is recorded
+  as it lands, so an interrupted run (Android freezes a backgrounded app,
+  and a screen lock during a several-hundred-file pull is not an edge
+  case) resumes instead of starting over. Opening the pulled copy runs the
+  migrations and rebuilds `app.db` from the JSONL through the same
+  disposable-cache path the desktop uses, after which every existing
+  command and the engine work against it unchanged.
 - [ ] **Cross-engine parity test** (§7 NFR, don't defer this): a test
   harness that feeds the same rule set into the desktop engine and the
   mobile-built engine binary from the same starting state and asserts

@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.56.2"
+version = "0.57.0"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
