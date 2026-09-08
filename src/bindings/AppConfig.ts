@@ -178,6 +178,26 @@ notify_snooze_minutes: number,
  */
 state_snapshot: boolean, 
 /**
+ * Run a Dropbox sync pass on its own, without the user pressing
+ * Sync now. Mobile only - the desktop reaches its vault through the
+ * filesystem and has nothing to sync (docs/android/ROADMAP.md
+ * Phase 3). Off leaves sync entirely manual.
+ */
+sync_auto: boolean, 
+/**
+ * Minutes between automatic passes while the app is open and in
+ * front. A phone on mobile data pays for every pass, and a vault
+ * that changes a few times an hour does not need one a minute.
+ */
+sync_interval_minutes: number, 
+/**
+ * Also sync when the app goes to the background. This is the pass
+ * that matters most on a phone: Android freezes a backgrounded app,
+ * so without it the last thing done before locking the screen sits
+ * on the device until the app is opened again.
+ */
+sync_on_leave: boolean, 
+/**
  * Two-way Markdown mirror of the manual tasks under <vault>/tasks/
  * (one file per list + scheduled.md) for bulk editing in any editor.
  */

@@ -12,7 +12,9 @@ const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (cmd: string, args?: unknown) => invokeMock(cmd, args),
 }));
-vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(async () => () => {}),
+}));
 
 import MobileApp from "./MobileApp";
 import { useAppStore } from "../store";
@@ -83,6 +85,72 @@ describe("MobileApp smoke", () => {
           title: "call the dentist",
           scheduled_date: today,
         }),
+      }),
+    );
+  });
+
+  it("edits a task's title from the task editor", async () => {
+    const today = todayISO();
+    const task = makeTask({ title: "call mum", scheduled_date: today });
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        tasks_snapshot: () => [task],
+        task_update: () => ({ ...task, title: "call mum back" }),
+      }),
+    );
+    useAppStore.setState({
+      config: { ...defaultConfig, sync_auto: false },
+      vaultPath: "/vault",
+      lists: [],
+      tasks: [task],
+      today,
+    });
+
+    render(<MobileApp />);
+
+    fireEvent.click(await screen.findByLabelText("Task actions"));
+    fireEvent.click(screen.getByText("Edit"));
+    const title = await screen.findByDisplayValue("call mum");
+    fireEvent.change(title, { target: { value: "call mum back" } });
+    fireEvent.blur(title);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("task_update", {
+        id: task.id,
+        patch: { title: "call mum back" },
+      }),
+    );
+  });
+
+  it("creates a list from the lists tab", async () => {
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        tasks_snapshot: () => [],
+        list_create: () => ({ id: 7, name: "Errands" }),
+      }),
+    );
+    useAppStore.setState({
+      config: { ...defaultConfig, sync_auto: false },
+      vaultPath: "/vault",
+      lists: [],
+      tasks: [],
+      today: todayISO(),
+    });
+
+    render(<MobileApp />);
+
+    fireEvent.click(await screen.findByText("Lists"));
+    fireEvent.change(await screen.findByPlaceholderText("New list"), {
+      target: { value: "Errands" },
+    });
+    fireEvent.click(screen.getByText("Add"));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("list_create", {
+        name: "Errands",
+        color: null,
       }),
     );
   });

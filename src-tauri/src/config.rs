@@ -140,6 +140,20 @@ pub struct AppConfig {
     /// <vault>/.hypomnema/state/ (tasks, lists, engine ledgers), so a
     /// vault synced without its .db rebuilds the database on open.
     pub state_snapshot: bool,
+    /// Run a Dropbox sync pass on its own, without the user pressing
+    /// Sync now. Mobile only - the desktop reaches its vault through the
+    /// filesystem and has nothing to sync (docs/android/ROADMAP.md
+    /// Phase 3). Off leaves sync entirely manual.
+    pub sync_auto: bool,
+    /// Minutes between automatic passes while the app is open and in
+    /// front. A phone on mobile data pays for every pass, and a vault
+    /// that changes a few times an hour does not need one a minute.
+    pub sync_interval_minutes: u32,
+    /// Also sync when the app goes to the background. This is the pass
+    /// that matters most on a phone: Android freezes a backgrounded app,
+    /// so without it the last thing done before locking the screen sits
+    /// on the device until the app is opened again.
+    pub sync_on_leave: bool,
     /// Two-way Markdown mirror of the manual tasks under <vault>/tasks/
     /// (one file per list + scheduled.md) for bulk editing in any editor.
     pub tasks_mirror: bool,
@@ -424,6 +438,9 @@ impl Default for AppConfig {
             notify_system: true,
             notify_snooze_minutes: 10,
             state_snapshot: true,
+            sync_auto: true,
+            sync_interval_minutes: 15,
+            sync_on_leave: true,
             tasks_mirror: true,
             tasks_mirror_agenda: true,
             tasks_mirror_ids: true,
@@ -512,6 +529,9 @@ impl AppConfig {
         self.grid_columns = self.grid_columns.clamp(1, 31);
         self.catchup_days = self.catchup_days.clamp(1, 365);
         self.retention_days = self.retention_days.min(36500);
+        // A pass under a minute apart would spend the battery on
+        // listings; a day apart is not a sync, it is a weekly backup.
+        self.sync_interval_minutes = self.sync_interval_minutes.clamp(1, 720);
         if !["dark", "light"].contains(&self.theme.as_str()) {
             self.theme = "dark".into();
         }
@@ -776,6 +796,12 @@ impl AppConfig {
                 self.notify_snooze_minutes.to_string(),
             ),
             ("state_snapshot", self.state_snapshot.to_string()),
+            ("sync_auto", self.sync_auto.to_string()),
+            (
+                "sync_interval_minutes",
+                self.sync_interval_minutes.to_string(),
+            ),
+            ("sync_on_leave", self.sync_on_leave.to_string()),
             ("tasks_mirror", self.tasks_mirror.to_string()),
             ("tasks_mirror_agenda", self.tasks_mirror_agenda.to_string()),
             ("tasks_mirror_ids", self.tasks_mirror_ids.to_string()),

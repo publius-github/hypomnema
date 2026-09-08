@@ -301,11 +301,20 @@ Goal: the "Suggested MVP slice" from REQUIREMENTS.md §9, on real UI.
   of the desktop grid: that grid is built for a wide window and a mouse,
   and narrowed to a phone it is a worse version of both. Tabs sit at the
   bottom because that is where a thumb reaches.
-- [~] Manual task CRUD: create, complete, postpone, move to tomorrow,
+- [x] Manual task CRUD: create, complete, postpone, move to tomorrow,
   star, delete. The whole row toggles done, since that is what a task row
   is for most of the time; the rarer actions open inline rather than in a
   modal, which on a phone would cover the list the action refers to.
-  Still to do: editing a task's text, subtasks, list CRUD.
+  "Edit" opens `MobileTaskEditor` — a whole screen, not a dialog, since a
+  dialog over a six-inch display is a screen with a border drawn around
+  it and the border costs the room the keyboard is about to take. Title,
+  notes, date, time, list, status, priority, colour and subtasks; text
+  commits on blur and on unmount, because backgrounding the app is the
+  normal way to leave a screen here. A generated task's title, text, date
+  and list stay read-only — the config file owns them — while status,
+  priority and colour remain instance-local, same rule as the desktop.
+- [x] List CRUD: create from the list index, and per list rename,
+  description, colour, favourite and archive, inline under the header.
 - [x] Journal: read + write, template-seeded, one day at a time. A plain
   textarea rather than the desktop's CodeMirror - the system keyboard and
   its autocorrect are the editor on a phone, and a code editor fights
@@ -313,15 +322,29 @@ Goal: the "Suggested MVP slice" from REQUIREMENTS.md §9, on real UI.
   backgrounding the app is the normal way to leave it here.
 - [x] Notes: browse and read, one folder at a time with a path trail. An
   indented tree spends most of a narrow screen on whitespace.
-- [~] Settings: Dropbox link status, pull-with-progress, run the engine,
-  system notifications. The desktop's appearance, layout and profile tabs
-  are deliberately absent - they describe a window. Still to do: the
-  conflict log, which needs the merge wired to real records first.
+- [x] Settings: sync status and a single Sync now button (pull and push
+  demoted to a "one-way actions" disclosure — they are the right verb
+  only when setting a device up or forcing this device's copy upward),
+  automatic-sync switches, the conflict log, run the engine, system
+  notifications. The desktop's appearance, layout and profile tabs are
+  deliberately absent — they describe a window.
 - [x] In-app quick-add: an add field on the day view and on each list.
-- [~] Engine scheduling: runs on foreground/resume and at midnight while
-  open. A phone sleeps most of the day, so "on launch" alone would leave a
-  day's recurring tasks unmade. Background runs via WorkManager are still
-  to do.
+- [x] Engine scheduling: runs on foreground/resume and at midnight while
+  open. A phone sleeps most of the day, so "on launch" alone would leave
+  a day's recurring tasks unmade.
+- [x] Automatic sync on the three moments that matter, none of which is a
+  timer alone: coming back to the app, **leaving** it (Android freezes a
+  backgrounded app, so without this the last thing done before the screen
+  locks sits on the device), and a slow heartbeat for a session left open.
+  All three are one function and a pass in flight never starts a second.
+  Configurable (`sync_auto`, `sync_on_leave`, `sync_interval_minutes`).
+  - **Not** WorkManager, and not by oversight: a WorkManager worker is
+    Kotlin living in `src-tauri/gen/android`, which this repo does not
+    track (SPIKES.md) — `tauri android init` regenerates it, so the
+    worker would be deleted by a routine rebuild. Real OS-scheduled
+    background work needs that project tracked, or the worker packaged as
+    a Tauri plugin with its own Android source set. Open question at the
+    end of this file.
 
 **Deliverable:** installable Android build a real user (you) can run
 against your actual vault day-to-day for task/journal/notes reading and

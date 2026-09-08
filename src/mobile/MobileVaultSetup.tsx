@@ -20,7 +20,9 @@ export default function MobileVaultSetup() {
   const setError = useAppStore((s) => s.setError);
 
   useEffect(() => {
-    void invoke<string>("vault_local_path").then(setPath).catch(() => {});
+    void invoke<string>("vault_local_path")
+      .then(setPath)
+      .catch(() => {});
   }, []);
 
   if (dropbox) {
@@ -73,8 +75,8 @@ export default function MobileVaultSetup() {
         Sync with Dropbox instead
       </button>
       <p className="text-xs text-content-muted">
-        Dropbox keeps a vault in step across devices. It can also be turned
-        on later, from Settings.
+        Dropbox keeps a vault in step across devices. It can also be turned on
+        later, from Settings.
       </p>
     </div>
   );

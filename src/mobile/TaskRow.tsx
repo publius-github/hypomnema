@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAppStore } from "../store";
 import { addDaysISO } from "../lib/tasks";
+import { useEditTask } from "./editing";
 import type { Task } from "../types";
 
 /**
@@ -16,7 +17,11 @@ export default function TaskRow({ task }: { task: Task }) {
   const [open, setOpen] = useState(false);
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
+  const tasks = useAppStore((s) => s.tasks);
+  const { setEditing } = useEditTask();
   const done = task.status === "done";
+  const subtasks = tasks.filter((t) => t.parent_task_id === task.id);
+  const subtasksDone = subtasks.filter((t) => t.status === "done").length;
 
   const act = (patch: Parameters<typeof updateTask>[1]) => {
     setOpen(false);
@@ -27,7 +32,9 @@ export default function TaskRow({ task }: { task: Task }) {
     <li className="border-b border-line/60">
       <div className="flex items-stretch">
         <button
-          onClick={() => void updateTask(task.id, { status: done ? "todo" : "done" })}
+          onClick={() =>
+            void updateTask(task.id, { status: done ? "todo" : "done" })
+          }
           className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left"
         >
           <span
@@ -50,6 +57,11 @@ export default function TaskRow({ task }: { task: Task }) {
             </span>
             <span className="mt-0.5 flex flex-wrap gap-2 text-xs text-content-muted">
               {task.time && <span>{task.time}</span>}
+              {subtasks.length > 0 && (
+                <span>
+                  {subtasksDone}/{subtasks.length}
+                </span>
+              )}
               {task.overdue && <span className="text-warn">overdue</span>}
               {task.priority && <span className="text-accent">priority</span>}
               {task.status === "postponed" && <span>postponed</span>}
@@ -67,6 +79,13 @@ export default function TaskRow({ task }: { task: Task }) {
       {open && (
         <div className="flex flex-wrap gap-2 px-4 pb-3">
           <Action
+            label="Edit"
+            onClick={() => {
+              setOpen(false);
+              setEditing(task.id);
+            }}
+          />
+          <Action
             label="Tomorrow"
             onClick={() =>
               act({
@@ -77,7 +96,10 @@ export default function TaskRow({ task }: { task: Task }) {
               })
             }
           />
-          <Action label="Postpone" onClick={() => act({ status: "postponed" })} />
+          <Action
+            label="Postpone"
+            onClick={() => act({ status: "postponed" })}
+          />
           <Action
             label={task.priority ? "Unstar" : "Star"}
             onClick={() => act({ priority: !task.priority })}

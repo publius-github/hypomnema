@@ -35,7 +35,9 @@ export default function MobileSettings() {
   }, []);
 
   useEffect(() => {
-    void invoke<DropboxStatus>("dropbox_status").then(setStatus).catch(() => {});
+    void invoke<DropboxStatus>("dropbox_status")
+      .then(setStatus)
+      .catch(() => {});
     loadConflicts();
     const unlisten = Promise.all([
       listen<[number, number]>("dropbox-pull-progress", (e) =>
@@ -112,6 +114,57 @@ export default function MobileSettings() {
             )}
           </p>
         )}
+        {config && (
+          <>
+            <label className="flex items-center justify-between gap-3 pt-1">
+              <span className="text-sm">Sync automatically</span>
+              <input
+                type="checkbox"
+                checked={config.sync_auto}
+                onChange={(e) =>
+                  void updateConfig({ sync_auto: e.target.checked })
+                }
+                className="h-6 w-6"
+              />
+            </label>
+            {config.sync_auto && (
+              <>
+                <label className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 text-sm">
+                    Also when leaving the app
+                    <span className="block text-xs text-content-muted">
+                      Android freezes a backgrounded app; without this the last
+                      thing you did waits here until you come back.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={config.sync_on_leave}
+                    onChange={(e) =>
+                      void updateConfig({ sync_on_leave: e.target.checked })
+                    }
+                    className="h-6 w-6 shrink-0"
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-sm">Every, minutes</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={720}
+                    value={config.sync_interval_minutes}
+                    onChange={(e) =>
+                      void updateConfig({
+                        sync_interval_minutes: Number(e.target.value) || 15,
+                      })
+                    }
+                    className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
+                  />
+                </label>
+              </>
+            )}
+          </>
+        )}
         <details className="text-sm">
           <summary className="cursor-pointer py-2 text-content-muted">
             One-way actions
@@ -156,9 +209,7 @@ export default function MobileSettings() {
           {conflicts.length > 0 && (
             <button
               onClick={() =>
-                void invoke("sync_conflicts_clear").then(() =>
-                  setConflicts([]),
-                )
+                void invoke("sync_conflicts_clear").then(() => setConflicts([]))
               }
               className="text-sm text-content-muted"
             >
@@ -211,8 +262,8 @@ export default function MobileSettings() {
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold">Engine</h2>
         <p className="text-sm text-content-muted">
-          Generates recurring, scheduled and birthday tasks. Runs when the
-          app comes to the foreground.
+          Generates recurring, scheduled and birthday tasks. Runs when the app
+          comes to the foreground.
         </p>
         <button
           disabled={busy}
@@ -247,9 +298,9 @@ export default function MobileSettings() {
           {vaultPath ?? "none"}
         </p>
         <p className="text-xs text-content-muted">
-          The vault lives on this device. Its database is rebuilt here from
-          the text files and is never uploaded. To load an existing vault,
-          copy its contents into the folder above from a computer.
+          The vault lives on this device. Its database is rebuilt here from the
+          text files and is never uploaded. To load an existing vault, copy its
+          contents into the folder above from a computer.
         </p>
       </section>
     </div>
