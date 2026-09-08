@@ -89,13 +89,20 @@ export default function MobileApp() {
       if (document.visibilityState === "visible") void pass();
       else if (syncOnLeave) void pass();
     };
+    // Coming back onto a network is the fourth moment, and the one that
+    // makes offline editing whole rather than merely tolerated: whatever
+    // was written on the underground goes up as soon as there is signal,
+    // without waiting for the heartbeat or for the app to be reopened.
+    const onOnline = () => void pass();
     void pass();
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void pass();
     }, syncEvery * 60_000);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
       clearInterval(timer);
     };
   }, [syncAuto, syncOnLeave, syncEvery]);

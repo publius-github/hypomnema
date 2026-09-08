@@ -67,6 +67,87 @@ pub struct SyncReport {
     pub failed: Vec<String>,
 }
 
+/// Where the outcome of the last pass is recorded, so a screen can say
+/// when this device was last in step without running a pass to find out.
+const LAST_PASS_FILE: &str = ".hypomnema/sync/last-pass.json";
+
+/// The answer to "am I up to date?", available with no network at all.
+///
+/// This is what makes offline editing legible rather than merely
+/// possible (REQUIREMENTS.md §7): every edit already applies locally the
+/// moment it is made, and the queue of things waiting to go up is just
+/// the set of files whose content no longer matches what the manifest
+/// recorded. Counting them costs a directory walk, not a request, so a
+/// phone with no signal can still say exactly what it is holding.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct SyncStanding {
+    /// Files changed here since the last pass, waiting for the next one.
+    #[ts(type = "number")]
+    pub pending: usize,
+    /// RFC3339 of the last pass that completed, successful or not.
+    pub last_pass_at: Option<String>,
+    /// Empty when the last pass went through; otherwise why it did not.
+    pub last_error: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct LastPass {
+    at: String,
+    error: Option<String>,
+}
+
+/// Records that a pass happened, and how it went. Best effort: a pass
+/// that worked must not be reported as failed because its note could not
+/// be written.
+pub fn record_pass(local_root: &Path, now: &str, error: Option<String>) {
+    let path = local_root.join(LAST_PASS_FILE);
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(text) = serde_json::to_string(&LastPass {
+        at: now.to_string(),
+        error,
+    }) {
+        let _ = fs::write(path, text);
+    }
+}
+
+/// What this device is holding, without asking the network.
+pub fn standing(local_root: &Path, root: &VaultRoot) -> Result<SyncStanding> {
+    let manifest = load_manifest(local_root);
+    let mut pending = 0;
+    for relative in local_files(local_root)? {
+        let remote = root.absolute(&relative);
+        let Ok(bytes) = fs::read(local_root.join(&relative)) else {
+            continue;
+        };
+        let known = manifest
+            .get(&remote)
+            .and_then(|state| state.hash.as_deref());
+        if known != Some(content_hash(&bytes).as_str()) {
+            pending += 1;
+        }
+    }
+    // A file this device pulled and then deleted is also waiting to go
+    // up, and not counting it would report "nothing to send" while a
+    // deletion sat here unsent.
+    let held: std::collections::BTreeSet<String> = local_files(local_root)?
+        .into_iter()
+        .map(|relative| root.absolute(&relative))
+        .collect();
+    pending += manifest.keys().filter(|key| !held.contains(*key)).count();
+
+    let last: Option<LastPass> = fs::read_to_string(local_root.join(LAST_PASS_FILE))
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok());
+    Ok(SyncStanding {
+        pending,
+        last_pass_at: last.as_ref().map(|l| l.at.clone()),
+        last_error: last.and_then(|l| l.error),
+    })
+}
+
 fn base_path(local_root: &Path, relative: &str) -> PathBuf {
     local_root.join(BASE_DIR).join(relative)
 }
@@ -761,6 +842,38 @@ mod tests {
             fs::read_to_string(local.join(".hypomnema/app.db")).unwrap(),
             "sqlite"
         );
+    }
+
+    #[test]
+    fn what_is_waiting_to_go_up_is_answerable_with_no_network() {
+        let local = temp_dir("standing");
+        let provider = MockProvider::new();
+        in_sync(&provider, &local, "journal/a.md", "sent");
+        in_sync(&provider, &local, "journal/b.md", "sent");
+        assert_eq!(standing(&local, &root()).unwrap().pending, 0);
+
+        // Three kinds of pending change, none of which needs a request
+        // to notice: an edit, a new file, and a deletion.
+        write(&local, "journal/a.md", "edited offline");
+        write(&local, "journal/c.md", "written offline");
+        fs::remove_file(local.join("journal/b.md")).unwrap();
+
+        assert_eq!(standing(&local, &root()).unwrap().pending, 3);
+
+        sync(&provider, &local);
+        assert_eq!(standing(&local, &root()).unwrap().pending, 0);
+    }
+
+    #[test]
+    fn a_failed_pass_is_remembered_so_the_screen_can_say_so() {
+        let local = temp_dir("last-pass");
+        fs::create_dir_all(local.join(".hypomnema/sync")).unwrap();
+        record_pass(&local, NOW, Some("no network".into()));
+
+        let standing = standing(&local, &root()).unwrap();
+
+        assert_eq!(standing.last_pass_at.as_deref(), Some(NOW));
+        assert_eq!(standing.last_error.as_deref(), Some("no network"));
     }
 
     #[test]

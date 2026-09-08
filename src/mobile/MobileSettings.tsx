@@ -7,6 +7,7 @@ import type {
   DropboxPull,
   DropboxStatus,
   DropboxSync,
+  SyncStanding,
 } from "../types";
 
 /**
@@ -25,12 +26,16 @@ export default function MobileSettings() {
   const [sync, setSync] = useState<DropboxSync | null>(null);
   const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
   const [showConflicts, setShowConflicts] = useState(false);
+  const [standing, setStanding] = useState<SyncStanding | null>(null);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);
 
   const loadConflicts = useCallback(() => {
     void invoke<ConflictEntry[]>("sync_conflicts_list")
       .then(setConflicts)
+      .catch(() => {});
+    void invoke<SyncStanding>("sync_standing")
+      .then(setStanding)
       .catch(() => {});
   }, []);
 
@@ -74,6 +79,30 @@ export default function MobileSettings() {
               )} min.`
             : "Not linked."}
         </p>
+        {/* Answered from disk, not from the network: a phone with no
+            signal can still say exactly what it is holding, which is
+            what makes editing offline legible rather than a leap of
+            faith. */}
+        {standing && (
+          <p className="text-sm">
+            {standing.pending === 0
+              ? "Nothing waiting to go up."
+              : `${standing.pending} change${
+                  standing.pending === 1 ? "" : "s"
+                } waiting to go up.`}
+            {standing.last_pass_at && (
+              <span className="block text-xs text-content-muted">
+                Last tried{" "}
+                {standing.last_pass_at.slice(0, 16).replace("T", " ")}
+              </span>
+            )}
+            {standing.last_error && (
+              <span className="block break-words text-xs text-warn">
+                {standing.last_error}
+              </span>
+            )}
+          </p>
+        )}
         {/* One button for the everyday case. Pull and push exist below
             for the two moments they are actually the right verb: setting
             a device up, and forcing this device's copy upward. */}

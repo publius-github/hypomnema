@@ -382,14 +382,25 @@ Goal: move from "works when I test it" to "safe under real concurrent use."
   write still rejected after that (the server moved between the listing
   and the upload) is reported and reconciled by the next pass.
 - ~~Filesystem backend: `(conflicted copy)` collisions~~ — moot, Spike A.
-- Background sync scheduling hardened against OS battery/Doze restrictions;
-  explicit manual "sync now" as a user-triggered escape hatch.
-- Offline queuing: edits made with no connectivity apply locally immediately
-  and reconcile once the sync target is reachable again.
-- Dogfood period: run desktop + mobile against the same real vault
-  concurrently for a stretch (your own daily use is the test plan here),
-  ideally exercising both backends if both shipped, and track every
-  conflict-log entry as a bug or an expected result.
+- [x] Scheduling that survives real phone conditions: passes fire on
+  resume, on leaving the app, on a configurable heartbeat while open,
+  and on reconnecting to a network — never on a background timer, which
+  Doze would defer or drop anyway. "Sync now" stays as the explicit
+  escape hatch, and every automatic pass is silent on failure (an
+  unlinked or offline device does not deserve a banner) while recording
+  why, so the standing can say it.
+- [x] Offline queuing. Every edit already applied locally the moment it
+  was made; what was missing was the queue being *visible* and draining
+  on its own. `sync_standing` answers "what am I holding?" from disk with
+  no request at all — edits, new files and deletions alike — and the
+  `online` event drains it as soon as there is signal, rather than
+  waiting for the app to be reopened.
+- [ ] Dogfood period: run desktop + mobile against the same real vault
+  concurrently for a stretch (your own daily use is the test plan here)
+  and give every conflict-log entry a verdict. **This is the one Phase 3
+  item that cannot be closed by writing code** - `docs/android/DOGFOOD.md`
+  holds the protocol, the scenarios worth forcing rather than waiting
+  for, and the table to fill in.
 
 **Deliverable:** confidence, backed by a dogfood log, that concurrent
 desktop+mobile editing doesn't lose data on either backend — the core

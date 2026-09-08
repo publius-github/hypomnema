@@ -1741,7 +1741,7 @@ async fn dropbox_sync(
     let root = dropbox_link::load_vault_root(&dir)?;
     let device = device::ensure(&dir)?;
     let now = chrono::Utc::now().to_rfc3339();
-    let report = sync_cycle::sync_vault(
+    let report = match sync_cycle::sync_vault(
         &provider,
         &local_root,
         &root,
@@ -1750,7 +1750,19 @@ async fn dropbox_sync(
         |done, total| {
             let _ = app.emit("dropbox-sync-progress", (done, total));
         },
-    )?;
+    ) {
+        Ok(report) => {
+            sync_cycle::record_pass(&local_root, &now, None);
+            report
+        }
+        Err(e) => {
+            // A pass that could not run is worth remembering too: the
+            // difference between "in step" and "has not managed to sync
+            // since Tuesday" is the whole point of showing a standing.
+            sync_cycle::record_pass(&local_root, &now, Some(e.to_string()));
+            return Err(e);
+        }
+    };
     if report.state_changed {
         // The merge rewrote the JSONL snapshot underneath a database that
         // was built from the old one. Dropping app.db and reopening runs
@@ -1789,6 +1801,24 @@ fn rebuild_cache(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> R
     }
     open_vault(app, state, root)?;
     Ok(())
+}
+
+/// Whether this device is in step, answered without touching the
+/// network - so a phone with no signal can still say what it is holding.
+#[tauri::command]
+async fn sync_standing(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<sync_cycle::SyncStanding> {
+    let local_root = {
+        let guard = state.vault.lock().unwrap();
+        match guard.as_ref() {
+            Some(vault) => vault.root.clone(),
+            None => return Ok(sync_cycle::SyncStanding::default()),
+        }
+    };
+    let root = dropbox_link::load_vault_root(&app_config_dir(&app)?)?;
+    sync_cycle::standing(&local_root, &root)
 }
 
 /// What this device had to choose between during past syncs.
@@ -2040,7 +2070,8 @@ pub fn run() {
             dropbox_push_vault,
             dropbox_sync,
             sync_conflicts_list,
-            sync_conflicts_clear
+            sync_conflicts_clear,
+            sync_standing
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");
