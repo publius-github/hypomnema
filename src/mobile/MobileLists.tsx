@@ -234,8 +234,18 @@ export default function MobileLists() {
         </p>
       ) : (
         <ul className="min-h-0 flex-1 overflow-auto">
-          {listTasks.map((task) => (
-            <TaskRow key={task.id} task={task} />
+          {listTasks.map((task, index) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              neighbours={{
+                previous: index > 0 ? listTasks[index - 1].id : undefined,
+                next:
+                  index < listTasks.length - 1
+                    ? listTasks[index + 1].id
+                    : undefined,
+              }}
+            />
           ))}
         </ul>
       )}

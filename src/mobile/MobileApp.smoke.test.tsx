@@ -155,6 +155,46 @@ describe("MobileApp smoke", () => {
     );
   });
 
+  it("reaches Upcoming through the More tab and adds a birthday", async () => {
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        tasks_snapshot: () => [],
+        upcoming_events: () => ({ events: [], errors: [] }),
+        birthdays_list: () => ({ birthdays: [], errors: [] }),
+        recurring_list: () => ({ rules: [], errors: [] }),
+        birthday_add: () => null,
+      }),
+    );
+    useAppStore.setState({
+      config: { ...defaultConfig, sync_auto: false },
+      vaultPath: "/vault",
+      lists: [],
+      tasks: [],
+      today: todayISO(),
+    });
+
+    render(<MobileApp />);
+
+    fireEvent.click(await screen.findByText("More"));
+    fireEvent.click(await screen.findByText("Upcoming"));
+    fireEvent.click(await screen.findByText("Birthdays"));
+    fireEvent.click(await screen.findByText("+ Add"));
+    fireEvent.change(screen.getByPlaceholderText("Whose birthday"), {
+      target: { value: "Ada" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("MM-DD"), {
+      target: { value: "12-10" },
+    });
+    fireEvent.click(screen.getByText("Add"));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("birthday_add", {
+        entry: { name: "Ada", date: "12-10", year: null },
+      }),
+    );
+  });
+
   it("switches to another tab", async () => {
     dispatchCommands(
       invokeMock,

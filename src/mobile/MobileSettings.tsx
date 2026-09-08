@@ -3,6 +3,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { LockSettings } from "./MobileLock";
+
+/** Matches THEME_PRESETS in src-tauri/src/config.rs. */
+const THEME_PRESETS = [
+  "default",
+  "black",
+  "vscode",
+  "nord",
+  "gruvbox",
+  "solarized",
+] as const;
 import type {
   ConflictEntry,
   DropboxPull,
@@ -295,6 +305,64 @@ export default function MobileSettings() {
       </section>
 
       {lock && <LockSettings state={lock} onChange={setLock} />}
+
+      {config && (
+        <section className="flex flex-col gap-3">
+          <h2 className="font-semibold">Appearance</h2>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Theme</span>
+            <select
+              value={config.theme}
+              onChange={(e) =>
+                void updateConfig({
+                  theme: e.target.value as typeof config.theme,
+                })
+              }
+              className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+            >
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Palette</span>
+            <select
+              value={config.theme_preset}
+              onChange={(e) =>
+                void updateConfig({
+                  theme_preset: e.target.value as typeof config.theme_preset,
+                })
+              }
+              className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+            >
+              {THEME_PRESETS.map((preset) => (
+                <option key={preset} value={preset}>
+                  {preset}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Text size</span>
+            <input
+              type="number"
+              min={10}
+              max={24}
+              value={config.ui_font_size}
+              onChange={(e) =>
+                void updateConfig({
+                  ui_font_size: Number(e.target.value) || 14,
+                })
+              }
+              className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
+            />
+          </label>
+          {/* Column counts, pane splits and saved profiles are absent on
+              purpose: they describe a window, and this app's window on a
+              phone is the phone. A layout tab here would be a list of
+              settings that change nothing visible. */}
+        </section>
+      )}
 
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold">Engine</h2>

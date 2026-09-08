@@ -22,11 +22,14 @@ mirror of it:
 - Resolves conflicts that arise from both ends writing to the shared vault,
   rather than requiring "never have it open in two places at once."
 
-This explicitly reverses two things `DECISIONS.md` currently states as
+This explicitly reverses two things `DECISIONS.md` used to state as
 deliberate: *"No rich mobile editing... a native/companion mobile app is out
 of scope"* and *"No multi-user/collaboration... no concurrent editing story
-beyond 'don't have the vault open in two places at once.'"* Both entries
-should be deleted or narrowed in the desktop repo once mobile ships.
+beyond 'don't have the vault open in two places at once.'"* **Done
+2026-09-08:** both entries were narrowed there, along with two more the
+Android work outgrew - the no-cloud-sync entry (the phone talks to the
+Dropbox API directly, since Android exposes no synced folder to point at)
+and the no-app-lock half of the encryption entry.
 
 ## 2. Why this isn't "just point a second app at the same SQLite file"
 

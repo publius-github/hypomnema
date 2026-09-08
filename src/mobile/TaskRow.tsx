@@ -13,11 +13,24 @@ import type { Task } from "../types";
  * which opens actions inline rather than in a dialog - a modal over a
  * phone screen hides the very list the action refers to.
  */
-export default function TaskRow({ task }: { task: Task }) {
+export default function TaskRow({
+  task,
+  neighbours,
+}: {
+  task: Task;
+  /**
+   * The rows above and below within a list, when there is an order to
+   * change. Reordering is a list-column concept - a day column sorts
+   * itself - so a day view simply does not pass them, and the two
+   * actions stay off a screen where they would do nothing.
+   */
+  neighbours?: { previous?: number; next?: number };
+}) {
   const [open, setOpen] = useState(false);
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
   const tasks = useAppStore((s) => s.tasks);
+  const reorderTask = useAppStore((s) => s.reorderTask);
   const { setEditing } = useEditTask();
   const done = task.status === "done";
   const subtasks = tasks.filter((t) => t.parent_task_id === task.id);
@@ -85,6 +98,28 @@ export default function TaskRow({ task }: { task: Task }) {
               setEditing(task.id);
             }}
           />
+          {/* Up and down rather than a long-press drag: dragging inside a
+              scrolling list on a phone fights the scroll, and the gesture
+              that wins is whichever the finger commits to first. Two
+              buttons never guess. */}
+          {neighbours?.previous !== undefined && (
+            <Action
+              label="Up"
+              onClick={() => {
+                setOpen(false);
+                void reorderTask(task.id, neighbours.previous!);
+              }}
+            />
+          )}
+          {neighbours?.next !== undefined && (
+            <Action
+              label="Down"
+              onClick={() => {
+                setOpen(false);
+                void reorderTask(task.id, neighbours.next!);
+              }}
+            />
+          )}
           <Action
             label="Tomorrow"
             onClick={() =>

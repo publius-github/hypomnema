@@ -6,20 +6,20 @@ import MobileDay from "./MobileDay";
 import MobileLists from "./MobileLists";
 import MobileJournal from "./MobileJournal";
 import MobileNotes from "./MobileNotes";
-import MobileSettings from "./MobileSettings";
+import MobileMore from "./MobileMore";
 import MobileTaskEditor from "./MobileTaskEditor";
 import { LockScreen } from "./MobileLock";
 import { EditingTaskContext } from "./editing";
 import type { LockState } from "../types";
 
-export type MobileTab = "day" | "lists" | "journal" | "notes" | "settings";
+export type MobileTab = "day" | "lists" | "journal" | "notes" | "more";
 
 const TABS: { id: MobileTab; label: string; glyph: string }[] = [
   { id: "day", label: "Day", glyph: "☀" },
   { id: "lists", label: "Lists", glyph: "≡" },
   { id: "journal", label: "Journal", glyph: "✎" },
   { id: "notes", label: "Notes", glyph: "❑" },
-  { id: "settings", label: "Settings", glyph: "⚙" },
+  { id: "more", label: "More", glyph: "⋯" },
 ];
 
 /**
@@ -154,7 +154,7 @@ export default function MobileApp() {
           {tab === "lists" && <MobileLists />}
           {tab === "journal" && <MobileJournal />}
           {tab === "notes" && <MobileNotes />}
-          {tab === "settings" && <MobileSettings />}
+          {tab === "more" && <MobileMore />}
         </main>
         <nav className="flex shrink-0 border-t border-line bg-surface-alt">
           {TABS.map((entry) => (

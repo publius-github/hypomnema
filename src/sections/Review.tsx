@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import {
   addDaysISO,
+  mondayOf,
   nextWeekTarget,
   splitCategory,
   todayISO,
@@ -17,12 +18,6 @@ const ORIGIN_LABELS: Record<string, string> = {
   scheduled: "scheduled",
   birthday: "birthdays",
 };
-
-/** Monday of the ISO week holding the given date. */
-function mondayOf(date: string): string {
-  const d = new Date(`${date}T12:00:00`);
-  return addDaysISO(date, -((d.getDay() + 6) % 7));
-}
 
 function StatTile({ value, label }: { value: string; label: string }) {
   return (
@@ -260,8 +255,10 @@ export default function Review() {
               )}
             </>
           )}
-          {rowAction("Done", "Mark done", () =>
-            void updateTask(task.id, { status: "done" }),
+          {rowAction(
+            "Done",
+            "Mark done",
+            () => void updateTask(task.id, { status: "done" }),
           )}
           <button
             className="rounded border border-line px-1.5 py-0.5 text-[11px] text-content-muted hover:border-danger hover:text-danger"
@@ -306,9 +303,7 @@ export default function Review() {
         <button
           className="btn-ghost px-3 py-1 text-xs"
           title="Open the journal on the last day of this week"
-          onClick={() =>
-            openJournalDate(weekOffset === 0 ? today : weekEnd)
-          }
+          onClick={() => openJournalDate(weekOffset === 0 ? today : weekEnd)}
         >
           Weekly note
         </button>
@@ -374,8 +369,8 @@ export default function Review() {
           )}
           {weekOffset < 0 && (
             <p className="text-[11px] text-content-muted">
-              Tasks left open in a past week were carried over to a later
-              day and show up there, not here.
+              Tasks left open in a past week were carried over to a later day
+              and show up there, not here.
             </p>
           )}
         </div>
