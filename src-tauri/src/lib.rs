@@ -534,12 +534,18 @@ async fn vault_status(app: AppHandle, state: State<'_, AppState>) -> Result<Opti
 /// It is a normal directory read and written with normal file I/O - the
 /// Dropbox backend exists to *sync* a vault, and treating it as the only
 /// way to *have* one was a mistake this corrects.
+/// Where a vault goes when nobody chooses one.
+///
+/// On Android this prefers the app's own folder on shared storage over
+/// its private one: both need no permission, but only that one can be
+/// reached from a computer over USB, and "how do I get my existing vault
+/// onto the phone?" is the first question a phone install raises.
 fn local_vault_dir(app: &AppHandle) -> Result<PathBuf> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| Error::State(format!("cannot resolve the app data directory: {e}")))?;
-    Ok(base.join("vault"))
+    let base = app_data_dir(app)?;
+    Ok(vault_places::default_vault_dir(
+        &base,
+        &app.config().identifier,
+    ))
 }
 
 /// Opens (creating if needed) this device's own vault, with no sync
@@ -563,22 +569,50 @@ async fn vault_local_path(app: AppHandle) -> Result<String> {
     Ok(local_vault_dir(&app)?.to_string_lossy().into_owned())
 }
 
-/// The places a vault can live on this device, each probed for whether
-/// the app can actually write there.
+fn app_data_dir(app: &AppHandle) -> Result<PathBuf> {
+    app.path()
+        .app_data_dir()
+        .map_err(|e| Error::State(format!("cannot resolve the app data directory: {e}")))
+}
+
+/// Lists one directory for the in-app folder browser.
 ///
 /// Android's answer to "let me pick a folder": there is no directory
 /// picker to call - Tauri's dialog plugin picks files, and the Storage
 /// Access Framework hands back a content:// tree the Rust core cannot
-/// open as a path. So the app offers the places a vault plausibly goes
-/// and says which of them this phone allows, rather than a picker that
-/// would fail after the choice was made.
+/// open as a path. So the app browses the filesystem itself, and this is
+/// the listing behind it. `path` omitted starts where a vault would go
+/// by default.
 #[tauri::command]
-async fn vault_places(app: AppHandle) -> Result<Vec<vault_places::VaultPlace>> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| Error::State(format!("cannot resolve the app data directory: {e}")))?;
-    Ok(vault_places::places(&base, &app.config().identifier))
+async fn vault_browse(app: AppHandle, path: Option<String>) -> Result<vault_places::DirListing> {
+    let base = app_data_dir(&app)?;
+    let identifier = &app.config().identifier;
+    let start = match path {
+        Some(path) => PathBuf::from(path),
+        None => {
+            let default = vault_places::default_vault_dir(&base, identifier);
+            // Start in the folder the default vault would live *in*,
+            // not in the vault itself: the browser is for choosing a
+            // sibling, and opening inside the answer is not browsing.
+            default.parent().map(Path::to_path_buf).unwrap_or(default)
+        }
+    };
+    vault_places::browse(&start, &base, identifier)
+}
+
+/// Makes a subfolder from the browser, so choosing a new home for the
+/// vault does not mean leaving the app for a file manager.
+#[tauri::command]
+async fn vault_browse_mkdir(parent: String, name: String) -> Result<String> {
+    let name = name.trim();
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.starts_with('.') {
+        return Err(Error::State(
+            "a folder name cannot be empty, start with a dot, or contain slashes".into(),
+        ));
+    }
+    let path = PathBuf::from(parent).join(name);
+    std::fs::create_dir_all(&path)?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 /// Opens a vault at an arbitrary path, creating it if the directory is
@@ -2074,7 +2108,8 @@ pub fn run() {
             vault_select,
             vault_use_local,
             vault_local_path,
-            vault_places,
+            vault_browse,
+            vault_browse_mkdir,
             vault_use_path,
             config_get,
             config_set,

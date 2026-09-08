@@ -127,9 +127,16 @@ edge takes `max(env(...), var(--safe-*))` and the floor is a setting.
 
 **There is no folder picker.** Tauri's dialog plugin picks files, not
 directories, and SAF hands back a `content://` tree rather than a path the
-Rust core can open - the same wall Spike A hit from the other side. So
-`vault_places.rs` offers the handful of places a vault plausibly goes and
-**probes** each by writing a file and deleting it again, because on
-Android 11+ two identical-looking paths differ only by permissions this
-build does not hold. A row that says "cannot write here" up front beats a
-picker that accepts the choice and fails after it.
+Rust core can open - the same wall Spike A hit from the other side. The
+first attempt at working around it was a list of preset locations plus a
+box to type a path into, which is not a chooser; it is a questionnaire.
+`vault_places.rs` now backs a real in-app browser instead - tap a folder
+to enter, Up to leave, one button takes the folder you are standing in -
+and reports per directory whether the app can **write** there (probed by
+writing a file and deleting it again) and whether a vault is already
+there, since on Android neither is visible from the path and both change
+what the button should say. `build-android.sh` declares
+`MANAGE_EXTERNAL_STORAGE` so the browser can leave the app's own folders;
+that permission is granted by hand in Settings > Apps > Special app access
+> All files access, and until it is, a directory reports itself unreadable
+rather than looking empty.

@@ -24,6 +24,8 @@ export type { ConflictEntry } from "./bindings/ConflictEntry";
 export type { SyncStanding } from "./bindings/SyncStanding";
 export type { LockState } from "./bindings/LockState";
 export type { VaultPlace } from "./bindings/VaultPlace";
+export type { DirListing } from "./bindings/DirListing";
+export type { DirEntryView } from "./bindings/DirEntryView";
 export type { EngineOutcome } from "./bindings/EngineOutcome";
 export type { JournalEntry } from "./bindings/JournalEntry";
 export type { JournalSearchHit } from "./bindings/JournalSearchHit";

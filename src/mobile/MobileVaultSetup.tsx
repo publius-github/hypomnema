@@ -69,19 +69,15 @@ export default function MobileVaultSetup() {
       </button>
       {path && (
         <p className="break-all text-xs text-content-muted">
-          It will live at <code>{path}</code>, which is private to the app.
+          <code>{path}</code>
         </p>
       )}
       <button
         onClick={() => setScreen("folder")}
         className="rounded-lg border border-line px-5 py-3"
       >
-        Choose a different folder
+        Choose a folder…
       </button>
-      <p className="text-xs text-content-muted">
-        Somewhere a computer can reach, if you want to copy an existing vault in
-        over USB.
-      </p>
       <button
         onClick={() => setScreen("dropbox")}
         className="rounded-lg border border-line px-5 py-3"
