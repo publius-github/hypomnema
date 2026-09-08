@@ -218,10 +218,17 @@ actually exists in code, on both ends.
     union and a min-date, which are conflict-free and need no stamp;
     `weekly_focus` is a genuine last-writer-wins value and should get one
     when the merge actually consumes it, rather than a dead column now.
-- [ ] Confirm `app.db`/`-wal`/`-shm` never touch the synced folder at all —
-  on mobile, keep them in the app's private storage from day one, so
-  there's no "exclude from sync" step to get right, just a directory layout
-  that never puts them in the synced tree.
+- [x] `app.db`/`-wal`/`-shm` never travel: `src-tauri/src/sync_paths.rs`
+  decides what belongs to the shared vault, as a **whitelist**. A new file
+  kind added elsewhere in the app defaults to device-local and is merely
+  absent on the other device, rather than defaulting to shared and
+  arriving where it can do damage. Decisions it encodes, beyond the
+  database: user content and `.hypomnema/{state,config}` travel; the
+  mirror's merge base does not (it records what *this* device exported);
+  `settings/` does not (window layout on a phone is not a desktop's);
+  `backups/` does not (a per-device safety net); the task mirror does not
+  (derived from the database - syncing it would give one row two writers
+  racing to describe it).
 - [ ] Vault bootstrap: `Vault::open`-equivalent on mobile — rebuild the
   local `app.db` cache from JSONL + config YAML when the local cache is
   missing or stale, matching desktop's existing disposable-cache model.

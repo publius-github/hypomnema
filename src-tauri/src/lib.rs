@@ -14,6 +14,7 @@ mod state_export;
 mod sync_dropbox;
 mod sync_dropbox_oauth;
 mod sync_merge;
+mod sync_paths;
 mod sync_provider;
 mod tasks;
 mod tasks_mirror;
