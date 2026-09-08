@@ -51,6 +51,10 @@ pub fn is_synced(path: &str) -> bool {
         // Syncing it would give the same tasks two writers - the mirror
         // file and tasks.jsonl - racing to describe one row.
         "tasks" => false,
+        // Device bookkeeping about the sync itself (sync_bootstrap's
+        // manifest). Uploading it would put one device's record of the
+        // vault inside the vault.
+        "sync" => false,
         // Unknown newcomer: keep it local. See the module note.
         _ => false,
     }
@@ -100,6 +104,11 @@ mod tests {
         assert!(!is_synced(".hypomnema/backups/db/2026-09-08.db"));
         assert!(!is_synced(".hypomnema/tasks/Inbox.md"));
         assert!(!is_synced(".hypomnema/tasks/agenda.md"));
+    }
+
+    #[test]
+    fn the_sync_manifest_stays_on_the_device_that_wrote_it() {
+        assert!(!is_synced(".hypomnema/sync/pull-manifest.json"));
     }
 
     #[test]

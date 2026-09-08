@@ -134,28 +134,49 @@ pub struct PullReport {
 /// watch their phone for two minutes is not a design. With this, a pull
 /// interrupted at file 300 resumes at file 300 instead of starting over,
 /// and pressing the button again is a sane thing to do at any point.
-const MANIFEST_FILE: &str = "pull-manifest.json";
+/// Under `.hypomnema/sync/` on purpose: `sync_paths` treats unknown
+/// entries in the working directory as device-local, so the bookkeeping
+/// cannot end up uploaded into the vault it describes. At the vault root
+/// it would have looked like user content and been pushed.
+const MANIFEST_FILE: &str = ".hypomnema/sync/pull-manifest.json";
 
 /// Rewrite the manifest at most this often; every file would be hundreds
 /// of writes for no added safety, since a lost tail just re-downloads.
-const MANIFEST_FLUSH_EVERY: usize = 25;
+pub const MANIFEST_FLUSH_EVERY: usize = 25;
+
+/// What this device knows about one file in the shared vault: the
+/// revision it fetched, and a hash of the bytes that arrived. The hash is
+/// what makes "did anything change here?" answerable without asking
+/// Dropbox - see sync_push.rs.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct FileState {
+    pub rev: String,
+    /// Absent in manifests written before pushing existed; adopted from
+    /// the local file on the next open rather than forcing a re-upload of
+    /// the whole vault.
+    #[serde(default)]
+    pub hash: Option<String>,
+}
 
 fn manifest_path(local_root: &Path) -> PathBuf {
     local_root.join(MANIFEST_FILE)
 }
 
-fn load_manifest(local_root: &Path) -> BTreeMap<String, String> {
+pub fn load_manifest(local_root: &Path) -> BTreeMap<String, FileState> {
     fs::read_to_string(manifest_path(local_root))
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok())
         .unwrap_or_default()
 }
 
-fn save_manifest(local_root: &Path, manifest: &BTreeMap<String, String>) -> Result<()> {
-    fs::create_dir_all(local_root)?;
+pub fn save_manifest(local_root: &Path, manifest: &BTreeMap<String, FileState>) -> Result<()> {
+    let path = manifest_path(local_root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let text = serde_json::to_string(manifest)
         .map_err(|e| Error::State(format!("cannot serialize the pull manifest: {e}")))?;
-    fs::write(manifest_path(local_root), text)?;
+    fs::write(path, text)?;
     Ok(())
 }
 
@@ -217,16 +238,24 @@ pub fn pull_vault<P: SyncProvider>(
             .ok_or_else(|| Error::State(format!("{remote} is outside the vault")))?;
         let rev = marker_key(&change.marker);
         // Resuming: same revision already on disk, nothing to fetch.
-        if manifest.get(remote) == Some(&rev) && local_root.join(relative).exists() {
+        if manifest.get(remote).is_some_and(|state| state.rev == rev)
+            && local_root.join(relative).exists()
+        {
             report.skipped += 1;
             on_progress(done + 1, total);
             continue;
         }
         match fetch_one(provider, local_root, remote, relative) {
-            Ok(bytes) => {
+            Ok((bytes, hash)) => {
                 report.files += 1;
                 report.bytes += bytes;
-                manifest.insert(remote.to_string(), rev);
+                manifest.insert(
+                    remote.to_string(),
+                    FileState {
+                        rev,
+                        hash: Some(hash),
+                    },
+                );
                 consecutive_failures = 0;
                 since_flush += 1;
                 if since_flush >= MANIFEST_FLUSH_EVERY {
@@ -255,19 +284,21 @@ pub fn pull_vault<P: SyncProvider>(
     Ok(report)
 }
 
+/// Returns the byte count and a hash of what landed, so the manifest can
+/// answer "has this changed here since?" later without a network call.
 fn fetch_one<P: SyncProvider>(
     provider: &P,
     local_root: &Path,
     remote: &str,
     relative: &str,
-) -> Result<usize> {
+) -> Result<(usize, String)> {
     let (bytes, _marker) = provider.read_file(remote)?;
     let target = local_root.join(relative);
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)?;
     }
     fs::write(&target, &bytes)?;
-    Ok(bytes.len())
+    Ok((bytes.len(), crate::sync_push::content_hash(&bytes)))
 }
 
 #[cfg(test)]

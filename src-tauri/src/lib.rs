@@ -17,6 +17,7 @@ mod sync_dropbox_oauth;
 mod sync_merge;
 mod sync_paths;
 mod sync_provider;
+mod sync_push;
 mod tasks;
 mod tasks_mirror;
 mod vault;
@@ -1602,6 +1603,7 @@ async fn dropbox_pull_vault(
         // sits still long enough to read as a hang.
         let _ = app.emit("dropbox-pull-progress", (done, total));
     })?;
+    dropbox_link::save_vault_root(&dir, &report.vault_root)?;
     // The pulled copy is a vault like any other: opening it runs the
     // migrations and rebuilds app.db from the JSONL snapshot through the
     // same disposable-cache path the desktop uses, then the engine and
@@ -1610,11 +1612,58 @@ async fn dropbox_pull_vault(
     // next launch instead of the link screen.
     open_vault(&app, &state, &local_root)?;
     vault::write_vault_path(&dir, &local_root)?;
+    // Opening the vault writes app.db and re-exports the snapshot, so
+    // without this every file would look locally changed and the first
+    // push would send the whole vault back unaltered.
+    sync_push::adopt_local_baseline(
+        &local_root,
+        &sync_bootstrap::VaultRoot(report.vault_root.clone()),
+    )?;
     Ok(dropbox_link::DropboxPull {
         vault_root: report.vault_root,
         files: report.files,
         bytes: report.bytes,
         skipped: report.skipped,
+        failed: report.failed,
+    })
+}
+
+/// Sends this device's vault changes back to Dropbox.
+///
+/// Exports the database to its JSONL snapshot first: the files on disk
+/// are what gets uploaded, so anything still only in app.db would be left
+/// behind. Every write is guarded by the revision this device last saw,
+/// so a file the other end has moved on is reported as a conflict rather
+/// than overwritten.
+#[tauri::command]
+async fn dropbox_push_vault(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<dropbox_link::DropboxPush> {
+    let dir = app_config_dir(&app)?;
+    let local_root = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
+        vault.root.clone()
+    };
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let provider =
+        sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
+    let root = dropbox_link::load_vault_root(&dir)?;
+    let report = sync_push::push_vault(&provider, &local_root, &root, |done, total| {
+        let _ = app.emit("dropbox-push-progress", (done, total));
+    })?;
+    Ok(dropbox_link::DropboxPush {
+        uploaded: report.uploaded,
+        bytes: report.bytes,
+        conflicts: report.conflicts,
         failed: report.failed,
     })
 }
@@ -1841,7 +1890,8 @@ pub fn run() {
             dropbox_disconnect,
             dropbox_list_files,
             dropbox_write_marker,
-            dropbox_pull_vault
+            dropbox_pull_vault,
+            dropbox_push_vault
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");

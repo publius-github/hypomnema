@@ -27,6 +27,11 @@ use crate::sync_dropbox_oauth::{self, DropboxTokens, OauthTransport};
 const EXPIRY_SKEW_SECS: i64 = 300;
 
 const TOKENS_FILE: &str = "dropbox.json";
+/// Where the vault sat inside the app folder, remembered from the pull so
+/// a later push writes to the same place. Detecting it again on every
+/// push would work, but it would also mean a push silently following the
+/// vault somewhere else if the folder's shape changed under it.
+const VAULT_ROOT_FILE: &str = "dropbox-vault-root";
 const PENDING_AUTH_FILE: &str = "dropbox-pending-auth.json";
 
 /// Name of the marker file `dropbox_write_marker` drops in the app folder.
@@ -92,6 +97,21 @@ pub struct DropboxPull {
     /// Files that could not be fetched. Shown rather than swallowed: a
     /// vault missing three notes is a different situation from a vault
     /// that arrived whole, and only the user can judge which files matter.
+    pub failed: Vec<String>,
+}
+
+/// Outcome of sending this device's changes back to the shared vault.
+#[derive(Debug, Clone, Serialize, TS, PartialEq, Eq)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct DropboxPush {
+    #[ts(type = "number")]
+    pub uploaded: usize,
+    #[ts(type = "number")]
+    pub bytes: usize,
+    /// Files both ends changed. Reported rather than forced: the other
+    /// device's edit is not this one's to discard, and resolving it is
+    /// the merge step's job (ROADMAP.md Phase 3).
+    pub conflicts: Vec<String>,
     pub failed: Vec<String>,
 }
 
@@ -178,6 +198,19 @@ pub fn take_pending_auth(config_dir: &Path, now_unix: i64) -> Result<String> {
         ));
     }
     Ok(pending.verifier)
+}
+
+pub fn save_vault_root(config_dir: &Path, root: &str) -> Result<()> {
+    fs::create_dir_all(config_dir)?;
+    fs::write(config_dir.join(VAULT_ROOT_FILE), root)?;
+    Ok(())
+}
+
+pub fn load_vault_root(config_dir: &Path) -> Result<crate::sync_bootstrap::VaultRoot> {
+    let text = fs::read_to_string(config_dir.join(VAULT_ROOT_FILE)).map_err(|_| {
+        Error::State("this device has not pulled the vault yet - pull before pushing".into())
+    })?;
+    Ok(crate::sync_bootstrap::VaultRoot(text))
 }
 
 /// Persist what the initial code exchange returned.

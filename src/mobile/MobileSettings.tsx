@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
-import type { DropboxPull, DropboxStatus } from "../types";
+import type { DropboxPull, DropboxPush, DropboxStatus } from "../types";
 
 /**
  * Phone settings: the sync link, and the handful of switches that mean
@@ -17,6 +17,7 @@ export default function MobileSettings() {
   const setError = useAppStore((s) => s.setError);
   const [status, setStatus] = useState<DropboxStatus | null>(null);
   const [pull, setPull] = useState<DropboxPull | null>(null);
+  const [push, setPush] = useState<DropboxPush | null>(null);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -66,6 +67,34 @@ export default function MobileSettings() {
         {progress && (
           <p className="text-sm text-content-muted">
             {progress[0]} / {progress[1]} files
+          </p>
+        )}
+        <button
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              setPush(await invoke<DropboxPush>("dropbox_push_vault"));
+            })
+          }
+          className="rounded-lg border border-line px-4 py-3 disabled:opacity-50"
+        >
+          Send my changes to Dropbox
+        </button>
+        {push && (
+          <p className="text-sm">
+            Sent {push.uploaded} file{push.uploaded === 1 ? "" : "s"}.
+            {push.conflicts.length > 0 && (
+              <span className="block text-warn">
+                {push.conflicts.length} changed on both ends and were left
+                alone: {push.conflicts.slice(0, 3).join(", ")}
+                {push.conflicts.length > 3 ? ", ..." : ""}
+              </span>
+            )}
+            {push.failed.length > 0 && (
+              <span className="block text-danger">
+                {push.failed.length} failed to upload.
+              </span>
+            )}
           </p>
         )}
         {pull && (

@@ -297,6 +297,22 @@ against your actual vault day-to-day for task/journal/notes reading and
 task/journal editing, side by side with the desktop app, without corrupting
 shared state.
 
+### Push (landed 2026-09-08)
+
+`src-tauri/src/sync_push.rs` sends this device's changes back. The pull's
+manifest records each file's revision *and* a hash of what arrived, so a
+file whose hash still matches was not touched here and costs no request;
+one that differs goes up guarded by the revision it was based on. Dropbox
+rejects the write if the remote moved since - the optimistic concurrency
+that decided the API backend over a filesystem one - and a rejection is
+reported, never overwritten: the other device's edit is not this device's
+to discard.
+
+Deletions are deliberately *not* propagated yet. A file missing locally is
+indistinguishable from one this device never pulled (a failed fetch, an
+interrupted pull), and guessing wrong deletes a note everywhere. That
+needs the tombstone half of the merge design first.
+
 ## Phase 3 — Sync robustness & conflict UX
 
 Goal: move from "works when I test it" to "safe under real concurrent use."
