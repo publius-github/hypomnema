@@ -136,6 +136,59 @@ const MIGRATIONS: &[&str] = &[
     ) WHERE list_id IS NULL AND id IN (SELECT task_id FROM lists_task_map);
     DROP TABLE lists_task_map;
     CREATE UNIQUE INDEX idx_lists_active_name ON lists(name) WHERE archived = 0;",
+    // 016: per-record provenance for cross-device merge
+    // (docs/android/ROADMAP.md Phase 1). `updated_at` is UTC ISO-8601,
+    // `updated_by` the writing device's id from `sync_device`.
+    //
+    // Stamped by triggers rather than at the ~70 call sites that write
+    // these tables: a missed site would not fail any build, it would
+    // silently make a changed row look untouched, and the other device's
+    // edit would then win a merge it should have lost.
+    //
+    // Both columns stay nullable, and both triggers stand aside when a
+    // statement supplies its own values - that is what lets
+    // state_export's restore put a snapshot back with the stamps it was
+    // taken with, instead of relabelling every row as "changed here, now".
+    "ALTER TABLE tasks ADD COLUMN updated_at TEXT;
+    ALTER TABLE tasks ADD COLUMN updated_by TEXT;
+    ALTER TABLE lists ADD COLUMN updated_at TEXT;
+    ALTER TABLE lists ADD COLUMN updated_by TEXT;
+    CREATE TABLE sync_device (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        device_id TEXT NOT NULL
+    );
+    CREATE TRIGGER tasks_stamp_insert AFTER INSERT ON tasks
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+        UPDATE tasks SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    CREATE TRIGGER tasks_stamp_update AFTER UPDATE ON tasks
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+        UPDATE tasks SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    CREATE TRIGGER lists_stamp_insert AFTER INSERT ON lists
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+        UPDATE lists SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    CREATE TRIGGER lists_stamp_update AFTER UPDATE ON lists
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+        UPDATE lists SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -146,6 +199,19 @@ pub fn open(path: &Path) -> Result<Connection> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     Ok(conn)
+}
+
+/// Records which device is writing to this database, for the merge stamps
+/// migration 016's triggers put on every row. Called on every vault open:
+/// the same vault opened on another machine must stamp with that machine's
+/// id, so this is per-connection truth, not a one-time setup step.
+pub fn set_device_id(conn: &Connection, device_id: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO sync_device (id, device_id) VALUES (1, ?1)
+         ON CONFLICT(id) DO UPDATE SET device_id = excluded.device_id",
+        [device_id],
+    )?;
+    Ok(())
 }
 
 pub fn migrate(conn: &Connection) -> Result<()> {
@@ -202,6 +268,107 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         migrate(&conn).unwrap();
         conn
+    }
+
+    fn stamps_of(conn: &Connection, id: i64) -> (Option<String>, Option<String>) {
+        conn.query_row(
+            "SELECT updated_at, updated_by FROM tasks WHERE id = ?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn an_inserted_row_is_stamped_with_this_device() {
+        let conn = memory_db();
+        set_device_id(&conn, "device-a").unwrap();
+        conn.execute(
+            "INSERT INTO tasks (id, title, created_at, origin)
+             VALUES (1, 't', '2026-01-01T00:00:00Z', 'manual')",
+            [],
+        )
+        .unwrap();
+
+        let (at, by) = stamps_of(&conn, 1);
+        assert_eq!(by.as_deref(), Some("device-a"));
+        assert!(at.is_some_and(|s| s.ends_with('Z')));
+    }
+
+    /// The reason the stamps live in triggers at all: no caller has to
+    /// remember, so an UPDATE anywhere in the codebase still records that
+    /// this device touched the row.
+    #[test]
+    fn an_updated_row_is_restamped_without_the_caller_asking() {
+        let conn = memory_db();
+        set_device_id(&conn, "device-a").unwrap();
+        conn.execute(
+            "INSERT INTO tasks (id, title, created_at, origin, updated_at, updated_by)
+             VALUES (1, 't', '2026-01-01T00:00:00Z', 'manual', '2020-01-01T00:00:00Z', 'someone-else')",
+            [],
+        )
+        .unwrap();
+
+        conn.execute("UPDATE tasks SET title = 'edited' WHERE id = 1", [])
+            .unwrap();
+
+        let (at, by) = stamps_of(&conn, 1);
+        assert_eq!(by.as_deref(), Some("device-a"));
+        assert_ne!(at.as_deref(), Some("2020-01-01T00:00:00Z"));
+    }
+
+    /// state_export::restore puts a snapshot back verbatim. If the
+    /// triggers overwrote what it supplies, every restore would relabel
+    /// the whole vault as "changed here, just now" and the next merge
+    /// would let this device win everything.
+    #[test]
+    fn a_row_restored_with_its_own_stamps_keeps_them() {
+        let conn = memory_db();
+        set_device_id(&conn, "device-a").unwrap();
+        conn.execute(
+            "INSERT INTO tasks (id, title, created_at, origin, updated_at, updated_by)
+             VALUES (1, 't', '2026-01-01T00:00:00Z', 'manual', '2026-05-05T05:05:05Z', 'device-b')",
+            [],
+        )
+        .unwrap();
+
+        assert_eq!(
+            stamps_of(&conn, 1),
+            (
+                Some("2026-05-05T05:05:05Z".to_string()),
+                Some("device-b".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn lists_are_stamped_too() {
+        let conn = memory_db();
+        set_device_id(&conn, "device-a").unwrap();
+        conn.execute("INSERT INTO lists (id, name) VALUES (1, 'Inbox')", [])
+            .unwrap();
+        let by: Option<String> = conn
+            .query_row("SELECT updated_by FROM lists WHERE id = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(by.as_deref(), Some("device-a"));
+    }
+
+    /// A vault opened before any device id was recorded still works; the
+    /// stamp is simply unattributed rather than the write failing.
+    #[test]
+    fn writes_without_a_recorded_device_still_succeed() {
+        let conn = memory_db();
+        conn.execute(
+            "INSERT INTO tasks (id, title, created_at, origin)
+             VALUES (1, 't', '2026-01-01T00:00:00Z', 'manual')",
+            [],
+        )
+        .unwrap();
+        let (at, by) = stamps_of(&conn, 1);
+        assert!(at.is_some());
+        assert_eq!(by, None);
     }
 
     #[test]

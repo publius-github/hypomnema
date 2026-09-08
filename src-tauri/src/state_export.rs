@@ -54,6 +54,15 @@ struct TaskRow {
     origin_date: Option<String>,
     priority: i64,
     dow_label: Option<String>,
+    /// Merge stamps (db.rs migration 016). Optional in both directions on
+    /// purpose: a snapshot written by an older build has no such fields
+    /// and must still restore, and an older build reading this file
+    /// ignores them rather than choking - which is what lets two devices
+    /// on different versions share one vault.
+    #[serde(default)]
+    updated_at: Option<String>,
+    #[serde(default)]
+    updated_by: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -66,6 +75,10 @@ struct ListRow {
     auto: i64,
     favorite: i64,
     description: String,
+    #[serde(default)]
+    updated_at: Option<String>,
+    #[serde(default)]
+    updated_by: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -158,6 +171,8 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
                 origin_date: r.get("origin_date")?,
                 priority: r.get("priority")?,
                 dow_label: r.get("dow_label")?,
+                updated_at: r.get("updated_at")?,
+                updated_by: r.get("updated_by")?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -175,6 +190,8 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
                 auto: r.get("auto")?,
                 favorite: r.get("favorite")?,
                 description: r.get("description")?,
+                updated_at: r.get("updated_at")?,
+                updated_by: r.get("updated_by")?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -241,8 +258,9 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
     for l in &lists {
         tx.execute(
             "INSERT OR REPLACE INTO lists
-                 (id, name, sort_order, color, archived, auto, favorite, description)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 (id, name, sort_order, color, archived, auto, favorite, description,
+                  updated_at, updated_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             rusqlite::params![
                 l.id,
                 l.name,
@@ -251,7 +269,9 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
                 l.archived,
                 l.auto,
                 l.favorite,
-                l.description
+                l.description,
+                l.updated_at,
+                l.updated_by
             ],
         )?;
     }
@@ -264,9 +284,9 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
                  (id, title, description_md, list_id, scheduled_date, time, status,
                   color, sort_order, parent_task_id, created_at, completed_at,
                   overdue, origin, rule_key, period_key, archived_at, cadence,
-                  origin_date, priority, dow_label)
+                  origin_date, priority, dow_label, updated_at, updated_by)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                     ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+                     ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
             rusqlite::params![
                 t.id,
                 t.title,
@@ -288,7 +308,9 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
                 t.cadence,
                 t.origin_date,
                 t.priority,
-                t.dow_label
+                t.dow_label,
+                t.updated_at,
+                t.updated_by
             ],
         )?;
     }

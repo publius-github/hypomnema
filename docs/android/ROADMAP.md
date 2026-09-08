@@ -204,16 +204,20 @@ actually exists in code, on both ends.
   tasks/lists/config/notes/journal records — see the schema item below.
 - [x] Implement `rule_runs` merge as plain set union of `(rule_key,
   period_key)` — `sync_merge::merge_rule_runs`, unit-tested.
-- [ ] Extend the shared JSONL schema (`tasks.jsonl`, `lists.jsonl`,
-  `rule_runs.jsonl`, `rule_seen.jsonl`, `weekly_focus.jsonl`) with per-record
-  `updated_at` (UTC) and `updated_by` (device id). **Touches the desktop side
-  too — approved to modify now, no separate coordination cycle**: land it as
-  part of this phase's work directly, additive/optional fields so older
-  desktop builds reading the same files don't choke. Sequenced after the
-  merge primitives above on purpose — this one touches `state_export.rs`,
-  `tasks.rs`/`db.rs` migrations, and ts-rs bindings that the shipped desktop
-  app depends on, so it gets its own careful pass rather than landing in the
-  same breath as the new, inert scaffolding.
+- [x] Per-record `updated_at` (UTC) and `updated_by` (device id) on
+  `tasks` and `lists`, in the database (db.rs migration 016) and in
+  `tasks.jsonl`/`lists.jsonl`. Additive and optional in both directions: a
+  snapshot from an older build restores without them, and an older build
+  ignores them, so two devices on different versions share one vault.
+  Stamps come from SQLite triggers rather than the ~70 call sites that
+  write these tables - a missed site would not fail a build, it would
+  silently hand a merge to the wrong side. `device.rs` holds the id,
+  outside the vault so a synced copy cannot carry another machine's
+  identity.
+  - **Not stamped, deliberately:** `rule_runs`/`rule_seen` merge as a set
+    union and a min-date, which are conflict-free and need no stamp;
+    `weekly_focus` is a genuine last-writer-wins value and should get one
+    when the merge actually consumes it, rather than a dead column now.
 - [ ] Confirm `app.db`/`-wal`/`-shm` never touch the synced folder at all —
   on mobile, keep them in the app's private storage from day one, so
   there's no "exclude from sync" step to get right, just a directory layout

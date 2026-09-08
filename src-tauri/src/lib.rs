@@ -2,6 +2,7 @@ mod backup;
 mod config;
 mod config_files;
 mod db;
+mod device;
 mod dropbox_link;
 mod engine;
 mod error;
@@ -475,6 +476,18 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
 
 fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<AppConfig> {
     let vault = Vault::open(root)?;
+    // Tell this vault's database who is writing to it, so the merge
+    // stamps (db.rs migration 016) carry a device and not a NULL. Best
+    // effort: an unstamped row degrades a future merge, but failing to
+    // open a vault over it would be worse.
+    match app_config_dir(app).and_then(|dir| device::ensure(&dir)) {
+        Ok(id) => {
+            if let Err(e) = db::set_device_id(&vault.conn, &id) {
+                eprintln!("could not record this device's id in the vault: {e}");
+            }
+        }
+        Err(e) => eprintln!("could not determine this device's id: {e}"),
+    }
     journal::ensure_template_location(root);
     let config = vault.config.clone();
     *state.vault.lock().unwrap() = Some(vault);
