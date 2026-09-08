@@ -513,6 +513,12 @@ year, and giving each its own tab would shrink all of them to fit.
   everywhere else — one interaction to learn, not two. Its own snapshot,
   since the store's window follows the day grid and a review of three
   weeks ago sits outside it.
+- [x] The day reads like the desktop's, not like a list of strings.
+  `TaskRow` carries the colour stripe, `{Category}` chip, list chip, date
+  chip and weekday marker from the same helpers the desktop cards use,
+  and the day groups into the configured cadence sections. Dropping them
+  for the phone was the wrong instinct: less room to scan means the
+  structure has to do *more* of the work, not less.
 - [x] Task colour and priority (in the task editor), and reordering as
   **Up/Down** rather than a long-press drag: dragging inside a scrolling
   list on a phone fights the scroll, and whichever gesture the finger

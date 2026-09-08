@@ -359,13 +359,13 @@ export function tintStyle(color: string): {
   return { color, backgroundColor: `${color}26` };
 }
 
-/** Subtask order: optionally done-last, then the regular comparator. */
 /** Monday of the ISO week holding the given date. */
 export function mondayOf(date: string): string {
   const d = new Date(`${date}T12:00:00`);
   return addDaysISO(date, -((d.getDay() + 6) % 7));
 }
 
+/** Subtask order: optionally done-last, then the regular comparator. */
 export function sortSubtasks(subtasks: Task[], doneLast: boolean): Task[] {
   return [...subtasks].sort((a, b) => {
     if (doneLast && (a.status === "done") !== (b.status === "done")) {

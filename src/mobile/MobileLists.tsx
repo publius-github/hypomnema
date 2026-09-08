@@ -238,6 +238,7 @@ export default function MobileLists() {
             <TaskRow
               key={task.id}
               task={task}
+              showList={false}
               neighbours={{
                 previous: index > 0 ? listTasks[index - 1].id : undefined,
                 next:

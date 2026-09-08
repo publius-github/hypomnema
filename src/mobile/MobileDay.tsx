@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { useAppStore } from "../store";
-import { addDaysISO, compareTasks } from "../lib/tasks";
+import {
+  addDaysISO,
+  cadenceColor,
+  categoryOf,
+  compareTasks,
+  groupByCadence,
+  tintStyle,
+} from "../lib/tasks";
 import TaskRow from "./TaskRow";
 
 /** How many days ahead the day view offers. */
@@ -29,6 +36,9 @@ export default function MobileDay() {
   const tasks = useAppStore((s) => s.tasks);
   const createTask = useAppStore((s) => s.createTask);
 
+  const config = useAppStore((s) => s.config);
+  const lists = useAppStore((s) => s.lists);
+
   const date = addDaysISO(today, offset);
   const shown = useMemo(
     () =>
@@ -36,6 +46,25 @@ export default function MobileDay() {
         .filter((task) => task.scheduled_date === date && !task.parent_task_id)
         .sort(compareTasks),
     [tasks, date],
+  );
+
+  // The same cadence sections the desktop's day column uses, in the same
+  // configured order. Without them a day is one undifferentiated column
+  // of rows, which is the thing a phone can least afford: less room to
+  // scan means the structure has to do more of the work, not less.
+  //
+  // Generated tasks carry their category as a list, so the grouping
+  // label falls back to the list name - same rule as the day column.
+  const groups = useMemo(
+    () =>
+      groupByCadence(shown, config?.cadence_group_order, (task) => {
+        const category = categoryOf(task.title);
+        if (category) return category;
+        return task.list_id === null
+          ? null
+          : (lists.find((l) => l.id === task.list_id)?.name ?? null);
+      }),
+    [shown, config?.cadence_group_order, lists],
   );
 
   const submit = () => {
@@ -74,11 +103,28 @@ export default function MobileDay() {
           Nothing scheduled.
         </p>
       ) : (
-        <ul className="min-h-0 flex-1 overflow-auto">
-          {shown.map((task) => (
-            <TaskRow key={task.id} task={task} />
-          ))}
-        </ul>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {groups.map((group) => {
+            const plate = cadenceColor(config, group.key);
+            return (
+              <section key={group.key}>
+                <h2
+                  className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wide ${
+                    plate ? "" : "bg-surface-alt text-content-muted"
+                  }`}
+                  style={plate ? tintStyle(plate) : undefined}
+                >
+                  {group.label}
+                </h2>
+                <ul>
+                  {group.tasks.map((task) => (
+                    <TaskRow key={task.id} task={task} />
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
       )}
 
       <div className="border-t border-line p-3">
