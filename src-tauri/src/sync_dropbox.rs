@@ -206,6 +206,57 @@ impl<T: DropboxTransport> SyncProvider for DropboxApiSyncProvider<T> {
         let meta = self.transport.upload(api_arg, contents, path)?;
         Ok(ChangeMarker::Rev(rev_from(&meta)?))
     }
+
+    fn delete_file(&self, path: &str, expected_marker: Option<&ChangeMarker>) -> Result<()> {
+        let mut body = json!({ "path": dbx_path(path) });
+        match expected_marker {
+            // `parent_rev` is delete's half of the same optimistic
+            // concurrency `update(rev)` gives writes: Dropbox refuses the
+            // delete if the file has moved past that revision, so a note
+            // the other device just edited is not removed under it.
+            Some(ChangeMarker::Rev(rev)) => {
+                body["parent_rev"] = json!(rev);
+            }
+            Some(ChangeMarker::HashMtime { .. }) => {
+                return Err(Error::State(
+                    "DropboxApiSyncProvider only accepts its own Rev markers, not a \
+                     filesystem-backend HashMtime marker"
+                        .into(),
+                ))
+            }
+            None => {}
+        }
+        match self.transport.rpc("files/delete_v2", body) {
+            Ok(_) => Ok(()),
+            // `rpc` has no conflict path to map a 409 against - it is
+            // shared with the listing endpoints, where 409 means something
+            // else - so delete reads Dropbox's own error summary instead.
+            Err(Error::State(message)) => classify_delete_error(path, &message),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+/// What a failed `files/delete_v2` actually means, read off Dropbox's
+/// `error_summary`.
+///
+/// Two of its outcomes are not failures for a sync:
+/// - **already gone** (`not_found`): the other device deleted it first.
+///   Both sides wanted it gone and it is gone.
+/// - **the file moved on** (`conflict`, from a stale `parent_rev`): the
+///   other device edited what this one was about to delete, which is the
+///   merge step's call to make, not a transport error - so it surfaces as
+///   `SyncConflict`, exactly like a stale write.
+fn classify_delete_error(path: &str, message: &str) -> Result<()> {
+    if message.contains("not_found") {
+        return Ok(());
+    }
+    if message.contains("conflict") {
+        return Err(Error::SyncConflict {
+            path: path.to_string(),
+        });
+    }
+    Err(Error::State(message.to_string()))
 }
 
 /// `path` as Dropbox wants it: rooted with a leading slash. Callers of this
@@ -480,6 +531,12 @@ mod tests {
             self.rpc_responses.borrow_mut().push_back(Ok(response));
         }
 
+        fn push_rpc_error(&self, message: &str) {
+            self.rpc_responses
+                .borrow_mut()
+                .push_back(Err(Error::State(message.to_string())));
+        }
+
         fn push_upload(&self, response: Result<Value>) {
             self.upload_responses.borrow_mut().push_back(response);
         }
@@ -706,6 +763,67 @@ mod tests {
 
         assert!(matches!(err, Error::State(_)));
         assert!(provider.transport.upload_calls.borrow().is_empty());
+    }
+
+    #[test]
+    fn delete_guards_on_the_revision_this_device_last_saw() {
+        let transport = MockTransport::new();
+        transport.push_rpc(json!({ "metadata": { ".tag": "file" } }));
+        let provider = DropboxApiSyncProvider::new(transport);
+
+        provider
+            .delete_file("journal/a.md", Some(&ChangeMarker::Rev("rev-7".into())))
+            .unwrap();
+
+        let calls = provider.transport.rpc_calls.borrow();
+        assert_eq!(calls[0].0, "files/delete_v2");
+        assert_eq!(calls[0].1["path"], json!("/journal/a.md"));
+        assert_eq!(calls[0].1["parent_rev"], json!("rev-7"));
+    }
+
+    #[test]
+    fn deleting_a_file_the_other_device_already_removed_succeeds() {
+        let transport = MockTransport::new();
+        transport.push_rpc_error(
+            "Dropbox API error (409): {\"error_summary\": \"path_lookup/not_found/..\"}",
+        );
+        let provider = DropboxApiSyncProvider::new(transport);
+
+        provider.delete_file("journal/a.md", None).unwrap();
+    }
+
+    #[test]
+    fn deleting_a_file_the_other_device_edited_is_a_conflict() {
+        let transport = MockTransport::new();
+        transport.push_rpc_error(
+            "Dropbox API error (409): {\"error_summary\": \"path_write/conflict/file/..\"}",
+        );
+        let provider = DropboxApiSyncProvider::new(transport);
+
+        let err = provider
+            .delete_file("journal/a.md", Some(&ChangeMarker::Rev("stale".into())))
+            .unwrap_err();
+
+        assert!(matches!(err, Error::SyncConflict { path } if path == "journal/a.md"));
+    }
+
+    #[test]
+    fn delete_rejects_a_filesystem_marker_without_calling_the_transport() {
+        let transport = MockTransport::new();
+        let provider = DropboxApiSyncProvider::new(transport);
+
+        let err = provider
+            .delete_file(
+                "journal/a.md",
+                Some(&ChangeMarker::HashMtime {
+                    hash: "abc".into(),
+                    mtime_unix: 1,
+                }),
+            )
+            .unwrap_err();
+
+        assert!(matches!(err, Error::State(_)));
+        assert!(provider.transport.rpc_calls.borrow().is_empty());
     }
 
     #[test]

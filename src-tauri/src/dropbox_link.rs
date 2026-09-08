@@ -115,6 +115,32 @@ pub struct DropboxPush {
     pub failed: Vec<String>,
 }
 
+/// Outcome of a full sync pass (`sync_cycle.rs`) - the everyday action,
+/// as opposed to a first pull or a deliberate one-way push.
+#[derive(Debug, Clone, Serialize, TS, PartialEq, Eq)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct DropboxSync {
+    #[ts(type = "number")]
+    pub downloaded: usize,
+    /// Files both ends had changed, reconciled by this pass.
+    #[ts(type = "number")]
+    pub merged: usize,
+    #[ts(type = "number")]
+    pub uploaded: usize,
+    #[ts(type = "number")]
+    pub removed_locally: usize,
+    #[ts(type = "number")]
+    pub removed_remotely: usize,
+    /// Entries added to the conflict log by this pass.
+    #[ts(type = "number")]
+    pub conflicts: usize,
+    /// Prose this device kept aside rather than merging line by line.
+    /// Named, not just counted: the point of keeping a copy is that
+    /// someone can go and read it.
+    pub conflicted_copies: Vec<String>,
+    pub failed: Vec<String>,
+}
+
 /// What the link screen's smoke test found in the App folder. The counts
 /// matter as much as the list: an empty `files` with a non-zero `folders`
 /// says the directory tree arrived but its contents did not, which is a

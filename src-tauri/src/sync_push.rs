@@ -29,6 +29,10 @@ use crate::sync_provider::{ChangeMarker, SyncProvider};
 pub struct PushReport {
     pub uploaded: usize,
     pub bytes: usize,
+    /// The paths that actually went up. A caller that keeps a merge base
+    /// (sync_cycle.rs) needs to know which files the other device can now
+    /// be assumed to have.
+    pub sent: Vec<String>,
     /// Files the remote had moved on since this device last saw them.
     /// Not an error to swallow and not a write to force - both sides
     /// changed, and resolving that is the merge step's job.
@@ -108,6 +112,7 @@ pub fn push_vault<P: SyncProvider>(
             Ok(ChangeMarker::Rev(rev)) => {
                 report.uploaded += 1;
                 report.bytes += bytes.len();
+                report.sent.push(remote.clone());
                 manifest.insert(
                     remote,
                     FileState {

@@ -188,11 +188,10 @@ actually exists in code, on both ends.
     presents as an empty listing with a pile of tombstones from the vault's
     brief stay in the real one. Never state the app-folder path from the
     app's *name* - it comes from what was typed into the Dropbox console.
-  - [ ] Next: have the app write a marker file into its own app folder on
-    request, so "which folder is this actually?" is answerable from the
-    desktop by searching for that file instead of by inference. Doubles as
-    the first exercise of the write path (`files/upload`), which nothing
-    calls yet.
+  - [x] Marker file (`dropbox_write_marker`): the app drops a named file
+    into its own app folder on request, so "which folder is this actually?"
+    is answerable from the desktop by searching for that file instead of by
+    inference. Doubled as the first exercise of the write path.
   - [x] ~~Implement `FilesystemSyncProvider`~~ — **dropped for v1.** Spike A
     (docs/android/SPIKES.md, 2026-09-08) failed: the official Dropbox
     Android app doesn't expose a live-synced folder to other apps' SAF
@@ -201,8 +200,39 @@ actually exists in code, on both ends.
   `updated_at` wins on a same-field collision, discarded value logged to a
   conflicts list (never silently dropped) — `src-tauri/src/sync_merge.rs`,
   generic over a JSON field map, unit-tested (collision resolution, clean
-  merges, field removal, deletion-vs-edit). Not yet wired to real
-  tasks/lists/config/notes/journal records — see the schema item below.
+  merges, field removal, deletion-vs-edit).
+- [x] **Wired to real records** — `src-tauri/src/sync_state.rs` runs that
+  merge over the JSONL snapshot row by row, and `sync_cycle.rs` runs a
+  full pass (incoming, merge, outgoing, deletions both ways) behind the
+  `dropbox_sync` command. Each snapshot file gets the merge its content
+  deserves rather than one blanket rule: `tasks`/`lists` by their stamps,
+  `rule_runs` as a set union, `rule_seen` keeping the *earliest*
+  first-seen (a later one would re-run a rule's whole history as fresh
+  overdue tasks), `weekly_focus` keeping this device's pin and logging the
+  other since nothing stamps it.
+  - Prose — notes, journal entries, config YAML — is **not** merged line
+    by line. Two people's paragraphs merged mechanically produce a version
+    neither wrote, so the other device's copy takes the path and this
+    device's is kept beside it as `<name> (conflicted copy <device>
+    <date>)<ext>`: the convention `tasks_mirror.rs` already treats as a
+    hard signal, and the one Dropbox users recognize. Both copies sync.
+  - A pass that changed the snapshot drops app.db and reopens the vault,
+    so the merged JSONL rebuilds the cache through `state_export.rs`'s
+    existing restore path — no second way to write rows into SQLite.
+- [x] Deletions propagate both ways (`sync_cycle.rs`). The objection that
+  blocked this — "a file missing locally is indistinguishable from one
+  this device never pulled" — is answered by the pull manifest: an entry
+  in it means the file *did* arrive here, so its absence now is a
+  deletion, while a file that was never pulled has no entry and is simply
+  downloaded. Every remote delete is guarded by the revision this device
+  last saw, so an edit on the other end refuses the delete rather than
+  losing it; symmetrically, a file deleted remotely but edited here
+  survives and goes back up. Both cases land in the conflict log.
+- [x] Conflict log: `sync_conflicts.rs` persists what each pass had to
+  choose between under `.hypomnema/sync/conflicts.json` (device-local —
+  it records what *this* device decided), capped at the 300 newest
+  entries, read and cleared through
+  `sync_conflicts_list`/`sync_conflicts_clear`.
 - [x] Implement `rule_runs` merge as plain set union of `(rule_key,
   period_key)` — `sync_merge::merge_rule_runs`, unit-tested.
 - [x] Per-record `updated_at` (UTC) and `updated_by` (device id) on
@@ -318,13 +348,17 @@ needs the tombstone half of the merge design first.
 
 Goal: move from "works when I test it" to "safe under real concurrent use."
 
-- Conflict log UI: surface discarded-field conflicts from Phase 1's merge
-  logic in a way that's actually readable, not just a debug dump.
-- API backend: rely on `rev`-rejected writes as the primary conflict signal
-  — on rejection, re-fetch and run the §3 merge before retrying the write.
-- Filesystem backend (if shipped): handle simultaneous-write collisions
-  surfaced as Dropbox `(conflicted copy)` files — reject/report per the
-  existing `tasks_mirror.rs` convention rather than silently double-applying.
+- [x] Conflict log UI: the Settings tab lists what each pass decided —
+  file, field, kept value and dropped value with the device behind each —
+  from `sync_conflicts_list`, clearable. Not a debug dump: a row names the
+  task or list it was in, since "title" alone is every task in the vault.
+- [x] API backend: `rev`-guarded writes are the conflict signal, and a
+  pass merges *before* writing rather than after being rejected — the
+  incoming half of `sync_cycle.rs` runs the §3 merge over anything both
+  ends moved, so the upload that follows is already the merged result. A
+  write still rejected after that (the server moved between the listing
+  and the upload) is reported and reconciled by the next pass.
+- ~~Filesystem backend: `(conflicted copy)` collisions~~ — moot, Spike A.
 - Background sync scheduling hardened against OS battery/Doze restrictions;
   explicit manual "sync now" as a user-triggered escape hatch.
 - Offline queuing: edits made with no connectivity apply locally immediately

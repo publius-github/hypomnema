@@ -12,12 +12,15 @@ mod profiles;
 mod reminders;
 mod state_export;
 mod sync_bootstrap;
+mod sync_conflicts;
+mod sync_cycle;
 mod sync_dropbox;
 mod sync_dropbox_oauth;
 mod sync_merge;
 mod sync_paths;
 mod sync_provider;
 mod sync_push;
+mod sync_state;
 mod tasks;
 mod tasks_mirror;
 mod vault;
@@ -1704,6 +1707,111 @@ async fn dropbox_push_vault(
     })
 }
 
+/// One full sync pass: bring down what the other device wrote, merge it
+/// into what this one wrote, send the result back, and propagate
+/// deletions both ways (`sync_cycle.rs`).
+///
+/// Replaces pull-then-push as the everyday action. Those two remain for
+/// the cases they were built for - a first pull onto a device, and a
+/// deliberate one-way upload - but neither can reconcile a file both ends
+/// changed, which is the normal state of a vault used from two devices.
+#[tauri::command]
+async fn dropbox_sync(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<dropbox_link::DropboxSync> {
+    let dir = app_config_dir(&app)?;
+    let local_root = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        // The snapshot is what travels, so anything still only in app.db
+        // would be left behind by a pass that started without this.
+        state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
+        vault.root.clone()
+    };
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let provider =
+        sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
+    let root = dropbox_link::load_vault_root(&dir)?;
+    let device = device::ensure(&dir)?;
+    let now = chrono::Utc::now().to_rfc3339();
+    let report = sync_cycle::sync_vault(
+        &provider,
+        &local_root,
+        &root,
+        &device,
+        &now,
+        |done, total| {
+            let _ = app.emit("dropbox-sync-progress", (done, total));
+        },
+    )?;
+    if report.state_changed {
+        // The merge rewrote the JSONL snapshot underneath a database that
+        // was built from the old one. Dropping app.db and reopening runs
+        // the existing restore path over the merged files - the same
+        // disposable-cache route `state_export.rs` documents, rather than
+        // a second way to write rows into SQLite.
+        rebuild_cache(&app, &state, &local_root)?;
+    }
+    let _ = app.emit("vault-updated", Vec::<String>::new());
+    Ok(dropbox_link::DropboxSync {
+        downloaded: report.downloaded,
+        merged: report.merged,
+        uploaded: report.uploaded,
+        removed_locally: report.removed_locally,
+        removed_remotely: report.removed_remotely,
+        conflicts: report.conflicts,
+        conflicted_copies: report.conflicted_copies,
+        failed: report.failed,
+    })
+}
+
+/// Rebuilds app.db from the JSONL snapshot on disk.
+///
+/// Closing the vault first is not optional: the file cannot be replaced
+/// under a live connection, and a connection left open over a deleted
+/// database would keep serving rows that no longer exist anywhere.
+fn rebuild_cache(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<()> {
+    *state.vault.lock().unwrap() = None;
+    let db = vault::db_path(root);
+    for path in [
+        db.clone(),
+        db.with_extension("db-wal"),
+        db.with_extension("db-shm"),
+    ] {
+        let _ = std::fs::remove_file(path);
+    }
+    open_vault(app, state, root)?;
+    Ok(())
+}
+
+/// What this device had to choose between during past syncs.
+#[tauri::command]
+async fn sync_conflicts_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<sync_conflicts::ConflictEntry>> {
+    let guard = state.vault.lock().unwrap();
+    let Some(vault) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    Ok(sync_conflicts::load(&vault.root))
+}
+
+#[tauri::command]
+async fn sync_conflicts_clear(state: State<'_, AppState>) -> Result<()> {
+    let guard = state.vault.lock().unwrap();
+    let Some(vault) = guard.as_ref() else {
+        return Ok(());
+    };
+    sync_conflicts::clear(&vault.root)
+}
+
 /// Drops a marker file into the linked app folder and returns its name.
 ///
 /// Answers "which folder is this app actually talking to?" from the other
@@ -1929,7 +2037,10 @@ pub fn run() {
             dropbox_list_files,
             dropbox_write_marker,
             dropbox_pull_vault,
-            dropbox_push_vault
+            dropbox_push_vault,
+            dropbox_sync,
+            sync_conflicts_list,
+            sync_conflicts_clear
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");

@@ -64,6 +64,14 @@ pub trait SyncProvider {
         contents: &[u8],
         expected_marker: Option<&ChangeMarker>,
     ) -> Result<ChangeMarker>;
+
+    /// Remove a file, guarded by the marker this device last saw for it.
+    /// Same contract as `write_file`: a stale marker fails with
+    /// `Error::SyncConflict` instead of deleting what the other device
+    /// just wrote. A path that is already gone is not an error - two
+    /// devices deleting the same note agree, and the second one arriving
+    /// should not have to care that it was second.
+    fn delete_file(&self, path: &str, expected_marker: Option<&ChangeMarker>) -> Result<()>;
 }
 
 #[cfg(test)]
@@ -82,6 +90,10 @@ pub(crate) mod mock {
         // Paths whose reads fail, so callers that must survive a partial
         // failure can be tested without a real flaky network.
         unreadable: Mutex<std::collections::HashSet<String>>,
+        // Deleted paths, so listings can carry tombstones the way
+        // Dropbox's `include_deleted` does - a device that never hears
+        // about a deletion keeps resurrecting the file.
+        tombstones: Mutex<std::collections::HashSet<String>>,
     }
 
     impl MockProvider {
@@ -102,7 +114,7 @@ pub(crate) mod mock {
     impl SyncProvider for MockProvider {
         fn list_changes(&self, _cursor: &SyncCursor) -> Result<(Vec<ChangedFile>, SyncCursor)> {
             let files = self.files.lock().unwrap();
-            let changes = files
+            let mut changes: Vec<ChangedFile> = files
                 .iter()
                 .map(|(path, (_, rev))| ChangedFile {
                     path: path.clone(),
@@ -110,6 +122,13 @@ pub(crate) mod mock {
                     deleted: false,
                 })
                 .collect();
+            for path in self.tombstones.lock().unwrap().iter() {
+                changes.push(ChangedFile {
+                    path: path.clone(),
+                    marker: ChangeMarker::Rev(String::new()),
+                    deleted: true,
+                });
+            }
             Ok((changes, SyncCursor(Some(files.len().to_string()))))
         }
 
@@ -150,7 +169,26 @@ pub(crate) mod mock {
             }
             let next_rev = current_rev.map(|r| r + 1).unwrap_or(0);
             files.insert(path.to_string(), (contents.to_vec(), next_rev));
+            self.tombstones.lock().unwrap().remove(path);
             Ok(Self::marker_for(next_rev))
+        }
+
+        fn delete_file(&self, path: &str, expected_marker: Option<&ChangeMarker>) -> Result<()> {
+            let mut files = self.files.lock().unwrap();
+            let Some((_, current_rev)) = files.get(path) else {
+                // Already gone: the deletions agree.
+                return Ok(());
+            };
+            if let Some(ChangeMarker::Rev(expected)) = expected_marker {
+                if expected != &current_rev.to_string() {
+                    return Err(Error::SyncConflict {
+                        path: path.to_string(),
+                    });
+                }
+            }
+            files.remove(path);
+            self.tombstones.lock().unwrap().insert(path.to_string());
+            Ok(())
         }
     }
 }
@@ -192,6 +230,41 @@ mod tests {
         provider.write_file("tasks.jsonl", b"v1", None).unwrap();
         let err = provider.write_file("tasks.jsonl", b"v2", None).unwrap_err();
         assert!(matches!(err, Error::SyncConflict { .. }));
+    }
+
+    #[test]
+    fn delete_with_a_stale_marker_conflicts_and_keeps_the_file() {
+        let provider = MockProvider::new();
+        let first = provider.write_file("note.md", b"v1", None).unwrap();
+        provider.write_file("note.md", b"v2", Some(&first)).unwrap();
+
+        let err = provider.delete_file("note.md", Some(&first)).unwrap_err();
+
+        assert!(matches!(err, Error::SyncConflict { .. }));
+        assert_eq!(provider.read_file("note.md").unwrap().0, b"v2");
+    }
+
+    #[test]
+    fn deleting_what_is_already_gone_is_not_an_error() {
+        let provider = MockProvider::new();
+        let marker = provider.write_file("note.md", b"v1", None).unwrap();
+        provider.delete_file("note.md", Some(&marker)).unwrap();
+        // The second device's delete arrives after the first one's: they
+        // agree, and arriving second is not a failure.
+        provider.delete_file("note.md", Some(&marker)).unwrap();
+    }
+
+    #[test]
+    fn a_deletion_shows_up_in_listings_as_a_tombstone() {
+        let provider = MockProvider::new();
+        let marker = provider.write_file("note.md", b"v1", None).unwrap();
+        provider.delete_file("note.md", Some(&marker)).unwrap();
+
+        let (changes, _) = provider.list_changes(&SyncCursor::default()).unwrap();
+
+        assert_eq!(changes.len(), 1);
+        assert!(changes[0].deleted);
+        assert_eq!(changes[0].path, "note.md");
     }
 
     #[test]
