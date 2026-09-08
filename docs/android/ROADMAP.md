@@ -265,21 +265,32 @@ Goal: the "Suggested MVP slice" from REQUIREMENTS.md §9, on real UI.
   toggle needed) — OAuth (PKCE) consent flow, app-folder or full-Dropbox
   access depending on the choice made before Phase 1's `DropboxApiSyncProvider`
   work; first-run detection, persisted token.
-- Day view + lists — single/tabbed phone layout (not desktop's multi-column
-  grid).
-- Manual task/list CRUD: create, edit, complete, postpone, delete, subtasks.
-- Journal: read + write, template-seeded.
-- Notes (KB): browse tree + read.
-- Settings: vault/folder linking with the backend toggle, sync status +
-  conflict log (even if conflicts are rare in testing, the screen needs to
-  exist and show real data from Phase 1's merge logic), a note on which
-  backend gives stronger conflict guarantees, engine on/off toggle.
-- In-app quick-add (stands in for desktop's capture window/global hotkey,
-  which don't apply on mobile).
-- Engine scheduling on-device: run on app foreground/resume at minimum;
-  background run via WorkManager where the OS permits, with a foreground
-  trigger as the reliable fallback (offline-first NFR — nothing here should
-  require connectivity to function locally).
+- [x] Day view + lists — `src/mobile/`, a bottom-tab shell with a
+  one-day-at-a-time view and one list at a time. Not a responsive squeeze
+  of the desktop grid: that grid is built for a wide window and a mouse,
+  and narrowed to a phone it is a worse version of both. Tabs sit at the
+  bottom because that is where a thumb reaches.
+- [~] Manual task CRUD: create, complete, postpone, move to tomorrow,
+  star, delete. The whole row toggles done, since that is what a task row
+  is for most of the time; the rarer actions open inline rather than in a
+  modal, which on a phone would cover the list the action refers to.
+  Still to do: editing a task's text, subtasks, list CRUD.
+- [x] Journal: read + write, template-seeded, one day at a time. A plain
+  textarea rather than the desktop's CodeMirror - the system keyboard and
+  its autocorrect are the editor on a phone, and a code editor fights
+  both. Debounced saves are flushed on day change and unmount, because
+  backgrounding the app is the normal way to leave it here.
+- [x] Notes: browse and read, one folder at a time with a path trail. An
+  indented tree spends most of a narrow screen on whitespace.
+- [~] Settings: Dropbox link status, pull-with-progress, run the engine,
+  system notifications. The desktop's appearance, layout and profile tabs
+  are deliberately absent - they describe a window. Still to do: the
+  conflict log, which needs the merge wired to real records first.
+- [x] In-app quick-add: an add field on the day view and on each list.
+- [~] Engine scheduling: runs on foreground/resume and at midnight while
+  open. A phone sleeps most of the day, so "on launch" alone would leave a
+  day's recurring tasks unmade. Background runs via WorkManager are still
+  to do.
 
 **Deliverable:** installable Android build a real user (you) can run
 against your actual vault day-to-day for task/journal/notes reading and
