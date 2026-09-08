@@ -27,6 +27,28 @@ use crate::sync_dropbox_oauth::{self, DropboxTokens, OauthTransport};
 const EXPIRY_SKEW_SECS: i64 = 300;
 
 const TOKENS_FILE: &str = "dropbox.json";
+const PENDING_AUTH_FILE: &str = "dropbox-pending-auth.json";
+
+/// Name of the marker file `dropbox_write_marker` drops in the app folder.
+/// Deliberately shouty and unique: its whole job is to be findable by
+/// searching Dropbox from another device.
+pub const MARKER_FILE: &str = "HYPOMNEMA-APP-FOLDER.md";
+
+/// How long a started authorization stays valid. Long enough to walk
+/// through a browser consent screen and copy a code, short enough that an
+/// abandoned attempt doesn't sit around waiting to be completed.
+const PENDING_AUTH_TTL_SECS: i64 = 30 * 60;
+
+/// The PKCE verifier for an authorization the user has started but not
+/// finished. On disk rather than in memory because the flow deliberately
+/// leaves the app: Android is free to evict a backgrounded app while the
+/// user is in the browser, and losing the verifier there would strand them
+/// holding a code the app can no longer redeem.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct PendingAuth {
+    verifier: String,
+    started_at_unix: i64,
+}
 
 /// Tokens as persisted between app launches.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -88,14 +110,52 @@ pub fn save(config_dir: &Path, tokens: &StoredTokens) -> Result<()> {
     Ok(())
 }
 
-/// Unlink this device. Missing file is success - the caller asked for
-/// "not linked", and that's the state either way.
+/// Unlink this device, including any half-finished authorization. Missing
+/// files are success - the caller asked for "not linked", and that's the
+/// state either way.
 pub fn clear(config_dir: &Path) -> Result<()> {
-    let path = tokens_file(config_dir);
-    if path.is_file() {
-        fs::remove_file(path)?;
+    for path in [tokens_file(config_dir), config_dir.join(PENDING_AUTH_FILE)] {
+        if path.is_file() {
+            fs::remove_file(path)?;
+        }
     }
     Ok(())
+}
+
+/// Record the verifier for an authorization about to be opened in a
+/// browser. Overwrites any earlier attempt: only the newest authorize URL
+/// the user was sent to can still be completed.
+pub fn save_pending_auth(config_dir: &Path, verifier: &str, now_unix: i64) -> Result<()> {
+    fs::create_dir_all(config_dir)?;
+    let pending = PendingAuth {
+        verifier: verifier.to_string(),
+        started_at_unix: now_unix,
+    };
+    let text = serde_json::to_string(&pending)
+        .map_err(|e| Error::State(format!("cannot serialize pending Dropbox auth: {e}")))?;
+    fs::write(config_dir.join(PENDING_AUTH_FILE), text)?;
+    Ok(())
+}
+
+/// Consume the pending verifier. Single-use by design: an authorization
+/// code and its verifier are both spent once redeemed, so a failed attempt
+/// has to restart from the browser rather than retry against a used pair.
+pub fn take_pending_auth(config_dir: &Path, now_unix: i64) -> Result<String> {
+    let path = config_dir.join(PENDING_AUTH_FILE);
+    let missing =
+        || Error::State("no Dropbox authorization in flight - start the link again".to_string());
+    if !path.is_file() {
+        return Err(missing());
+    }
+    let text = fs::read_to_string(&path)?;
+    let _ = fs::remove_file(&path);
+    let pending: PendingAuth = serde_json::from_str(&text).map_err(|_| missing())?;
+    if now_unix - pending.started_at_unix > PENDING_AUTH_TTL_SECS {
+        return Err(Error::State(
+            "this Dropbox authorization has expired - start the link again".into(),
+        ));
+    }
+    Ok(pending.verifier)
 }
 
 /// Persist what the initial code exchange returned.
@@ -319,8 +379,55 @@ mod tests {
     fn clearing_unlinks_and_is_safe_to_repeat() {
         let dir = temp_dir("clear");
         save(&dir, &tokens(5_000)).unwrap();
+        save_pending_auth(&dir, "verifier-1", 1_000).unwrap();
         clear(&dir).unwrap();
         assert_eq!(load(&dir).unwrap(), None);
+        assert!(take_pending_auth(&dir, 1_000).is_err());
         clear(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_pending_verifier_survives_being_written_and_read_back() {
+        // The point of putting it on disk: the app can die between
+        // opening the browser and the user coming back with a code.
+        let dir = temp_dir("pending-round-trip");
+        save_pending_auth(&dir, "verifier-1", 1_000).unwrap();
+        assert_eq!(take_pending_auth(&dir, 1_060).unwrap(), "verifier-1");
+    }
+
+    #[test]
+    fn a_pending_verifier_is_single_use() {
+        let dir = temp_dir("pending-once");
+        save_pending_auth(&dir, "verifier-1", 1_000).unwrap();
+        take_pending_auth(&dir, 1_000).unwrap();
+        assert!(matches!(
+            take_pending_auth(&dir, 1_000),
+            Err(Error::State(_))
+        ));
+    }
+
+    #[test]
+    fn a_stale_pending_verifier_is_refused() {
+        let dir = temp_dir("pending-stale");
+        save_pending_auth(&dir, "verifier-1", 1_000).unwrap();
+        let err = take_pending_auth(&dir, 1_000 + PENDING_AUTH_TTL_SECS + 1).unwrap_err();
+        assert!(matches!(err, Error::State(_)));
+    }
+
+    #[test]
+    fn starting_a_second_authorization_replaces_the_first() {
+        let dir = temp_dir("pending-replace");
+        save_pending_auth(&dir, "verifier-1", 1_000).unwrap();
+        save_pending_auth(&dir, "verifier-2", 1_100).unwrap();
+        assert_eq!(take_pending_auth(&dir, 1_100).unwrap(), "verifier-2");
+    }
+
+    #[test]
+    fn taking_a_verifier_when_none_was_started_explains_what_to_do() {
+        let dir = temp_dir("pending-none");
+        assert!(matches!(
+            take_pending_auth(&dir, 1_000),
+            Err(Error::State(_))
+        ));
     }
 }

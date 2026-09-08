@@ -52,6 +52,25 @@ impl<T: DropboxTransport> DropboxApiSyncProvider<T> {
     pub fn new(transport: T) -> Self {
         Self { transport }
     }
+
+    /// Write `contents` whether or not the path already exists.
+    ///
+    /// Deliberately *not* part of `SyncProvider`: that trait's `write_file`
+    /// is guarded on purpose, because blind overwrites are how a sync loses
+    /// the other device's edit. This is for files the app owns outright and
+    /// no one merges - the app-folder marker, and nothing else so far.
+    pub fn upsert(&self, path: &str, contents: &[u8]) -> Result<ChangeMarker> {
+        match self.write_file(path, contents, None) {
+            Err(Error::SyncConflict { .. }) => {
+                // Already there: take its current rev and overwrite that
+                // exact revision, so a write racing with this one still
+                // loses rather than being silently clobbered.
+                let (_, marker) = self.read_file(path)?;
+                self.write_file(path, contents, Some(&marker))
+            }
+            other => other,
+        }
+    }
 }
 
 /// Walks `list_folder` and its `continue` pages to the end, handing every
@@ -594,6 +613,43 @@ mod tests {
 
         assert!(matches!(err, Error::State(_)));
         assert!(provider.transport.upload_calls.borrow().is_empty());
+    }
+
+    #[test]
+    fn upsert_creates_when_the_path_is_free() {
+        let transport = MockTransport::new();
+        transport.push_upload(Ok(json!({ "rev": "rev-1" })));
+        let provider = DropboxApiSyncProvider::new(transport);
+
+        let marker = provider.upsert("MARKER.md", b"hello").unwrap();
+
+        assert_eq!(marker, ChangeMarker::Rev("rev-1".into()));
+        let calls = provider.transport.upload_calls.borrow();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0["mode"], json!({ ".tag": "add" }));
+    }
+
+    #[test]
+    fn upsert_overwrites_the_revision_it_found() {
+        let transport = MockTransport::new();
+        // First attempt is refused because the file is already there.
+        transport.push_upload(Err(Error::SyncConflict {
+            path: "MARKER.md".into(),
+        }));
+        transport.push_download(b"old", json!({ "rev": "rev-1" }));
+        transport.push_upload(Ok(json!({ "rev": "rev-2" })));
+        let provider = DropboxApiSyncProvider::new(transport);
+
+        let marker = provider.upsert("MARKER.md", b"new").unwrap();
+
+        assert_eq!(marker, ChangeMarker::Rev("rev-2".into()));
+        let calls = provider.transport.upload_calls.borrow();
+        // The retry names the rev it just read, so a third writer landing
+        // in between still loses instead of being overwritten blindly.
+        assert_eq!(
+            calls[1].0["mode"],
+            json!({ ".tag": "update", "update": "rev-1" })
+        );
     }
 
     #[test]

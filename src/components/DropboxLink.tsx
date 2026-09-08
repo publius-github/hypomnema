@@ -19,6 +19,7 @@ export default function DropboxLink() {
   const [code, setCode] = useState("");
   const [awaitingCode, setAwaitingCode] = useState(false);
   const [listing, setListing] = useState<DropboxListing | null>(null);
+  const [marker, setMarker] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +62,11 @@ export default function DropboxLink() {
   const listFiles = () =>
     run(async () => {
       setListing(await invoke<DropboxListing>("dropbox_list_files"));
+    });
+
+  const writeMarker = () =>
+    run(async () => {
+      setMarker(await invoke<string>("dropbox_write_marker"));
     });
 
   const disconnect = () =>
@@ -132,12 +138,26 @@ export default function DropboxLink() {
             </button>
             <button
               disabled={busy}
+              onClick={() => void writeMarker()}
+              className="rounded-lg border border-line px-4 py-2 disabled:opacity-50"
+            >
+              Mark folder
+            </button>
+            <button
+              disabled={busy}
               onClick={() => void disconnect()}
               className="rounded-lg border border-line px-4 py-2 disabled:opacity-50"
             >
               Disconnect
             </button>
           </div>
+          {marker && (
+            <p className="text-sm">
+              Wrote <code>{marker}</code> into the linked folder. Search
+              Dropbox for that name on the desktop to see exactly which
+              folder this phone is talking to.
+            </p>
+          )}
           {listing !== null && (
             <div className="rounded-lg border border-line p-3 text-sm">
               <p className="mb-2 text-content-muted">

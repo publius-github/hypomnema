@@ -47,12 +47,6 @@ struct AppState {
     /// watcher skips files that still match, so our own exports never
     /// trigger an import round-trip.
     mirror_written: Arc<Mutex<HashMap<PathBuf, String>>>,
-    /// PKCE verifier for a Dropbox authorization currently in flight
-    /// (docs/android/ROADMAP.md Phase 1). In memory only and single-use:
-    /// if the app restarts between opening the browser and pasting the
-    /// code back, the user starts the link over, which is the correct
-    /// outcome - a verifier is per-authorization by design.
-    dropbox_verifier: Mutex<Option<String>>,
 }
 
 /// Shared filter for both filesystem watchers: access events carry no
@@ -1505,38 +1499,28 @@ fn now_unix() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-/// Step 1 of linking: a fresh PKCE pair, its verifier parked in memory,
-/// and the URL for the user to approve in a browser.
+/// Step 1 of linking: a fresh PKCE pair, its verifier saved to disk, and
+/// the URL for the user to approve in a browser. On disk rather than in
+/// memory because this flow leaves the app: Android may evict it while the
+/// user is on the consent page (dropbox_link.rs).
 #[tauri::command]
-async fn dropbox_auth_url(state: State<'_, AppState>) -> Result<String> {
+async fn dropbox_auth_url(app: AppHandle) -> Result<String> {
     let pkce = sync_dropbox_oauth::new_pkce_challenge()?;
     // No redirect_uri: Dropbox shows the code on screen for the user to
     // paste back, which keeps intent-filter plumbing out of the
     // regenerated gen/android project (ROADMAP.md Phase 1).
     let url = sync_dropbox_oauth::authorize_url(&pkce.challenge, None);
-    *state.dropbox_verifier.lock().unwrap() = Some(pkce.verifier);
+    dropbox_link::save_pending_auth(&app_config_dir(&app)?, &pkce.verifier, now_unix())?;
     Ok(url)
 }
 
-/// Step 2: trade the pasted code for tokens. Takes the in-flight verifier
-/// rather than borrowing it - code and verifier are both single-use, so a
-/// failed attempt has to restart from the browser instead of retrying
-/// against a spent pair.
+/// Step 2: trade the pasted code for tokens. Consumes the pending verifier
+/// - code and verifier are both single-use, so a failed attempt has to
+/// restart from the browser instead of retrying against a spent pair.
 #[tauri::command]
-async fn dropbox_connect(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    code: String,
-) -> Result<dropbox_link::DropboxStatus> {
-    let verifier = state
-        .dropbox_verifier
-        .lock()
-        .unwrap()
-        .take()
-        .ok_or_else(|| {
-            Error::State("no Dropbox authorization in flight - start the link again".into())
-        })?;
+async fn dropbox_connect(app: AppHandle, code: String) -> Result<dropbox_link::DropboxStatus> {
     let dir = app_config_dir(&app)?;
+    let verifier = dropbox_link::take_pending_auth(&dir, now_unix())?;
     let tokens = sync_dropbox_oauth::exchange_code(
         &sync_dropbox_oauth::HttpOauthTransport::new(),
         code.trim(),
@@ -1576,6 +1560,35 @@ async fn dropbox_list_files(app: AppHandle) -> Result<dropbox_link::DropboxListi
         folders: census.folders,
         deleted: census.deleted,
     })
+}
+
+/// Drops a marker file into the linked app folder and returns its name.
+///
+/// Answers "which folder is this app actually talking to?" from the other
+/// side: the answer cannot be derived from the app's name (Dropbox names
+/// the folder after whatever was typed into its console, under a
+/// localized parent), so the app writes something findable instead of
+/// anyone guessing a path. Also the first exercise of the write path.
+#[tauri::command]
+async fn dropbox_write_marker(app: AppHandle) -> Result<String> {
+    let dir = app_config_dir(&app)?;
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let provider =
+        sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
+    let body = format!(
+        "This is the Dropbox app folder Hypomnema is linked to.\n\n\
+         Put the vault's contents directly in this folder - not in a\n\
+         subfolder, and not in a folder of the same name created by hand\n\
+         elsewhere in Dropbox, which this app cannot see.\n\n\
+         Written by Hypomnema at {} UTC.\n",
+        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+    );
+    provider.upsert(dropbox_link::MARKER_FILE, body.as_bytes())?;
+    Ok(dropbox_link::MARKER_FILE.to_string())
 }
 
 /// Panics land in <app-config-dir>/hypomnema.log so field errors are
@@ -1769,7 +1782,8 @@ pub fn run() {
             dropbox_connect,
             dropbox_status,
             dropbox_disconnect,
-            dropbox_list_files
+            dropbox_list_files,
+            dropbox_write_marker
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");

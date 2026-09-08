@@ -77,6 +77,18 @@ describe("DropboxLink smoke", () => {
     expect(screen.getByText("journal/2026-09-08.md")).toBeTruthy();
   });
 
+  it("names the marker file it wrote, so the folder can be found from a desktop", async () => {
+    dispatchCommands(invokeMock, {
+      dropbox_status: () => ({ connected: true, expires_in_secs: 600 }),
+      dropbox_write_marker: () => "HYPOMNEMA-APP-FOLDER.md",
+    });
+
+    render(<DropboxLink />);
+
+    fireEvent.click(await screen.findByText("Mark folder"));
+    expect(await screen.findByText("HYPOMNEMA-APP-FOLDER.md")).toBeTruthy();
+  });
+
   it("surfaces a backend error instead of failing silently", async () => {
     dispatchCommands(invokeMock, {
       dropbox_status: () => ({ connected: true, expires_in_secs: 600 }),
