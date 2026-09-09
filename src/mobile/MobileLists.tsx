@@ -3,6 +3,7 @@ import { useAppStore } from "../store";
 import { compareTasks, orderLists } from "../lib/tasks";
 import TaskRow from "./TaskRow";
 import { useBackStep } from "./back";
+import { Toggle } from "./controls";
 import type { List } from "../types";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
@@ -365,15 +366,14 @@ export default function MobileLists() {
               </select>
             </label>
           )}
-          <label className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <span className="text-sm">Favourite</span>
-            <input
-              type="checkbox"
+            <Toggle
               checked={current.favorite}
               onChange={() => void toggleListFavorite(current.id)}
-              className="h-6 w-6"
+              label="Favourite"
             />
-          </label>
+          </div>
           <button
             onClick={() => {
               void archiveList(current.id);

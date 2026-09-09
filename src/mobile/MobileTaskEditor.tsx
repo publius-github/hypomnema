@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store";
 import { priorityPatch, sortSubtasks } from "../lib/tasks";
 import { useBackStep } from "./back";
+import { Toggle } from "./controls";
 import type { Task, TaskStatus } from "../types";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
@@ -211,20 +212,16 @@ export default function MobileTaskEditor({
           </div>
         </div>
 
-        <label className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <span className="text-sm">Priority</span>
-          <input
-            type="checkbox"
+          <Toggle
             checked={task.priority}
-            onChange={(e) =>
-              void updateTask(
-                task.id,
-                priorityPatch(task, e.target.checked, today),
-              )
+            onChange={(next) =>
+              void updateTask(task.id, priorityPatch(task, next, today))
             }
-            className="h-6 w-6"
+            label="Priority"
           />
-        </label>
+        </div>
 
         <div className="flex flex-col gap-2">
           <span className="text-xs uppercase tracking-wide text-content-muted">

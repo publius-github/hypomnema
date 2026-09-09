@@ -38,7 +38,6 @@ export function LockSettings({
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="font-semibold">Passphrase</h2>
       <p className="text-sm text-content-muted">
         {state.enabled
           ? "The Dropbox token on this device is encrypted. You will be asked for the passphrase after the app is fully closed and reopened."

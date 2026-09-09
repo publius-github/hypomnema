@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { LockSettings } from "./MobileLock";
 import MobileVaultFolder from "./MobileVaultFolder";
+import DropboxLink from "../components/DropboxLink";
+import { NumberField, Toggle } from "./controls";
 import { useBackStep } from "./back";
 
 /** Matches THEME_PRESETS in src-tauri/src/config.rs. */
@@ -28,31 +30,32 @@ import type {
   SyncStanding,
 } from "../types";
 
+type Panel = "sync" | "lock" | "appearance" | "tasks" | "maintenance" | "vault";
+
 /**
- * Phone settings: the sync link, and the handful of switches that mean
- * something on a phone. The desktop's appearance, layout and profile
- * tabs are deliberately absent - they describe a window, and this does
- * not have one (ROADMAP.md Phase 5 revisits them).
+ * Phone settings: an index of panels rather than one long scroll. Seven
+ * unrelated sections in a single column meant the one being looked for
+ * was always somewhere under a thumb-load of the others; a grouped index
+ * is what every settled mobile settings screen converges on, and each
+ * row can carry its live state (linked or not, passphrase on or off) so
+ * most visits never need to open a panel at all.
+ *
+ * The desktop's layout and profile tabs are deliberately absent - they
+ * describe a window, and this does not have one (ROADMAP.md Phase 5
+ * revisits them).
  */
 export default function MobileSettings() {
   const vaultPath = useAppStore((s) => s.vaultPath);
   const config = useAppStore((s) => s.config);
-  const updateConfig = useAppStore((s) => s.updateConfig);
-  const setError = useAppStore((s) => s.setError);
+  const [panel, setPanel] = useState<Panel | null>(null);
   const [status, setStatus] = useState<DropboxStatus | null>(null);
-  const [pull, setPull] = useState<DropboxPull | null>(null);
-  const [sync, setSync] = useState<DropboxSync | null>(null);
   const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
-  const [showConflicts, setShowConflicts] = useState(false);
   const [standing, setStanding] = useState<SyncStanding | null>(null);
   const [lock, setLock] = useState<LockState | null>(null);
-  const [folder, setFolder] = useState(false);
-  const [progress, setProgress] = useState<[number, number] | null>(null);
-  const [busy, setBusy] = useState(false);
-  // hardware back closes the vault-folder chooser before leaving Settings
-  useBackStep(folder, () => setFolder(false));
+  // hardware back closes the open panel before leaving Settings
+  useBackStep(panel !== null, () => setPanel(null));
 
-  const loadConflicts = useCallback(() => {
+  const loadSyncState = useCallback(() => {
     void invoke<ConflictEntry[]>("sync_conflicts_list")
       .then(setConflicts)
       .catch(() => {});
@@ -68,7 +71,139 @@ export default function MobileSettings() {
     void invoke<LockState>("app_lock_state")
       .then(setLock)
       .catch(() => {});
-    loadConflicts();
+    loadSyncState();
+  }, [loadSyncState]);
+
+  const syncHint = !status
+    ? "Dropbox"
+    : status.connected
+      ? `Linked${
+          standing && standing.pending > 0
+            ? ` · ${standing.pending} waiting`
+            : ""
+        }${conflicts.length > 0 ? ` · ${conflicts.length} conflicts` : ""}`
+      : "Not linked";
+
+  const panels: { id: Panel; label: string; hint: string }[] = [
+    { id: "sync", label: "Sync", hint: syncHint },
+    {
+      id: "lock",
+      label: "Passphrase",
+      hint: lock?.enabled ? "On" : "Off",
+    },
+    {
+      id: "appearance",
+      label: "Appearance",
+      hint: config
+        ? `${config.theme === "dark" ? "Dark" : "Light"} · ${config.theme_preset}`
+        : "Theme, text size",
+    },
+    {
+      id: "tasks",
+      label: "Tasks & engine",
+      hint: "Notifications, snooze, retention",
+    },
+    {
+      id: "maintenance",
+      label: "Maintenance",
+      hint: "Backups, archived lists, cleanup",
+    },
+    { id: "vault", label: "Vault", hint: vaultPath ?? "none" },
+  ];
+
+  if (panel) {
+    const entry = panels.find((p) => p.id === panel);
+    return (
+      <div className="flex h-full flex-col">
+        <header className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-3">
+          <button
+            onClick={() => setPanel(null)}
+            className="px-2 py-1 text-content-muted"
+          >
+            ‹ Settings
+          </button>
+          <span className="font-semibold">{entry?.label}</span>
+        </header>
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
+          {panel === "sync" && (
+            <SyncPanel
+              status={status}
+              setStatus={setStatus}
+              standing={standing}
+              conflicts={conflicts}
+              setConflicts={setConflicts}
+              reload={loadSyncState}
+            />
+          )}
+          {panel === "lock" && lock && (
+            <LockSettings state={lock} onChange={setLock} />
+          )}
+          {panel === "appearance" && config && (
+            <AppearancePanel config={config} />
+          )}
+          {panel === "tasks" && config && <TasksPanel config={config} />}
+          {panel === "maintenance" && <MaintenancePanel />}
+          {panel === "vault" && <VaultPanel vaultPath={vaultPath} />}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ul>
+      {panels.map((entry) => (
+        <li key={entry.id} className="border-b border-line/60">
+          <button
+            onClick={() => setPanel(entry.id)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block">{entry.label}</span>
+              <span className="block truncate text-xs text-content-muted">
+                {entry.hint}
+              </span>
+            </span>
+            <span aria-hidden className="shrink-0 text-content-muted">
+              ›
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The Dropbox panel. Not linked yet, it *is* the linking flow - the
+ * first-run screen promises "it can be turned on later, from Settings",
+ * and this is where that promise is kept. Linked, it is the everyday
+ * sync button plus the switches, with the one-way verbs folded away.
+ */
+function SyncPanel({
+  status,
+  setStatus,
+  standing,
+  conflicts,
+  setConflicts,
+  reload,
+}: {
+  status: DropboxStatus | null;
+  setStatus: (next: DropboxStatus) => void;
+  standing: SyncStanding | null;
+  conflicts: ConflictEntry[];
+  setConflicts: (next: ConflictEntry[]) => void;
+  reload: () => void;
+}) {
+  const config = useAppStore((s) => s.config);
+  const updateConfig = useAppStore((s) => s.updateConfig);
+  const setError = useAppStore((s) => s.setError);
+  const [pull, setPull] = useState<DropboxPull | null>(null);
+  const [sync, setSync] = useState<DropboxSync | null>(null);
+  const [showConflicts, setShowConflicts] = useState(false);
+  const [progress, setProgress] = useState<[number, number] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
     const unlisten = Promise.all([
       listen<[number, number]>("dropbox-pull-progress", (e) =>
         setProgress(e.payload),
@@ -78,7 +213,7 @@ export default function MobileSettings() {
       ),
     ]);
     return () => void unlisten.then((fns) => fns.forEach((fn) => fn()));
-  }, [loadConflicts]);
+  }, []);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -89,20 +224,20 @@ export default function MobileSettings() {
     } finally {
       setBusy(false);
       setProgress(null);
-      loadConflicts();
+      reload();
     }
   };
 
+  if (!status?.connected) {
+    return <DropboxLink embedded onStatus={setStatus} />;
+  }
+
   return (
-    <div className="flex flex-col gap-6 px-4 py-5">
+    <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Dropbox</h2>
         <p className="text-sm text-content-muted">
-          {status?.connected
-            ? `Linked. Token refreshes in ${Math.round(
-                status.expires_in_secs / 60,
-              )} min.`
-            : "Not linked."}
+          Linked. Token refreshes in{" "}
+          {Math.round(status.expires_in_secs / 60)} min.
         </p>
         {/* Answered from disk, not from the network: a phone with no
             signal can still say exactly what it is holding, which is
@@ -168,24 +303,19 @@ export default function MobileSettings() {
             )}
           </p>
         )}
-        {/* automatic-sync switches mean nothing before a link exists;
-            showing them checked next to "Not linked" reads as a lie */}
-        {config && status?.connected && (
+        {config && (
           <>
-            <label className="flex items-center justify-between gap-3 pt-1">
+            <div className="flex items-center justify-between gap-3 pt-1">
               <span className="text-sm">Sync automatically</span>
-              <input
-                type="checkbox"
+              <Toggle
                 checked={config.sync_auto}
-                onChange={(e) =>
-                  void updateConfig({ sync_auto: e.target.checked })
-                }
-                className="h-6 w-6"
+                onChange={(next) => void updateConfig({ sync_auto: next })}
+                label="Sync automatically"
               />
-            </label>
+            </div>
             {config.sync_auto && (
               <>
-                <label className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <span className="min-w-0 text-sm">
                     Also when leaving the app
                     <span className="block text-xs text-content-muted">
@@ -193,30 +323,25 @@ export default function MobileSettings() {
                       thing you did waits here until you come back.
                     </span>
                   </span>
-                  <input
-                    type="checkbox"
+                  <Toggle
                     checked={config.sync_on_leave}
-                    onChange={(e) =>
-                      void updateConfig({ sync_on_leave: e.target.checked })
+                    onChange={(next) =>
+                      void updateConfig({ sync_on_leave: next })
                     }
-                    className="h-6 w-6 shrink-0"
+                    label="Sync when leaving the app"
                   />
-                </label>
-                <label className="flex items-center justify-between gap-3">
-                  <span className="text-sm">Every, minutes</span>
-                  <input
-                    type="number"
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm">Interval (minutes)</span>
+                  <NumberField
+                    value={config.sync_interval_minutes}
                     min={1}
                     max={720}
-                    value={config.sync_interval_minutes}
-                    onChange={(e) =>
-                      void updateConfig({
-                        sync_interval_minutes: Number(e.target.value) || 15,
-                      })
+                    onCommit={(next) =>
+                      void updateConfig({ sync_interval_minutes: next })
                     }
-                    className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
                   />
-                </label>
+                </div>
               </>
             )}
           </>
@@ -255,6 +380,18 @@ export default function MobileSettings() {
                 {pull.failed.length > 0 && `, ${pull.failed.length} failed`}.
               </p>
             )}
+            <button
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await invoke("dropbox_disconnect");
+                  setStatus({ connected: false, expires_in_secs: 0 });
+                })
+              }
+              className="rounded-lg border border-danger/50 px-4 py-3 text-danger disabled:opacity-50"
+            >
+              Unlink Dropbox
+            </button>
           </div>
         </details>
       </section>
@@ -314,294 +451,265 @@ export default function MobileSettings() {
           </>
         )}
       </section>
+    </div>
+  );
+}
 
-      {lock && <LockSettings state={lock} onChange={setLock} />}
-
-      {config && (
-        <section className="flex flex-col gap-3">
-          <h2 className="font-semibold">Appearance</h2>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Theme</span>
-            <select
-              value={config.theme}
-              onChange={(e) =>
-                void updateConfig({
-                  theme: e.target.value as typeof config.theme,
-                })
-              }
-              className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-            >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </label>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Palette</span>
-            <select
-              value={config.theme_preset}
-              onChange={(e) =>
-                void updateConfig({
-                  theme_preset: e.target.value as typeof config.theme_preset,
-                })
-              }
-              className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-            >
-              {THEME_PRESETS.map((preset) => (
-                <option key={preset} value={preset}>
-                  {preset}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Text size</span>
-            <input
-              type="number"
-              min={10}
-              max={24}
-              value={config.ui_font_size}
-              onChange={(e) =>
-                void updateConfig({
-                  ui_font_size: Number(e.target.value) || 14,
-                })
-              }
-              className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
-            />
-          </label>
-          {/* Column counts, pane splits and saved profiles are absent on
-              purpose: they describe a window, and this app's window on a
-              phone is the phone. A layout tab here would be a list of
-              settings that change nothing visible. */}
-          <div className="flex flex-col gap-2 border-t border-line pt-3">
-            <span className="text-sm">Screen edges</span>
-            <p className="text-xs text-content-muted">
-              Android draws this app under the status bar and the navigation
-              bar, and the layout normally learns where they are from the
-              system. If the header still sits under the clock, or the tabs
-              under the gesture bar, raise these until it clears. 0 means "trust
-              the system".
-            </p>
-            <div className="flex gap-3">
-              <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <span className="text-sm">Top</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={200}
-                  value={config.mobile_safe_area_top}
-                  onChange={(e) =>
-                    void updateConfig({
-                      mobile_safe_area_top: Number(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
-                />
-              </label>
-              <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <span className="text-sm">Bottom</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={200}
-                  value={config.mobile_safe_area_bottom}
-                  onChange={(e) =>
-                    void updateConfig({
-                      mobile_safe_area_bottom: Number(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
-                />
-              </label>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Engine</h2>
-        <p className="text-sm text-content-muted">
-          Generates recurring, scheduled and birthday tasks. Runs when the app
-          comes to the foreground.
-        </p>
-        <button
-          disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              await useAppStore.getState().runEngine();
-              await useAppStore.getState().refresh();
+function AppearancePanel({ config }: { config: AppConfig }) {
+  const updateConfig = useAppStore((s) => s.updateConfig);
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Theme</span>
+        <select
+          value={config.theme}
+          onChange={(e) =>
+            void updateConfig({
+              theme: e.target.value as typeof config.theme,
             })
           }
-          className="rounded-lg border border-line px-4 py-3 disabled:opacity-50"
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
         >
-          Run now
-        </button>
-        {config && (
-          <label className="flex items-center justify-between gap-3 py-2">
-            <span className="text-sm">System notifications for due tasks</span>
-            <input
-              type="checkbox"
-              checked={config.notify_system}
-              onChange={(e) =>
-                void updateConfig({ notify_system: e.target.checked })
-              }
-              className="h-6 w-6"
-            />
-          </label>
-        )}
-      </section>
-
-      {config && (
-        <section className="flex flex-col gap-3">
-          <h2 className="font-semibold">Advanced</h2>
-          <label className="flex items-center justify-between gap-3">
-            <span className="min-w-0 text-sm">
-              Done tasks on the day screen
-              <span className="block text-xs text-content-muted">
-                In place keeps them inside their daily/weekly sections.
-              </span>
-            </span>
-            <select
-              value={config.done_display}
-              onChange={(e) =>
-                void updateConfig({
-                  done_display: e.target.value as AppConfig["done_display"],
-                })
-              }
-              className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-            >
-              <option value="inline">In place</option>
-              <option value="separate">Own Done section</option>
-            </select>
-          </label>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Snooze reminders for (min)</span>
-            <input
-              type="number"
-              min={1}
-              max={240}
-              value={config.notify_snooze_minutes}
-              onChange={(e) =>
-                void updateConfig({
-                  notify_snooze_minutes: Number(e.target.value) || 10,
-                })
-              }
-              className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Quick-capture list</span>
-            <input
-              value={config.capture_list}
-              onChange={(e) =>
-                void updateConfig({ capture_list: e.target.value })
-              }
-              className="w-36 rounded-lg border border-line bg-surface-alt px-3 py-2"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Keep done history for (days, 0 = forever)</span>
-            <input
-              type="number"
-              min={0}
-              max={3650}
-              value={config.retention_days}
-              onChange={(e) =>
-                void updateConfig({
-                  retention_days: Number(e.target.value) || 0,
-                })
-              }
-              className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Catch up missed rules (days)</span>
-            <input
-              type="number"
-              min={0}
-              max={365}
-              value={config.catchup_days}
-              onChange={(e) =>
-                void updateConfig({
-                  catchup_days: Number(e.target.value) || 0,
-                })
-              }
-              className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Ignore cron time of day</span>
-            <input
-              type="checkbox"
-              checked={config.cron_ignore_time}
-              onChange={(e) =>
-                void updateConfig({ cron_ignore_time: e.target.checked })
-              }
-              className="h-6 w-6"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3">
-            <span className="text-sm">Cadence colours</span>
-            <input
-              type="checkbox"
-              checked={config.cadence_colors}
-              onChange={(e) =>
-                void updateConfig({ cadence_colors: e.target.checked })
-              }
-              className="h-6 w-6"
-            />
-          </label>
-          {config.cadence_colors && (
-            <div className="flex flex-wrap gap-3">
-              {(
-                [
-                  ["Daily", "cadence_color_daily"],
-                  ["Weekly", "cadence_color_weekly"],
-                  ["Monthly", "cadence_color_monthly"],
-                  ["Yearly", "cadence_color_yearly"],
-                  ["Exact", "cadence_color_exact"],
-                ] as const
-              ).map(([label, key]) => (
-                <label key={key} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="color"
-                    value={config[key]}
-                    onChange={(e) =>
-                      void updateConfig({ [key]: e.target.value })
-                    }
-                    className="h-8 w-10 rounded border border-line bg-surface-alt"
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-          )}
-        </section>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Palette</span>
+        <select
+          value={config.theme_preset}
+          onChange={(e) =>
+            void updateConfig({
+              theme_preset: e.target.value as typeof config.theme_preset,
+            })
+          }
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        >
+          {THEME_PRESETS.map((preset) => (
+            <option key={preset} value={preset}>
+              {preset.charAt(0).toUpperCase() + preset.slice(1)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Text size</span>
+        <NumberField
+          value={config.ui_font_size}
+          min={10}
+          max={24}
+          onCommit={(next) => void updateConfig({ ui_font_size: next })}
+        />
+      </label>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm">Cadence colours</span>
+        <Toggle
+          checked={config.cadence_colors}
+          onChange={(next) => void updateConfig({ cadence_colors: next })}
+          label="Cadence colours"
+        />
+      </div>
+      {config.cadence_colors && (
+        <div className="flex flex-wrap gap-3">
+          {(
+            [
+              ["Daily", "cadence_color_daily"],
+              ["Weekly", "cadence_color_weekly"],
+              ["Monthly", "cadence_color_monthly"],
+              ["Yearly", "cadence_color_yearly"],
+              ["Exact", "cadence_color_exact"],
+            ] as const
+          ).map(([label, key]) => (
+            <label key={key} className="flex items-center gap-2 text-sm">
+              <input
+                type="color"
+                value={config[key]}
+                onChange={(e) => void updateConfig({ [key]: e.target.value })}
+                className="h-8 w-10 rounded border border-line bg-surface-alt"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
       )}
-
-      <MaintenanceSection />
-
-      <section className="flex flex-col gap-1">
-        <h2 className="font-semibold">Vault</h2>
-        <p className="break-all text-xs text-content-muted">
-          {vaultPath ?? "none"}
-        </p>
+      {/* Column counts, pane splits and saved profiles are absent on
+          purpose: they describe a window, and this app's window on a
+          phone is the phone. A layout tab here would be a list of
+          settings that change nothing visible. */}
+      <div className="flex flex-col gap-2 border-t border-line pt-3">
+        <span className="text-sm">Screen edges</span>
         <p className="text-xs text-content-muted">
-          The vault lives on this device. Its database is rebuilt here from the
-          text files and is never uploaded.
+          Android draws this app under the status bar and the navigation
+          bar, and the layout normally learns where they are from the
+          system. If the header still sits under the clock, or the tabs
+          under the gesture bar, raise these until it clears. 0 means "trust
+          the system".
         </p>
-        <button
-          onClick={() => setFolder(true)}
-          className="mt-2 self-start rounded-lg border border-line px-4 py-2 text-sm"
+        <div className="flex gap-3">
+          <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <span className="text-sm">Top</span>
+            <NumberField
+              value={config.mobile_safe_area_top}
+              min={0}
+              max={200}
+              onCommit={(next) =>
+                void updateConfig({ mobile_safe_area_top: next })
+              }
+            />
+          </label>
+          <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <span className="text-sm">Bottom</span>
+            <NumberField
+              value={config.mobile_safe_area_bottom}
+              min={0}
+              max={200}
+              onCommit={(next) =>
+                void updateConfig({ mobile_safe_area_bottom: next })
+              }
+            />
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TasksPanel({ config }: { config: AppConfig }) {
+  const updateConfig = useAppStore((s) => s.updateConfig);
+  const setError = useAppStore((s) => s.setError);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-content-muted">
+        The engine generates recurring, scheduled and birthday tasks. It runs
+        when the app comes to the foreground.
+      </p>
+      <button
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void useAppStore
+            .getState()
+            .runEngine()
+            .then(() => useAppStore.getState().refresh())
+            .catch((e) => setError(String(e)))
+            .finally(() => setBusy(false));
+        }}
+        className="rounded-lg border border-line px-4 py-3 disabled:opacity-50"
+      >
+        Run the engine now
+      </button>
+      <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
+        <span className="text-sm">System notifications for due tasks</span>
+        <Toggle
+          checked={config.notify_system}
+          onChange={(next) => void updateConfig({ notify_system: next })}
+          label="System notifications for due tasks"
+        />
+      </div>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Snooze reminders for (min)</span>
+        <NumberField
+          value={config.notify_snooze_minutes}
+          min={1}
+          max={240}
+          onCommit={(next) =>
+            void updateConfig({ notify_snooze_minutes: next })
+          }
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="min-w-0 text-sm">
+          Done tasks on the day screen
+          <span className="block text-xs text-content-muted">
+            In place keeps them inside their daily/weekly sections.
+          </span>
+        </span>
+        <select
+          value={config.done_display}
+          onChange={(e) =>
+            void updateConfig({
+              done_display: e.target.value as AppConfig["done_display"],
+            })
+          }
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
         >
-          Move to another folder
-        </button>
-        {folder && (
-          <MobileVaultFolder
-            onChosen={() => setFolder(false)}
-            onCancel={() => setFolder(false)}
-          />
-        )}
-      </section>
+          <option value="inline">In place</option>
+          <option value="separate">Own Done section</option>
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Quick-capture list</span>
+        <input
+          defaultValue={config.capture_list}
+          onBlur={(e) => {
+            if (e.target.value !== config.capture_list)
+              void updateConfig({ capture_list: e.target.value });
+          }}
+          className="w-36 rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="min-w-0 text-sm">
+          Keep done history (days)
+          <span className="block text-xs text-content-muted">
+            0 keeps it forever.
+          </span>
+        </span>
+        <NumberField
+          value={config.retention_days}
+          min={0}
+          max={3650}
+          onCommit={(next) => void updateConfig({ retention_days: next })}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Catch up missed rules (days)</span>
+        <NumberField
+          value={config.catchup_days}
+          min={0}
+          max={365}
+          onCommit={(next) => void updateConfig({ catchup_days: next })}
+        />
+      </label>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm">Ignore cron time of day</span>
+        <Toggle
+          checked={config.cron_ignore_time}
+          onChange={(next) => void updateConfig({ cron_ignore_time: next })}
+          label="Ignore cron time of day"
+        />
+      </div>
+    </div>
+  );
+}
+
+function VaultPanel({ vaultPath }: { vaultPath: string | null }) {
+  const [folder, setFolder] = useState(false);
+  // hardware back closes the vault-folder chooser before leaving the panel
+  useBackStep(folder, () => setFolder(false));
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="break-all text-xs text-content-muted">
+        {vaultPath ?? "none"}
+      </p>
+      <p className="text-xs text-content-muted">
+        The vault lives on this device. Its database is rebuilt here from the
+        text files and is never uploaded.
+      </p>
+      <button
+        onClick={() => setFolder(true)}
+        className="mt-2 self-start rounded-lg border border-line px-4 py-2 text-sm"
+      >
+        Move to another folder
+      </button>
+      {folder && (
+        <MobileVaultFolder
+          onChosen={() => setFolder(false)}
+          onCancel={() => setFolder(false)}
+        />
+      )}
     </div>
   );
 }
@@ -612,11 +720,10 @@ export default function MobileSettings() {
  * Confirms go through window.confirm - a custom dialog would cover the
  * very list the action refers to.
  */
-function MaintenanceSection() {
+function MaintenancePanel() {
   const setError = useAppStore((s) => s.setError);
   const [archived, setArchived] = useState<List[]>([]);
   const [backups, setBackups] = useState<BackupsOverview | null>(null);
-  const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -629,9 +736,7 @@ function MaintenanceSection() {
       .catch((e) => setError(String(e)));
   }, [setError]);
 
-  useEffect(() => {
-    if (open) load();
-  }, [open, load]);
+  useEffect(load, [load]);
 
   const act = async (run: () => Promise<void>) => {
     setBusy(true);
@@ -726,53 +831,40 @@ function MaintenanceSection() {
   );
 
   return (
-    <section className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
+      {status && <p className="text-xs text-content-muted">{status}</p>}
       <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-between text-left"
+        disabled={busy}
+        onClick={deleteDone}
+        className="rounded-lg border border-danger/50 px-4 py-2 text-danger disabled:opacity-50"
       >
-        <h2 className="font-semibold">Maintenance</h2>
-        <span className="text-content-muted">{open ? "▾" : "▸"}</span>
+        Delete all done tasks
       </button>
-      {open && (
-        <>
-          {status && (
-            <p className="text-xs text-content-muted">{status}</p>
-          )}
-          <button
-            disabled={busy}
-            onClick={deleteDone}
-            className="rounded-lg border border-danger/50 px-4 py-2 text-danger disabled:opacity-50"
-          >
-            Delete all done tasks
-          </button>
-          {archived.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-wide text-content-muted">
-                Archived lists
-              </span>
-              {archived.map((list) => (
-                <div key={list.id} className="flex items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate">{list.name}</span>
-                  <button
-                    disabled={busy}
-                    onClick={() => restoreList(list.id)}
-                    className="shrink-0 rounded border border-line px-2 py-1 text-xs disabled:opacity-50"
-                  >
-                    Restore
-                  </button>
-                </div>
-              ))}
+      {archived.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs uppercase tracking-wide text-content-muted">
+            Archived lists
+          </span>
+          {archived.map((list) => (
+            <div key={list.id} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{list.name}</span>
+              <button
+                disabled={busy}
+                onClick={() => restoreList(list.id)}
+                className="shrink-0 rounded border border-line px-2 py-1 text-xs disabled:opacity-50"
+              >
+                Restore
+              </button>
             </div>
-          )}
-          {backups && (
-            <>
-              {backupList("Database snapshots", backups.db, restoreDb)}
-              {backupList("Config file backups", backups.config, restoreConfig)}
-            </>
-          )}
+          ))}
+        </div>
+      )}
+      {backups && (
+        <>
+          {backupList("Database snapshots", backups.db, restoreDb)}
+          {backupList("Config file backups", backups.config, restoreConfig)}
         </>
       )}
-    </section>
+    </div>
   );
 }

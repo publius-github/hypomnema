@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
@@ -18,13 +19,62 @@ import type { LockState } from "../types";
 
 export type MobileTab = "day" | "lists" | "journal" | "notes" | "more";
 
-const TABS: { id: MobileTab; label: string; glyph: string }[] = [
-  { id: "day", label: "Day", glyph: "☀" },
-  { id: "lists", label: "Lists", glyph: "≡" },
-  { id: "journal", label: "Journal", glyph: "✎" },
-  { id: "notes", label: "Notes", glyph: "❑" },
-  { id: "more", label: "More", glyph: "⋯" },
+const TABS: { id: MobileTab; label: string }[] = [
+  { id: "day", label: "Day" },
+  { id: "lists", label: "Lists" },
+  { id: "journal", label: "Journal" },
+  { id: "notes", label: "Notes" },
+  { id: "more", label: "More" },
 ];
+
+// Drawn icons rather than text glyphs: a glyph's shape and weight are the
+// system font's to decide, and ☀ or ❑ can render as an emoji, a hollow
+// box or nothing at all depending on the device. Strokes in currentColor
+// inherit the active/muted tint the same way the label does.
+const ICON_PROPS = {
+  viewBox: "0 0 24 24",
+  width: 22,
+  height: 22,
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.8,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+const TAB_ICONS: Record<MobileTab, ReactElement> = {
+  day: (
+    <svg {...ICON_PROPS}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </svg>
+  ),
+  lists: (
+    <svg {...ICON_PROPS}>
+      <path d="M8 6h13M8 12h13M8 18h13" />
+      <path d="M3 6h.01M3 12h.01M3 18h.01" />
+    </svg>
+  ),
+  journal: (
+    <svg {...ICON_PROPS}>
+      <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    </svg>
+  ),
+  notes: (
+    <svg {...ICON_PROPS}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6M16 13H8M16 17H8" />
+    </svg>
+  ),
+  more: (
+    <svg {...ICON_PROPS}>
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </svg>
+  ),
+};
 
 /**
  * The phone shell (docs/android/ROADMAP.md Phase 2).
@@ -182,7 +232,7 @@ export default function MobileApp() {
                 tab === entry.id ? "text-accent" : "text-content-muted"
               }`}
             >
-              <span className="text-lg leading-none">{entry.glyph}</span>
+              {TAB_ICONS[entry.id]}
               {entry.label}
             </button>
           ))}

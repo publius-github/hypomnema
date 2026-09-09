@@ -30,6 +30,11 @@ export default function MobileNotes() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<KbSearchHit[] | null>(null);
   const [status, setStatus] = useState<KbStatus | null>(null);
+  // inline create form rather than window.prompt: the WebView's prompt is
+  // not guaranteed to exist on Android, and a native dialog hides the
+  // folder the name is being chosen for
+  const [creating, setCreating] = useState<"note" | "folder" | null>(null);
+  const [newName, setNewName] = useState("");
 
   useEffect(() => {
     void invoke<KbStatus>("kb_status")
@@ -53,6 +58,7 @@ export default function MobileNotes() {
     setNote(null);
     loadTree();
   });
+  useBackStep(creating !== null, () => setCreating(null));
 
   const openPath = useCallback(
     (path: string) => {
@@ -82,7 +88,10 @@ export default function MobileNotes() {
 
   if (note) {
     return (
+      // keyed by path: following a wiki link swaps the note prop, and an
+      // unkeyed editor would keep showing the previous note's content
       <NoteEditor
+        key={note.path}
         note={note}
         onClose={() => {
           setNote(null);
@@ -96,18 +105,18 @@ export default function MobileNotes() {
   const here = trail.length > 0 ? trail[trail.length - 1].children : tree;
   const folder = trail.length > 0 ? `${trail[trail.length - 1].path}/` : "";
 
-  const create = (kind: "note" | "folder") => {
-    const name = window.prompt(
-      kind === "note" ? "New note name" : "New folder name",
-    );
-    if (!name?.trim()) return;
-    const trimmed = name.trim();
+  const create = () => {
+    const trimmed = newName.trim();
+    if (!creating || !trimmed) return;
+    const kind = creating;
     const path =
       kind === "note" && !trimmed.endsWith(".md")
         ? `${folder}${trimmed}.md`
         : `${folder}${trimmed}`;
     void invoke<string>(kind === "note" ? "kb_create" : "kb_mkdir", { path })
       .then((created) => {
+        setCreating(null);
+        setNewName("");
         loadTree();
         if (kind === "note") openPath(created);
       })
@@ -260,18 +269,53 @@ export default function MobileNotes() {
             )}
           </ul>
           <div className="flex gap-2 border-t border-line p-3">
-            <button
-              onClick={() => create("note")}
-              className="flex-1 rounded-lg bg-accent px-4 py-3 font-medium text-white"
-            >
-              + Note
-            </button>
-            <button
-              onClick={() => create("folder")}
-              className="rounded-lg border border-line px-4 py-3"
-            >
-              + Folder
-            </button>
+            {creating === null ? (
+              <>
+                <button
+                  onClick={() => {
+                    setNewName("");
+                    setCreating("note");
+                  }}
+                  className="flex-1 rounded-lg bg-accent px-4 py-3 font-medium text-white"
+                >
+                  + Note
+                </button>
+                <button
+                  onClick={() => {
+                    setNewName("");
+                    setCreating("folder");
+                  }}
+                  className="rounded-lg border border-line px-4 py-3"
+                >
+                  + Folder
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  autoFocus
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && create()}
+                  placeholder={
+                    creating === "note" ? "Note name" : "Folder name"
+                  }
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <button
+                  onClick={create}
+                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+                >
+                  Create
+                </button>
+                <button
+                  onClick={() => setCreating(null)}
+                  className="rounded-lg border border-line px-3 py-2"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
@@ -299,6 +343,12 @@ function NoteEditor({
   const [configErrors, setConfigErrors] = useState<
     { line: number | null; message: string }[]
   >([]);
+  // rename/move ask for their text inline, for the same reason the
+  // browser has an inline create form: window.prompt is unreliable in
+  // the Android WebView and hides the note it is asking about
+  const [action, setAction] = useState<"rename" | "move" | null>(null);
+  const [actionValue, setActionValue] = useState("");
+  useBackStep(action !== null, () => setAction(null));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<string | null>(null);
 
@@ -340,6 +390,32 @@ function NoteEditor({
     pending.current = text;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void flush(), SAVE_DEBOUNCE_MS);
+  };
+
+  const applyAction = () => {
+    if (!action) return;
+    const value = actionValue.trim();
+    let target: string | null = null;
+    if (action === "rename") {
+      if (value && value !== basenameOf(note.path)) {
+        const dir = parentDirOf(note.path);
+        target = `${dir ? `${dir}/` : ""}${
+          value.endsWith(".md") ? value : `${value}.md`
+        }`;
+      }
+    } else {
+      const folder = value.replace(/\/+$/, "");
+      if (folder !== parentDirOf(note.path)) {
+        target = `${folder ? `${folder}/` : ""}${basenameOf(note.path)}`;
+      }
+    }
+    setAction(null);
+    if (!target) return;
+    const to = target;
+    void flush()
+      .then(() => invoke("kb_rename", { from: note.path, to }))
+      .then(() => onOpen(to))
+      .catch((e) => setError(String(e)));
   };
 
   const loadBacklinks = () => {
@@ -402,18 +478,8 @@ function NoteEditor({
         <div className="flex gap-4 px-4 py-2">
           <button
             onClick={() => {
-              const name = window.prompt("New name", basenameOf(note.path));
-              if (!name?.trim() || name.trim() === basenameOf(note.path))
-                return;
-              const trimmed = name.trim();
-              const dir = parentDirOf(note.path);
-              const target = `${dir ? `${dir}/` : ""}${
-                trimmed.endsWith(".md") ? trimmed : `${trimmed}.md`
-              }`;
-              void flush()
-                .then(() => invoke("kb_rename", { from: note.path, to: target }))
-                .then(() => onOpen(target))
-                .catch((e) => setError(String(e)));
+              setActionValue(basenameOf(note.path));
+              setAction(action === "rename" ? null : "rename");
             }}
             className="text-sm text-content-muted"
           >
@@ -421,26 +487,40 @@ function NoteEditor({
           </button>
           <button
             onClick={() => {
-              const dir = window.prompt(
-                "Move to folder (empty = root)",
-                parentDirOf(note.path),
-              );
-              if (dir === null) return;
-              const folder = dir.trim().replace(/\/+$/, "");
-              if (folder === parentDirOf(note.path)) return;
-              const target = `${folder ? `${folder}/` : ""}${basenameOf(
-                note.path,
-              )}`;
-              void flush()
-                .then(() => invoke("kb_rename", { from: note.path, to: target }))
-                .then(() => onOpen(target))
-                .catch((e) => setError(String(e)));
+              setActionValue(parentDirOf(note.path));
+              setAction(action === "move" ? null : "move");
             }}
             className="text-sm text-content-muted"
           >
             Move
           </button>
         </div>
+        {action && (
+          <div className="flex gap-2 px-4 pb-2">
+            <input
+              autoFocus
+              value={actionValue}
+              onChange={(e) => setActionValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && applyAction()}
+              placeholder={
+                action === "rename" ? "New name" : "Folder (empty = root)"
+              }
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm"
+            />
+            <button
+              onClick={applyAction}
+              className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white"
+            >
+              {action === "rename" ? "Rename" : "Move"}
+            </button>
+            <button
+              onClick={() => setAction(null)}
+              className="rounded-lg border border-line px-3 py-2 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <button
           onClick={loadBacklinks}
           className="w-full px-4 py-3 text-left text-sm text-content-muted"

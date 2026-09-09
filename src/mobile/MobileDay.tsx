@@ -210,7 +210,10 @@ export default function MobileDay() {
       )}
 
       {shown.length === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-content-muted">
+        // flex-1 keeps the add row pinned to the bottom, where it sits
+        // whenever the day has tasks - an input that jumps to mid-screen
+        // on an empty day moves the one control this screen always has
+        <p className="min-h-0 flex-1 px-4 py-8 text-center text-sm text-content-muted">
           Nothing scheduled.
         </p>
       ) : (

@@ -16,7 +16,15 @@ import type { DropboxListing, DropboxPull, DropboxStatus } from "../types";
  * depends on an intent-filter surviving `tauri android init`. Swapping in
  * a real redirect later only changes how `code` arrives.
  */
-export default function DropboxLink() {
+export default function DropboxLink({
+  onStatus,
+  embedded = false,
+}: {
+  /** Lets an embedding screen (phone Settings) track the link state. */
+  onStatus?: (status: DropboxStatus) => void;
+  /** Drops the standalone page chrome when rendered inside a panel. */
+  embedded?: boolean;
+}) {
   const [status, setStatus] = useState<DropboxStatus | null>(null);
   const [code, setCode] = useState("");
   const [awaitingCode, setAwaitingCode] = useState(false);
@@ -36,10 +44,16 @@ export default function DropboxLink() {
     return () => void unlisten.then((fn) => fn());
   }, []);
 
+  const applyStatus = (next: DropboxStatus) => {
+    setStatus(next);
+    onStatus?.(next);
+  };
+
   useEffect(() => {
     void invoke<DropboxStatus>("dropbox_status")
-      .then(setStatus)
+      .then(applyStatus)
       .catch((e) => setError(String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Every action here is one round trip that can fail; funnel them. */
@@ -67,7 +81,7 @@ export default function DropboxLink() {
       const next = await invoke<DropboxStatus>("dropbox_connect", {
         code: code.trim(),
       });
-      setStatus(next);
+      applyStatus(next);
       setAwaitingCode(false);
       setCode("");
     });
@@ -99,13 +113,19 @@ export default function DropboxLink() {
   const disconnect = () =>
     run(async () => {
       await invoke("dropbox_disconnect");
-      setStatus({ connected: false, expires_in_secs: 0 });
+      applyStatus({ connected: false, expires_in_secs: 0 });
       setListing(null);
     });
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col gap-4 overflow-auto px-6 py-8">
-      <h1 className="text-2xl font-semibold">Connect Dropbox</h1>
+    <div
+      className={
+        embedded
+          ? "flex flex-col gap-4"
+          : "mx-auto flex h-full max-w-md flex-col gap-4 overflow-auto px-6 py-8"
+      }
+    >
+      {!embedded && <h1 className="text-2xl font-semibold">Connect Dropbox</h1>}
       <p className="text-sm text-content-muted">
         Hypomnema reads and writes your vault through Dropbox&apos;s API,
         inside its own app folder — the one Dropbox creates when you
