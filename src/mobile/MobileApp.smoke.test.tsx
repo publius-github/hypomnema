@@ -195,6 +195,70 @@ describe("MobileApp smoke", () => {
     );
   });
 
+  it("offers Undo after a delete and restores through it", async () => {
+    const today = todayISO();
+    const task = makeTask({ title: "feed the cat", scheduled_date: today });
+    const deleted = { tasks: [task], rule_run: null };
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        tasks_snapshot: () => [task],
+        task_delete: () => deleted,
+        task_restore: () => [task],
+      }),
+    );
+    useAppStore.setState({
+      config: { ...defaultConfig, sync_auto: false },
+      vaultPath: "/vault",
+      lists: [],
+      tasks: [task],
+      today,
+      undoEntry: null,
+    });
+
+    render(<MobileApp />);
+
+    fireEvent.click(await screen.findByLabelText("Task actions"));
+    fireEvent.click(screen.getByText("Delete"));
+    fireEvent.click(await screen.findByText("Undo"));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("task_restore", { deleted }),
+    );
+  });
+
+  it("searches everything from the day header", async () => {
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        tasks_snapshot: () => [],
+        tasks_search: () => [makeTask({ title: "buy searchlight" })],
+        kb_search: () => [],
+        journal_search: () => [],
+      }),
+    );
+    useAppStore.setState({
+      config: { ...defaultConfig, sync_auto: false },
+      vaultPath: "/vault",
+      lists: [],
+      tasks: [],
+      today: todayISO(),
+    });
+
+    render(<MobileApp />);
+
+    fireEvent.click(await screen.findByLabelText("Search"));
+    fireEvent.change(
+      screen.getByPlaceholderText("Search tasks, notes and journal..."),
+      { target: { value: "search" } },
+    );
+
+    expect(await screen.findByText("buy searchlight")).toBeTruthy();
+    expect(invokeMock).toHaveBeenCalledWith("tasks_search", {
+      query: "search",
+    });
+  });
+
   it("switches to another tab", async () => {
     dispatchCommands(
       invokeMock,

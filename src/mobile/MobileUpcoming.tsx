@@ -108,48 +108,117 @@ function Scheduled({
   const [date, setDate] = useState("");
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ScheduledEvent>({
+    date: "",
+    title: "",
+    time: null,
+  });
 
   return (
     <div className="flex flex-col">
       <ul>
         {result?.events.length === 0 && <Empty>Nothing scheduled.</Empty>}
-        {result?.events.map((event) => (
-          <li
-            key={`${event.date}-${event.title}-${event.source}`}
-            className="flex items-start justify-between gap-3 border-b border-line/60 px-4 py-3"
-          >
-            <span className="min-w-0">
-              <span className="block break-words">{event.title}</span>
-              <span className="text-xs text-content-muted">
-                {event.date}
-                {event.time && ` · ${event.time}`}
-                {event.source !== "scheduled.yml" && ` · ${event.source}`}
+        {result?.events.map((event) => {
+          const key = `${event.date}-${event.title}-${event.source}`;
+          return (
+          <li key={key} className="border-b border-line/60 px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block break-words">{event.title}</span>
+                <span className="text-xs text-content-muted">
+                  {event.date}
+                  {event.time && ` · ${event.time}`}
+                  {event.source !== "scheduled.yml" && ` · ${event.source}`}
+                </span>
               </span>
-            </span>
-            {/* Only rows that live in the root scheduled.yml can be
-                spliced back by index; a pack's row is shown but not
-                edited, exactly as on the desktop. */}
-            {event.source === "scheduled.yml" && (
-              <button
-                onClick={() =>
-                  void act(() =>
-                    invoke("scheduled_edit", {
-                      original: {
+              {/* Only rows that live in the root scheduled.yml can be
+                  spliced back by index; a pack's row is shown but not
+                  edited, exactly as on the desktop. */}
+              {event.source === "scheduled.yml" && (
+                <span className="flex shrink-0 gap-3">
+                  <button
+                    onClick={() => {
+                      setEditing(editing === key ? null : key);
+                      setDraft({
                         date: event.date,
                         title: event.title,
                         time: event.time,
-                      },
-                      replacement: null,
-                    }),
-                  )
-                }
-                className="shrink-0 text-sm text-danger"
-              >
-                Delete
-              </button>
+                      });
+                    }}
+                    className="text-sm text-content-muted"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() =>
+                      void act(() =>
+                        invoke("scheduled_edit", {
+                          original: {
+                            date: event.date,
+                            title: event.title,
+                            time: event.time,
+                          },
+                          replacement: null,
+                        }),
+                      )
+                    }
+                    className="text-sm text-danger"
+                  >
+                    Delete
+                  </button>
+                </span>
+              )}
+            </div>
+            {editing === key && (
+              <div className="mt-2 flex flex-col gap-2">
+                <input
+                  type="date"
+                  value={draft.date}
+                  onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+                  className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <input
+                  value={draft.title}
+                  onChange={(e) =>
+                    setDraft({ ...draft, title: e.target.value })
+                  }
+                  className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <input
+                  type="time"
+                  value={draft.time ?? ""}
+                  onChange={(e) =>
+                    setDraft({ ...draft, time: e.target.value || null })
+                  }
+                  className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <button
+                  onClick={() => {
+                    if (!draft.date || !draft.title.trim()) return;
+                    void act(() =>
+                      invoke("scheduled_edit", {
+                        original: {
+                          date: event.date,
+                          title: event.title,
+                          time: event.time,
+                        },
+                        replacement: {
+                          ...draft,
+                          title: draft.title.trim(),
+                        },
+                      }),
+                    ).then(() => setEditing(null));
+                  }}
+                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+                >
+                  Save
+                </button>
+              </div>
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
       <AddBox
         onAdd={() => {
@@ -198,44 +267,118 @@ function Birthdays({
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [year, setYear] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState<BirthdayEntry>({
+    name: "",
+    date: "",
+    year: null,
+  });
 
   return (
     <div className="flex flex-col">
       <ul>
         {result?.birthdays.length === 0 && <Empty>No birthdays yet.</Empty>}
-        {result?.birthdays.map((entry) => (
-          <li
-            key={`${entry.name}-${entry.date}`}
-            className="flex items-start justify-between gap-3 border-b border-line/60 px-4 py-3"
-          >
-            <span className="min-w-0">
-              <span className="block break-words">{entry.name}</span>
-              <span className="text-xs text-content-muted">
-                {entry.next_occurrence} · in {entry.days_until} d
-                {entry.turns !== null && ` · turns ${entry.turns}`}
+        {result?.birthdays.map((entry) => {
+          const key = `${entry.name}-${entry.date}`;
+          return (
+          <li key={key} className="border-b border-line/60 px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block break-words">{entry.name}</span>
+                <span className="text-xs text-content-muted">
+                  {entry.next_occurrence} · in {entry.days_until} d
+                  {entry.turns !== null && ` · turns ${entry.turns}`}
+                </span>
               </span>
-            </span>
-            {entry.source === "birthdays.yml" && (
-              <button
-                onClick={() =>
-                  void act(() =>
-                    invoke("birthday_edit", {
-                      original: {
+              {entry.source === "birthdays.yml" && (
+                <span className="flex shrink-0 gap-3">
+                  <button
+                    onClick={() => {
+                      setEditing(editing === key ? null : key);
+                      setDraft({
                         name: entry.name,
                         date: entry.date,
                         year: entry.year,
-                      },
-                      replacement: null,
-                    }),
-                  )
-                }
-                className="shrink-0 text-sm text-danger"
-              >
-                Delete
-              </button>
+                      });
+                    }}
+                    className="text-sm text-content-muted"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() =>
+                      void act(() =>
+                        invoke("birthday_edit", {
+                          original: {
+                            name: entry.name,
+                            date: entry.date,
+                            year: entry.year,
+                          },
+                          replacement: null,
+                        }),
+                      )
+                    }
+                    className="text-sm text-danger"
+                  >
+                    Delete
+                  </button>
+                </span>
+              )}
+            </div>
+            {editing === key && (
+              <div className="mt-2 flex flex-col gap-2">
+                <input
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  placeholder="Whose birthday"
+                  className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <input
+                  value={draft.date}
+                  onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+                  placeholder="MM-DD"
+                  inputMode="numeric"
+                  className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <input
+                  value={draft.year === null ? "" : String(draft.year)}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      year: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  placeholder="Year born (optional)"
+                  inputMode="numeric"
+                  className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <button
+                  onClick={() => {
+                    if (
+                      !draft.name.trim() ||
+                      !/^\d{2}-\d{2}$/.test(draft.date)
+                    )
+                      return;
+                    void act(() =>
+                      invoke("birthday_edit", {
+                        original: {
+                          name: entry.name,
+                          date: entry.date,
+                          year: entry.year,
+                        },
+                        replacement: { ...draft, name: draft.name.trim() },
+                      }),
+                    ).then(() => setEditing(null));
+                  }}
+                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+                >
+                  Save
+                </button>
+              </div>
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
       <AddBox
         onAdd={() => {
@@ -286,6 +429,12 @@ function Recurring({
 }) {
   const [schedule, setSchedule] = useState("");
   const [items, setItems] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState<{
+    schedule: string;
+    description: string;
+    items: string;
+  }>({ schedule: "", description: "", items: "" });
 
   return (
     <div className="flex flex-col">
@@ -294,33 +443,99 @@ function Recurring({
         {result?.rules.map((rule, index) => (
           <li
             key={`${rule.source}-${index}`}
-            className="flex items-start justify-between gap-3 border-b border-line/60 px-4 py-3"
+            className="border-b border-line/60 px-4 py-3"
           >
-            <span className="min-w-0">
-              <span className="block break-words">
-                {rule.description || rule.items.join(", ")}
-              </span>
-              <span className="block break-words text-xs text-content-muted">
-                {rule.schedule}
-                {rule.source !== "recurring.yml" && ` · ${rule.source}`}
-              </span>
-              {rule.description && (
+            <div className="flex items-start justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block break-words">
+                  {rule.description || rule.items.join(", ")}
+                </span>
                 <span className="block break-words text-xs text-content-muted">
-                  {rule.items.join(", ")}
+                  {rule.schedule}
+                  {rule.source !== "recurring.yml" && ` · ${rule.source}`}
+                </span>
+                {rule.description && (
+                  <span className="block break-words text-xs text-content-muted">
+                    {rule.items.join(", ")}
+                  </span>
+                )}
+              </span>
+              {rule.source === "recurring.yml" && (
+                <span className="flex shrink-0 gap-3">
+                  <button
+                    onClick={() => {
+                      setEditing(editing === index ? null : index);
+                      setDraft({
+                        schedule: rule.schedule,
+                        description: rule.description,
+                        items: rule.items.join("\n"),
+                      });
+                    }}
+                    className="text-sm text-content-muted"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() =>
+                      void act(() =>
+                        invoke("recurring_edit", { index, replacement: null }),
+                      )
+                    }
+                    className="text-sm text-danger"
+                  >
+                    Delete
+                  </button>
                 </span>
               )}
-            </span>
-            {rule.source === "recurring.yml" && (
-              <button
-                onClick={() =>
-                  void act(() =>
-                    invoke("recurring_edit", { index, replacement: null }),
-                  )
-                }
-                className="shrink-0 text-sm text-danger"
-              >
-                Delete
-              </button>
+            </div>
+            {editing === index && (
+              <div className="mt-2 flex flex-col gap-2">
+                <input
+                  value={draft.schedule}
+                  onChange={(e) =>
+                    setDraft({ ...draft, schedule: e.target.value })
+                  }
+                  placeholder="Cron, e.g. 0 9 * * 1-5"
+                  className="rounded-lg border border-line bg-surface-alt px-3 py-2 font-mono text-sm"
+                />
+                <input
+                  value={draft.description}
+                  onChange={(e) =>
+                    setDraft({ ...draft, description: e.target.value })
+                  }
+                  placeholder="Description (optional)"
+                  className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <textarea
+                  value={draft.items}
+                  onChange={(e) =>
+                    setDraft({ ...draft, items: e.target.value })
+                  }
+                  rows={3}
+                  placeholder="One task per line; {List} prefix picks a list"
+                  className="resize-none rounded-lg border border-line bg-surface-alt px-3 py-2"
+                />
+                <button
+                  onClick={() => {
+                    const lines = draft.items
+                      .split("\n")
+                      .map((line) => line.trim())
+                      .filter(Boolean);
+                    if (!draft.schedule.trim() || lines.length === 0) return;
+                    const replacement: RecurringRule = {
+                      schedule: draft.schedule.trim(),
+                      description: draft.description.trim(),
+                      items: lines,
+                    };
+                    void act(() =>
+                      invoke("recurring_edit", { index, replacement }),
+                    ).then(() => setEditing(null));
+                  }}
+                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+                >
+                  Save
+                </button>
+              </div>
             )}
           </li>
         ))}

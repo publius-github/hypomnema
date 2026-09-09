@@ -15,10 +15,14 @@ const THEME_PRESETS = [
   "solarized",
 ] as const;
 import type {
+  AppConfig,
+  BackupEntry,
+  BackupsOverview,
   ConflictEntry,
   DropboxPull,
   DropboxStatus,
   DropboxSync,
+  List,
   LockState,
   SyncStanding,
 } from "../types";
@@ -441,6 +445,116 @@ export default function MobileSettings() {
         )}
       </section>
 
+      {config && (
+        <section className="flex flex-col gap-3">
+          <h2 className="font-semibold">Advanced</h2>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Snooze reminders for (min)</span>
+            <input
+              type="number"
+              min={1}
+              max={240}
+              value={config.notify_snooze_minutes}
+              onChange={(e) =>
+                void updateConfig({
+                  notify_snooze_minutes: Number(e.target.value) || 10,
+                })
+              }
+              className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
+            />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Quick-capture list</span>
+            <input
+              value={config.capture_list}
+              onChange={(e) =>
+                void updateConfig({ capture_list: e.target.value })
+              }
+              className="w-36 rounded-lg border border-line bg-surface-alt px-3 py-2"
+            />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Keep done history for (days, 0 = forever)</span>
+            <input
+              type="number"
+              min={0}
+              max={3650}
+              value={config.retention_days}
+              onChange={(e) =>
+                void updateConfig({
+                  retention_days: Number(e.target.value) || 0,
+                })
+              }
+              className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
+            />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Catch up missed rules (days)</span>
+            <input
+              type="number"
+              min={0}
+              max={365}
+              value={config.catchup_days}
+              onChange={(e) =>
+                void updateConfig({
+                  catchup_days: Number(e.target.value) || 0,
+                })
+              }
+              className="w-20 rounded-lg border border-line bg-surface-alt px-3 py-2"
+            />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Ignore cron time of day</span>
+            <input
+              type="checkbox"
+              checked={config.cron_ignore_time}
+              onChange={(e) =>
+                void updateConfig({ cron_ignore_time: e.target.checked })
+              }
+              className="h-6 w-6"
+            />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-sm">Cadence colours</span>
+            <input
+              type="checkbox"
+              checked={config.cadence_colors}
+              onChange={(e) =>
+                void updateConfig({ cadence_colors: e.target.checked })
+              }
+              className="h-6 w-6"
+            />
+          </label>
+          {config.cadence_colors && (
+            <div className="flex flex-wrap gap-3">
+              {(
+                [
+                  ["Daily", "cadence_color_daily"],
+                  ["Weekly", "cadence_color_weekly"],
+                  ["Monthly", "cadence_color_monthly"],
+                  ["Yearly", "cadence_color_yearly"],
+                  ["Exact", "cadence_color_exact"],
+                ] as const
+              ).map(([label, key]) => (
+                <label key={key} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="color"
+                    value={config[key]}
+                    onChange={(e) =>
+                      void updateConfig({ [key]: e.target.value })
+                    }
+                    className="h-8 w-10 rounded border border-line bg-surface-alt"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      <MaintenanceSection />
+
       <section className="flex flex-col gap-1">
         <h2 className="font-semibold">Vault</h2>
         <p className="break-all text-xs text-content-muted">
@@ -464,5 +578,176 @@ export default function MobileSettings() {
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * The desktop Maintenance tab, sized for a thumb: delete-done sweep,
+ * archived-list restore, and the restore lists for both backup kinds.
+ * Confirms go through window.confirm - a custom dialog would cover the
+ * very list the action refers to.
+ */
+function MaintenanceSection() {
+  const setError = useAppStore((s) => s.setError);
+  const [archived, setArchived] = useState<List[]>([]);
+  const [backups, setBackups] = useState<BackupsOverview | null>(null);
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    void invoke<List[]>("lists_archived")
+      .then(setArchived)
+      .catch((e) => setError(String(e)));
+    void invoke<BackupsOverview>("backups_list")
+      .then(setBackups)
+      .catch((e) => setError(String(e)));
+  }, [setError]);
+
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
+  const act = async (run: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await run();
+      load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteDone = () => {
+    if (!window.confirm("Delete every task marked done? This cannot be undone."))
+      return;
+    void act(async () => {
+      const deleted = await invoke<number>("tasks_delete_done");
+      setStatus(`Deleted ${deleted} done task(s)`);
+      await useAppStore.getState().refresh();
+    });
+  };
+
+  const restoreList = (id: number) =>
+    void act(async () => {
+      await invoke("list_unarchive", { id });
+      await useAppStore.getState().refresh();
+    });
+
+  const restoreDb = (entry: BackupEntry) => {
+    if (
+      !window.confirm(
+        `Restore the database from ${entry.label}? Everything created after it will be gone. The current database is kept as its own snapshot first.`,
+      )
+    )
+      return;
+    void act(async () => {
+      // the whole database is being swapped: reload config, then rerun
+      // the engine and refetch every view, same as opening a vault
+      const config = await invoke<AppConfig>("backup_restore_db", {
+        id: entry.id,
+      });
+      useAppStore.setState({ config });
+      await useAppStore.getState().runEngine();
+      await useAppStore.getState().refresh();
+      setStatus(`Restored database from ${entry.label}`);
+    });
+  };
+
+  const restoreConfig = (entry: BackupEntry) => {
+    if (
+      !window.confirm(
+        `Restore ${entry.label} from ${entry.modified}? The file currently on disk is kept as its own backup first.`,
+      )
+    )
+      return;
+    void act(async () => {
+      await invoke("backup_restore_config", { id: entry.id });
+      setStatus(`Restored ${entry.label} - changes apply in a moment`);
+    });
+  };
+
+  const backupList = (
+    title: string,
+    entries: BackupEntry[],
+    onRestore: (entry: BackupEntry) => void,
+  ) => (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs uppercase tracking-wide text-content-muted">
+        {title}
+      </span>
+      {entries.length === 0 ? (
+        <p className="text-xs text-content-muted">No snapshots yet.</p>
+      ) : (
+        entries.map((entry) => (
+          <div key={entry.id} className="flex items-center gap-2 text-sm">
+            <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+            <span className="shrink-0 text-xs text-content-muted">
+              {entry.modified}
+            </span>
+            <button
+              disabled={busy}
+              onClick={() => onRestore(entry)}
+              className="shrink-0 rounded border border-line px-2 py-1 text-xs disabled:opacity-50"
+            >
+              Restore
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  return (
+    <section className="flex flex-col gap-3">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between text-left"
+      >
+        <h2 className="font-semibold">Maintenance</h2>
+        <span className="text-content-muted">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <>
+          {status && (
+            <p className="text-xs text-content-muted">{status}</p>
+          )}
+          <button
+            disabled={busy}
+            onClick={deleteDone}
+            className="rounded-lg border border-danger/50 px-4 py-2 text-danger disabled:opacity-50"
+          >
+            Delete all done tasks
+          </button>
+          {archived.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs uppercase tracking-wide text-content-muted">
+                Archived lists
+              </span>
+              {archived.map((list) => (
+                <div key={list.id} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{list.name}</span>
+                  <button
+                    disabled={busy}
+                    onClick={() => restoreList(list.id)}
+                    className="shrink-0 rounded border border-line px-2 py-1 text-xs disabled:opacity-50"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {backups && (
+            <>
+              {backupList("Database snapshots", backups.db, restoreDb)}
+              {backupList("Config file backups", backups.config, restoreConfig)}
+            </>
+          )}
+        </>
+      )}
+    </section>
   );
 }

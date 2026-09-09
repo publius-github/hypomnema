@@ -19,8 +19,19 @@ export default function MobileJournal() {
   const [date, setDate] = useState(today);
   const [content, setContent] = useState("");
   const [saved, setSaved] = useState(true);
+  const [browsing, setBrowsing] = useState(false);
+  const [entries, setEntries] = useState<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<{ date: string; content: string } | null>(null);
+
+  // a search hit or the Review's "Weekly note" landed here with a date
+  const openDate = useAppStore((s) => s.journalOpenDate);
+  useEffect(() => {
+    if (!openDate) return;
+    setDate(openDate);
+    setBrowsing(false);
+    useAppStore.setState({ journalOpenDate: null });
+  }, [openDate]);
 
   const persist = useCallback(
     async (entryDate: string, text: string) => {
@@ -84,13 +95,67 @@ export default function MobileJournal() {
     timer.current = setTimeout(() => void flush(), SAVE_DEBOUNCE_MS);
   };
 
+  if (browsing) {
+    return (
+      <div className="flex h-full flex-col">
+        <header className="flex items-center gap-2 border-b border-line px-2 py-3">
+          <button
+            onClick={() => setBrowsing(false)}
+            className="px-2 py-1 text-content-muted"
+          >
+            ‹ Back
+          </button>
+          <span className="font-semibold">Entries</span>
+        </header>
+        <ul className="min-h-0 flex-1 overflow-auto">
+          {entries.length === 0 && (
+            <li className="px-4 py-8 text-center text-sm text-content-muted">
+              No entries yet.
+            </li>
+          )}
+          {entries.map((entry) => (
+            <li key={entry} className="border-b border-line/60">
+              <button
+                onClick={() => {
+                  setDate(entry);
+                  setBrowsing(false);
+                }}
+                className="w-full px-4 py-3 text-left"
+              >
+                {entry}
+                {entry === today && (
+                  <span className="ml-2 text-xs text-content-muted">today</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-2 border-b border-line px-2 py-3">
+      <header className="flex items-center justify-between gap-1 border-b border-line px-2 py-3">
+        <button
+          onClick={() => {
+            // newest first: the recent past is what gets reopened
+            void invoke<string[]>("journal_list")
+              .then((dates) => {
+                setEntries([...dates].sort((a, b) => b.localeCompare(a)));
+                setBrowsing(true);
+              })
+              .catch((e) => setError(String(e)));
+          }}
+          aria-label="All entries"
+          className="px-2 py-1 text-lg text-content-muted"
+        >
+          ≡
+        </button>
         <button
           onClick={() => setDate((d) => addDaysISO(d, -1))}
           aria-label="Previous day"
-          className="px-3 py-1 text-lg text-content-muted"
+          className="px-2 py-1 text-lg text-content-muted"
         >
           ‹
         </button>
@@ -98,16 +163,32 @@ export default function MobileJournal() {
           <div className="truncate font-semibold">
             {date === today ? "Today" : date}
           </div>
-          <div className="text-xs text-content-muted">
-            {saved ? "Saved" : "Saving..."}
+          <div className="flex items-center justify-center gap-2 text-xs text-content-muted">
+            {/* the date doubles as a picker, same as the day view's */}
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => e.target.value && setDate(e.target.value)}
+              aria-label="Jump to date"
+              className="border-none bg-transparent p-0 text-center text-xs text-content-muted outline-none"
+            />
+            <span>{saved ? "Saved" : "Saving..."}</span>
           </div>
         </div>
         <button
           onClick={() => setDate((d) => addDaysISO(d, 1))}
           aria-label="Next day"
-          className="px-3 py-1 text-lg text-content-muted"
+          className="px-2 py-1 text-lg text-content-muted"
         >
           ›
+        </button>
+        <button
+          onClick={() => setDate(today)}
+          disabled={date === today}
+          aria-label="Back to today"
+          className="px-2 py-1 text-xs text-content-muted disabled:opacity-30"
+        >
+          Today
         </button>
       </header>
       <textarea

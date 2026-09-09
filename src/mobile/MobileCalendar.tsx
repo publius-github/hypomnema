@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
-import { compareTasks, todayISO } from "../lib/tasks";
+import { addDaysISO, compareTasks, todayISO } from "../lib/tasks";
 import TaskRow from "./TaskRow";
-import type { OutlookEvent } from "../types";
+import type { OutlookEvent, Task } from "../types";
 
 function monthStart(iso: string): Date {
   const [year, month] = iso.split("-").map(Number);
@@ -34,12 +34,15 @@ const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
  */
 export default function MobileCalendar() {
   const today = useAppStore((s) => s.today) || todayISO();
-  const tasks = useAppStore((s) => s.tasks);
+  const storeTasks = useAppStore((s) => s.tasks);
+  const createTask = useAppStore((s) => s.createTask);
   const setError = useAppStore((s) => s.setError);
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const [cursor, setCursor] = useState(() => monthStart(today));
   const [selected, setSelected] = useState(today);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [outlook, setOutlook] = useState<OutlookEvent[]>([]);
+  const [title, setTitle] = useState("");
 
   const first = cursor;
   const daysInMonth = new Date(
@@ -57,6 +60,33 @@ export default function MobileCalendar() {
       .then(setOutlook)
       .catch((e) => setError(String(e)));
   }, [from, to, setError, vaultVersion]);
+
+  // The month's own snapshot, same as the desktop calendar: the store's
+  // window follows the day view, and a month is wider than any window.
+  // Row actions mutate through the store, so its change is the refetch
+  // signal that keeps this local copy honest.
+  useEffect(() => {
+    let cancelled = false;
+    void invoke<Task[]>("tasks_snapshot", {
+      startDate: from,
+      endDate: addDaysISO(to, 1),
+    })
+      .then((all) => {
+        if (cancelled) return;
+        setTasks(
+          all.filter(
+            (t) =>
+              t.scheduled_date !== null &&
+              t.scheduled_date >= from &&
+              t.scheduled_date <= to,
+          ),
+        );
+      })
+      .catch((e) => setError(String(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, [from, to, setError, vaultVersion, storeTasks]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, { real: number; projected: number }>();
@@ -188,6 +218,34 @@ export default function MobileCalendar() {
             </ul>
           </div>
         )}
+      </div>
+
+      {/* the desktop day list carries a QuickAdd under it; same here */}
+      <div className="flex gap-2 border-t border-line p-3">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            const trimmed = title.trim();
+            if (!trimmed) return;
+            void createTask({ title: trimmed, scheduled_date: selected });
+            setTitle("");
+          }}
+          placeholder={`New task on ${selected}`}
+          className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+        <button
+          onClick={() => {
+            const trimmed = title.trim();
+            if (!trimmed) return;
+            void createTask({ title: trimmed, scheduled_date: selected });
+            setTitle("");
+          }}
+          className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+        >
+          Add
+        </button>
       </div>
     </div>
   );

@@ -5,9 +5,17 @@ Basis: `REQUIREMENTS.md` in this folder, cross-checked against
 `src-tauri/src/{engine,tasks,tasks_mirror,state_export,vault}.rs` elsewhere
 in this same repo.
 
-## Where this stands (2026-09-08)
+## Where this stands (2026-09-09)
 
-Phases 0-5 are built. Three items remain, and none of them is waiting on
+Phases 0-5 are built, plus a desktop-parity pass on 2026-09-09: global
+search (the Ctrl+K equivalent), Undo and due-task toasts in the phone
+shell, day-view context (focus/reminders/schedule) with a date picker
+over the store's grid offset, Postponed/Done sections, Review brought up
+to the desktop's numbers and panels (with Next week / Backlog row
+actions), journal entries list, Notes config editing plus rename/move,
+calendar quick-add over a month-wide snapshot, Upcoming row editing, and
+Settings Advanced + Maintenance (backups restore, archived lists,
+delete-done). Three items remain, and none of them is waiting on
 a decision about how to write the code:
 
 - **The dogfood run** (Phase 3) — the one item no amount of code closes.
@@ -504,13 +512,20 @@ year, and giving each its own tab would shrink all of them to fit.
   *are* the editor on a phone, and CodeMirror fights both. What the
   desktop's editor adds — lint gutters, YAML colouring — is worth little
   on this screen; what it takes is the keyboard's own behaviour.
-- [x] Calendar: browse. Month grid with a dot per day (solid for real
+- [x] Calendar: browse plus a quick-add on the selected day (2026-09-09),
+  over its own month-wide snapshot so the dots do not depend on the day
+  view's window. Month grid with a dot per day (solid for real
   tasks, faint for `calendar_outlook` projections) over the selected
   day's list. No drag-to-reschedule: that is a mouse gesture, and a
-  thumb-sized month cell is not a drop target.
-- [x] Review: view-only, stacked rather than the desktop's two columns,
-  with each row's own "..." carrying the same actions it carries
-  everywhere else — one interaction to learn, not two. Its own snapshot,
+  thumb-sized month cell is not a drop target - the task editor moves
+  dates instead.
+- [x] Review: stacked rather than the desktop's two columns, with each
+  row's own "..." carrying the same actions it carries everywhere else —
+  one interaction to learn, not two. Brought up to the desktop's numbers
+  and panels on 2026-09-09: done-rate over past days only, per-origin
+  tiles, Completed grouped by day, the Next week panel, the Weekly note
+  jump, and the Review-only leftover actions (Next week / Backlog)
+  folded into the same "..." strip. Its own snapshot,
   since the store's window follows the day grid and a review of three
   weeks ago sits outside it.
 - [x] The day reads like the desktop's, not like a list of strings.
@@ -523,10 +538,19 @@ year, and giving each its own tab would shrink all of them to fit.
   **Up/Down** rather than a long-press drag: dragging inside a scrolling
   list on a phone fights the scroll, and whichever gesture the finger
   commits to first wins. Two buttons never guess.
-- [x] Settings: appearance (theme, palette, text size). Layout and
-  profiles are deliberately absent — they describe a window, and this
+- [x] Settings: appearance (theme, palette, text size), plus - added
+  2026-09-09 - an Advanced group (snooze minutes, quick-capture list,
+  retention, catch-up, cron time handling, cadence colours) and a
+  Maintenance group mirroring the desktop tab: delete-done sweep,
+  archived-list restore, and restore lists for both backup kinds. Layout
+  and profiles are deliberately absent — they describe a window, and this
   app's window on a phone is the phone. A layout tab here would be a
   list of settings that change nothing visible.
+- [x] Global search (2026-09-09): `MobileSearch`, the Ctrl+K palette as
+  a whole screen over the same three commands (tasks, notes, journal),
+  reached from the Day header; hits jump to the editor, the note or the
+  journal day. The shell also gained the desktop's Undo toast and the
+  shared due-task toasts (`src/components/DueToasts.tsx`).
 - [ ] History: not ported. The desktop's is a month of completion stats
   and per-rule streaks; Review already answers "how did the week go?" on
   a phone, and a second retrospective screen has not earned its tab.

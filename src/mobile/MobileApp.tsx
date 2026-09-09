@@ -8,8 +8,11 @@ import MobileJournal from "./MobileJournal";
 import MobileNotes from "./MobileNotes";
 import MobileMore from "./MobileMore";
 import MobileTaskEditor from "./MobileTaskEditor";
+import MobileSearch from "./MobileSearch";
+import DueToasts from "../components/DueToasts";
 import { LockScreen } from "./MobileLock";
 import { EditingTaskContext } from "./editing";
+import { MobileNavContext } from "./nav";
 import type { LockState } from "../types";
 
 export type MobileTab = "day" | "lists" | "journal" | "notes" | "more";
@@ -33,6 +36,7 @@ const TABS: { id: MobileTab; label: string; glyph: string }[] = [
 export default function MobileApp() {
   const [tab, setTab] = useState<MobileTab>("day");
   const [editing, setEditing] = useState<number | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   // Null until asked. A device with no passphrase never sees this
   // screen, and one that has been unlocked this session does not either.
   const [lock, setLock] = useState<LockState | null>(null);
@@ -44,6 +48,7 @@ export default function MobileApp() {
   }, []);
   const error = useAppStore((s) => s.error);
   const clearError = useAppStore((s) => s.clearError);
+  const undoEntry = useAppStore((s) => s.undoEntry);
   const tasks = useAppStore((s) => s.tasks);
   // The task can leave the snapshot while its editor is open - an engine
   // pass moves a date, or the task is deleted from inside the editor -
@@ -140,6 +145,9 @@ export default function MobileApp() {
 
   return (
     <EditingTaskContext.Provider value={{ editing, setEditing }}>
+      <MobileNavContext.Provider
+        value={{ setTab, openSearch: () => setSearchOpen(true) }}
+      >
       <div className="safe-area flex h-full flex-col">
         {error && (
           <div className="flex items-start justify-between gap-3 border-b border-danger/40 bg-danger/15 px-4 py-2 text-sm text-danger">
@@ -172,6 +180,29 @@ export default function MobileApp() {
             </button>
           ))}
         </nav>
+        {/* above the tab bar, where a thumb can still reach it; delete
+            on a phone is one tap with no confirm, so the way back has
+            to be just as reachable */}
+        {undoEntry && (
+          <div className="absolute bottom-20 left-1/2 z-20 flex max-w-[92%] -translate-x-1/2 items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-sm shadow-lg">
+            <span className="min-w-0 truncate">{undoEntry.label}</span>
+            <button
+              className="shrink-0 font-semibold text-accent"
+              onClick={() => void useAppStore.getState().undoLast()}
+            >
+              Undo
+            </button>
+            <button
+              className="shrink-0 text-content-muted"
+              aria-label="Dismiss"
+              onClick={() => useAppStore.getState().dismissUndo()}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <DueToasts position="bottom-24 right-3" />
+        {searchOpen && <MobileSearch onClose={() => setSearchOpen(false)} />}
         {editingTask && (
           <MobileTaskEditor
             task={editingTask}
@@ -179,6 +210,7 @@ export default function MobileApp() {
           />
         )}
       </div>
+      </MobileNavContext.Provider>
     </EditingTaskContext.Provider>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import {
   addDaysISO,
@@ -6,12 +7,13 @@ import {
   cadenceKeyOf,
   categoryChipColor,
   isListExact,
+  nextWeekTarget,
   splitCategory,
   tintStyle,
   weekdayShort,
 } from "../lib/tasks";
 import { useEditTask } from "./editing";
-import type { Task } from "../types";
+import type { List, Task } from "../types";
 
 /**
  * One task, sized for a thumb and legible at a glance.
@@ -33,6 +35,7 @@ export default function TaskRow({
   task,
   neighbours,
   showList = true,
+  reviewWeekStart,
 }: {
   task: Task;
   /**
@@ -44,10 +47,17 @@ export default function TaskRow({
   neighbours?: { previous?: number; next?: number };
   /** Off inside a list, where naming it on every row says nothing. */
   showList?: boolean;
+  /**
+   * Set by the Review screen: the Monday of the week under review. Its
+   * presence adds the desktop Review's own leftover actions - push to
+   * next week, drop back to the list backlog - to manual tasks.
+   */
+  reviewWeekStart?: string;
 }) {
   const [open, setOpen] = useState(false);
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
+  const holdStatus = useAppStore((s) => s.holdStatus);
   const reorderTask = useAppStore((s) => s.reorderTask);
   const tasks = useAppStore((s) => s.tasks);
   const lists = useAppStore((s) => s.lists);
@@ -108,9 +118,13 @@ export default function TaskRow({
           style={{ background: stripe ?? "transparent" }}
         />
         <button
-          onClick={() =>
-            void updateTask(task.id, { status: done ? "todo" : "done" })
-          }
+          onClick={() => {
+            // the hold keeps a just-tapped row in its section for a few
+            // seconds (done_display "separate"), so a mistap can be
+            // fixed before the row flies away
+            holdStatus(task.id, task.status);
+            void updateTask(task.id, { status: done ? "todo" : "done" });
+          }}
           className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 pr-1 text-left"
         >
           <span
@@ -236,6 +250,46 @@ export default function TaskRow({
               })
             }
           />
+          {/* Review leftovers get the desktop Review's own two ways out;
+              generated tasks keep their rule's date and list by design */}
+          {reviewWeekStart && task.origin === "manual" && (
+            <>
+              <Action
+                label="Next week"
+                onClick={() =>
+                  act({
+                    scheduled_date: nextWeekTarget(
+                      reviewWeekStart,
+                      useAppStore.getState().today,
+                    ),
+                  })
+                }
+              />
+              <Action
+                label="Backlog"
+                onClick={() => {
+                  setOpen(false);
+                  void (async () => {
+                    let listId = task.list_id;
+                    if (listId === null) {
+                      // a listless task needs a home to be a backlog
+                      // entry at all: the quick-capture Inbox
+                      try {
+                        listId = (await invoke<List>("inbox_list")).id;
+                      } catch (e) {
+                        useAppStore.getState().setError(String(e));
+                        return;
+                      }
+                    }
+                    void updateTask(task.id, {
+                      list_id: listId,
+                      scheduled_date: null,
+                    });
+                  })();
+                }}
+              />
+            </>
+          )}
           <Action
             label="Postpone"
             onClick={() => act({ status: "postponed" })}

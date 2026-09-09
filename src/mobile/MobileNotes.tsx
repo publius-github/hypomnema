@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
+import { CONFIG_FILES, basenameOf, parentDirOf } from "../sections/kb/util";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
 
 const SAVE_DEBOUNCE_MS = 1200;
 
-type Open = { path: string; content: string };
+type Open = { kind: "note" | "config"; path: string; content: string };
 
 /**
  * Notes: browse, read, write.
@@ -45,11 +46,28 @@ export default function MobileNotes() {
   const openPath = useCallback(
     (path: string) => {
       void invoke<string>("kb_read", { path })
-        .then((content) => setNote({ path, content }))
+        .then((content) => setNote({ kind: "note", path, content }))
         .catch((e) => setError(String(e)));
     },
     [setError],
   );
+
+  const openConfig = useCallback(
+    (file: string) => {
+      void invoke<string>("config_file_get", { file })
+        .then((content) => setNote({ kind: "config", path: file, content }))
+        .catch((e) => setError(String(e)));
+    },
+    [setError],
+  );
+
+  // a search hit landed here with a note to open
+  const kbOpenNote = useAppStore((s) => s.kbOpenNote);
+  useEffect(() => {
+    if (!kbOpenNote) return;
+    openPath(kbOpenNote);
+    useAppStore.setState({ kbOpenNote: null });
+  }, [kbOpenNote, openPath]);
 
   if (note) {
     return (
@@ -189,6 +207,28 @@ export default function MobileNotes() {
                 </button>
               </li>
             ))}
+            {/* the desktop's Config group: the six rule/reminder files
+                and the journal template, validated on save */}
+            {trail.length === 0 && (
+              <>
+                <li className="bg-surface-alt px-4 py-2 text-xs uppercase tracking-wide text-content-muted">
+                  Config
+                </li>
+                {CONFIG_FILES.map((file) => (
+                  <li key={file} className="border-b border-line/60">
+                    <button
+                      onClick={() => openConfig(file)}
+                      className="flex w-full items-center gap-3 px-4 py-4 text-left"
+                    >
+                      <span aria-hidden className="text-content-muted">
+                        ·
+                      </span>
+                      <span className="min-w-0 break-words">{file}</span>
+                    </button>
+                  </li>
+                ))}
+              </>
+            )}
           </ul>
           <div className="flex gap-2 border-t border-line p-3">
             <button
@@ -222,9 +262,14 @@ function NoteEditor({
   const setError = useAppStore((s) => s.setError);
   const [content, setContent] = useState(note.content);
   const [saved, setSaved] = useState(true);
-  const [editing, setEditing] = useState(false);
+  // a config file opens straight into the editor: its reading view is
+  // YAML, which there is nothing to "read" - only to change
+  const [editing, setEditing] = useState(note.kind === "config");
   const [backlinks, setBacklinks] = useState<BacklinksResult | null>(null);
   const [showBacklinks, setShowBacklinks] = useState(false);
+  const [configErrors, setConfigErrors] = useState<
+    { line: number | null; message: string }[]
+  >([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<string | null>(null);
 
@@ -239,12 +284,23 @@ function NoteEditor({
     if (outstanding === null) return;
     pending.current = null;
     try {
-      await invoke("kb_write", { path: note.path, content: outstanding });
-      setSaved(true);
+      if (note.kind === "config") {
+        // invalid YAML is reported and never written (last valid state
+        // stays active), same as the desktop's Config editor
+        const errors = await invoke<{ line: number | null; message: string }[]>(
+          "config_file_set",
+          { file: note.path, content: outstanding },
+        );
+        setConfigErrors(errors);
+        if (errors.length === 0) setSaved(true);
+      } else {
+        await invoke("kb_write", { path: note.path, content: outstanding });
+        setSaved(true);
+      }
     } catch (e) {
       setError(String(e));
     }
-  }, [note.path, setError]);
+  }, [note.path, note.kind, setError]);
   const flushRef = useRef(flush);
   flushRef.current = flush;
   useEffect(() => () => void flushRef.current(), []);
@@ -288,6 +344,17 @@ function NoteEditor({
         </button>
       </header>
 
+      {configErrors.length > 0 && (
+        <div className="border-b border-warn/40 bg-warn/10 px-4 py-2 text-xs text-warn">
+          {configErrors.map((err, i) => (
+            <p key={i}>
+              {err.line !== null && `line ${err.line}: `}
+              {err.message}
+            </p>
+          ))}
+        </div>
+      )}
+
       {editing ? (
         <textarea
           value={content}
@@ -301,7 +368,50 @@ function NoteEditor({
         </div>
       )}
 
+      {note.kind === "note" && (
       <div className="shrink-0 border-t border-line">
+        <div className="flex gap-4 px-4 py-2">
+          <button
+            onClick={() => {
+              const name = window.prompt("New name", basenameOf(note.path));
+              if (!name?.trim() || name.trim() === basenameOf(note.path))
+                return;
+              const trimmed = name.trim();
+              const dir = parentDirOf(note.path);
+              const target = `${dir ? `${dir}/` : ""}${
+                trimmed.endsWith(".md") ? trimmed : `${trimmed}.md`
+              }`;
+              void flush()
+                .then(() => invoke("kb_rename", { from: note.path, to: target }))
+                .then(() => onOpen(target))
+                .catch((e) => setError(String(e)));
+            }}
+            className="text-sm text-content-muted"
+          >
+            Rename
+          </button>
+          <button
+            onClick={() => {
+              const dir = window.prompt(
+                "Move to folder (empty = root)",
+                parentDirOf(note.path),
+              );
+              if (dir === null) return;
+              const folder = dir.trim().replace(/\/+$/, "");
+              if (folder === parentDirOf(note.path)) return;
+              const target = `${folder ? `${folder}/` : ""}${basenameOf(
+                note.path,
+              )}`;
+              void flush()
+                .then(() => invoke("kb_rename", { from: note.path, to: target }))
+                .then(() => onOpen(target))
+                .catch((e) => setError(String(e)));
+            }}
+            className="text-sm text-content-muted"
+          >
+            Move
+          </button>
+        </div>
         <button
           onClick={loadBacklinks}
           className="w-full px-4 py-3 text-left text-sm text-content-muted"
@@ -354,6 +464,7 @@ function NoteEditor({
           Move to trash
         </button>
       </div>
+      )}
     </div>
   );
 }
