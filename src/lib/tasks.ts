@@ -483,6 +483,46 @@ export function orderPanel(
   });
 }
 
+/** One row of the All-lists index beside a list panel. */
+export type IndexRow =
+  | { type: "list"; list: List; nested: boolean }
+  | { type: "group"; group: ListGroup };
+
+/**
+ * The All-lists index. Folded mirrors the panel one-to-one - the same
+ * slots in the same order, a group being one row.
+ *
+ * Flat spreads every list into its own column, which leaves the index
+ * as the only place that still says which lists share a group: it keeps
+ * the folded ordering and hangs each group's members, indented, under
+ * the group's own row. The grid stays in flat order - the index is a
+ * directory, and every row jumps to its target anyway.
+ */
+export function indexRows(
+  lists: List[],
+  groups: ListGroup[],
+  tasks: Task[],
+  alpha: boolean,
+  flat: boolean,
+): IndexRow[] {
+  const rows: IndexRow[] = [];
+  for (const item of orderPanel(lists, groups, tasks, alpha, false)) {
+    if (item.type === "list") {
+      rows.push({ type: "list", list: item.list, nested: false });
+      continue;
+    }
+    rows.push(item);
+    if (!flat) continue;
+    for (const list of orderLists(
+      lists.filter((l) => l.group_id === item.group.id),
+      tasks,
+      alpha,
+    ))
+      rows.push({ type: "list", list, nested: true });
+  }
+  return rows;
+}
+
 export function compareTasks(a: Task, b: Task): number {
   if (a.time !== b.time) {
     if (a.time === null) return 1;

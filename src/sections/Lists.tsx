@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { orderLists, orderPanel } from "../lib/tasks";
+import type { AppConfig } from "../types";
+import { indexRows, orderLists, orderPanel } from "../lib/tasks";
+import type { IndexRow } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
 import ListColumn from "../components/ListColumn";
 import GroupColumn from "../components/GroupColumn";
@@ -94,10 +96,26 @@ export default function Lists() {
     const gid = lists.find((l) => l.id === listId)?.group_id ?? null;
     return gid === null ? null : (groups.find((g) => g.id === gid) ?? null);
   };
-  const itemKey = (item: (typeof visible)[number]) =>
+  const itemKey = (item: (typeof visible)[number] | IndexRow) =>
     item.type === "list" ? `l${item.list.id}` : `g${item.group.id}`;
-  const itemName = (item: (typeof visible)[number]) =>
+  const itemName = (item: (typeof visible)[number] | IndexRow) =>
     item.type === "list" ? item.list.name : item.group.name;
+  // inside a group the index is that group's lists; outside it follows
+  // the folded shape whatever the panel does, so flat still shows the
+  // groups - with their members indented under them
+  const rows: IndexRow[] = openGroup
+    ? visible.flatMap((item) =>
+        item.type === "list"
+          ? [{ type: "list" as const, list: item.list, nested: false }]
+          : [],
+      )
+    : indexRows(
+        lists,
+        groups,
+        tasks,
+        config.lists_sort_alpha,
+        config.lists_group_display === "flat",
+      );
   const columns = Math.max(1, config.lists_page_columns);
   const editingTask = tasks.find((t) => t.id === editingTaskId) ?? null;
 
@@ -119,7 +137,33 @@ export default function Lists() {
           ) : (
             <span className="text-sm font-semibold">Lists</span>
           )}
-          <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
+          {/* the panel shape belongs next to the column count, not three
+              clicks away in Settings - both write the same config, the
+              Layout tab keeps its own copy */}
+          {!openGroup && (
+            <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
+              <span>Groups</span>
+              <select
+                className="input px-1 py-0.5 text-xs"
+                title="Folded: one tile per group. Flat: every list its own column, with its group as a chip on the header."
+                value={config.lists_group_display}
+                onChange={(e) =>
+                  void useAppStore.getState().updateConfig({
+                    lists_group_display: e.target
+                      .value as AppConfig["lists_group_display"],
+                  })
+                }
+              >
+                <option value="folded">Folded</option>
+                <option value="flat">Flat</option>
+              </select>
+            </div>
+          )}
+          <div
+            className={`flex items-center gap-1 text-xs text-content-muted${
+              openGroup ? " ml-auto" : ""
+            }`}
+          >
             <span>Columns</span>
             <select
               className="input px-1 py-0.5 text-xs"
@@ -185,27 +229,44 @@ export default function Lists() {
               scrolls the column into view and flashes it. */}
           <div className="sticky top-4 flex w-40 shrink-0 flex-col gap-3">
             <NewListForm groupId={openGroup?.id} />
-            {(openGroup !== null || visible.length > columns) &&
-              visible.length > 0 && (
+            {(openGroup !== null || rows.length > columns) &&
+              rows.length > 0 && (
               <div className="flex flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
                 <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
                   {openGroup ? "Group lists" : "All lists"}
                 </div>
-                {visible.map((item) => (
-                  <button
-                    key={itemKey(item)}
-                    className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
-                      highlightId === itemKey(item)
-                        ? "bg-accent/15 text-accent"
-                        : "text-content-muted hover:bg-line/40 hover:text-content"
-                    }`}
-                    title={`Scroll to "${itemName(item)}"`}
-                    onClick={() => jumpTo(itemKey(item))}
-                  >
-                    {item.type === "group" ? "▸ " : ""}
-                    {itemName(item)}
-                  </button>
-                ))}
+                {rows.map((row) => {
+                  // a flat panel has no group column to scroll to, so
+                  // the group's own row drills in, like its header chip
+                  const drillIn =
+                    row.type === "group" &&
+                    config.lists_group_display === "flat";
+                  return (
+                    <button
+                      key={itemKey(row)}
+                      className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
+                        row.type === "list" && row.nested ? "pl-4 " : ""
+                      }${
+                        highlightId === itemKey(row)
+                          ? "bg-accent/15 text-accent"
+                          : "text-content-muted hover:bg-line/40 hover:text-content"
+                      }`}
+                      title={
+                        drillIn
+                          ? `Open group "${itemName(row)}"`
+                          : `Scroll to "${itemName(row)}"`
+                      }
+                      onClick={() =>
+                        drillIn && row.type === "group"
+                          ? setOpenGroupId(row.group.id)
+                          : jumpTo(itemKey(row))
+                      }
+                    >
+                      {row.type === "group" ? "▸ " : ""}
+                      {itemName(row)}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

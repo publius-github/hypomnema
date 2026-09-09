@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { addDaysISO, gridDates, orderLists, orderPanel } from "../lib/tasks";
+import {
+  addDaysISO,
+  gridDates,
+  indexRows,
+  orderLists,
+  orderPanel,
+} from "../lib/tasks";
+import type { IndexRow } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
 import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
@@ -321,10 +328,23 @@ function ListZone({
     const gid = lists.find((l) => l.id === listId)?.group_id ?? null;
     return gid === null ? null : (groups.find((g) => g.id === gid) ?? null);
   };
-  const itemKey = (item: (typeof visible)[number]) =>
+  const itemKey = (item: (typeof visible)[number] | IndexRow) =>
     item.type === "list" ? `l${item.list.id}` : `g${item.group.id}`;
-  const itemName = (item: (typeof visible)[number]) =>
+  const itemName = (item: (typeof visible)[number] | IndexRow) =>
     item.type === "list" ? item.list.name : item.group.name;
+  // inside a group the index is that group's lists; outside it follows
+  // the folded shape whatever the zone does, so flat still shows the
+  // groups - with their members indented under them
+  const rows: IndexRow[] = openGroup
+    ? visible.flatMap((item) =>
+        item.type === "list"
+          ? [{ type: "list" as const, list: item.list, nested: false }]
+          : [],
+      )
+    : indexRows(lists, groups, tasks, listsAlpha, flatGroups);
+  // a row jumps by paging the zone to its column; a flat group has none
+  const slotOf = (key: string) =>
+    visible.findIndex((item) => itemKey(item) === key);
   const maxOffset = Math.max(0, visible.length - perPage);
   const off = Math.min(offset, maxOffset);
   const page = visible.slice(off, off + perPage);
@@ -421,27 +441,41 @@ function ListZone({
           at full length, reachable via the page scrollbar */}
       <div className="flex shrink-0 flex-col gap-3">
         <NewListForm groupId={openGroup?.id} />
-        {(openGroup !== null || visible.length > perPage) &&
-          visible.length > 0 && (
+        {(openGroup !== null || rows.length > perPage) &&
+          rows.length > 0 && (
           <div className="flex w-40 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
             <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
               {openGroup ? "Group lists" : "All lists"}
             </div>
-            {visible.map((item, i) => {
-              const onPage = i >= off && i < off + perPage;
+            {rows.map((row) => {
+              const slot = slotOf(itemKey(row));
+              const onPage = slot >= off && slot < off + perPage;
+              // a flat zone has no group column to page to, so the
+              // group's own row drills in, like its header chip
+              const drillIn = row.type === "group" && slot < 0;
               return (
                 <button
-                  key={itemKey(item)}
+                  key={itemKey(row)}
                   className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
+                    row.type === "list" && row.nested ? "pl-4 " : ""
+                  }${
                     onPage
                       ? "bg-accent/15 text-accent"
                       : "text-content-muted hover:bg-line/40 hover:text-content"
                   }`}
-                  title={`Jump to "${itemName(item)}"`}
-                  onClick={() => jumpTo(i, itemKey(item))}
+                  title={
+                    drillIn
+                      ? `Open group "${itemName(row)}"`
+                      : `Jump to "${itemName(row)}"`
+                  }
+                  onClick={() =>
+                    drillIn && row.type === "group"
+                      ? openGroupAt(row.group.id)
+                      : jumpTo(Math.max(0, slot), itemKey(row))
+                  }
                 >
-                  {item.type === "group" ? "▸ " : ""}
-                  {itemName(item)}
+                  {row.type === "group" ? "▸ " : ""}
+                  {itemName(row)}
                 </button>
               );
             })}

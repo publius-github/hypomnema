@@ -11,6 +11,7 @@ import {
   groupByCadence,
   nextStatus,
   nextWeekTarget,
+  indexRows,
   orderPanel,
   priorityPatch,
   sortSubtasks,
@@ -421,5 +422,36 @@ describe("orderPanel", () => {
     expect(
       panel.map((i) => (i.type === "list" ? i.list.name : i.group.name)),
     ).toEqual(["Inbox", "Specs", "Bugs"]);
+  });
+});
+
+describe("indexRows", () => {
+  const groups: ListGroup[] = [
+    { id: 7, name: "Work", sort_order: 1, color: null },
+  ];
+  const lists = [
+    list({ id: 1, name: "Inbox", sort_order: 0 }),
+    list({ id: 2, name: "Specs", sort_order: 2, group_id: 7 }),
+    list({ id: 3, name: "Bugs", sort_order: 3, group_id: 7 }),
+  ];
+  const shape = (rows: ReturnType<typeof indexRows>) =>
+    rows.map((r) =>
+      r.type === "group" ? `> ${r.group.name}` : (r.nested ? "  " : "") + r.list.name,
+    );
+
+  it("mirrors the folded panel when folded", () => {
+    expect(shape(indexRows(lists, groups, [], false, false))).toEqual([
+      "Inbox",
+      "> Work",
+    ]);
+  });
+
+  it("hangs a group's members under it when flat", () => {
+    expect(shape(indexRows(lists, groups, [], false, true))).toEqual([
+      "Inbox",
+      "> Work",
+      "  Specs",
+      "  Bugs",
+    ]);
   });
 });
