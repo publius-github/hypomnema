@@ -814,6 +814,9 @@ fn carry_over(
 /// day: it stays there, done, until its own day is behind us, and goes
 /// on the rollover after that - ticking Friday's task on Monday must
 /// not empty Friday's column on Tuesday.
+///
+/// Checklist lists are exempt entirely: a checked item there is state
+/// the user keeps (grocery lists), not a finished queue entry.
 fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usize> {
     let today = now.date_naive();
     let today_start = today
@@ -828,6 +831,7 @@ fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usiz
          WHERE origin = 'manual' AND status = 'done'
            AND parent_task_id IS NULL
            AND list_id IS NOT NULL
+           AND list_id NOT IN (SELECT id FROM lists WHERE kind = 'checklist')
            AND (scheduled_date IS NULL OR priority = 1)
            AND (scheduled_date IS NULL OR scheduled_date < ?2)
            AND completed_at IS NOT NULL
@@ -840,6 +844,8 @@ fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usiz
 /// completed more than N days ago are deleted (subtasks cascade).
 /// A task ticked off far ahead of its day is exempt until that day is
 /// behind us - retention prunes history, and a future day is not one.
+/// Checklist lists are exempt: a checked item there is kept state, not
+/// history.
 fn prune(conn: &Connection, retention_days: u32, now: DateTime<Local>) -> Result<usize> {
     if retention_days == 0 {
         return Ok(0);
@@ -854,7 +860,9 @@ fn prune(conn: &Connection, retention_days: u32, now: DateTime<Local>) -> Result
            AND parent_task_id IS NULL
            AND completed_at IS NOT NULL
            AND completed_at < ?1
-           AND (scheduled_date IS NULL OR scheduled_date < ?2)",
+           AND (scheduled_date IS NULL OR scheduled_date < ?2)
+           AND (list_id IS NULL
+                OR list_id NOT IN (SELECT id FROM lists WHERE kind = 'checklist'))",
         (cutoff, today_str),
     )?;
     Ok(pruned)
@@ -1648,6 +1656,32 @@ mod tests {
         // the day after its date: the sweep takes it
         run(&conn, &dir, &config(1, 7, 1), at("2026-08-31", "12:00:00")).unwrap();
         assert_eq!(count_tasks(&conn), 0);
+    }
+
+    /// Checklist lists keep their checked items: neither the overnight
+    /// list sweep nor retention pruning may touch them.
+    #[test]
+    fn checklist_lists_keep_done_tasks_through_sweep_and_retention() {
+        let (conn, dir) = setup("checklist-keep");
+        conn.execute_batch(
+            "INSERT INTO lists (id, name, sort_order, kind)
+             VALUES (1, 'Groceries', 0, 'checklist'),
+                    (2, 'Inbox', 1, 'todo');
+             INSERT INTO tasks (id, title, list_id, status, completed_at, created_at)
+             VALUES (1, 'milk', 1, 'done', '2026-07-01T00:00:00+00:00', ''),
+                    (2, 'old chore', 2, 'done', '2026-07-01T00:00:00+00:00', '');",
+        )
+        .unwrap();
+
+        // retention_days = 1 and the sweep both fire on this run
+        run(&conn, &dir, &config(1, 7, 1), at("2026-08-28", "12:00:00")).unwrap();
+
+        let titles: Vec<String> = {
+            let mut stmt = conn.prepare("SELECT title FROM tasks ORDER BY id").unwrap();
+            let rows = stmt.query_map([], |r| r.get(0)).unwrap();
+            rows.collect::<rusqlite::Result<_>>().unwrap()
+        };
+        assert_eq!(titles, vec!["milk".to_string()]);
     }
 
     #[test]

@@ -15,7 +15,9 @@
 //! - tasks.jsonl - every task row including provenance (rule/period
 //!   keys, cadence, origin_date), archived tombstones and subtask links;
 //!   the mirror carries only the human-facing fields.
-//! - lists.jsonl - list metadata (color, favorite, description, archived).
+//! - lists.jsonl - list metadata (color, favorite, description, archived,
+//!   kind, group membership).
+//! - list_groups.jsonl - the list-panel groups lists fold into.
 //! - rule_runs.jsonl - the dedup ledger; losing it would regenerate
 //!   every still-current period as a fresh todo.
 //! - rule_seen.jsonl - first-seen dates; losing it would re-run catch-up
@@ -75,6 +77,27 @@ struct ListRow {
     auto: i64,
     favorite: i64,
     description: String,
+    // snapshots written before the list-kind column default to 'todo'
+    #[serde(default = "default_list_kind")]
+    kind: String,
+    #[serde(default)]
+    group_id: Option<i64>,
+    #[serde(default)]
+    updated_at: Option<String>,
+    #[serde(default)]
+    updated_by: Option<String>,
+}
+
+fn default_list_kind() -> String {
+    "todo".to_string()
+}
+
+#[derive(Serialize, Deserialize)]
+struct GroupRow {
+    id: i64,
+    name: String,
+    sort_order: i64,
+    color: Option<String>,
     #[serde(default)]
     updated_at: Option<String>,
     #[serde(default)]
@@ -190,12 +213,29 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
                 auto: r.get("auto")?,
                 favorite: r.get("favorite")?,
                 description: r.get("description")?,
+                kind: r.get("kind")?,
+                group_id: r.get("group_id")?,
                 updated_at: r.get("updated_at")?,
                 updated_by: r.get("updated_by")?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
     write_if_changed(&state_dir.join("lists.jsonl"), &to_jsonl(&lists)?)?;
+
+    let groups: Vec<GroupRow> = conn
+        .prepare("SELECT * FROM list_groups ORDER BY id")?
+        .query_map([], |r| {
+            Ok(GroupRow {
+                id: r.get("id")?,
+                name: r.get("name")?,
+                sort_order: r.get("sort_order")?,
+                color: r.get("color")?,
+                updated_at: r.get("updated_at")?,
+                updated_by: r.get("updated_by")?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    write_if_changed(&state_dir.join("list_groups.jsonl"), &to_jsonl(&groups)?)?;
 
     let runs: Vec<RuleRunRow> = conn
         .prepare("SELECT rule_key, period_key, generated_at FROM rule_runs ORDER BY rule_key, period_key")?
@@ -249,18 +289,40 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
     }
     let tasks: Vec<TaskRow> = from_jsonl(&tasks_path)?;
     let lists: Vec<ListRow> = from_jsonl(&state_dir.join("lists.jsonl")).unwrap_or_default();
+    let groups: Vec<GroupRow> =
+        from_jsonl(&state_dir.join("list_groups.jsonl")).unwrap_or_default();
     let runs: Vec<RuleRunRow> = from_jsonl(&state_dir.join("rule_runs.jsonl")).unwrap_or_default();
     let seen: Vec<RuleSeenRow> = from_jsonl(&state_dir.join("rule_seen.jsonl")).unwrap_or_default();
     let focus: Vec<FocusRow> =
         from_jsonl(&state_dir.join("weekly_focus.jsonl")).unwrap_or_default();
 
     let tx = conn.unchecked_transaction()?;
+    // groups before lists: lists.group_id is an enforced FK
+    for g in &groups {
+        tx.execute(
+            "INSERT OR REPLACE INTO list_groups
+                 (id, name, sort_order, color, updated_at, updated_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                g.id,
+                g.name,
+                g.sort_order,
+                g.color,
+                g.updated_at,
+                g.updated_by
+            ],
+        )?;
+    }
+    let group_ids: std::collections::HashSet<i64> = groups.iter().map(|g| g.id).collect();
     for l in &lists {
+        // a merged snapshot can reference a group deleted on the other
+        // device; dropping the membership beats failing the whole restore
+        let group_id = l.group_id.filter(|gid| group_ids.contains(gid));
         tx.execute(
             "INSERT OR REPLACE INTO lists
                  (id, name, sort_order, color, archived, auto, favorite, description,
-                  updated_at, updated_by)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                  kind, group_id, updated_at, updated_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             rusqlite::params![
                 l.id,
                 l.name,
@@ -270,6 +332,8 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
                 l.auto,
                 l.favorite,
                 l.description,
+                l.kind,
+                group_id,
                 l.updated_at,
                 l.updated_by
             ],
@@ -453,6 +517,38 @@ mod tests {
         assert_eq!(before, after);
         let _ = fs::remove_dir_all(&dir);
         let _ = fs::remove_dir_all(&dir2);
+    }
+
+    #[test]
+    fn groups_roundtrip_and_a_dangling_membership_is_dropped() {
+        let (conn, dir) = setup("groups-roundtrip");
+        let group = tasks::group_create(&conn, "Shops").unwrap();
+        let list = tasks::list_create(&conn, "Lidl", None, false).unwrap();
+        tasks::list_set_group(&conn, list.id, Some(group.id)).unwrap();
+        export(&conn, &dir).unwrap();
+
+        let (fresh, _) = setup("groups-roundtrip-fresh");
+        assert!(restore(&fresh, &dir).unwrap());
+        assert_eq!(count(&fresh, "list_groups"), 1);
+        let restored_gid: Option<i64> = fresh
+            .query_row("SELECT group_id FROM lists WHERE id = ?1", [list.id], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(restored_gid, Some(group.id));
+
+        // a merged snapshot can point a list at a group the other device
+        // deleted; the membership is dropped, the restore succeeds
+        fs::write(dir.join("list_groups.jsonl"), "").unwrap();
+        let (fresh2, _) = setup("groups-roundtrip-dangling");
+        assert!(restore(&fresh2, &dir).unwrap());
+        let dangling_gid: Option<i64> = fresh2
+            .query_row("SELECT group_id FROM lists WHERE id = ?1", [list.id], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(dangling_gid, None);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

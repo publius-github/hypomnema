@@ -15,9 +15,11 @@ import type { List, Task } from "../types";
 /**
  * List dialog: rename, favorite, color (used as the card stripe of the
  * list's manual tasks and a dot on the column header), a free-text
- * description, a copy of the whole backlog as a Markdown checklist, and
- * the backlog itself - add, check off, star, delete, and open any task
- * (with its subtasks) without leaving the dialog.
+ * description, the list type (todo queue vs persistent checklist, with
+ * check-all/uncheck-all bulk actions for checklists), a copy of the
+ * whole backlog as a Markdown checklist, and the backlog itself - add,
+ * check off, star, delete, and open any task (with its subtasks)
+ * without leaving the dialog.
  */
 export default function ListModal({
   list,
@@ -29,11 +31,16 @@ export default function ListModal({
   const renameList = useAppStore((s) => s.renameList);
   const updateListMeta = useAppStore((s) => s.updateListMeta);
   const toggleListFavorite = useAppStore((s) => s.toggleListFavorite);
+  const setListStatuses = useAppStore((s) => s.setListStatuses);
+  const setListGroup = useAppStore((s) => s.setListGroup);
+  const groups = useAppStore((s) => s.groups);
   const createTask = useAppStore((s) => s.createTask);
   const config = useAppStore((s) => s.config);
   const [name, setName] = useState(list.name);
   const [color, setColor] = useState(list.color);
   const [description, setDescription] = useState(list.description);
+  const [kind, setKind] = useState(list.kind);
+  const [groupId, setGroupId] = useState(list.group_id);
   const [copied, setCopied] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [openTaskId, setOpenTaskId] = useState<number | null>(null);
@@ -90,8 +97,15 @@ export default function ListModal({
     if (name.trim() && name.trim() !== list.name) {
       void renameList(list.id, name.trim());
     }
-    if (color !== list.color || description !== list.description) {
-      void updateListMeta(list.id, { color, description });
+    if (
+      color !== list.color ||
+      description !== list.description ||
+      kind !== list.kind
+    ) {
+      void updateListMeta(list.id, { color, description, kind });
+    }
+    if (groupId !== list.group_id) {
+      void setListGroup(list.id, groupId);
     }
     onClose();
   };
@@ -174,6 +188,56 @@ export default function ListModal({
             onChange={(e) => setDescription(e.target.value)}
           />
         </label>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-content-muted">Type</span>
+          <select
+            className="input py-1 text-xs"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as List["kind"])}
+            title="Todo: done tasks are swept overnight. Checklist: checked items stay until unchecked, no postponed state."
+          >
+            <option value="todo">Todo (done clears overnight)</option>
+            <option value="checklist">Checklist (checked items stay)</option>
+          </select>
+          {kind === "checklist" && (
+            <>
+              <button
+                className="rounded-md border border-line px-2 py-1 text-xs hover:border-accent hover:text-accent"
+                title="Mark every item of this list as checked"
+                onClick={() => void setListStatuses(list.id, true)}
+              >
+                Check all
+              </button>
+              <button
+                className="rounded-md border border-line px-2 py-1 text-xs hover:border-accent hover:text-accent"
+                title="Reset every item of this list to unchecked"
+                onClick={() => void setListStatuses(list.id, false)}
+              >
+                Uncheck all
+              </button>
+            </>
+          )}
+        </div>
+        {groups.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-content-muted">Group</span>
+            <select
+              className="input py-1 text-xs"
+              value={groupId ?? ""}
+              title="A grouped list leaves the panel and lives inside its group"
+              onChange={(e) =>
+                setGroupId(e.target.value === "" ? null : Number(e.target.value))
+              }
+            >
+              <option value="">No group</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-content-muted">
@@ -207,6 +271,7 @@ export default function ListModal({
             >
               <ListTaskRow
                 task={task}
+                checklist={list.kind === "checklist"}
                 titleLines={config?.list_dialog_task_lines ?? 3}
                 onOpen={() => setOpenTaskId(task.id)}
               />
@@ -247,10 +312,13 @@ export default function ListModal({
  * (list_dialog_task_lines) - the dialog is the roomy view of a list. */
 function ListTaskRow({
   task,
+  checklist,
   titleLines,
   onOpen,
 }: {
   task: Task;
+  /** checklist lists toggle todo <-> done, no postponed step */
+  checklist: boolean;
   titleLines: number;
   onOpen: () => void;
 }) {
@@ -282,9 +350,11 @@ function ListTaskRow({
               }
             : undefined
         }
-        title={`Status: ${task.status} (click: ${nextStatus(task.status)})`}
+        title={`Status: ${task.status} (click: ${nextStatus(task.status, checklist)})`}
         onClick={() => {
-          void updateTask(task.id, { status: nextStatus(task.status) });
+          void updateTask(task.id, {
+            status: nextStatus(task.status, checklist),
+          });
           holdStatus(task.id, task.status);
         }}
       >

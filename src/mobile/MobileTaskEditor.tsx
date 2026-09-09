@@ -184,7 +184,15 @@ export default function MobileTaskEditor({
             Status
           </span>
           <div className="flex gap-2">
-            {STATUSES.map((entry) => (
+            {/* checklist lists have no postponed state; a leftover
+                postponed row keeps the button so it can be reset */}
+            {STATUSES.filter(
+              (entry) =>
+                entry.id !== "postponed" ||
+                task.status === "postponed" ||
+                lists.find((l) => l.id === task.list_id)?.kind !==
+                  "checklist",
+            ).map((entry) => (
               <button
                 key={entry.id}
                 onClick={() => void updateTask(task.id, { status: entry.id })}

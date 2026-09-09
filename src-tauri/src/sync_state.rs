@@ -64,7 +64,7 @@ impl StateFile {
     /// whose shape it does not know.
     pub fn of(file_name: &str) -> Option<Self> {
         match file_name {
-            "tasks.jsonl" | "lists.jsonl" => Some(Self::Stamped),
+            "tasks.jsonl" | "lists.jsonl" | "list_groups.jsonl" => Some(Self::Stamped),
             "rule_runs.jsonl" => Some(Self::RuleRuns),
             "rule_seen.jsonl" => Some(Self::RuleSeen),
             "weekly_focus.jsonl" => Some(Self::WeeklyFocus),

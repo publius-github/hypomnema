@@ -22,6 +22,28 @@ pub struct List {
     pub favorite: bool,
     /// Free-text description shown in the list dialog.
     pub description: String,
+    /// "todo" (working queue: done tasks swept overnight) or
+    /// "checklist" (checked items stay until unchecked; no postponed
+    /// state in the UI).
+    #[ts(type = "\"todo\" | \"checklist\"")]
+    pub kind: String,
+    /// Group this list is folded into, if any: the list panel then
+    /// shows the group instead of the list.
+    #[ts(type = "number | null")]
+    pub group_id: Option<i64>,
+}
+
+/// A named folder in the list panel: the panel shows the group, its
+/// member lists live behind a drill-in.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct ListGroup {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub name: String,
+    #[ts(type = "number")]
+    pub sort_order: i64,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -157,6 +179,8 @@ fn row_to_list(row: &Row) -> rusqlite::Result<List> {
         auto: row.get::<_, i64>("auto")? != 0,
         favorite: row.get::<_, i64>("favorite")? != 0,
         description: row.get("description")?,
+        kind: row.get("kind")?,
+        group_id: row.get("group_id")?,
     })
 }
 
@@ -333,17 +357,21 @@ pub fn list_rename(conn: &Connection, id: i64, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Cosmetic list metadata from the list dialog: color (None clears it)
-/// and description.
+/// List metadata from the list dialog: color (None clears it),
+/// description and kind ("todo" | "checklist").
 pub fn list_set_meta(
     conn: &Connection,
     id: i64,
     color: Option<&str>,
     description: &str,
+    kind: &str,
 ) -> Result<()> {
+    if !["todo", "checklist"].contains(&kind) {
+        return Err(Error::State(format!("invalid list kind: {kind}")));
+    }
     let updated = conn.execute(
-        "UPDATE lists SET color = ?1, description = ?2 WHERE id = ?3",
-        (color, description, id),
+        "UPDATE lists SET color = ?1, description = ?2, kind = ?3 WHERE id = ?4",
+        (color, description, kind, id),
     )?;
     if updated == 0 {
         return Err(Error::State(format!("list {id} not found")));
@@ -351,10 +379,136 @@ pub fn list_set_meta(
     Ok(())
 }
 
+/// Checks or unchecks every task of a list at once (the checklist bulk
+/// actions in the list dialog): top-level tasks of the list and their
+/// subtasks. Postponed rows are reset along with the rest - the bulk
+/// action defines the whole list's state. Returns how many rows changed.
+pub fn list_set_all_statuses(conn: &Connection, id: i64, done: bool) -> Result<usize> {
+    let status = if done { "done" } else { "todo" };
+    let completed_at = done.then(|| Utc::now().to_rfc3339());
+    Ok(conn.execute(
+        "UPDATE tasks SET status = ?1, completed_at = ?2
+         WHERE archived_at IS NULL
+           AND status != ?1
+           AND (list_id = ?3
+                OR parent_task_id IN (SELECT id FROM tasks
+                                      WHERE list_id = ?3 AND archived_at IS NULL))",
+        (status, completed_at, id),
+    )?)
+}
+
 pub fn list_set_favorite(conn: &Connection, id: i64, favorite: bool) -> Result<()> {
     let updated = conn.execute(
         "UPDATE lists SET favorite = ?1 WHERE id = ?2",
         (favorite as i64, id),
+    )?;
+    if updated == 0 {
+        return Err(Error::State(format!("list {id} not found")));
+    }
+    Ok(())
+}
+
+fn row_to_group(row: &Row) -> rusqlite::Result<ListGroup> {
+    Ok(ListGroup {
+        id: row.get("id")?,
+        name: row.get("name")?,
+        sort_order: row.get("sort_order")?,
+        color: row.get("color")?,
+    })
+}
+
+pub fn groups_all(conn: &Connection) -> Result<Vec<ListGroup>> {
+    let mut stmt = conn.prepare("SELECT * FROM list_groups ORDER BY sort_order, name")?;
+    let groups = stmt
+        .query_map([], row_to_group)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(groups)
+}
+
+pub fn group_create(conn: &Connection, name: &str) -> Result<ListGroup> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(Error::State("group name cannot be empty".into()));
+    }
+    let clash: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM list_groups WHERE name = ?1)",
+        [name],
+        |row| row.get(0),
+    )?;
+    if clash {
+        return Err(Error::State(format!(
+            "a group named \"{name}\" already exists"
+        )));
+    }
+    let next: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM list_groups",
+        [],
+        |row| row.get(0),
+    )?;
+    conn.execute(
+        "INSERT INTO list_groups (name, sort_order) VALUES (?1, ?2)",
+        (name, next),
+    )?;
+    let id = conn.last_insert_rowid();
+    conn.query_row(
+        "SELECT * FROM list_groups WHERE id = ?1",
+        [id],
+        row_to_group,
+    )
+    .map_err(Into::into)
+}
+
+/// Rename and recolor in one step, mirroring the group dialog's Save.
+pub fn group_set_meta(conn: &Connection, id: i64, name: &str, color: Option<&str>) -> Result<()> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(Error::State("group name cannot be empty".into()));
+    }
+    let clash: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM list_groups WHERE name = ?1 AND id != ?2)",
+        (name, id),
+        |row| row.get(0),
+    )?;
+    if clash {
+        return Err(Error::State(format!(
+            "a group named \"{name}\" already exists"
+        )));
+    }
+    let updated = conn.execute(
+        "UPDATE list_groups SET name = ?1, color = ?2 WHERE id = ?3",
+        (name, color, id),
+    )?;
+    if updated == 0 {
+        return Err(Error::State(format!("group {id} not found")));
+    }
+    Ok(())
+}
+
+/// Deletes a group; its member lists return to the panel (the FK's
+/// ON DELETE SET NULL clears their group_id).
+pub fn group_delete(conn: &Connection, id: i64) -> Result<()> {
+    let deleted = conn.execute("DELETE FROM list_groups WHERE id = ?1", [id])?;
+    if deleted == 0 {
+        return Err(Error::State(format!("group {id} not found")));
+    }
+    Ok(())
+}
+
+/// Moves a list into a group (or out of every group with None).
+pub fn list_set_group(conn: &Connection, id: i64, group_id: Option<i64>) -> Result<()> {
+    if let Some(gid) = group_id {
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM list_groups WHERE id = ?1)",
+            [gid],
+            |row| row.get(0),
+        )?;
+        if !exists {
+            return Err(Error::State(format!("group {gid} not found")));
+        }
+    }
+    let updated = conn.execute(
+        "UPDATE lists SET group_id = ?1 WHERE id = ?2",
+        (group_id, id),
     )?;
     if updated == 0 {
         return Err(Error::State(format!("list {id} not found")));
@@ -849,11 +1003,20 @@ pub fn task_restore(conn: &Connection, deleted: &DeletedTasks) -> Result<Vec<Tas
 /// Maintenance helper (Settings): removes every task marked done, with
 /// subtasks of done parents. Soft delete, like task_delete: hard-deleting
 /// a generated task would erase the tombstone that stops the engine from
-/// regenerating a still-current period as a fresh todo.
+/// regenerating a still-current period as a fresh todo. Checklist lists
+/// are exempt: their checked items are state to keep, not history to
+/// sweep.
 pub fn tasks_delete_done(conn: &Connection) -> Result<usize> {
+    // a subtask carries no list_id of its own; the parent's list decides
     Ok(conn.execute(
         "UPDATE tasks SET archived_at = ?1
          WHERE archived_at IS NULL
+           AND NOT EXISTS (
+                 SELECT 1 FROM lists l
+                 WHERE l.kind = 'checklist'
+                   AND l.id = COALESCE(tasks.list_id,
+                                       (SELECT p.list_id FROM tasks p
+                                        WHERE p.id = tasks.parent_task_id)))
            AND (status = 'done'
                 OR parent_task_id IN (SELECT id FROM tasks
                                       WHERE status = 'done' AND archived_at IS NULL))",
@@ -1536,6 +1699,151 @@ mod tests {
         .unwrap();
         assert_eq!(patched.scheduled_date.as_deref(), Some("2026-09-01"));
         assert_eq!(patched.time, None);
+    }
+
+    #[test]
+    fn list_kind_roundtrips_and_rejects_unknown_values() {
+        let conn = conn();
+        let list = list_create(&conn, "Groceries", None, false).unwrap();
+        assert_eq!(list.kind, "todo");
+
+        list_set_meta(&conn, list.id, None, "", "checklist").unwrap();
+        let lists = lists_all(&conn).unwrap();
+        assert_eq!(lists[0].kind, "checklist");
+
+        let err = list_set_meta(&conn, list.id, None, "", "grocery").unwrap_err();
+        assert!(err.to_string().contains("invalid list kind"), "{err}");
+    }
+
+    #[test]
+    fn bulk_status_covers_the_list_and_its_subtasks_only() {
+        let conn = conn();
+        let list = list_create(&conn, "Groceries", None, false).unwrap();
+        let other = list_create(&conn, "Other", None, false).unwrap();
+        let item = task_create(
+            &conn,
+            &NewTask {
+                title: "milk".into(),
+                list_id: Some(list.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let sub = task_create(
+            &conn,
+            &NewTask {
+                title: "2 liters".into(),
+                parent_task_id: Some(item.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // postponed rows are reset along with the rest by the bulk action
+        task_update(
+            &conn,
+            item.id,
+            &TaskPatch {
+                status: Some("postponed".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let foreign = task_create(
+            &conn,
+            &NewTask {
+                title: "elsewhere".into(),
+                list_id: Some(other.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let changed = list_set_all_statuses(&conn, list.id, true).unwrap();
+        assert_eq!(changed, 2);
+        assert_eq!(task_get(&conn, item.id).unwrap().status, "done");
+        assert!(task_get(&conn, item.id).unwrap().completed_at.is_some());
+        assert_eq!(task_get(&conn, sub.id).unwrap().status, "done");
+        assert_eq!(task_get(&conn, foreign.id).unwrap().status, "todo");
+
+        let changed = list_set_all_statuses(&conn, list.id, false).unwrap();
+        assert_eq!(changed, 2);
+        assert_eq!(task_get(&conn, item.id).unwrap().status, "todo");
+        assert!(task_get(&conn, item.id).unwrap().completed_at.is_none());
+        assert_eq!(task_get(&conn, sub.id).unwrap().status, "todo");
+    }
+
+    #[test]
+    fn delete_done_skips_checklist_lists() {
+        let conn = conn();
+        let groceries = list_create(&conn, "Groceries", None, false).unwrap();
+        list_set_meta(&conn, groceries.id, None, "", "checklist").unwrap();
+        let queue = list_create(&conn, "Inbox", None, false).unwrap();
+        let make_done = |list_id: Option<i64>, parent: Option<i64>, title: &str| {
+            let task = task_create(
+                &conn,
+                &NewTask {
+                    title: title.into(),
+                    list_id,
+                    parent_task_id: parent,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            task_update(
+                &conn,
+                task.id,
+                &TaskPatch {
+                    status: Some("done".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+        let kept = make_done(Some(groceries.id), None, "milk");
+        // a done subtask of a checklist item carries no list_id itself
+        let kept_sub = make_done(None, Some(kept.id), "2 liters");
+        let swept = make_done(Some(queue.id), None, "chore");
+
+        tasks_delete_done(&conn).unwrap();
+        let live: Vec<i64> = {
+            let mut stmt = conn
+                .prepare("SELECT id FROM tasks WHERE archived_at IS NULL ORDER BY id")
+                .unwrap();
+            let rows = stmt.query_map([], |r| r.get(0)).unwrap();
+            rows.collect::<rusqlite::Result<_>>().unwrap()
+        };
+        assert_eq!(live, vec![kept.id, kept_sub.id]);
+        assert!(task_get(&conn, swept.id).unwrap().id == swept.id);
+    }
+
+    #[test]
+    fn group_crud_and_membership() {
+        let conn = conn();
+        let group = group_create(&conn, "Shops").unwrap();
+        assert_eq!(group.name, "Shops");
+
+        // names are unique among groups
+        let err = group_create(&conn, "Shops").unwrap_err();
+        assert!(err.to_string().contains("already exists"), "{err}");
+
+        let list = list_create(&conn, "Lidl", None, false).unwrap();
+        assert_eq!(list.group_id, None);
+        list_set_group(&conn, list.id, Some(group.id)).unwrap();
+        assert_eq!(lists_all(&conn).unwrap()[0].group_id, Some(group.id));
+
+        // a membership pointing at a group that does not exist is refused
+        let err = list_set_group(&conn, list.id, Some(999)).unwrap_err();
+        assert!(err.to_string().contains("not found"), "{err}");
+
+        group_set_meta(&conn, group.id, "Stores", Some("#3b82f6")).unwrap();
+        let groups = groups_all(&conn).unwrap();
+        assert_eq!(groups[0].name, "Stores");
+        assert_eq!(groups[0].color.as_deref(), Some("#3b82f6"));
+
+        // deleting the group releases the list back to the panel
+        group_delete(&conn, group.id).unwrap();
+        assert!(groups_all(&conn).unwrap().is_empty());
+        assert_eq!(lists_all(&conn).unwrap()[0].group_id, None);
     }
 
     #[test]

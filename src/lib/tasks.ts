@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type {
   AppConfig,
   List,
+  ListGroup,
   ScheduleBlock,
   Task,
   TaskPatch,
@@ -24,14 +25,18 @@ export function clampStyle(lines: number): CSSProperties {
 
 // The checkbox cycles todo -> done -> postponed -> todo: postponing is
 // one extra click on a just-completed task (the done-hold delay keeps
-// it in place long enough to make that click).
+// it in place long enough to make that click). Checklist lists have no
+// postponed state - their checkbox is a plain todo <-> done toggle (a
+// leftover postponed row from before the type switch cycles back to
+// todo).
 export const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
   todo: "done",
   done: "postponed",
   postponed: "todo",
 };
 
-export function nextStatus(status: TaskStatus): TaskStatus {
+export function nextStatus(status: TaskStatus, checklist = false): TaskStatus {
+  if (checklist) return status === "todo" ? "done" : "todo";
   return STATUS_CYCLE[status];
 }
 
@@ -408,6 +413,61 @@ export function orderLists(
       }
       return a.sort_order - b.sort_order || a.id - b.id;
     });
+}
+
+/** One slot of the list panel: an ungrouped list, or a whole group. */
+export type PanelItem =
+  | { type: "list"; list: List }
+  | { type: "group"; group: ListGroup };
+
+/**
+ * The list panel's content: ungrouped lists (ordered like orderLists)
+ * with the groups slotted in among the non-favorites - a grouped list
+ * shows up only inside its group's drill-in, never as its own column.
+ */
+export function orderPanel(
+  lists: List[],
+  groups: ListGroup[],
+  tasks: Task[],
+  alpha: boolean,
+): PanelItem[] {
+  const items: PanelItem[] = [
+    ...orderLists(
+      lists.filter((l) => l.group_id === null),
+      tasks,
+      alpha,
+    ).map((list) => ({ type: "list" as const, list })),
+    ...groups.map((group) => ({ type: "group" as const, group })),
+  ];
+  // one comparator over both shapes, mirroring orderLists' ordering;
+  // groups have no favorite flag, so they sort with the regular lists
+  const key = (item: PanelItem) =>
+    item.type === "list"
+      ? {
+          favorite: item.list.favorite,
+          name: item.list.name,
+          sort: item.list.sort_order,
+          id: item.list.id,
+        }
+      : {
+          favorite: false,
+          name: item.group.name,
+          sort: item.group.sort_order,
+          id: item.group.id,
+        };
+  return items.sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    if (ka.favorite !== kb.favorite) return ka.favorite ? -1 : 1;
+    if (alpha) {
+      const byName = ka.name.localeCompare(kb.name, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+      if (byName !== 0) return byName;
+    }
+    return ka.sort - kb.sort || ka.id - kb.id;
+  });
 }
 
 export function compareTasks(a: Task, b: Task): number {

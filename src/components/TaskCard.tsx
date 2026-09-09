@@ -67,6 +67,11 @@ function TaskCard({
       ? null
       : (s.lists.find((l) => l.id === task.list_id)?.name ?? null),
   );
+  // checklist lists have no postponed state: plain todo <-> done toggle
+  const checklist = useAppStore((s) =>
+    task.list_id !== null &&
+    s.lists.find((l) => l.id === task.list_id)?.kind === "checklist",
+  );
   const [expanded, setExpanded] = useState(false);
   // generated tasks mirror their config file: dragging them to another
   // day or list would silently diverge from it, so they don't drag.
@@ -152,7 +157,7 @@ function TaskCard({
   const multiline = titleLines > 1;
 
   const cycleStatus = () => {
-    void updateTask(task.id, { status: nextStatus(task.status) });
+    void updateTask(task.id, { status: nextStatus(task.status, checklist) });
     // hold the card in its current section for a moment so the next
     // checkbox click (or a fix of a misclick) is still possible
     holdStatus(task.id, task.status);
@@ -186,7 +191,7 @@ function TaskCard({
             multiline ? "mt-0.5" : ""
           } ${STATUS_BUTTON[task.status]}`}
           style={done ? DONE_BUTTON_STYLE : undefined}
-          title={`Status: ${task.status} (click: ${nextStatus(task.status)})`}
+          title={`Status: ${task.status} (click: ${nextStatus(task.status, checklist)})`}
           onClick={(e) => {
             e.stopPropagation();
             cycleStatus();

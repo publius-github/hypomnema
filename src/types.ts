@@ -37,6 +37,7 @@ export type { KbNode } from "./bindings/KbNode";
 export type { KbStatus } from "./bindings/KbStatus";
 export type { KbSearchHit } from "./bindings/KbSearchHit";
 export type { List } from "./bindings/List";
+export type { ListGroup } from "./bindings/ListGroup";
 export type { OutlookEvent } from "./bindings/OutlookEvent";
 export type { RecurringResult } from "./bindings/RecurringResult";
 export type { RecurringRuleView } from "./bindings/RecurringRuleView";

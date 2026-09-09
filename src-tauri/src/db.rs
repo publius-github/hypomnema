@@ -189,6 +189,45 @@ const MIGRATIONS: &[&str] = &[
             updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
         WHERE id = NEW.id;
     END;",
+    // 017: list kind. 'todo' lists are working queues (done tasks are
+    // swept overnight by clear_done_list_tasks and retention); a
+    // 'checklist' keeps its checked items until the user unchecks them -
+    // grocery lists, packing lists - and its tasks have no postponed
+    // state in the UI.
+    "ALTER TABLE lists ADD COLUMN kind TEXT NOT NULL DEFAULT 'todo'
+        CHECK (kind IN ('todo', 'checklist'));",
+    // 018: list groups. A group is a named folder in the list panel:
+    // the panel shows the group, not its member lists - the lists live
+    // behind a drill-in. Deleting a group releases its members back to
+    // the panel (ON DELETE SET NULL). Stamped by the same trigger
+    // pattern as migration 016, so cross-device merge arbitrates group
+    // edits the same way it does list edits.
+    "CREATE TABLE list_groups (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        color TEXT,
+        updated_at TEXT,
+        updated_by TEXT
+    );
+    ALTER TABLE lists ADD COLUMN group_id INTEGER
+        REFERENCES list_groups(id) ON DELETE SET NULL;
+    CREATE TRIGGER list_groups_stamp_insert AFTER INSERT ON list_groups
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+        UPDATE list_groups SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    CREATE TRIGGER list_groups_stamp_update AFTER UPDATE ON list_groups
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+        UPDATE list_groups SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

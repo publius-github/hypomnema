@@ -13,4 +13,15 @@ favorite: boolean,
 /**
  * Free-text description shown in the list dialog.
  */
-description: string, };
+description: string, 
+/**
+ * "todo" (working queue: done tasks swept overnight) or
+ * "checklist" (checked items stay until unchecked; no postponed
+ * state in the UI).
+ */
+kind: "todo" | "checklist", 
+/**
+ * Group this list is folded into, if any: the list panel then
+ * shows the group instead of the list.
+ */
+group_id: number | null, };

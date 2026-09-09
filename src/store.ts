@@ -8,6 +8,7 @@ import type {
   EngineOutcome,
   KbNode,
   List,
+  ListGroup,
   NewTask,
   Section,
   Task,
@@ -35,6 +36,7 @@ interface AppState {
   error: string | null;
   today: string;
   lists: List[];
+  groups: ListGroup[];
   tasks: Task[];
   configErrors: ConfigError[];
   dashboard: DashboardContext | null;
@@ -116,11 +118,26 @@ interface AppState {
   archiveList: (id: number) => Promise<void>;
   /// favorite lists sort ahead of the rest in the dashboard list zone
   toggleListFavorite: (id: number) => Promise<void>;
-  /// cosmetic list metadata from the list dialog
+  /// list metadata from the list dialog; kind defaults to the current one
   updateListMeta: (
     id: number,
-    meta: { color: string | null; description: string },
+    meta: {
+      color: string | null;
+      description: string;
+      kind?: List["kind"];
+    },
   ) => Promise<void>;
+  /// checklist bulk actions: check or uncheck every task of the list
+  setListStatuses: (id: number, done: boolean) => Promise<void>;
+  createGroup: (name: string) => Promise<void>;
+  updateGroupMeta: (
+    id: number,
+    meta: { name: string; color: string | null },
+  ) => Promise<void>;
+  /// deleting a group releases its lists back to the panel
+  deleteGroup: (id: number) => Promise<void>;
+  /// folds a list into a group (null = back to the panel)
+  setListGroup: (id: number, groupId: number | null) => Promise<void>;
 }
 
 /** "#a1b2c3" -> "161 178 195" (the space-separated form the theme
@@ -198,6 +215,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   error: null,
   today: todayISO(),
   lists: [],
+  groups: [],
   tasks: [],
   configErrors: [],
   dashboard: null,
@@ -277,15 +295,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       addDaysISO(start, i),
     );
     try {
-      const [lists, tasks, dashboard] = await Promise.all([
+      const [lists, groups, tasks, dashboard] = await Promise.all([
         invoke<List[]>("lists_all"),
+        invoke<ListGroup[]>("list_groups_all"),
         invoke<Task[]>("tasks_snapshot", {
           startDate: start,
           endDate: addDaysISO(start, columns),
         }),
         invoke<DashboardContext>("dashboard_context", { dates }),
       ]);
-      set({ today, lists, tasks, dashboard });
+      set({ today, lists, groups, tasks, dashboard });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -486,15 +505,87 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateListMeta: async (id, meta) => {
     const previous = get().lists.find((l) => l.id === id);
     if (!previous) return;
+    const kind = meta.kind ?? previous.kind;
     set((s) => ({
-      lists: s.lists.map((l) => (l.id === id ? { ...l, ...meta } : l)),
+      lists: s.lists.map((l) => (l.id === id ? { ...l, ...meta, kind } : l)),
     }));
     try {
       await invoke("list_set_meta", {
         id,
         color: meta.color,
         description: meta.description,
+        kind,
       });
+    } catch (e) {
+      set((s) => ({
+        lists: s.lists.map((l) => (l.id === id ? previous : l)),
+        error: String(e),
+      }));
+    }
+  },
+
+  setListStatuses: async (id, done) => {
+    try {
+      await invoke("list_set_all_statuses", { id, done });
+      await get().refresh();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  createGroup: async (name) => {
+    try {
+      const created = await invoke<ListGroup>("list_group_create", { name });
+      set((s) => ({ groups: [...s.groups, created] }));
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  updateGroupMeta: async (id, meta) => {
+    const previous = get().groups.find((g) => g.id === id);
+    if (!previous) return;
+    set((s) => ({
+      groups: s.groups.map((g) => (g.id === id ? { ...g, ...meta } : g)),
+    }));
+    try {
+      await invoke("list_group_set_meta", {
+        id,
+        name: meta.name,
+        color: meta.color,
+      });
+    } catch (e) {
+      set((s) => ({
+        groups: s.groups.map((g) => (g.id === id ? previous : g)),
+        error: String(e),
+      }));
+    }
+  },
+
+  deleteGroup: async (id) => {
+    try {
+      await invoke("list_group_delete", { id });
+      set((s) => ({
+        groups: s.groups.filter((g) => g.id !== id),
+        lists: s.lists.map((l) =>
+          l.group_id === id ? { ...l, group_id: null } : l,
+        ),
+      }));
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  setListGroup: async (id, groupId) => {
+    const previous = get().lists.find((l) => l.id === id);
+    if (!previous) return;
+    set((s) => ({
+      lists: s.lists.map((l) =>
+        l.id === id ? { ...l, group_id: groupId } : l,
+      ),
+    }));
+    try {
+      await invoke("list_set_group", { id, groupId });
     } catch (e) {
       set((s) => ({
         lists: s.lists.map((l) => (l.id === id ? previous : l)),

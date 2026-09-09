@@ -290,10 +290,13 @@ export default function TaskRow({
               />
             </>
           )}
-          <Action
-            label="Postpone"
-            onClick={() => act({ status: "postponed" })}
-          />
+          {/* checklist items have no postponed state */}
+          {list?.kind !== "checklist" && (
+            <Action
+              label="Postpone"
+              onClick={() => act({ status: "postponed" })}
+            />
+          )}
           <Action
             label={task.priority ? "Unstar" : "Star"}
             onClick={() => act({ priority: !task.priority })}

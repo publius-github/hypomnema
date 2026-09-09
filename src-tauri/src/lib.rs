@@ -830,10 +830,58 @@ async fn list_set_meta(
     id: i64,
     color: Option<String>,
     description: String,
+    kind: String,
 ) -> Result<()> {
     with_conn(&state, |conn| {
-        tasks::list_set_meta(conn, id, color.as_deref(), &description)
+        tasks::list_set_meta(conn, id, color.as_deref(), &description, &kind)
     })
+}
+
+#[tauri::command]
+async fn list_set_all_statuses(state: State<'_, AppState>, id: i64, done: bool) -> Result<usize> {
+    let changed = with_conn(&state, |conn| tasks::list_set_all_statuses(conn, id, done))?;
+    mirror_export(&state);
+    Ok(changed)
+}
+
+#[tauri::command]
+async fn list_groups_all(state: State<'_, AppState>) -> Result<Vec<tasks::ListGroup>> {
+    with_conn(&state, tasks::groups_all)
+}
+
+#[tauri::command]
+async fn list_group_create(state: State<'_, AppState>, name: String) -> Result<tasks::ListGroup> {
+    let group = with_conn(&state, |conn| tasks::group_create(conn, &name))?;
+    mirror_export(&state);
+    Ok(group)
+}
+
+#[tauri::command]
+async fn list_group_set_meta(
+    state: State<'_, AppState>,
+    id: i64,
+    name: String,
+    color: Option<String>,
+) -> Result<()> {
+    with_conn(&state, |conn| {
+        tasks::group_set_meta(conn, id, &name, color.as_deref())
+    })?;
+    mirror_export(&state);
+    Ok(())
+}
+
+#[tauri::command]
+async fn list_group_delete(state: State<'_, AppState>, id: i64) -> Result<()> {
+    with_conn(&state, |conn| tasks::group_delete(conn, id))?;
+    mirror_export(&state);
+    Ok(())
+}
+
+#[tauri::command]
+async fn list_set_group(state: State<'_, AppState>, id: i64, group_id: Option<i64>) -> Result<()> {
+    with_conn(&state, |conn| tasks::list_set_group(conn, id, group_id))?;
+    mirror_export(&state);
+    Ok(())
 }
 
 #[tauri::command]
@@ -2196,6 +2244,12 @@ pub fn run() {
             list_rename,
             list_set_favorite,
             list_set_meta,
+            list_set_all_statuses,
+            list_groups_all,
+            list_group_create,
+            list_group_set_meta,
+            list_group_delete,
+            list_set_group,
             list_archive,
             lists_archived,
             list_unarchive,

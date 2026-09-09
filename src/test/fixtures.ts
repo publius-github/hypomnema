@@ -175,6 +175,7 @@ export function baseHandlers(overrides: CommandHandlers = {}): CommandHandlers {
     config_default: () => defaultConfig,
     engine_run: () => emptyOutcome,
     lists_all: () => [],
+    list_groups_all: () => [],
     tasks_snapshot: () => [],
     dashboard_context: () => emptyDashboard,
     calendar_outlook: () => [],

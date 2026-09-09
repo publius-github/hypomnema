@@ -32,6 +32,11 @@ export default function TaskModal({
   // and list are locked here - the config is the only place to change
   // them. Status, priority and color stay local to the instance.
   const generated = task.origin !== "manual";
+  // checklist lists have no postponed state; a leftover postponed row
+  // (from before the type switch) still renders truthfully
+  const checklist =
+    task.list_id !== null &&
+    lists.find((l) => l.id === task.list_id)?.kind === "checklist";
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description_md);
   const [preview, setPreview] = useState(
@@ -217,7 +222,9 @@ export default function TaskModal({
             >
               <option value="todo">To Do</option>
               <option value="done">Done</option>
-              <option value="postponed">Postponed</option>
+              {(!checklist || task.status === "postponed") && (
+                <option value="postponed">Postponed</option>
+              )}
             </select>
           </label>
           <label className="flex flex-col gap-1">
@@ -445,7 +452,7 @@ export default function TaskModal({
           {subtasks.length > 0 && (
             <div className="divide-y divide-line rounded-md border border-line">
               {subtasks.map((sub) => (
-                <SubtaskRow key={sub.id} sub={sub} />
+                <SubtaskRow key={sub.id} sub={sub} checklist={checklist} />
               ))}
             </div>
           )}
@@ -474,7 +481,7 @@ export default function TaskModal({
   );
 }
 
-function SubtaskRow({ sub }: { sub: Task }) {
+function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
   const [editing, setEditing] = useState(false);
@@ -535,22 +542,26 @@ function SubtaskRow({ sub }: { sub: Task }) {
         </span>
       )}
       {/* both controls are real hit targets (text-base + padding): at
-          text-xs the arrow and the cross were a few pixels wide */}
-      <button
-        className={`shrink-0 px-1 text-base leading-none ${
-          sub.status === "postponed"
-            ? "text-warn"
-            : "text-content-muted hover:text-warn"
-        }`}
-        title={sub.status === "postponed" ? "Back to To Do" : "Postpone"}
-        onClick={() =>
-          void updateTask(sub.id, {
-            status: sub.status === "postponed" ? "todo" : "postponed",
-          })
-        }
-      >
-        →
-      </button>
+          text-xs the arrow and the cross were a few pixels wide.
+          A checklist's sub-checkboxes cannot be postponed; the button
+          stays only on a leftover postponed row, to un-postpone it. */}
+      {(!checklist || sub.status === "postponed") && (
+        <button
+          className={`shrink-0 px-1 text-base leading-none ${
+            sub.status === "postponed"
+              ? "text-warn"
+              : "text-content-muted hover:text-warn"
+          }`}
+          title={sub.status === "postponed" ? "Back to To Do" : "Postpone"}
+          onClick={() =>
+            void updateTask(sub.id, {
+              status: sub.status === "postponed" ? "todo" : "postponed",
+            })
+          }
+        >
+          →
+        </button>
+      )}
       <button
         className="shrink-0 px-1 text-base leading-none text-content-muted hover:text-danger"
         title="Delete subtask"

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { orderLists } from "../lib/tasks";
+import { orderPanel } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
 import ListColumn from "../components/ListColumn";
+import GroupColumn from "../components/GroupColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import NewListForm from "../components/NewListForm";
@@ -17,12 +18,14 @@ import QuickAddModal from "../components/QuickAddModal";
 export default function Lists() {
   const config = useAppStore((s) => s.config);
   const lists = useAppStore((s) => s.lists);
+  const groups = useAppStore((s) => s.groups);
   const tasks = useAppStore((s) => s.tasks);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   // the column just jumped to via the All-lists index wears a short
-  // accent ring, so the eye finds it among many lists
-  const [highlightId, setHighlightId] = useState<number | null>(null);
+  // accent ring, so the eye finds it among many lists; keys are
+  // "l<id>"/"g<id>" - list and group ids live in separate sequences
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const highlightTimer = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -34,11 +37,15 @@ export default function Lists() {
   const dnd = useTaskDnd();
 
   if (!config) return null;
-  const visible = orderLists(lists, tasks, config.lists_sort_alpha);
+  const visible = orderPanel(lists, groups, tasks, config.lists_sort_alpha);
+  const itemKey = (item: (typeof visible)[number]) =>
+    item.type === "list" ? `l${item.list.id}` : `g${item.group.id}`;
+  const itemName = (item: (typeof visible)[number]) =>
+    item.type === "list" ? item.list.name : item.group.name;
   const columns = Math.max(1, config.lists_page_columns);
   const editingTask = tasks.find((t) => t.id === editingTaskId) ?? null;
 
-  const jumpTo = (id: number) => {
+  const jumpTo = (id: string) => {
     document
       .getElementById(`lists-page-${id}`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -96,14 +103,23 @@ export default function Lists() {
               gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
             }}
           >
-            {visible.map((list) => (
-              <div key={list.id} id={`lists-page-${list.id}`}>
-                <ListColumn
-                  list={list}
-                  onOpenTask={setEditingTaskId}
-                  fill={config.lists_page_align_rows}
-                  highlight={highlightId === list.id}
-                />
+            {visible.map((item) => (
+              <div key={itemKey(item)} id={`lists-page-${itemKey(item)}`}>
+                {item.type === "list" ? (
+                  <ListColumn
+                    list={item.list}
+                    onOpenTask={setEditingTaskId}
+                    fill={config.lists_page_align_rows}
+                    highlight={highlightId === itemKey(item)}
+                  />
+                ) : (
+                  <GroupColumn
+                    group={item.group}
+                    onOpenTask={setEditingTaskId}
+                    fill={config.lists_page_align_rows}
+                    highlight={highlightId === itemKey(item)}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -118,18 +134,19 @@ export default function Lists() {
                 <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
                   All lists
                 </div>
-                {visible.map((list) => (
+                {visible.map((item) => (
                   <button
-                    key={list.id}
+                    key={itemKey(item)}
                     className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
-                      highlightId === list.id
+                      highlightId === itemKey(item)
                         ? "bg-accent/15 text-accent"
                         : "text-content-muted hover:bg-line/40 hover:text-content"
                     }`}
-                    title={`Scroll to "${list.name}"`}
-                    onClick={() => jumpTo(list.id)}
+                    title={`Scroll to "${itemName(item)}"`}
+                    onClick={() => jumpTo(itemKey(item))}
                   >
-                    {list.name}
+                    {item.type === "group" ? "▸ " : ""}
+                    {itemName(item)}
                   </button>
                 ))}
               </div>

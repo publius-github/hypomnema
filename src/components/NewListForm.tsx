@@ -1,19 +1,30 @@
 import { useState } from "react";
 import { useAppStore } from "../store";
 
+/** The panel rail's create affordance: a new list, or a new group. */
 export default function NewListForm() {
   const createList = useAppStore((s) => s.createList);
-  const [open, setOpen] = useState(false);
+  const createGroup = useAppStore((s) => s.createGroup);
+  const [open, setOpen] = useState<"list" | "group" | null>(null);
   const [name, setName] = useState("");
 
   if (!open) {
     return (
-      <button
-        className="h-9 w-40 shrink-0 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
-        onClick={() => setOpen(true)}
-      >
-        + New list
-      </button>
+      <div className="flex w-40 shrink-0 flex-col gap-1.5">
+        <button
+          className="h-9 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
+          onClick={() => setOpen("list")}
+        >
+          + New list
+        </button>
+        <button
+          className="h-7 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
+          title="A group folds several lists into one panel slot"
+          onClick={() => setOpen("group")}
+        >
+          + New group
+        </button>
+      </div>
     );
   }
 
@@ -22,20 +33,23 @@ export default function NewListForm() {
       className="w-40 shrink-0"
       onSubmit={(e) => {
         e.preventDefault();
-        if (name.trim()) void createList(name.trim());
+        if (name.trim()) {
+          if (open === "list") void createList(name.trim());
+          else void createGroup(name.trim());
+        }
         setName("");
-        setOpen(false);
+        setOpen(null);
       }}
     >
       <input
         className="input w-full text-xs"
-        placeholder="List name"
+        placeholder={open === "list" ? "List name" : "Group name"}
         value={name}
         autoFocus
         onChange={(e) => setName(e.target.value)}
         onBlur={() => {
           setName("");
-          setOpen(false);
+          setOpen(null);
         }}
       />
     </form>

@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { addDaysISO, gridDates, orderLists } from "../lib/tasks";
+import { addDaysISO, gridDates, orderPanel } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
 import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
 import ListColumn from "../components/ListColumn";
+import GroupColumn from "../components/GroupColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import QuickAddModal from "../components/QuickAddModal";
@@ -272,11 +273,13 @@ function ListZone({
   onOpenTask: (id: number) => void;
 }) {
   const lists = useAppStore((s) => s.lists);
+  const groups = useAppStore((s) => s.groups);
   const tasks = useAppStore((s) => s.tasks);
   const listsAlpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   // the column just jumped to via the All-lists index wears a short
-  // accent ring, so the eye finds it among the visible page
-  const [highlightId, setHighlightId] = useState<number | null>(null);
+  // accent ring, so the eye finds it among the visible page; keys are
+  // "l<id>"/"g<id>" - list and group ids live in separate sequences
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const highlightTimer = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -285,12 +288,16 @@ function ListZone({
     },
     [],
   );
-  const visible = orderLists(lists, tasks, listsAlpha);
+  const visible = orderPanel(lists, groups, tasks, listsAlpha);
+  const itemKey = (item: (typeof visible)[number]) =>
+    item.type === "list" ? `l${item.list.id}` : `g${item.group.id}`;
+  const itemName = (item: (typeof visible)[number]) =>
+    item.type === "list" ? item.list.name : item.group.name;
   const maxOffset = Math.max(0, visible.length - perPage);
   const off = Math.min(offset, maxOffset);
   const page = visible.slice(off, off + perPage);
 
-  const jumpTo = (index: number, id: number) => {
+  const jumpTo = (index: number, id: string) => {
     setOffset(Math.min(index, maxOffset));
     setHighlightId(id);
     if (highlightTimer.current !== null)
@@ -321,14 +328,23 @@ function ListZone({
           gridTemplateColumns: `repeat(${Math.max(page.length, 1)}, minmax(0, 1fr))`,
         }}
       >
-        {page.map((list) => (
-          <ListColumn
-            key={list.id}
-            list={list}
-            onOpenTask={onOpenTask}
-            highlight={highlightId === list.id}
-          />
-        ))}
+        {page.map((item) =>
+          item.type === "list" ? (
+            <ListColumn
+              key={itemKey(item)}
+              list={item.list}
+              onOpenTask={onOpenTask}
+              highlight={highlightId === itemKey(item)}
+            />
+          ) : (
+            <GroupColumn
+              key={itemKey(item)}
+              group={item.group}
+              onOpenTask={onOpenTask}
+              highlight={highlightId === itemKey(item)}
+            />
+          ),
+        )}
       </div>
       {visible.length > perPage && arrow(1, off >= maxOffset, "More lists")}
       {/* never collapsed and never scrolls on its own: the index shows
@@ -340,20 +356,21 @@ function ListZone({
             <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
               All lists
             </div>
-            {visible.map((list, i) => {
+            {visible.map((item, i) => {
               const onPage = i >= off && i < off + perPage;
               return (
                 <button
-                  key={list.id}
+                  key={itemKey(item)}
                   className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
                     onPage
                       ? "bg-accent/15 text-accent"
                       : "text-content-muted hover:bg-line/40 hover:text-content"
                   }`}
-                  title={`Jump to "${list.name}"`}
-                  onClick={() => jumpTo(i, list.id)}
+                  title={`Jump to "${itemName(item)}"`}
+                  onClick={() => jumpTo(i, itemKey(item))}
                 >
-                  {list.name}
+                  {item.type === "group" ? "▸ " : ""}
+                  {itemName(item)}
                 </button>
               );
             })}
