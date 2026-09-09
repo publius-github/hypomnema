@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../store";
 import type { Section } from "../types";
 import type { IconName } from "./icons";
@@ -125,12 +125,28 @@ export default function TabBar() {
   const updateConfig = useAppStore((s) => s.updateConfig);
   const [aboutOpen, setAboutOpen] = useState(false);
 
+  // hidden sections (Settings > Layout) leave the rail entirely
+  const order = config?.section_order ?? DEFAULT_ORDER;
+  const hidden = useMemo(() => config?.section_hidden ?? [], [config]);
+  const visible = useMemo(
+    () =>
+      order
+        .filter((id) => !hidden.includes(id))
+        .map((id) => TABS[id])
+        .filter(Boolean),
+    [order, hidden],
+  );
+
+  // hiding the section you are standing in would leave the window on a
+  // page with no way back to it; step to the first one still shown
+  useEffect(() => {
+    if (section === "settings" || !hidden.includes(section)) return;
+    setSection(visible[0]?.id ?? "settings");
+  }, [section, hidden, visible, setSection]);
+
   return (
     <nav className="flex w-[64px] flex-col items-center gap-[4px] border-r border-line bg-surface-alt py-[12px]">
-      {(config?.section_order ?? DEFAULT_ORDER)
-        .map((id) => TABS[id])
-        .filter(Boolean)
-        .map((tab) => (
+      {visible.map((tab) => (
           <RailButton
             key={tab.id}
             title={tab.label}

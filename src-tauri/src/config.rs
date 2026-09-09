@@ -33,6 +33,10 @@ pub struct AppConfig {
     pub kb_path: String,
     /// Order of the sections in the left tab bar.
     pub section_order: Vec<String>,
+    /// Sections hidden from the left tab bar: someone who uses half the
+    /// app should not carry the other half's icons. Settings can never
+    /// be hidden - it is the way back.
+    pub section_hidden: Vec<String>,
     /// Dashboard shows a single Today column instead of the week grid.
     pub dashboard_today_only: bool,
     /// How many list columns are visible at once in the dashboard list
@@ -198,6 +202,15 @@ pub struct AppConfig {
     /// Lists page: stretch every list column to its grid row's height so
     /// the rows line up; off = each column takes its natural height.
     pub lists_page_align_rows: bool,
+    /// How grouped lists show in the list panels: `folded` = one tile per
+    /// group with its lists behind a drill-in, `flat` = every list as its
+    /// own column wearing its group's name as a chip.
+    #[ts(type = "\"folded\" | \"flat\"")]
+    pub lists_group_display: String,
+    /// Maximum content width of the Settings page, px (0 = the whole
+    /// window). The tab strip wraps inside it, which is what makes a
+    /// narrow column push half the tabs onto a second line.
+    pub settings_width: u32,
     /// Day columns on the dedicated Days page (its own width, not tied
     /// to the dashboard grid). 0 is a legacy "follow the dashboard"
     /// value that sanitize resolves to grid_columns.
@@ -372,6 +385,8 @@ pub const PROFILE_KEYS: &[&str] = &[
     "days_page_columns",
     "lists_page_columns",
     "lists_page_align_rows",
+    "lists_group_display",
+    "settings_width",
     "day_header_centered",
     "cadence_group_order",
     "done_display",
@@ -406,6 +421,7 @@ impl Default for AppConfig {
             cron_ignore_time: true,
             kb_path: String::new(),
             section_order: SECTIONS.iter().map(|s| s.to_string()).collect(),
+            section_hidden: Vec::new(),
             dashboard_today_only: false,
             list_columns: 4,
             kb_line_numbers: false,
@@ -467,6 +483,8 @@ impl Default for AppConfig {
             lists_sort_alpha: false,
             lists_page_columns: 4,
             lists_page_align_rows: true,
+            lists_group_display: "folded".into(),
+            settings_width: 1120,
             days_page_columns: 7,
             days_today_only: false,
             list_tasks_sort_alpha: false,
@@ -559,6 +577,14 @@ impl AppConfig {
         }
         if !["inline", "separate"].contains(&self.done_display.as_str()) {
             self.done_display = "inline".into();
+        }
+        if !["folded", "flat"].contains(&self.lists_group_display.as_str()) {
+            self.lists_group_display = "folded".into();
+        }
+        // 0 means "as wide as the window"; anything narrower than a
+        // couple of settings columns is not a layout, it is a mistake
+        if self.settings_width != 0 {
+            self.settings_width = self.settings_width.clamp(480, 4000);
         }
         self.dashboard_split = self.dashboard_split.clamp(20, 80);
         self.list_columns = self.list_columns.clamp(1, 12);
@@ -689,6 +715,17 @@ impl AppConfig {
             order
         };
         self.section_order = sanitize_order(&self.section_order, SECTIONS);
+        // hidden is a set, not an order: unknown names go, duplicates go,
+        // and missing ones stay missing (the default is "nothing hidden")
+        self.section_hidden = {
+            let mut kept: Vec<String> = Vec::new();
+            for name in &self.section_hidden {
+                if SECTIONS.contains(&name.as_str()) && !kept.contains(name) {
+                    kept.push(name.clone());
+                }
+            }
+            kept
+        };
         self.cadence_group_order = sanitize_order(&self.cadence_group_order, CADENCE_GROUPS);
         self.capture_list = self.capture_list.trim().to_string();
         if self.capture_list.is_empty() {
@@ -740,6 +777,7 @@ impl AppConfig {
             ("cron_ignore_time", self.cron_ignore_time.to_string()),
             ("kb_path", self.kb_path.clone()),
             ("section_order", self.section_order.join(",")),
+            ("section_hidden", self.section_hidden.join(",")),
             (
                 "dashboard_today_only",
                 self.dashboard_today_only.to_string(),
@@ -845,6 +883,8 @@ impl AppConfig {
                 "lists_page_align_rows",
                 self.lists_page_align_rows.to_string(),
             ),
+            ("lists_group_display", self.lists_group_display.clone()),
+            ("settings_width", self.settings_width.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),
             ("days_today_only", self.days_today_only.to_string()),
             (
@@ -946,9 +986,15 @@ mod tests {
             done_display: "weird".into(),
             dashboard_split: 99,
             section_order: vec!["kb".into(), "typo".into(), "kb".into()],
+            section_hidden: vec!["kb".into(), "typo".into(), "kb".into()],
+            lists_group_display: "sideways".into(),
+            settings_width: 12,
             ..AppConfig::default()
         }
         .sanitized();
+        assert_eq!(config.section_hidden, vec!["kb"]);
+        assert_eq!(config.lists_group_display, "folded");
+        assert_eq!(config.settings_width, 480);
         assert_eq!(config.grid_columns, 1);
         assert_eq!(config.catchup_days, 365);
         assert_eq!(config.theme, "dark");

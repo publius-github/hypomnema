@@ -1582,19 +1582,25 @@ async fn kb_abs_path(state: State<'_, AppState>, path: String) -> Result<String>
 }
 
 /// Shows a note or folder in the system file manager. Only paths inside
-/// the KB root resolve, and the path is passed as a single argument -
-/// no shell is involved.
+/// the KB root resolve, and the file manager is launched directly with
+/// the path - no shell is involved, so nothing in a name is interpreted.
 #[tauri::command]
 async fn kb_reveal(state: State<'_, AppState>, path: String) -> Result<()> {
     let target = kb::abs_path(&kb_root(&state)?, &path)?;
     #[cfg(target_os = "windows")]
     let mut command = {
+        // explorer.exe does not parse its command line the way
+        // CommandLineToArgvW does, so Rust's own argument quoting is
+        // wrong for it: a path with a space arrives as `"/select,C:\My`
+        // and explorer falls back to opening some default folder. The
+        // quotes have to sit *inside* the argument, which means writing
+        // the command line ourselves via raw_arg.
+        use std::os::windows::process::CommandExt;
         let mut c = std::process::Command::new("explorer.exe");
         if target.is_dir() {
-            c.arg(&target);
+            c.raw_arg(format!("\"{}\"", target.display()));
         } else {
-            // /select, and the path must reach explorer as one argument
-            c.arg(format!("/select,{}", target.display()));
+            c.raw_arg(format!("/select,\"{}\"", target.display()));
         }
         c
     };

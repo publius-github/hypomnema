@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
@@ -19,16 +19,26 @@ import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import ListModal from "./ListModal";
 import { ConfirmModal } from "./dialogs";
-import type { List, Task } from "../types";
+import type { List, ListGroup, Task } from "../types";
 
 function ListColumn({
   list,
+  group = null,
   onOpenTask,
+  onOpenGroup,
   fill = false,
   highlight = false,
 }: {
   list: List;
+  /**
+   * The list's group, when the panel is showing grouped lists as their
+   * own columns (`lists_group_display: flat`): the header wears it as a
+   * chip, so a flat panel still says where a list belongs.
+   */
+  group?: ListGroup | null;
   onOpenTask: (id: number) => void;
+  /** drill into the chip's group; absent = the chip is not clickable */
+  onOpenGroup?: (groupId: number) => void;
   /** stretch to the parent's height (Lists page row alignment) */
   fill?: boolean;
   /** flash ring after a jump from the All-lists index */
@@ -39,6 +49,10 @@ function ListColumn({
   const archiveList = useAppStore((s) => s.archiveList);
   const hold = useAppStore(useShallow((s) => s.statusHold));
   const { setNodeRef, isOver } = useDroppable({ id: `list:${list.id}` });
+  // the header's grip drags the whole list, not a task: dropping it on a
+  // group tile (or on the group view's back bar) changes its membership.
+  // Its own draggable id keeps the two kinds of drag apart in onDragEnd.
+  const grip = useDraggable({ id: `listmove:${list.id}`, disabled: list.auto });
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(list.name);
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -152,7 +166,7 @@ function ListColumn({
         isOver ? "border-accent" : "border-line"
       } bg-surface-alt/50 ${fill ? "h-full" : ""} ${
         highlight ? "ring-2 ring-accent" : ""
-      }`}
+      } ${grip.isDragging ? "opacity-40" : ""}`}
       onDoubleClick={openOnFreeSpace}
     >
       <div
@@ -198,8 +212,28 @@ function ListColumn({
             <span className="truncate">{list.name}</span>
           </button>
         )}
+        {group && (
+          <button
+            className="max-w-[45%] shrink-0 truncate rounded border border-line px-1 py-px text-[10px] uppercase tracking-wide text-content-muted hover:border-accent hover:text-accent"
+            title={`In group "${group.name}"${onOpenGroup ? " - click to open it" : ""}`}
+            onClick={() => onOpenGroup?.(group.id)}
+          >
+            {group.name}
+          </button>
+        )}
         {/* the header controls share the star's size (text-base): the
             old mixed xs/sm buttons were too small to hit comfortably */}
+        {!list.auto && (
+          <button
+            ref={grip.setNodeRef}
+            {...grip.attributes}
+            {...grip.listeners}
+            className="cursor-grab text-base leading-none text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
+            title="Drag onto a group to move this list into it"
+          >
+            ⠿
+          </button>
+        )}
         <button
           className="text-base leading-none text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
           title="List settings: tasks, color, description, copy"

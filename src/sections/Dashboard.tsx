@@ -12,6 +12,7 @@ import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import QuickAddModal from "../components/QuickAddModal";
 import NewListForm from "../components/NewListForm";
+import GroupBackBar from "../components/GroupBackBar";
 import type { Task } from "../types";
 
 export default function Dashboard() {
@@ -276,6 +277,11 @@ function ListZone({
   const groups = useAppStore((s) => s.groups);
   const tasks = useAppStore((s) => s.tasks);
   const listsAlpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
+  // "flat": grouped lists take their own columns wearing a group chip,
+  // instead of folding into one tile per group
+  const flatGroups = useAppStore(
+    (s) => s.config?.lists_group_display === "flat",
+  );
   // the column just jumped to via the All-lists index wears a short
   // accent ring, so the eye finds it among the visible page; keys are
   // "l<id>"/"g<id>" - list and group ids live in separate sequences
@@ -310,7 +316,11 @@ function ListZone({
         tasks,
         listsAlpha,
       ).map((list) => ({ type: "list" as const, list }))
-    : orderPanel(lists, groups, tasks, listsAlpha);
+    : orderPanel(lists, groups, tasks, listsAlpha, flatGroups);
+  const groupOf = (listId: number) => {
+    const gid = lists.find((l) => l.id === listId)?.group_id ?? null;
+    return gid === null ? null : (groups.find((g) => g.id === gid) ?? null);
+  };
   const itemKey = (item: (typeof visible)[number]) =>
     item.type === "list" ? `l${item.list.id}` : `g${item.group.id}`;
   const itemName = (item: (typeof visible)[number]) =>
@@ -369,23 +379,14 @@ function ListZone({
   return (
     <div className="flex flex-col gap-1 pt-1">
       {openGroup && (
-        <button
-          className="flex items-center gap-1.5 self-start rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-content-muted hover:text-accent"
-          title="Back to all lists"
-          onClick={() => {
+        <GroupBackBar
+          group={openGroup}
+          onBack={() => {
             setOpenGroupId(null);
             setOffset(0);
           }}
-        >
-          <span>‹</span>
-          {openGroup.color && (
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: openGroup.color }}
-            />
-          )}
-          <span className="truncate">{openGroup.name}</span>
-        </button>
+          className="flex items-center gap-1.5 self-start rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-content-muted"
+        />
       )}
       <div className="flex items-stretch gap-2">
       {visible.length > perPage && arrow(-1, off === 0, "Previous lists")}
@@ -400,7 +401,9 @@ function ListZone({
             <ListColumn
               key={itemKey(item)}
               list={item.list}
+              group={openGroup ? null : groupOf(item.list.id)}
               onOpenTask={onOpenTask}
+              onOpenGroup={(groupId) => openGroupAt(groupId)}
               highlight={highlightId === itemKey(item)}
             />
           ) : (

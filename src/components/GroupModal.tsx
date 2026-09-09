@@ -46,8 +46,17 @@ export default function GroupModal({
   };
 
   // auto lists mirror the engine's config files and stay day-only;
-  // only real user lists are grouping candidates
-  const candidates = lists.filter((l) => !l.auto);
+  // only real user lists are grouping candidates. Alphabetical, not the
+  // panel's order: this is a picker over every list in the vault, and a
+  // picker is read by looking for a name.
+  const candidates = lists
+    .filter((l) => !l.auto)
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      }),
+    );
 
   return (
     <div

@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { useDroppable } from "@dnd-kit/core";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { orderLists } from "../lib/tasks";
@@ -11,6 +12,11 @@ import type { ListGroup } from "../types";
  * Clicking the tile (or any row in it) opens the group view: the whole
  * panel switches to the group's lists as full columns under a back bar
  * (the panel owns that state; the tile only reports the click).
+ *
+ * The tile is also where a group is filled: a new list can be created
+ * straight into it and an existing one moved in, either from the picker
+ * under the index or by dragging a list column's grip onto the tile.
+ * An empty group that only said "add some via ⋯" was a dead end.
  */
 function GroupColumn({
   group,
@@ -30,12 +36,34 @@ function GroupColumn({
   highlight?: boolean;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // "new" types a name, "existing" picks one of the lists outside this
+  // group; closed the tile shows the two buttons instead
+  const [adding, setAdding] = useState<"new" | "existing" | null>(null);
+  const [name, setName] = useState("");
   const alpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   const members = useAppStore(
     useShallow((s) => s.lists.filter((l) => l.group_id === group.id)),
   );
+  // the "+ Existing" picker is read by looking for a name, so it is
+  // alphabetical rather than in the panel's order
+  const outsiders = useAppStore(
+    useShallow((s) =>
+      s.lists
+        .filter((l) => !l.auto && l.group_id !== group.id)
+        .sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, {
+            sensitivity: "base",
+            numeric: true,
+          }),
+        ),
+    ),
+  );
   const tasks = useAppStore((s) => s.tasks);
+  const createList = useAppStore((s) => s.createList);
+  const setListGroup = useAppStore((s) => s.setListGroup);
   const ordered = orderLists(members, tasks, alpha);
+  // a list column's grip can be dropped straight onto the tile
+  const { setNodeRef, isOver } = useDroppable({ id: `group:${group.id}` });
 
   const openCount = (listId: number) =>
     tasks.filter(
@@ -46,13 +74,26 @@ function GroupColumn({
         (t.scheduled_date === null || t.priority || t.origin === "manual"),
     ).length;
 
+  // double-click on the tile's free space opens the group dialog, the
+  // same gesture a list column answers with its own dialog
+  const openOnFreeSpace = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) setDetailsOpen(true);
+  };
+
   return (
     <div
-      className={`flex min-w-0 flex-col rounded-lg border border-line bg-surface-alt/50 ${
-        fill ? "h-full" : ""
-      } ${highlight ? "ring-2 ring-accent" : ""}`}
+      ref={setNodeRef}
+      className={`flex min-w-0 flex-col rounded-lg border ${
+        isOver ? "border-accent" : "border-line"
+      } bg-surface-alt/50 ${fill ? "h-full" : ""} ${
+        highlight ? "ring-2 ring-accent" : ""
+      }`}
+      onDoubleClick={openOnFreeSpace}
     >
-      <div className="group flex items-center gap-2 px-2.5 py-2">
+      <div
+        className="group flex items-center gap-2 px-2.5 py-2"
+        onDoubleClick={openOnFreeSpace}
+      >
         <button
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
           title={`Open group "${group.name}"`}
@@ -77,10 +118,13 @@ function GroupColumn({
           ⋯
         </button>
       </div>
-      <div className="flex flex-1 flex-col gap-1 px-2 pb-2">
+      <div
+        className="flex flex-1 flex-col gap-1 px-2 pb-2"
+        onDoubleClick={openOnFreeSpace}
+      >
         {ordered.length === 0 && (
           <span className="px-1 py-2 text-xs text-content-muted">
-            No lists yet - add some via ⋯ or a list's settings.
+            No lists yet - add one below, or drag a list column here.
           </span>
         )}
         {ordered.map((list) => (
@@ -102,6 +146,74 @@ function GroupColumn({
             </span>
           </button>
         ))}
+
+        {adding === null && (
+          <div className="mt-1 flex gap-1">
+            <button
+              className="flex-1 rounded-md border border-dashed border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
+              title="Create a list directly in this group"
+              onClick={() => {
+                setName("");
+                setAdding("new");
+              }}
+            >
+              + List
+            </button>
+            {outsiders.length > 0 && (
+              <button
+                className="flex-1 rounded-md border border-dashed border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
+                title="Move an existing list into this group"
+                onClick={() => setAdding("existing")}
+              >
+                + Existing
+              </button>
+            )}
+          </div>
+        )}
+        {adding === "new" && (
+          <form
+            className="mt-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (name.trim()) void createList(name.trim(), group.id);
+              setName("");
+              setAdding(null);
+            }}
+          >
+            <input
+              className="input w-full text-xs"
+              placeholder="List name"
+              value={name}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => {
+                setName("");
+                setAdding(null);
+              }}
+            />
+          </form>
+        )}
+        {adding === "existing" && (
+          <select
+            className="input mt-1 w-full text-xs"
+            autoFocus
+            defaultValue=""
+            onBlur={() => setAdding(null)}
+            onChange={(e) => {
+              const id = Number(e.target.value);
+              setAdding(null);
+              if (id) void setListGroup(id, group.id);
+            }}
+          >
+            <option value="">Move a list in…</option>
+            {outsiders.map((list) => (
+              <option key={list.id} value={list.id}>
+                {list.name}
+                {list.group_id !== null ? " (in another group)" : ""}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       {detailsOpen && (
         <GroupModal group={group} onClose={() => setDetailsOpen(false)} />

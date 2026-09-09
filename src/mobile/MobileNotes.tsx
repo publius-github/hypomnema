@@ -268,7 +268,12 @@ export default function MobileNotes() {
               </>
             )}
           </ul>
-          <div className="flex gap-2 border-t border-line p-3">
+          {/* A create bar, not a pair of slabs: the two buttons used to
+              split the full width in a solid accent block, which read as
+              the loudest thing on a screen whose actual subject is the
+              list of notes above it. They are text buttons now, sized to
+              a thumb and no larger. */}
+          <div className="flex items-center gap-2 border-t border-line px-3 py-2">
             {creating === null ? (
               <>
                 <button
@@ -276,7 +281,7 @@ export default function MobileNotes() {
                     setNewName("");
                     setCreating("note");
                   }}
-                  className="flex-1 rounded-lg bg-accent px-4 py-3 font-medium text-white"
+                  className="rounded-lg border border-line px-3 py-1.5 text-sm text-accent"
                 >
                   + Note
                 </button>
@@ -285,10 +290,15 @@ export default function MobileNotes() {
                     setNewName("");
                     setCreating("folder");
                   }}
-                  className="rounded-lg border border-line px-4 py-3"
+                  className="rounded-lg border border-line px-3 py-1.5 text-sm text-content-muted"
                 >
                   + Folder
                 </button>
+                {trail.length > 0 && (
+                  <span className="ml-auto min-w-0 truncate text-xs text-content-muted">
+                    in {trail[trail.length - 1].name}
+                  </span>
+                )}
               </>
             ) : (
               <>

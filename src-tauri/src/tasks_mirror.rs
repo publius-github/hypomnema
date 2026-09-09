@@ -19,6 +19,13 @@
 //! file arriving from a file sync (Dropbox and friends) neither clobbers
 //! newer app-side edits nor deletes tasks it never saw.
 //!
+//! A list file's header also carries the list's group as a plain
+//! `<!-- group: Name -->` line: without it a group is invisible from the
+//! vault, and the tasks folder is where bulk edits happen. Editing that
+//! line moves the list (creating the group when the name is new); an
+//! empty name means no group, and a file with no group line at all
+//! leaves the membership alone.
+//!
 //! Sync protocol per line: the trailing `^<id>` is the stable key. A
 //! line keeping its id updates that task, a line without an id creates a
 //! task, and a task whose line disappeared from its file is deleted
@@ -42,6 +49,13 @@ const SCHEDULED_MARKER: &str = "<!-- hypomnema:scheduled -->";
 const AGENDA_MARKER: &str = "<!-- hypomnema:agenda -->";
 const TODAY_MARKER: &str = "<!-- hypomnema:today -->";
 const LIST_MARKER_PREFIX: &str = "<!-- hypomnema:list:";
+/// The list's group, on its own comment line under the marker. Written
+/// in plain words rather than an id because the point of it is to be
+/// edited: a list's group is otherwise invisible from the vault, and the
+/// tasks folder is where bulk edits happen.
+const GROUP_PREFIX: &str = "<!-- group:";
+
+const GROUP_HELP: &str = "<!-- ^ the list's group: type a name to move this list into that group (created if it does not exist yet), or leave it empty for no group. -->";
 
 const TODAY_HELP: &str = "<!-- Read-only day sheet, regenerated on every change - edits here are ignored. Check tasks off in the app or in the other mirror files. -->";
 
@@ -55,6 +69,23 @@ const FORMAT_HELP_NO_IDS: &str = "<!-- Bulk-editable task mirror. One task per l
 
 fn list_marker(id: i64) -> String {
     format!("{LIST_MARKER_PREFIX}{id} -->")
+}
+
+fn group_line(name: Option<&str>) -> String {
+    format!("{GROUP_PREFIX} {} -->", name.unwrap_or("").trim())
+}
+
+/// The group name a list file asks for: `None` when the file carries no
+/// group line at all (an older export, or a hand-made file - leave the
+/// membership alone), `Some("")` when the line is there but empty (no
+/// group). Only the header is searched: a `<!-- group: -->` further down
+/// is prose, not a directive.
+fn parse_group_line(content: &str) -> Option<String> {
+    content.lines().take(6).map(str::trim).find_map(|line| {
+        line.strip_prefix(GROUP_PREFIX)
+            .and_then(|rest| rest.strip_suffix("-->"))
+            .map(|name| name.trim().to_string())
+    })
 }
 
 /// A list name turned into a safe file stem.
@@ -302,6 +333,7 @@ pub fn export(
     let help = if ids { FORMAT_HELP } else { FORMAT_HELP_NO_IDS };
     fs::create_dir_all(tasks_dir)?;
     let lists = tasks::lists_all(conn)?;
+    let groups = tasks::groups_all(conn)?;
     let parents = tasks::manual_parent_tasks(conn)?;
     let mut subs: HashMap<i64, Vec<&Task>> = HashMap::new();
     let all_subs = tasks::subtasks_all(conn)?;
@@ -336,7 +368,15 @@ pub fn export(
             name = format!("{name} ({})", list.id);
             used_names.insert(name.to_lowercase());
         }
-        let mut content = format!("{}\n{help}\n\n", list_marker(list.id));
+        let group_name = list
+            .group_id
+            .and_then(|gid| groups.iter().find(|g| g.id == gid))
+            .map(|g| g.name.as_str());
+        let mut content = format!(
+            "{}\n{}\n{GROUP_HELP}\n{help}\n\n",
+            list_marker(list.id),
+            group_line(group_name)
+        );
         for task in &backlog {
             content.push_str(&render_line(task, 0, ids));
             content.push('\n');
@@ -613,6 +653,31 @@ enum Scope {
     Agenda,
 }
 
+/// Moves a list into the group its file names, creating the group when
+/// the name is new and clearing the membership when the name is empty.
+/// Returns whether anything actually changed.
+fn apply_group(conn: &Connection, list_id: i64, name: &str) -> Result<bool> {
+    let current = tasks::lists_all(conn)?
+        .iter()
+        .find(|l| l.id == list_id)
+        .and_then(|l| l.group_id);
+    let target = if name.is_empty() {
+        None
+    } else {
+        let groups = tasks::groups_all(conn)?;
+        let wanted = name.to_lowercase();
+        match groups.iter().find(|g| g.name.to_lowercase() == wanted) {
+            Some(group) => Some(group.id),
+            None => Some(tasks::group_create(conn, name)?.id),
+        }
+    };
+    if target == current {
+        return Ok(false);
+    }
+    tasks::list_set_group(conn, list_id, target)?;
+    Ok(true)
+}
+
 /// Applies an edited mirror file to the database. Returns whether
 /// anything actually changed. `today` bounds the scheduled scope: only
 /// tasks the file is responsible for can be deleted by their absence.
@@ -688,6 +753,20 @@ pub fn import_file(
             }
         }
     };
+
+    // The group line is a field like any other in the three-way merge:
+    // applied only when the file differs from the base, so a stale copy
+    // arriving from a file sync cannot pull a list back into a group it
+    // was moved out of here. A file with no group line at all (an older
+    // export, a hand-made file) leaves the membership alone.
+    if let Scope::List(list_id) = &scope {
+        if let Some(asked) = parse_group_line(content) {
+            let known = base.and_then(parse_group_line);
+            if known.as_deref() != Some(asked.as_str()) && apply_group(conn, *list_id, &asked)? {
+                changed = true;
+            }
+        }
+    }
 
     let agenda = matches!(scope, Scope::Agenda);
     let dated = matches!(scope, Scope::Scheduled | Scope::Agenda);
@@ -1132,6 +1211,63 @@ mod tests {
         for (path, content) in &written {
             assert!(!import_file(&conn, path, content, TODAY, true, None).unwrap());
         }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn group_line_round_trips_and_moves_the_list() {
+        let (conn, dir) = setup("group");
+        let list = list_create(&conn, "Reading", None, false).unwrap();
+        let group = tasks::group_create(&conn, "Personal").unwrap();
+        tasks::list_set_group(&conn, list.id, Some(group.id)).unwrap();
+
+        let written = export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            &dir.join("config"),
+            TODAY,
+            &HashSet::new(),
+            &opts(true, false),
+        )
+        .unwrap();
+        let (path, exported) = written
+            .iter()
+            .find(|(p, _)| p.file_name().unwrap() == "Reading.md")
+            .unwrap();
+        assert!(exported.contains("<!-- group: Personal -->"));
+        // the group the file already names is not a change
+        assert!(!import_file(&conn, path, exported, TODAY, true, Some(exported)).unwrap());
+
+        // a name the vault has never seen creates the group
+        let moved = exported.replace("<!-- group: Personal -->", "<!-- group: Work -->");
+        assert!(import_file(&conn, path, &moved, TODAY, true, Some(exported)).unwrap());
+        let groups = tasks::groups_all(&conn).unwrap();
+        let work = groups.iter().find(|g| g.name == "Work").unwrap();
+        let after = tasks::lists_all(&conn).unwrap();
+        assert_eq!(
+            after.iter().find(|l| l.id == list.id).unwrap().group_id,
+            Some(work.id)
+        );
+
+        // an empty name releases the list
+        let released = moved.replace("<!-- group: Work -->", "<!-- group: -->");
+        assert!(import_file(&conn, path, &released, TODAY, true, Some(&moved)).unwrap());
+        let after = tasks::lists_all(&conn).unwrap();
+        assert_eq!(
+            after.iter().find(|l| l.id == list.id).unwrap().group_id,
+            None
+        );
+
+        // a file with no group line at all leaves the membership alone
+        tasks::list_set_group(&conn, list.id, Some(work.id)).unwrap();
+        let headerless = format!("{}\n\n- [ ] something\n", list_marker(list.id));
+        import_file(&conn, path, &headerless, TODAY, true, None).unwrap();
+        let after = tasks::lists_all(&conn).unwrap();
+        assert_eq!(
+            after.iter().find(|l| l.id == list.id).unwrap().group_id,
+            Some(work.id)
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 

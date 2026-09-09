@@ -99,20 +99,24 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       const store = useAppStore.getState();
-      // Ctrl+1..9 follow the configured tab order, settings last
+      // Ctrl+1..9 follow the rail: the configured tab order minus the
+      // hidden sections, settings last
+      const hidden = store.config?.section_hidden ?? [];
       const sections = [
-        ...(store.config?.section_order ?? [
-          "dashboard",
-          "lists",
-          "days",
-          "upcoming",
-          "reminders",
-          "calendar",
-          "history",
-          "review",
-          "journal",
-          "kb",
-        ]),
+        ...(
+          store.config?.section_order ?? [
+            "dashboard",
+            "lists",
+            "days",
+            "upcoming",
+            "reminders",
+            "calendar",
+            "history",
+            "review",
+            "journal",
+            "kb",
+          ]
+        ).filter((id) => !hidden.includes(id)),
         "settings",
       ] as Section[];
       // physical key, so the shortcut survives non-Latin layouts

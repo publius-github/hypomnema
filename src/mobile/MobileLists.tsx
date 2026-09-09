@@ -25,13 +25,22 @@ export default function MobileLists() {
   const updateListMeta = useAppStore((s) => s.updateListMeta);
   const setListStatuses = useAppStore((s) => s.setListStatuses);
   const setListGroup = useAppStore((s) => s.setListGroup);
+  const createGroup = useAppStore((s) => s.createGroup);
+  const updateGroupMeta = useAppStore((s) => s.updateGroupMeta);
+  const deleteGroup = useAppStore((s) => s.deleteGroup);
   const [openId, setOpenId] = useState<number | null>(null);
   // the open group's id: the index shows groups instead of their member
   // lists, a tapped group shows its members on a screen of their own
   const [groupId, setGroupId] = useState<number | null>(null);
   const [title, setTitle] = useState("");
   const [newList, setNewList] = useState("");
+  // what the index's bottom field creates: another list, or a group to
+  // file lists under. The phone had no way to make a group at all, which
+  // left the group screens unreachable on a vault that had none yet.
+  const [newKind, setNewKind] = useState<"list" | "group">("list");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // the open group's own settings fold, same shape as a list's
+  const [groupSettings, setGroupSettings] = useState(false);
 
   const alpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   const active = useMemo(() => lists.filter((list) => !list.archived), [lists]);
@@ -40,12 +49,16 @@ export default function MobileLists() {
 
   // hardware back retraces the screens: settings fold first, then the
   // open list, then the open group, then MobileApp's tab step takes over
-  useBackStep(groupId !== null, () => setGroupId(null));
+  useBackStep(groupId !== null, () => {
+    setGroupId(null);
+    setGroupSettings(false);
+  });
   useBackStep(openId !== null, () => {
     setOpenId(null);
     setSettingsOpen(false);
   });
   useBackStep(settingsOpen, () => setSettingsOpen(false));
+  useBackStep(groupSettings, () => setGroupSettings(false));
   const listTasks = useMemo(
     () =>
       current
@@ -95,11 +108,23 @@ export default function MobileLists() {
       tasks,
       alpha,
     );
+    // alphabetical: a picker is read by looking for a name
+    const outsiders = active
+      .filter((l) => !l.auto && l.group_id !== currentGroup.id)
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, {
+          sensitivity: "base",
+          numeric: true,
+        }),
+      );
     return (
       <div className="flex h-full flex-col">
         <header className="flex items-center gap-2 border-b border-line px-2 py-3">
           <button
-            onClick={() => setGroupId(null)}
+            onClick={() => {
+              setGroupId(null);
+              setGroupSettings(false);
+            }}
             className="px-2 py-1 text-content-muted"
           >
             ‹ Lists
@@ -114,19 +139,151 @@ export default function MobileLists() {
             )}
             {currentGroup.name}
           </span>
+          <button
+            onClick={() => setGroupSettings((v) => !v)}
+            aria-label="Group settings"
+            className="px-3 text-content-muted"
+          >
+            ⋯
+          </button>
         </header>
+
+        {groupSettings && (
+          // inline for the same reason a list's settings are: a dialog
+          // would cover the group it describes
+          <div className="flex flex-col gap-3 border-b border-line bg-surface-alt px-4 py-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs uppercase tracking-wide text-content-muted">
+                Name
+              </span>
+              <input
+                defaultValue={currentGroup.name}
+                onBlur={(e) => {
+                  const trimmed = e.target.value.trim();
+                  if (trimmed && trimmed !== currentGroup.name) {
+                    void updateGroupMeta(currentGroup.id, {
+                      name: trimmed,
+                      color: currentGroup.color,
+                    });
+                  }
+                }}
+                className="rounded-lg border border-line bg-surface px-3 py-2"
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() =>
+                  void updateGroupMeta(currentGroup.id, {
+                    name: currentGroup.name,
+                    color: null,
+                  })
+                }
+                className={`h-8 w-8 rounded-full border ${
+                  currentGroup.color ? "border-line" : "border-2 border-accent"
+                }`}
+                aria-label="No colour"
+              />
+              {COLORS.map((color) => (
+                <button
+                  key={color}
+                  onClick={() =>
+                    void updateGroupMeta(currentGroup.id, {
+                      name: currentGroup.name,
+                      color,
+                    })
+                  }
+                  style={{ background: color }}
+                  className={`h-8 w-8 rounded-full ${
+                    currentGroup.color === color
+                      ? "ring-2 ring-accent ring-offset-2"
+                      : ""
+                  }`}
+                  aria-label={`Colour ${color}`}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                void deleteGroup(currentGroup.id);
+                setGroupId(null);
+                setGroupSettings(false);
+              }}
+              className="rounded-lg border border-danger/50 px-4 py-2 text-danger"
+            >
+              Delete group (its lists stay)
+            </button>
+          </div>
+        )}
+
         <ul className="min-h-0 flex-1 overflow-auto">
           {members.length === 0 && (
             <li className="px-4 py-8 text-center text-sm text-content-muted">
-              No lists in this group yet - assign one via its list
-              settings.
+              No lists in this group yet - add one below.
             </li>
           )}
           {members.map(listRow)}
         </ul>
+
+        {/* filling a group from inside it: a new list lands here
+            directly, and an existing one can be moved in without going
+            back out to its own settings */}
+        <div className="flex flex-col gap-2 border-t border-line p-3">
+          <div className="flex gap-2">
+            <input
+              value={newList}
+              onChange={(e) => setNewList(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                const trimmed = newList.trim();
+                if (!trimmed) return;
+                void createList(trimmed, currentGroup.id);
+                setNewList("");
+              }}
+              placeholder={`New list in ${currentGroup.name}`}
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
+            />
+            <button
+              onClick={() => {
+                const trimmed = newList.trim();
+                if (!trimmed) return;
+                void createList(trimmed, currentGroup.id);
+                setNewList("");
+              }}
+              className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+            >
+              Add
+            </button>
+          </div>
+          {outsiders.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                void setListGroup(Number(e.target.value), currentGroup.id);
+              }}
+              className="rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm"
+            >
+              <option value="">Move an existing list in…</option>
+              {outsiders.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.name}
+                  {list.group_id !== null ? " (in another group)" : ""}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
     );
   }
+
+  const addFromIndex = () => {
+    const trimmed = newList.trim();
+    if (!trimmed) return;
+    if (newKind === "list") void createList(trimmed);
+    else void createGroup(trimmed);
+    setNewList("");
+  };
 
   if (!current) {
     // same visibility rule as the desktop panel: an auto list ({Category},
@@ -177,31 +334,39 @@ export default function MobileLists() {
           })}
           {ungrouped.map(listRow)}
         </ul>
-        <div className="flex gap-2 border-t border-line p-3">
-          <input
-            value={newList}
-            onChange={(e) => setNewList(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter") return;
-              const trimmed = newList.trim();
-              if (!trimmed) return;
-              void createList(trimmed);
-              setNewList("");
-            }}
-            placeholder="New list"
-            className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
-          />
-          <button
-            onClick={() => {
-              const trimmed = newList.trim();
-              if (!trimmed) return;
-              void createList(trimmed);
-              setNewList("");
-            }}
-            className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
-          >
-            Add
-          </button>
+        <div className="flex flex-col gap-2 border-t border-line p-3">
+          {/* the same field makes both: a phone with no way to create a
+              group could only ever see the ones a desktop had made */}
+          <div className="flex gap-2 text-xs">
+            {(["list", "group"] as const).map((kind) => (
+              <button
+                key={kind}
+                onClick={() => setNewKind(kind)}
+                className={`rounded-full px-3 py-1 ${
+                  newKind === kind
+                    ? "bg-accent/15 text-accent"
+                    : "border border-line text-content-muted"
+                }`}
+              >
+                {kind === "list" ? "List" : "Group"}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={newList}
+              onChange={(e) => setNewList(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addFromIndex()}
+              placeholder={newKind === "list" ? "New list" : "New group"}
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
+            />
+            <button
+              onClick={addFromIndex}
+              className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+            >
+              Add
+            </button>
+          </div>
         </div>
       </div>
     );

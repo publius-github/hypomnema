@@ -13,6 +13,12 @@ import { useAppStore } from "../store";
  * (Dashboard, Lists, Days): dropping on a day column reschedules, on a
  * list column moves into the backlog, on a backlog card reorders or
  * moves into that card's list.
+ *
+ * The same context also carries the list columns themselves: a column's
+ * header grip drags `listmove:<id>`, and dropping that on a group tile
+ * (`group:<id>`) or on the open group's back bar (`group:none`) changes
+ * the list's membership. Two kinds of drag, told apart by the id prefix,
+ * because they share every drop target's screen space anyway.
  */
 export function useTaskDnd() {
   const tasks = useAppStore((s) => s.tasks);
@@ -24,7 +30,9 @@ export function useTaskDnd() {
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
 
   const onDragStart = (event: DragStartEvent) => {
-    setActiveTaskId(Number(String(event.active.id).replace("task:", "")));
+    const id = String(event.active.id);
+    // a list drag has no card to show in the overlay
+    setActiveTaskId(id.startsWith("task:") ? Number(id.slice(5)) : null);
   };
 
   const onDragCancel = () => setActiveTaskId(null);
@@ -33,8 +41,18 @@ export function useTaskDnd() {
     setActiveTaskId(null);
     const { active, over } = event;
     if (!over) return;
-    const taskId = Number(String(active.id).replace("task:", ""));
+    const source = String(active.id);
     const target = String(over.id);
+    if (source.startsWith("listmove:")) {
+      const listId = Number(source.slice(9));
+      if (target === "group:none") {
+        void useAppStore.getState().setListGroup(listId, null);
+      } else if (target.startsWith("group:")) {
+        void useAppStore.getState().setListGroup(listId, Number(target.slice(6)));
+      }
+      return;
+    }
+    const taskId = Number(source.replace("task:", ""));
     const task = tasks.find((t) => t.id === taskId);
     if (target.startsWith("day:")) {
       const date = target.slice(4);

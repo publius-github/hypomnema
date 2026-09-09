@@ -1,7 +1,7 @@
 import { Field, NumberInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
-import type { DoneDisplay } from "../../types";
+import type { AppConfig, DoneDisplay } from "../../types";
 import { useAppStore } from "../../store";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -155,6 +155,49 @@ export default function LayoutTab() {
           hint="Every list column stretches to its grid row's height, so the rows line up instead of forming a ragged mosaic. Off = each column takes its natural height."
           onChange={(v) => void updateConfig({ lists_page_align_rows: v })}
         />
+      </SettingsGroup>
+
+      <SettingsGroup title="List groups" keys={["lists_group_display"]}>
+        <Field label="Grouped lists in the list panels">
+          <select
+            className="input"
+            value={config.lists_group_display}
+            onChange={(e) =>
+              void updateConfig({
+                lists_group_display: e.target
+                  .value as AppConfig["lists_group_display"],
+              })
+            }
+          >
+            <option value="folded">Folded: one tile per group</option>
+            <option value="flat">Flat: every list its own column</option>
+          </select>
+        </Field>
+        <span className="text-xs text-content-muted">
+          Folded gives a group one panel slot listing its lists, opened by
+          a click. Flat gives every list its own column whatever group it
+          is in, with the group's name as a chip on the column header - the
+          same lists, spread out instead of filed away. Applies to the
+          dashboard list zone and the Lists page alike.
+        </span>
+      </SettingsGroup>
+
+      <SettingsGroup title="Settings page" keys={["settings_width"]}>
+        <Field label="Settings content width, px (0 = the whole window)">
+          <NumberInput
+            value={config.settings_width}
+            min={0}
+            onCommit={(n) =>
+              void updateConfig({
+                settings_width: n === 0 ? 0 : Math.min(4000, Math.max(480, n)),
+              })
+            }
+          />
+        </Field>
+        <span className="text-xs text-content-muted">
+          This page's own column. Too narrow and the tab strip above wraps
+          onto a second line; widen it until every tab fits.
+        </span>
       </SettingsGroup>
 
       <SettingsGroup
@@ -341,17 +384,41 @@ export default function LayoutTab() {
         </Field>
       </SettingsGroup>
 
-      <SettingsGroup title="Section order" keys={["section_order"]}>
+      <SettingsGroup
+        title="Section order"
+        keys={["section_order", "section_hidden"]}
+      >
         <span className="text-xs text-content-muted">
-          Order of the sections in the left bar.
+          Order of the sections in the left bar, and which of them it
+          shows at all - an app half of whose features you never open
+          should not spend a rail on them. Settings always stays.
         </span>
         <div className="flex flex-col gap-1">
-          {config.section_order.map((id, i) => (
+          {config.section_order.map((id, i) => {
+            const hidden = config.section_hidden.includes(id);
+            return (
             <div
               key={id}
               className="flex items-center gap-2 rounded-md border border-line px-3 py-1.5 text-sm"
             >
-              <span className="min-w-0 flex-1">{SECTION_LABELS[id] ?? id}</span>
+              <span
+                className={`min-w-0 flex-1 ${hidden ? "text-content-muted line-through" : ""}`}
+              >
+                {SECTION_LABELS[id] ?? id}
+              </span>
+              <button
+                className="btn-ghost px-2 py-0.5 text-xs"
+                title={hidden ? "Show in the left bar" : "Hide from the left bar"}
+                onClick={() =>
+                  void updateConfig({
+                    section_hidden: hidden
+                      ? config.section_hidden.filter((s) => s !== id)
+                      : [...config.section_hidden, id],
+                  })
+                }
+              >
+                {hidden ? "Hidden" : "Shown"}
+              </button>
               <button
                 className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
                 disabled={i === 0}
@@ -369,7 +436,8 @@ export default function LayoutTab() {
                 ↓
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </SettingsGroup>
     </>

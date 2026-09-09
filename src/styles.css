@@ -79,6 +79,21 @@ body,
   height: 100%;
 }
 
+/*
+ * The document itself never scrolls - every view owns an inner scroll
+ * container instead. Without this the Android WebView scrolls the *page*
+ * to bring a focused input above the soft keyboard, which slides the
+ * whole layout up under the status bar and leaves the bottom edge behind
+ * the navigation buttons: the safe-area padding is still there, just no
+ * longer where the screen is. overscroll-behavior stops the rubber-band
+ * from doing the same thing on a flick.
+ */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   @apply bg-surface text-content antialiased;
   font-family:

@@ -11,13 +11,37 @@ import {
   groupByCadence,
   nextStatus,
   nextWeekTarget,
+  orderPanel,
   priorityPatch,
   sortSubtasks,
   splitCategory,
   splitDone,
   weekdayShort,
 } from "./tasks";
-import type { AppConfig, ScheduleBlock, Task, TaskStatus } from "../types";
+import type {
+  AppConfig,
+  List,
+  ListGroup,
+  ScheduleBlock,
+  Task,
+  TaskStatus,
+} from "../types";
+
+function list(overrides: Partial<List>): List {
+  return {
+    id: 1,
+    name: "l",
+    sort_order: 0,
+    color: null,
+    archived: false,
+    auto: false,
+    favorite: false,
+    description: "",
+    kind: "todo",
+    group_id: null,
+    ...overrides,
+  };
+}
 
 function task(overrides: Partial<Task>): Task {
   return {
@@ -370,5 +394,32 @@ describe("nextWeekTarget", () => {
 
   it("crosses a year boundary", () => {
     expect(nextWeekTarget("2026-12-28", "2026-12-30")).toBe("2027-01-04");
+  });
+});
+
+describe("orderPanel", () => {
+  const groups: ListGroup[] = [
+    { id: 7, name: "Work", sort_order: 1, color: null },
+  ];
+  const lists = [
+    list({ id: 1, name: "Inbox", sort_order: 0 }),
+    list({ id: 2, name: "Specs", sort_order: 2, group_id: 7 }),
+    list({ id: 3, name: "Bugs", sort_order: 3, group_id: 7 }),
+  ];
+
+  it("folds a group's lists behind its tile", () => {
+    const panel = orderPanel(lists, groups, [], false);
+    expect(panel.map((i) => (i.type === "list" ? i.list.name : i.group.name))).toEqual([
+      "Inbox",
+      "Work",
+    ]);
+  });
+
+  it("gives every list its own slot and no group slot when flat", () => {
+    const panel = orderPanel(lists, groups, [], false, true);
+    expect(panel.every((i) => i.type === "list")).toBe(true);
+    expect(
+      panel.map((i) => (i.type === "list" ? i.list.name : i.group.name)),
+    ).toEqual(["Inbox", "Specs", "Bugs"]);
   });
 });

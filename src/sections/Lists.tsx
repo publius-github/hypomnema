@@ -8,6 +8,7 @@ import GroupColumn from "../components/GroupColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import NewListForm from "../components/NewListForm";
+import GroupBackBar from "../components/GroupBackBar";
 import QuickAddModal from "../components/QuickAddModal";
 
 /**
@@ -82,7 +83,17 @@ export default function Lists() {
         tasks,
         config.lists_sort_alpha,
       ).map((list) => ({ type: "list" as const, list }))
-    : orderPanel(lists, groups, tasks, config.lists_sort_alpha);
+    : orderPanel(
+        lists,
+        groups,
+        tasks,
+        config.lists_sort_alpha,
+        config.lists_group_display === "flat",
+      );
+  const groupOf = (listId: number) => {
+    const gid = lists.find((l) => l.id === listId)?.group_id ?? null;
+    return gid === null ? null : (groups.find((g) => g.id === gid) ?? null);
+  };
   const itemKey = (item: (typeof visible)[number]) =>
     item.type === "list" ? `l${item.list.id}` : `g${item.group.id}`;
   const itemName = (item: (typeof visible)[number]) =>
@@ -100,20 +111,11 @@ export default function Lists() {
       <div className="flex min-h-full flex-col gap-3 p-4">
         <div className="flex items-center gap-2">
           {openGroup ? (
-            <button
-              className="flex items-center gap-1.5 text-sm font-semibold hover:text-accent"
-              title="Back to all lists"
-              onClick={() => setOpenGroupId(null)}
-            >
-              <span>‹</span>
-              {openGroup.color && (
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: openGroup.color }}
-                />
-              )}
-              <span className="truncate">{openGroup.name}</span>
-            </button>
+            <GroupBackBar
+              group={openGroup}
+              onBack={() => setOpenGroupId(null)}
+              className="flex items-center gap-2 rounded px-1 text-sm font-semibold"
+            />
           ) : (
             <span className="text-sm font-semibold">Lists</span>
           )}
@@ -157,7 +159,9 @@ export default function Lists() {
                 {item.type === "list" ? (
                   <ListColumn
                     list={item.list}
+                    group={openGroup ? null : groupOf(item.list.id)}
                     onOpenTask={setEditingTaskId}
+                    onOpenGroup={setOpenGroupId}
                     fill={config.lists_page_align_rows}
                     highlight={highlightId === itemKey(item)}
                   />

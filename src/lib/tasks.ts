@@ -424,13 +424,26 @@ export type PanelItem =
  * The list panel's content: ungrouped lists (ordered like orderLists)
  * with the groups slotted in among the non-favorites - a grouped list
  * shows up only inside its group's drill-in, never as its own column.
+ *
+ * `flat` is the other half of `lists_group_display`: every list gets its
+ * own column, grouped or not, and the groups themselves take no slot -
+ * the membership shows as a chip on the column instead. Someone with two
+ * lists per group wants to see all of them at once; someone with twenty
+ * wants the folder. Same data, and only the panel changes.
  */
 export function orderPanel(
   lists: List[],
   groups: ListGroup[],
   tasks: Task[],
   alpha: boolean,
+  flat = false,
 ): PanelItem[] {
+  if (flat) {
+    return orderLists(lists, tasks, alpha).map((list) => ({
+      type: "list" as const,
+      list,
+    }));
+  }
   const items: PanelItem[] = [
     ...orderLists(
       lists.filter((l) => l.group_id === null),

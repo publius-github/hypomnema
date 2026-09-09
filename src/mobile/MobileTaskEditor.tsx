@@ -84,8 +84,12 @@ export default function MobileTaskEditor({
   useBackStep(true, close);
 
   return (
-    <div className="safe-area fixed inset-0 z-20 flex flex-col overflow-auto bg-surface">
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-line bg-surface px-2 py-3">
+    // The scrolling happens *inside* the safe area, not on it: a scroll
+    // container carrying the top inset as padding scrolls that padding
+    // away, and a sticky header sticks to the padding box - which is
+    // under the status bar. The wrapper stays put and only the body moves.
+    <div className="safe-area fixed inset-0 z-20 flex flex-col bg-surface">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-2 py-3">
         <button onClick={close} className="px-2 py-1 text-content-muted">
           ‹ Back
         </button>
@@ -94,7 +98,7 @@ export default function MobileTaskEditor({
         </span>
       </header>
 
-      <div className="flex flex-col gap-5 px-4 py-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto px-4 py-4">
         <label className="flex flex-col gap-1">
           <span className="text-xs uppercase tracking-wide text-content-muted">
             Title

@@ -21,6 +21,12 @@ cron_ignore_time: boolean, kb_path: string,
  */
 section_order: Array<string>, 
 /**
+ * Sections hidden from the left tab bar: someone who uses half the
+ * app should not carry the other half's icons. Settings can never
+ * be hidden - it is the way back.
+ */
+section_hidden: Array<string>, 
+/**
  * Dashboard shows a single Today column instead of the week grid.
  */
 dashboard_today_only: boolean, 
@@ -265,6 +271,18 @@ lists_page_columns: number,
  * the rows line up; off = each column takes its natural height.
  */
 lists_page_align_rows: boolean, 
+/**
+ * How grouped lists show in the list panels: `folded` = one tile per
+ * group with its lists behind a drill-in, `flat` = every list as its
+ * own column wearing its group's name as a chip.
+ */
+lists_group_display: "folded" | "flat", 
+/**
+ * Maximum content width of the Settings page, px (0 = the whole
+ * window). The tab strip wraps inside it, which is what makes a
+ * narrow column push half the tabs onto a second line.
+ */
+settings_width: number, 
 /**
  * Day columns on the dedicated Days page (its own width, not tied
  * to the dashboard grid). 0 is a legacy "follow the dashboard"

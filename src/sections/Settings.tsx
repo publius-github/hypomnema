@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAppStore } from "../store";
 import ProfilesTab from "./settings/ProfilesTab";
 import AppearanceTab from "./settings/AppearanceTab";
 import LayoutTab from "./settings/LayoutTab";
@@ -29,9 +30,17 @@ type Tab = (typeof TABS)[number]["id"];
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("appearance");
+  // The page used to sit in a fixed narrow column, which pushed half the
+  // tab strip onto a second line on anything but a huge font. The width
+  // is a setting now (0 = the whole window), like every other layout
+  // proportion.
+  const width = useAppStore((s) => s.config?.settings_width ?? 1120);
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
+    <div
+      className="mx-auto flex h-full w-full flex-col gap-4 p-6"
+      style={{ maxWidth: width > 0 ? width : undefined }}
+    >
       <div className="flex flex-wrap gap-1 border-b border-line">
         {TABS.map((t) => (
           <button
