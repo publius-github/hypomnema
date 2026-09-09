@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
 import { orderLists, orderPanel } from "../lib/tasks";
@@ -39,6 +39,41 @@ export default function Lists() {
   );
   const dnd = useTaskDnd();
 
+  const jumpTo = useCallback((id: string) => {
+    document
+      .getElementById(`lists-page-${id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setHighlightId(id);
+    if (highlightTimer.current !== null)
+      window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = window.setTimeout(
+      () => setHighlightId(null),
+      2000,
+    );
+  }, []);
+
+  // entering a group via one of its member rows highlights that list -
+  // same cue as the All-lists index; the jump has to wait until the
+  // group's columns are actually on the page
+  const [pendingJump, setPendingJump] = useState<string | null>(null);
+  useEffect(() => {
+    if (pendingJump === null) return;
+    jumpTo(pendingJump);
+    setPendingJump(null);
+  }, [pendingJump, jumpTo]);
+
+  // the mouse's back button leaves the group view, like a browser page
+  useEffect(() => {
+    if (openGroupId === null) return;
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button !== 3) return;
+      e.preventDefault();
+      setOpenGroupId(null);
+    };
+    window.addEventListener("mouseup", onMouseUp);
+    return () => window.removeEventListener("mouseup", onMouseUp);
+  }, [openGroupId]);
+
   if (!config) return null;
   const openGroup = groups.find((g) => g.id === openGroupId) ?? null;
   const visible = openGroup
@@ -54,19 +89,6 @@ export default function Lists() {
     item.type === "list" ? item.list.name : item.group.name;
   const columns = Math.max(1, config.lists_page_columns);
   const editingTask = tasks.find((t) => t.id === editingTaskId) ?? null;
-
-  const jumpTo = (id: string) => {
-    document
-      .getElementById(`lists-page-${id}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setHighlightId(id);
-    if (highlightTimer.current !== null)
-      window.clearTimeout(highlightTimer.current);
-    highlightTimer.current = window.setTimeout(
-      () => setHighlightId(null),
-      2000,
-    );
-  };
 
   return (
     <DndContext
@@ -142,7 +164,10 @@ export default function Lists() {
                 ) : (
                   <GroupColumn
                     group={item.group}
-                    onOpen={() => setOpenGroupId(item.group.id)}
+                    onOpen={(listId) => {
+                      setOpenGroupId(item.group.id);
+                      if (listId !== undefined) setPendingJump(`l${listId}`);
+                    }}
                     fill={config.lists_page_align_rows}
                     highlight={highlightId === itemKey(item)}
                   />
@@ -155,11 +180,12 @@ export default function Lists() {
               stay on screen while the grid scrolls. A click on the index
               scrolls the column into view and flashes it. */}
           <div className="sticky top-4 flex w-40 shrink-0 flex-col gap-3">
-            <NewListForm />
-            {visible.length > columns && (
+            <NewListForm groupId={openGroup?.id} />
+            {(openGroup !== null || visible.length > columns) &&
+              visible.length > 0 && (
               <div className="flex flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
                 <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
-                  All lists
+                  {openGroup ? "Group lists" : "All lists"}
                 </div>
                 {visible.map((item) => (
                   <button

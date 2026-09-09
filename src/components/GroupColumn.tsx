@@ -19,8 +19,11 @@ function GroupColumn({
   highlight = false,
 }: {
   group: ListGroup;
-  /** open the panel's group view for this group */
-  onOpen: () => void;
+  /**
+   * open the panel's group view for this group; a click on a member row
+   * passes that list's id so the view can highlight the clicked list
+   */
+  onOpen: (listId?: number) => void;
   /** stretch to the parent's height (Lists page row alignment) */
   fill?: boolean;
   /** flash ring after a jump from the All-lists index */
@@ -53,7 +56,7 @@ function GroupColumn({
         <button
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
           title={`Open group "${group.name}"`}
-          onClick={onOpen}
+          onClick={() => onOpen()}
         >
           {group.color && (
             <span
@@ -85,7 +88,7 @@ function GroupColumn({
             key={list.id}
             className="flex items-center gap-2 rounded-md border border-line bg-surface-alt px-2 py-1.5 text-left text-sm hover:border-accent"
             title={`Open group "${group.name}"`}
-            onClick={onOpen}
+            onClick={() => onOpen(list.id)}
           >
             {list.color && (
               <span

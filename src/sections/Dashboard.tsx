@@ -291,6 +291,18 @@ function ListZone({
   // an open group takes over the whole zone: its lists render as full
   // columns under a back bar, the other panel slots step aside
   const [openGroupId, setOpenGroupId] = useState<number | null>(null);
+  // the mouse's back button leaves the group view, like a browser page
+  useEffect(() => {
+    if (openGroupId === null) return;
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button !== 3) return;
+      e.preventDefault();
+      setOpenGroupId(null);
+      setOffset(0);
+    };
+    window.addEventListener("mouseup", onMouseUp);
+    return () => window.removeEventListener("mouseup", onMouseUp);
+  }, [openGroupId, setOffset]);
   const openGroup = groups.find((g) => g.id === openGroupId) ?? null;
   const visible = openGroup
     ? orderLists(
@@ -307,8 +319,7 @@ function ListZone({
   const off = Math.min(offset, maxOffset);
   const page = visible.slice(off, off + perPage);
 
-  const jumpTo = (index: number, id: string) => {
-    setOffset(Math.min(index, maxOffset));
+  const flash = (id: string) => {
     setHighlightId(id);
     if (highlightTimer.current !== null)
       window.clearTimeout(highlightTimer.current);
@@ -316,6 +327,32 @@ function ListZone({
       () => setHighlightId(null),
       2000,
     );
+  };
+
+  const jumpTo = (index: number, id: string) => {
+    setOffset(Math.min(index, maxOffset));
+    flash(id);
+  };
+
+  // entering a group via one of its member rows pages to that list and
+  // flashes it - the same cue the All-lists index gives; the group's
+  // ordering is known here, so no need to wait for the view to render
+  const openGroupAt = (groupId: number, listId?: number) => {
+    setOpenGroupId(groupId);
+    if (listId === undefined) {
+      setOffset(0);
+      return;
+    }
+    const members = orderLists(
+      lists.filter((l) => l.group_id === groupId),
+      tasks,
+      listsAlpha,
+    );
+    const index = members.findIndex((l) => l.id === listId);
+    setOffset(
+      index >= 0 ? Math.min(index, Math.max(0, members.length - perPage)) : 0,
+    );
+    flash(`l${listId}`);
   };
 
   const arrow = (delta: number, disabled: boolean, label: string) => (
@@ -370,10 +407,7 @@ function ListZone({
             <GroupColumn
               key={itemKey(item)}
               group={item.group}
-              onOpen={() => {
-                setOpenGroupId(item.group.id);
-                setOffset(0);
-              }}
+              onOpen={(listId) => openGroupAt(item.group.id, listId)}
               highlight={highlightId === itemKey(item)}
             />
           ),
@@ -383,11 +417,12 @@ function ListZone({
       {/* never collapsed and never scrolls on its own: the index shows
           at full length, reachable via the page scrollbar */}
       <div className="flex shrink-0 flex-col gap-3">
-        <NewListForm />
-        {visible.length > perPage && (
+        <NewListForm groupId={openGroup?.id} />
+        {(openGroup !== null || visible.length > perPage) &&
+          visible.length > 0 && (
           <div className="flex w-40 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
             <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
-              All lists
+              {openGroup ? "Group lists" : "All lists"}
             </div>
             {visible.map((item, i) => {
               const onPage = i >= off && i < off + perPage;

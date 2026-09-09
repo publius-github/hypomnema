@@ -113,7 +113,7 @@ interface AppState {
   /// different list moves the task there instead
   reorderTask: (activeId: number, overId: number) => Promise<void>;
   deleteTask: (id: number) => Promise<void>;
-  createList: (name: string) => Promise<void>;
+  createList: (name: string, groupId?: number | null) => Promise<void>;
   renameList: (id: number, name: string) => Promise<void>;
   archiveList: (id: number) => Promise<void>;
   /// favorite lists sort ahead of the rest in the dashboard list zone
@@ -462,9 +462,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  createList: async (name) => {
+  createList: async (name, groupId = null) => {
     try {
       const created = await invoke<List>("list_create", { name, color: null });
+      // a list born inside an open group view joins that group right away
+      if (groupId !== null) {
+        await invoke("list_set_group", { id: created.id, groupId });
+        created.group_id = groupId;
+      }
       // new lists get the highest sort_order, so appending keeps order
       set((s) => ({ lists: [...s.lists, created] }));
     } catch (e) {
