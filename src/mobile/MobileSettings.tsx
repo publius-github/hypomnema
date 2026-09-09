@@ -168,7 +168,9 @@ export default function MobileSettings() {
             )}
           </p>
         )}
-        {config && (
+        {/* automatic-sync switches mean nothing before a link exists;
+            showing them checked next to "Not linked" reads as a lie */}
+        {config && status?.connected && (
           <>
             <label className="flex items-center justify-between gap-3 pt-1">
               <span className="text-sm">Sync automatically</span>
@@ -451,6 +453,26 @@ export default function MobileSettings() {
       {config && (
         <section className="flex flex-col gap-3">
           <h2 className="font-semibold">Advanced</h2>
+          <label className="flex items-center justify-between gap-3">
+            <span className="min-w-0 text-sm">
+              Done tasks on the day screen
+              <span className="block text-xs text-content-muted">
+                In place keeps them inside their daily/weekly sections.
+              </span>
+            </span>
+            <select
+              value={config.done_display}
+              onChange={(e) =>
+                void updateConfig({
+                  done_display: e.target.value as AppConfig["done_display"],
+                })
+              }
+              className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+            >
+              <option value="inline">In place</option>
+              <option value="separate">Own Done section</option>
+            </select>
+          </label>
           <label className="flex items-center justify-between gap-3">
             <span className="text-sm">Snooze reminders for (min)</span>
             <input

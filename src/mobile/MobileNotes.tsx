@@ -148,12 +148,30 @@ export default function MobileNotes() {
 
       {/* A vault copied from a desktop brings its app.yml along, and the
           notes folder it names is a path on that machine. Saying so beats
-          showing the vault root as if it were what was asked for. */}
+          showing the vault root as if it were what was asked for - and
+          since settings never sync, clearing the path here is local: it
+          adopts the vault for good on this device and retires the banner
+          without touching the desktop's setting. */}
       {status?.unreachable && (
-        <p className="border-b border-warn/40 bg-warn/10 px-4 py-2 text-xs text-warn">
-          Notes are being read from the vault: the configured folder (
-          {status.configured}) does not exist on this device.
-        </p>
+        <div className="flex items-center gap-3 border-b border-warn/40 bg-warn/10 px-4 py-2 text-xs text-warn">
+          <span className="min-w-0 flex-1">
+            Notes are being read from the vault: the configured folder (
+            {status.configured}) does not exist on this device.
+          </span>
+          <button
+            className="shrink-0 rounded border border-warn/50 px-2 py-1 font-medium"
+            onClick={() => {
+              void useAppStore
+                .getState()
+                .updateConfig({ kb_path: "" })
+                .then(() =>
+                  invoke<KbStatus>("kb_status").then(setStatus),
+                );
+            }}
+          >
+            Use the vault
+          </button>
+        </div>
       )}
 
       {hits ? (

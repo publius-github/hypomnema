@@ -29,7 +29,16 @@ function onPop() {
   const top = stack[stack.length - 1];
   if (top) {
     top.handler();
-    arm();
+    // Re-arm from a fresh task, not inside this popstate: a pushState
+    // issued while the WebView is still committing the goBack traversal
+    // can be dropped natively - the sentinel then never comes back and
+    // the second press minimizes the app. By the time the timeout runs,
+    // React has flushed the handler's state change and the effect
+    // cleanups, so an emptied stack correctly skips the re-arm and the
+    // next press minimizes at the root.
+    window.setTimeout(() => {
+      if (stack.length > 0) arm();
+    }, 0);
   }
 }
 

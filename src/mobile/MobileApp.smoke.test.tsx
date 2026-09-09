@@ -73,8 +73,7 @@ describe("MobileApp smoke", () => {
 
     render(<MobileApp />);
 
-    fireEvent.click(await screen.findByText("+ Add task"));
-    fireEvent.change(screen.getByRole("textbox"), {
+    fireEvent.change(await screen.findByPlaceholderText(/New task for/), {
       target: { value: "call the dentist" },
     });
     fireEvent.click(screen.getByText("Add"));

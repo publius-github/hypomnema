@@ -36,7 +36,6 @@ function dayLabel(date: string, today: string): string {
  * about today whatever its date says.
  */
 export default function MobileDay() {
-  const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const today = useAppStore((s) => s.today);
   const tasks = useAppStore((s) => s.tasks);
@@ -103,7 +102,6 @@ export default function MobileDay() {
     if (!trimmed) return;
     void createTask({ title: trimmed, scheduled_date: date });
     setTitle("");
-    setAdding(false);
   };
 
   const section = (label: string, items: Task[], plate: string | null) =>
@@ -246,32 +244,22 @@ export default function MobileDay() {
         </div>
       )}
 
-      <div className="border-t border-line p-3">
-        {adding ? (
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-              placeholder={`New task for ${dayLabel(date, today).toLowerCase()}`}
-              className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
-            />
-            <button
-              onClick={submit}
-              className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
-            >
-              Add
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setAdding(true)}
-            className="w-full rounded-lg bg-accent px-4 py-3 font-medium text-white"
-          >
-            + Add task
-          </button>
-        )}
+      {/* the same quiet input row the Lists screen ends with - a
+          full-width accent button was the loudest thing on the screen */}
+      <div className="flex gap-2 border-t border-line p-3">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          placeholder={`New task for ${dayLabel(date, today).toLowerCase()}`}
+          className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+        <button
+          onClick={submit}
+          className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+        >
+          Add
+        </button>
       </div>
     </div>
   );
