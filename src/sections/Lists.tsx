@@ -244,9 +244,7 @@ export default function Lists() {
                   return (
                     <button
                       key={itemKey(row)}
-                      className={`shrink-0 truncate rounded px-1.5 py-0.5 text-left text-xs ${
-                        row.type === "list" && row.nested ? "pl-4 " : ""
-                      }${
+                      className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-left text-xs ${
                         highlightId === itemKey(row)
                           ? "bg-accent/15 text-accent"
                           : "text-content-muted hover:bg-line/40 hover:text-content"
@@ -262,8 +260,20 @@ export default function Lists() {
                           : jumpTo(itemKey(row))
                       }
                     >
-                      {row.type === "group" ? "▸ " : ""}
-                      {itemName(row)}
+                      {/* the ▸ rides its own fixed column and the nesting
+                          step is its own spacer, so every name lines up
+                          on one axis and a member hangs under its group
+                          instead of beside it */}
+                      {row.type === "list" && row.nested && (
+                        <span aria-hidden className="w-2 shrink-0" />
+                      )}
+                      <span
+                        aria-hidden
+                        className="w-2 shrink-0 text-[10px] leading-none"
+                      >
+                        {row.type === "group" ? "▸" : ""}
+                      </span>
+                      <span className="min-w-0 truncate">{itemName(row)}</span>
                     </button>
                   );
                 })}
