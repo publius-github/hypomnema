@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { LockSettings } from "./MobileLock";
 import MobileVaultFolder from "./MobileVaultFolder";
+import { useBackStep } from "./back";
 
 /** Matches THEME_PRESETS in src-tauri/src/config.rs. */
 const THEME_PRESETS = [
@@ -48,6 +49,8 @@ export default function MobileSettings() {
   const [folder, setFolder] = useState(false);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);
+  // hardware back closes the vault-folder chooser before leaving Settings
+  useBackStep(folder, () => setFolder(false));
 
   const loadConflicts = useCallback(() => {
     void invoke<ConflictEntry[]>("sync_conflicts_list")

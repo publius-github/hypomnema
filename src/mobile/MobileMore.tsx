@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useBackStep } from "./back";
 import MobileUpcoming from "./MobileUpcoming";
 import MobileReminders from "./MobileReminders";
 import MobileCalendar from "./MobileCalendar";
@@ -34,6 +35,7 @@ const SCREENS: { id: Screen; label: string; hint: string }[] = [
  */
 export default function MobileMore() {
   const [screen, setScreen] = useState<Screen | null>(null);
+  useBackStep(screen !== null, () => setScreen(null));
 
   if (screen) {
     const entry = SCREENS.find((s) => s.id === screen);

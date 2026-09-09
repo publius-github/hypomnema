@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { CONFIG_FILES, basenameOf, parentDirOf } from "../sections/kb/util";
+import { useBackStep } from "./back";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
 
 const SAVE_DEBOUNCE_MS = 1200;
@@ -42,6 +43,16 @@ export default function MobileNotes() {
       .catch((e) => setError(String(e)));
   }, [setError]);
   useEffect(loadTree, [loadTree]);
+
+  // hardware back retraces the browsing steps: the open note closes
+  // first, then search results clear, then the trail walks up one
+  // folder per press until the root, where MobileApp's tab step is next
+  useBackStep(trail.length > 0, () => setTrail((t) => t.slice(0, -1)));
+  useBackStep(hits !== null, () => setHits(null));
+  useBackStep(note !== null, () => {
+    setNote(null);
+    loadTree();
+  });
 
   const openPath = useCallback(
     (path: string) => {

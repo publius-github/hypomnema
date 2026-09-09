@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { orderPanel } from "../lib/tasks";
+import { orderLists, orderPanel } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
 import ListColumn from "../components/ListColumn";
 import GroupColumn from "../components/GroupColumn";
@@ -22,6 +22,9 @@ export default function Lists() {
   const tasks = useAppStore((s) => s.tasks);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  // an open group takes over the grid: its lists render as full columns
+  // under a back bar, the other panel slots step aside
+  const [openGroupId, setOpenGroupId] = useState<number | null>(null);
   // the column just jumped to via the All-lists index wears a short
   // accent ring, so the eye finds it among many lists; keys are
   // "l<id>"/"g<id>" - list and group ids live in separate sequences
@@ -37,7 +40,14 @@ export default function Lists() {
   const dnd = useTaskDnd();
 
   if (!config) return null;
-  const visible = orderPanel(lists, groups, tasks, config.lists_sort_alpha);
+  const openGroup = groups.find((g) => g.id === openGroupId) ?? null;
+  const visible = openGroup
+    ? orderLists(
+        lists.filter((l) => l.group_id === openGroup.id),
+        tasks,
+        config.lists_sort_alpha,
+      ).map((list) => ({ type: "list" as const, list }))
+    : orderPanel(lists, groups, tasks, config.lists_sort_alpha);
   const itemKey = (item: (typeof visible)[number]) =>
     item.type === "list" ? `l${item.list.id}` : `g${item.group.id}`;
   const itemName = (item: (typeof visible)[number]) =>
@@ -67,7 +77,24 @@ export default function Lists() {
     >
       <div className="flex min-h-full flex-col gap-3 p-4">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">Lists</span>
+          {openGroup ? (
+            <button
+              className="flex items-center gap-1.5 text-sm font-semibold hover:text-accent"
+              title="Back to all lists"
+              onClick={() => setOpenGroupId(null)}
+            >
+              <span>‹</span>
+              {openGroup.color && (
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: openGroup.color }}
+                />
+              )}
+              <span className="truncate">{openGroup.name}</span>
+            </button>
+          ) : (
+            <span className="text-sm font-semibold">Lists</span>
+          )}
           <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
             <span>Columns</span>
             <select
@@ -115,7 +142,7 @@ export default function Lists() {
                 ) : (
                   <GroupColumn
                     group={item.group}
-                    onOpenTask={setEditingTaskId}
+                    onOpen={() => setOpenGroupId(item.group.id)}
                     fill={config.lists_page_align_rows}
                     highlight={highlightId === itemKey(item)}
                   />

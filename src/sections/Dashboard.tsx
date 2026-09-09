@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { addDaysISO, gridDates, orderPanel } from "../lib/tasks";
+import { addDaysISO, gridDates, orderLists, orderPanel } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
 import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
@@ -288,7 +288,17 @@ function ListZone({
     },
     [],
   );
-  const visible = orderPanel(lists, groups, tasks, listsAlpha);
+  // an open group takes over the whole zone: its lists render as full
+  // columns under a back bar, the other panel slots step aside
+  const [openGroupId, setOpenGroupId] = useState<number | null>(null);
+  const openGroup = groups.find((g) => g.id === openGroupId) ?? null;
+  const visible = openGroup
+    ? orderLists(
+        lists.filter((l) => l.group_id === openGroup.id),
+        tasks,
+        listsAlpha,
+      ).map((list) => ({ type: "list" as const, list }))
+    : orderPanel(lists, groups, tasks, listsAlpha);
   const itemKey = (item: (typeof visible)[number]) =>
     item.type === "list" ? `l${item.list.id}` : `g${item.group.id}`;
   const itemName = (item: (typeof visible)[number]) =>
@@ -320,7 +330,27 @@ function ListZone({
   );
 
   return (
-    <div className="flex items-stretch gap-2 pt-1">
+    <div className="flex flex-col gap-1 pt-1">
+      {openGroup && (
+        <button
+          className="flex items-center gap-1.5 self-start rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-content-muted hover:text-accent"
+          title="Back to all lists"
+          onClick={() => {
+            setOpenGroupId(null);
+            setOffset(0);
+          }}
+        >
+          <span>‹</span>
+          {openGroup.color && (
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: openGroup.color }}
+            />
+          )}
+          <span className="truncate">{openGroup.name}</span>
+        </button>
+      )}
+      <div className="flex items-stretch gap-2">
       {visible.length > perPage && arrow(-1, off === 0, "Previous lists")}
       <div
         className="grid min-w-0 flex-1 gap-3 content-start"
@@ -340,7 +370,10 @@ function ListZone({
             <GroupColumn
               key={itemKey(item)}
               group={item.group}
-              onOpenTask={onOpenTask}
+              onOpen={() => {
+                setOpenGroupId(item.group.id);
+                setOffset(0);
+              }}
               highlight={highlightId === itemKey(item)}
             />
           ),
@@ -376,6 +409,7 @@ function ListZone({
             })}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useAppStore } from "../store";
 import { daysBetweenISO } from "../lib/tasks";
 import { useEditTask } from "./editing";
 import { useMobileNav } from "./nav";
+import { useBackStep } from "./back";
 import type { JournalSearchHit, KbSearchHit, Task } from "../types";
 
 const STATUS_GLYPH: Record<string, string> = {
@@ -37,6 +38,8 @@ export default function MobileSearch({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+  // the hardware back button closes the overlay, same as the ‹ button
+  useBackStep(true, onClose);
 
   // responses can interleave even with the debounce: only the newest
   // request may set the result lists

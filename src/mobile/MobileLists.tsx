@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useAppStore } from "../store";
-import { compareTasks } from "../lib/tasks";
+import { compareTasks, orderLists } from "../lib/tasks";
 import TaskRow from "./TaskRow";
+import { useBackStep } from "./back";
 import type { List } from "../types";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
@@ -31,9 +32,19 @@ export default function MobileLists() {
   const [newList, setNewList] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const alpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   const active = useMemo(() => lists.filter((list) => !list.archived), [lists]);
   const current = active.find((list) => list.id === openId) ?? null;
   const currentGroup = groups.find((g) => g.id === groupId) ?? null;
+
+  // hardware back retraces the screens: settings fold first, then the
+  // open list, then the open group, then MobileApp's tab step takes over
+  useBackStep(groupId !== null, () => setGroupId(null));
+  useBackStep(openId !== null, () => {
+    setOpenId(null);
+    setSettingsOpen(false);
+  });
+  useBackStep(settingsOpen, () => setSettingsOpen(false));
   const listTasks = useMemo(
     () =>
       current
@@ -78,7 +89,11 @@ export default function MobileLists() {
   // a tapped group gets a screen of its own: its member lists stay off
   // the index, same as the desktop panel
   if (!current && currentGroup) {
-    const members = active.filter((l) => l.group_id === currentGroup.id);
+    const members = orderLists(
+      active.filter((l) => l.group_id === currentGroup.id),
+      tasks,
+      alpha,
+    );
     return (
       <div className="flex h-full flex-col">
         <header className="flex items-center gap-2 border-b border-line px-2 py-3">
@@ -113,7 +128,15 @@ export default function MobileLists() {
   }
 
   if (!current) {
-    const ungrouped = active.filter((l) => l.group_id === null);
+    // same visibility rule as the desktop panel: an auto list ({Category},
+    // Birthdays) earns a row only while something unscheduled or priority
+    // lives in it - and the ordering (favorites first, then sort order or
+    // the alphabet) matches the desktop too
+    const ungrouped = orderLists(
+      active.filter((l) => l.group_id === null),
+      tasks,
+      alpha,
+    );
     return (
       <div className="flex h-full flex-col">
         <ul className="min-h-0 flex-1 overflow-auto">

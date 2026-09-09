@@ -2,31 +2,30 @@ import { memo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { orderLists } from "../lib/tasks";
-import ListColumn from "./ListColumn";
 import GroupModal from "./GroupModal";
 import type { ListGroup } from "../types";
 
 /**
- * A group's slot in the list panel. Closed, it is an index of the
- * group's lists (name, color, open count) - the lists themselves stay
- * off the panel. Clicking a row drills into that list: the same
- * ListColumn the panel renders elsewhere, under a back bar leading to
- * the index. The drill-in is per-column UI state, not persisted.
+ * A group's tile in the list panel: an index of the group's lists
+ * (name, color, open count) - the lists themselves stay off the panel.
+ * Clicking the tile (or any row in it) opens the group view: the whole
+ * panel switches to the group's lists as full columns under a back bar
+ * (the panel owns that state; the tile only reports the click).
  */
 function GroupColumn({
   group,
-  onOpenTask,
+  onOpen,
   fill = false,
   highlight = false,
 }: {
   group: ListGroup;
-  onOpenTask: (id: number) => void;
+  /** open the panel's group view for this group */
+  onOpen: () => void;
   /** stretch to the parent's height (Lists page row alignment) */
   fill?: boolean;
   /** flash ring after a jump from the All-lists index */
   highlight?: boolean;
 }) {
-  const [openListId, setOpenListId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const alpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   const members = useAppStore(
@@ -34,7 +33,6 @@ function GroupColumn({
   );
   const tasks = useAppStore((s) => s.tasks);
   const ordered = orderLists(members, tasks, alpha);
-  const open = ordered.find((l) => l.id === openListId) ?? null;
 
   const openCount = (listId: number) =>
     tasks.filter(
@@ -45,28 +43,6 @@ function GroupColumn({
         (t.scheduled_date === null || t.priority || t.origin === "manual"),
     ).length;
 
-  if (open) {
-    return (
-      <div className="flex min-w-0 flex-col gap-1">
-        <button
-          className="flex items-center gap-1.5 self-start rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-content-muted hover:text-accent"
-          title={`Back to group "${group.name}"`}
-          onClick={() => setOpenListId(null)}
-        >
-          <span>‹</span>
-          {group.color && (
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: group.color }}
-            />
-          )}
-          <span className="truncate">{group.name}</span>
-        </button>
-        <ListColumn list={open} onOpenTask={onOpenTask} fill={fill} />
-      </div>
-    );
-  }
-
   return (
     <div
       className={`flex min-w-0 flex-col rounded-lg border border-line bg-surface-alt/50 ${
@@ -74,7 +50,11 @@ function GroupColumn({
       } ${highlight ? "ring-2 ring-accent" : ""}`}
     >
       <div className="group flex items-center gap-2 px-2.5 py-2">
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-content">
+        <button
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
+          title={`Open group "${group.name}"`}
+          onClick={onOpen}
+        >
           {group.color && (
             <span
               className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -85,7 +65,7 @@ function GroupColumn({
           <span className="shrink-0 text-[11px] font-normal normal-case tracking-normal text-content-muted">
             {ordered.length} {ordered.length === 1 ? "list" : "lists"}
           </span>
-        </span>
+        </button>
         <button
           className="text-base leading-none text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
           title="Group settings: name, color, lists, delete"
@@ -104,8 +84,8 @@ function GroupColumn({
           <button
             key={list.id}
             className="flex items-center gap-2 rounded-md border border-line bg-surface-alt px-2 py-1.5 text-left text-sm hover:border-accent"
-            title={`Open "${list.name}"`}
-            onClick={() => setOpenListId(list.id)}
+            title={`Open group "${group.name}"`}
+            onClick={onOpen}
           >
             {list.color && (
               <span

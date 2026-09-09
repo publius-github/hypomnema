@@ -13,6 +13,7 @@ import DueToasts from "../components/DueToasts";
 import { LockScreen } from "./MobileLock";
 import { EditingTaskContext } from "./editing";
 import { MobileNavContext } from "./nav";
+import { useBackStep } from "./back";
 import type { LockState } from "../types";
 
 export type MobileTab = "day" | "lists" | "journal" | "notes" | "more";
@@ -55,6 +56,12 @@ export default function MobileApp() {
   // and an editor bound to a row that no longer exists would render an
   // empty screen with no way back.
   const editingTask = tasks.find((task) => task.id === editing) ?? null;
+
+  // hardware back: a non-Day tab is one step away from home. Overlays
+  // (search, the task editor) register their own steps on mount, and
+  // screens with inner navigation register theirs, so the presses undo
+  // steps in reverse order before this one returns to Day.
+  useBackStep(tab !== "day", () => setTab("day"));
 
   // The engine runs when the app comes back to the foreground. A phone
   // spends most of its life asleep, so "on launch" alone would leave a

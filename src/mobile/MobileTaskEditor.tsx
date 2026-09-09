@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store";
 import { priorityPatch, sortSubtasks } from "../lib/tasks";
+import { useBackStep } from "./back";
 import type { Task, TaskStatus } from "../types";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
@@ -78,6 +79,8 @@ export default function MobileTaskEditor({
     commit();
     onClose();
   };
+  // the hardware back button is the same gesture as the header's ‹ Back
+  useBackStep(true, close);
 
   return (
     <div className="safe-area fixed inset-0 z-20 flex flex-col overflow-auto bg-surface">

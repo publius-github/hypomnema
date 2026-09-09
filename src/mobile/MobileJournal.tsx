@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { addDaysISO } from "../lib/tasks";
+import { useBackStep } from "./back";
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -23,6 +24,8 @@ export default function MobileJournal() {
   const [entries, setEntries] = useState<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<{ date: string; content: string } | null>(null);
+  // hardware back leaves the entry browser before leaving the tab
+  useBackStep(browsing, () => setBrowsing(false));
 
   // a search hit or the Review's "Weekly note" landed here with a date
   const openDate = useAppStore((s) => s.journalOpenDate);
