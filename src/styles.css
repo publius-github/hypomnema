@@ -81,8 +81,47 @@ body,
 
 body {
   @apply bg-surface text-content antialiased;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
   user-select: none;
+}
+
+/*
+ * Keeps a full-screen phone layout out from under the system bars.
+ *
+ * Android has drawn apps edge to edge since API 35 and this build
+ * targets 36, so the clock at the top and the gesture bar at the bottom
+ * sit *over* the WebView unless the layout moves out of their way. Every
+ * screen that owns the whole viewport wears this - including the
+ * position:fixed overlays, which ignore any padding on an ancestor.
+ *
+ * env() is the real answer when the WebView reports insets. It does not
+ * always: Chromium on Android has historically reported the display
+ * cutout and not the system bars, and whether Tauri's activity passes
+ * the window insets down is a property of the generated project, not of
+ * this code. So each edge takes the larger of the reported inset and a
+ * floor the user can set in Settings - which costs nothing when env()
+ * works, and is the difference between usable and not when it doesn't.
+ */
+/*
+ * Put this on an element of its own, with no padding utilities beside
+ * it: Tailwind's `px-*`/`py-*` live in a later layer and silently win,
+ * which is how the welcome screen ended up running edge to edge under
+ * the system bars while every other screen behaved. Pad a child instead.
+ */
+.safe-area {
+  padding-top: max(env(safe-area-inset-top, 0px), var(--safe-top, 0px));
+  padding-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--safe-bottom, 0px)
+  );
+  /* Landscape with a cutout, and nothing to tune: a side inset is
+     always a real notch rather than a bar the layout might survive. */
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 @layer components {

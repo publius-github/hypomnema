@@ -1,10 +1,31 @@
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
+import MobileVaultSetup from "../mobile/MobileVaultSetup";
 
 export default function VaultPicker() {
   const selectVault = useAppStore((s) => s.selectVault);
   const error = useAppStore((s) => s.error);
   const clearError = useAppStore((s) => s.clearError);
+  // null until the backend answers; the desktop picker below would only
+  // fail on Android (its folder dialog is desktop-only), so wait rather
+  // than flash the wrong screen.
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+  const [probeError, setProbeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void invoke<boolean>("platform_is_mobile")
+      .then(setIsMobile)
+      .catch((e) => {
+        // Fall back to the user agent, not to the desktop picker: that
+        // picker cannot work on Android at all, so quietly rendering it
+        // there is indistinguishable from "the new build didn't
+        // install" - which is exactly how one real mix-up presented.
+        setProbeError(String(e));
+        setIsMobile(/Android/i.test(navigator.userAgent));
+      });
+  }, []);
 
   const pick = async () => {
     clearError();
@@ -21,6 +42,9 @@ export default function VaultPicker() {
     }
   };
 
+  if (isMobile === null) return null;
+  if (isMobile) return <MobileVaultSetup />;
+
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
       <h1 className="text-2xl font-semibold">Welcome to Hypomnema</h1>
@@ -35,6 +59,12 @@ export default function VaultPicker() {
       >
         Select vault folder
       </button>
+      {probeError && (
+        <p className="max-w-md text-sm text-warn">
+          Could not ask the backend which platform this is ({probeError}), so
+          this is a guess from the user agent.
+        </p>
+      )}
       {error && <p className="max-w-md text-sm text-danger">{error}</p>}
     </div>
   );

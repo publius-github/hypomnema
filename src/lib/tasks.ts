@@ -1,5 +1,12 @@
 import type { CSSProperties } from "react";
-import type { AppConfig, List, ScheduleBlock, Task, TaskPatch, TaskStatus } from "../types";
+import type {
+  AppConfig,
+  List,
+  ScheduleBlock,
+  Task,
+  TaskPatch,
+  TaskStatus,
+} from "../types";
 
 /**
  * Cut a wrapping text off after `lines` lines. The webview is Chromium,
@@ -159,7 +166,8 @@ export function groupByCadence(
   // "category" of a task for block grouping inside a section; defaults
   // to the {X} title prefix, the day columns also fall back to the
   // task's list name (engine-generated tasks carry theirs as a list)
-  labelOf: (task: Task) => string | null = (t) => splitCategory(t.title).category,
+  labelOf: (task: Task) => string | null = (t) =>
+    splitCategory(t.title).category,
 ): CadenceGroup[] {
   const buckets = new Map<string, Task[]>();
   for (const task of tasks) {
@@ -175,7 +183,9 @@ export function groupByCadence(
     else buckets.set(key, [task]);
   }
   const sequence = [
-    ...order.filter((key, i) => key in CADENCE_GROUP_LABELS && order.indexOf(key) === i),
+    ...order.filter(
+      (key, i) => key in CADENCE_GROUP_LABELS && order.indexOf(key) === i,
+    ),
     ...DEFAULT_CADENCE_ORDER.filter((key) => !order.includes(key)),
   ];
   return sequence
@@ -349,6 +359,12 @@ export function tintStyle(color: string): {
   return { color, backgroundColor: `${color}26` };
 }
 
+/** Monday of the ISO week holding the given date. */
+export function mondayOf(date: string): string {
+  const d = new Date(`${date}T12:00:00`);
+  return addDaysISO(date, -((d.getDay() + 6) % 7));
+}
+
 /** Subtask order: optionally done-last, then the regular comparator. */
 export function sortSubtasks(subtasks: Task[], doneLast: boolean): Task[] {
   return [...subtasks].sort((a, b) => {
@@ -365,7 +381,11 @@ export function sortSubtasks(subtasks: Task[], doneLast: boolean): Task[] {
  * (or priority-pinned) lives in them; favorites always lead; the rest
  * keep creation order, or go alphabetical when `alpha` is on.
  */
-export function orderLists(lists: List[], tasks: Task[], alpha: boolean): List[] {
+export function orderLists(
+  lists: List[],
+  tasks: Task[],
+  alpha: boolean,
+): List[] {
   return lists
     .filter(
       (list) =>

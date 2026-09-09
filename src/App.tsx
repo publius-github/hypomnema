@@ -13,6 +13,7 @@ import type { AppConfig, ConfigError, Section } from "./types";
 import TabBar from "./components/TabBar";
 import SearchPalette from "./components/SearchPalette";
 import VaultPicker from "./components/VaultPicker";
+import MobileApp from "./mobile/MobileApp";
 import Dashboard from "./sections/Dashboard";
 import Lists from "./sections/Lists";
 import Days from "./sections/Days";
@@ -40,6 +41,10 @@ async function systemNotify(title: string, body: string) {
 
 export default function App() {
   const loaded = useAppStore((s) => s.loaded);
+  // null until the backend answers. The desktop layout below is built for
+  // a wide window and a mouse; rendering it on a phone even briefly is
+  // worse than waiting a beat for the answer.
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const vaultPath = useAppStore((s) => s.vaultPath);
   const section = useAppStore((s) => s.section);
   const error = useAppStore((s) => s.error);
@@ -49,8 +54,29 @@ export default function App() {
 
   useEffect(() => {
     void init();
-    void import("./lib/updater").then((m) => m.checkForUpdates());
+    void invoke<boolean>("platform_is_mobile")
+      .then(setIsMobile)
+      .catch(() => setIsMobile(/Android/i.test(navigator.userAgent)));
   }, [init]);
+
+  // The safe-area floors reach CSS through the document root rather than
+  // a wrapper's inline style: the screens that need them include
+  // position:fixed overlays and the pre-vault setup screen, none of
+  // which share an ancestor to inherit from.
+  const safeTop = useAppStore((s) => s.config?.mobile_safe_area_top ?? 0);
+  const safeBottom = useAppStore((s) => s.config?.mobile_safe_area_bottom ?? 0);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--safe-top", `${safeTop}px`);
+    root.style.setProperty("--safe-bottom", `${safeBottom}px`);
+  }, [safeTop, safeBottom]);
+
+  // Desktop-only: there is no updater on Android (ROADMAP.md §6).
+  useEffect(() => {
+    if (isMobile === false) {
+      void import("./lib/updater").then((m) => m.checkForUpdates());
+    }
+  }, [isMobile]);
 
   // keep the native titlebar (traffic lights / min-max-close strip) in
   // sync with the app theme
@@ -137,8 +163,7 @@ export default function App() {
   // so the 30s due-check raises it again (if the task is still open)
   const snooze = (id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-    const minutes =
-      useAppStore.getState().config?.notify_snooze_minutes ?? 10;
+    const minutes = useAppStore.getState().config?.notify_snooze_minutes ?? 10;
     const timers = toastTimersRef.current;
     const timer = setTimeout(
       () => {
@@ -207,7 +232,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  if (!loaded) {
+  if (!loaded || isMobile === null) {
     return (
       <div className="flex h-full items-center justify-center text-content-muted">
         Loading...
@@ -217,6 +242,10 @@ export default function App() {
 
   if (!vaultPath) {
     return <VaultPicker />;
+  }
+
+  if (isMobile) {
+    return <MobileApp />;
   }
 
   return (

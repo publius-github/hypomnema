@@ -433,3 +433,25 @@ FodyWeavers.xsd
 dist/
 src-tauri/target/
 src-tauri/gen/schemas/
+# Generated Android project: `tauri android init` recreates it from
+# tauri.conf.json, and the CLI rewrites parts of it (tauri.settings.gradle,
+# app/tauri.build.gradle.kts) on every build as plugins change. See
+# docs/android/SPIKES.md for the one hand-edit that has to be re-applied
+# after a regeneration.
+src-tauri/gen/android/
+releases/
+
+# Android release signing. gen/android is already ignored above, but a
+# keystore or its passwords put anywhere else in the tree must not be
+# committed either - losing control of the signing key is the one build
+# mistake that cannot be undone.
+*.jks
+*.keystore
+keystore.properties
+
+# Android SAF spike (spikes/android-saf-test/README.md) - Gradle build output
+# and machine-local SDK path, not source
+spikes/android-saf-test/local.properties
+spikes/android-saf-test/.gradle/
+spikes/android-saf-test/app/build/
+spikes/android-saf-test/build/

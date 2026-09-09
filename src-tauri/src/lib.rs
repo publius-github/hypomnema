@@ -1,17 +1,33 @@
+mod android_storage;
 mod backup;
 mod config;
 mod config_files;
+mod crypto;
 mod db;
+mod device;
+mod dropbox_link;
 mod engine;
 mod error;
 mod journal;
 mod kb;
 mod profiles;
 mod reminders;
+mod secret_store;
 mod state_export;
+mod sync_bootstrap;
+mod sync_conflicts;
+mod sync_cycle;
+mod sync_dropbox;
+mod sync_dropbox_oauth;
+mod sync_merge;
+mod sync_paths;
+mod sync_provider;
+mod sync_push;
+mod sync_state;
 mod tasks;
 mod tasks_mirror;
 mod vault;
+mod vault_places;
 mod views;
 
 use std::collections::HashMap;
@@ -186,6 +202,9 @@ fn export_options(config: &AppConfig) -> tasks_mirror::ExportOptions {
     }
 }
 
+// Only reached from the tray (`sync_tray`, desktop-only below) -
+// `unminimize` itself is a desktop-only WebviewWindow method on mobile.
+#[cfg(desktop)]
 fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -196,6 +215,7 @@ fn show_main(app: &AppHandle) {
 
 /// Shows and focuses the pre-created quick-capture window; the emit
 /// tells its frontend to clear and refocus the input.
+#[cfg(desktop)]
 fn show_capture(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("capture") {
         let _ = window.show();
@@ -208,6 +228,12 @@ fn show_capture(app: &AppHandle) {
 /// a message for the error banner when the combination cannot be
 /// parsed or is taken by another app - registration failure must never
 /// block saving the config that caused it.
+///
+/// Desktop-only: global shortcuts and the tray (below) are desktop
+/// concepts (REQUIREMENTS.md §6 mobile parity table) - mobile's quick-add
+/// is in-app instead, so both get a no-op stub on mobile rather than
+/// touching every call site.
+#[cfg(desktop)]
 fn sync_global_shortcut(app: &AppHandle, config: &AppConfig) -> Option<String> {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
     let shortcuts = app.global_shortcut();
@@ -232,6 +258,7 @@ fn sync_global_shortcut(app: &AppHandle, config: &AppConfig) -> Option<String> {
 
 /// Creates or removes the tray icon to match the config. Best effort:
 /// a platform without a tray must not take the app down.
+#[cfg(desktop)]
 fn sync_tray(app: &AppHandle, config: &AppConfig) {
     if !config.tray_icon {
         let _ = app.remove_tray_by_id("main");
@@ -276,6 +303,16 @@ fn sync_tray(app: &AppHandle, config: &AppConfig) {
         eprintln!("tray icon failed: {e}");
     }
 }
+
+/// Mobile stubs: no global shortcut / tray on Android, so every call
+/// site (config reload, vault open, initial setup) stays unchanged.
+#[cfg(mobile)]
+fn sync_global_shortcut(_app: &AppHandle, _config: &AppConfig) -> Option<String> {
+    None
+}
+
+#[cfg(mobile)]
+fn sync_tray(_app: &AppHandle, _config: &AppConfig) {}
 
 fn today_string() -> String {
     chrono::Local::now()
@@ -449,6 +486,18 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
 
 fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<AppConfig> {
     let vault = Vault::open(root)?;
+    // Tell this vault's database who is writing to it, so the merge
+    // stamps (db.rs migration 016) carry a device and not a NULL. Best
+    // effort: an unstamped row degrades a future merge, but failing to
+    // open a vault over it would be worse.
+    match app_config_dir(app).and_then(|dir| device::ensure(&dir)) {
+        Ok(id) => {
+            if let Err(e) = db::set_device_id(&vault.conn, &id) {
+                eprintln!("could not record this device's id in the vault: {e}");
+            }
+        }
+        Err(e) => eprintln!("could not determine this device's id: {e}"),
+    }
     journal::ensure_template_location(root);
     let config = vault.config.clone();
     *state.vault.lock().unwrap() = Some(vault);
@@ -477,6 +526,139 @@ async fn vault_status(app: AppHandle, state: State<'_, AppState>) -> Result<Opti
     };
     open_vault(&app, &state, &path)?;
     Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+/// Where a phone keeps its vault when it is not syncing with anything.
+///
+/// A phone has no folder picker worth the name and no obvious place a
+/// user would point one at, so this is a fixed location the app owns.
+/// It is a normal directory read and written with normal file I/O - the
+/// Dropbox backend exists to *sync* a vault, and treating it as the only
+/// way to *have* one was a mistake this corrects.
+/// Where a vault goes when nobody chooses one.
+///
+/// On Android this prefers the app's own folder on shared storage over
+/// its private one: both need no permission, but only that one can be
+/// reached from a computer over USB, and "how do I get my existing vault
+/// onto the phone?" is the first question a phone install raises.
+fn local_vault_dir(app: &AppHandle) -> Result<PathBuf> {
+    let base = app_data_dir(app)?;
+    Ok(vault_places::default_vault_dir(
+        &base,
+        &app.config().identifier,
+    ))
+}
+
+/// Opens (creating if needed) this device's own vault, with no sync
+/// involved. `Vault::open` lays out an empty vault the same way it does
+/// on a first desktop run, so this works on a phone that has never seen
+/// Dropbox.
+#[tauri::command]
+async fn vault_use_local(app: AppHandle, state: State<'_, AppState>) -> Result<String> {
+    let root = local_vault_dir(&app)?;
+    std::fs::create_dir_all(&root)?;
+    open_vault(&app, &state, &root)?;
+    vault::write_vault_path(&app_config_dir(&app)?, &root)?;
+    Ok(root.to_string_lossy().into_owned())
+}
+
+/// The vault directory this device would use locally, whether or not it
+/// exists yet. Shown in Settings so files can be copied into it from a
+/// computer without guessing where it lives.
+#[tauri::command]
+async fn vault_local_path(app: AppHandle) -> Result<String> {
+    Ok(local_vault_dir(&app)?.to_string_lossy().into_owned())
+}
+
+fn app_data_dir(app: &AppHandle) -> Result<PathBuf> {
+    app.path()
+        .app_data_dir()
+        .map_err(|e| Error::State(format!("cannot resolve the app data directory: {e}")))
+}
+
+/// Lists one directory for the in-app folder browser.
+///
+/// Android's answer to "let me pick a folder": there is no directory
+/// picker to call - Tauri's dialog plugin picks files, and the Storage
+/// Access Framework hands back a content:// tree the Rust core cannot
+/// open as a path. So the app browses the filesystem itself, and this is
+/// the listing behind it. `path` omitted starts where a vault would go
+/// by default.
+#[tauri::command]
+async fn vault_browse(app: AppHandle, path: Option<String>) -> Result<vault_places::DirListing> {
+    let base = app_data_dir(&app)?;
+    let identifier = &app.config().identifier;
+    let start = match path {
+        Some(path) => PathBuf::from(path),
+        None => {
+            let default = vault_places::default_vault_dir(&base, identifier);
+            // Start in the folder the default vault would live *in*,
+            // not in the vault itself: the browser is for choosing a
+            // sibling, and opening inside the answer is not browsing.
+            default.parent().map(Path::to_path_buf).unwrap_or(default)
+        }
+    };
+    vault_places::browse(&start, &base, identifier)
+}
+
+/// Whether this app may reach ordinary folders on shared storage.
+///
+/// Not a cosmetic detail: without it the folder browser can only show
+/// the two directories the app owns outright, and a folder the user
+/// picks anywhere else fails on the first write.
+#[tauri::command]
+async fn storage_access(app: AppHandle) -> Result<bool> {
+    Ok(android_storage::all_files_access(&app))
+}
+
+/// Opens the system screen that grants it.
+///
+/// `MANAGE_EXTERNAL_STORAGE` has no runtime dialog - Android only offers
+/// a settings page - so this is as close to "the app asks" as the
+/// platform allows, and closer than telling someone to go and find it.
+#[tauri::command]
+async fn storage_access_request(app: AppHandle) -> Result<()> {
+    android_storage::request_all_files_access(&app)
+}
+
+/// Makes a subfolder from the browser, so choosing a new home for the
+/// vault does not mean leaving the app for a file manager.
+#[tauri::command]
+async fn vault_browse_mkdir(parent: String, name: String) -> Result<String> {
+    let name = name.trim();
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.starts_with('.') {
+        return Err(Error::State(
+            "a folder name cannot be empty, start with a dot, or contain slashes".into(),
+        ));
+    }
+    let path = PathBuf::from(parent).join(name);
+    std::fs::create_dir_all(&path)?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// Opens a vault at an arbitrary path, creating it if the directory is
+/// empty. The failure this exists to report clearly is a path the app
+/// cannot write to, which on Android is most of the filesystem and looks
+/// no different from one it can.
+#[tauri::command]
+async fn vault_use_path(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<String> {
+    let root = PathBuf::from(path.trim());
+    if root.as_os_str().is_empty() {
+        return Err(Error::State("no folder given".into()));
+    }
+    if !vault_places::probe_writable(&root) {
+        return Err(Error::State(format!(
+            "{} cannot be written to by this app. On Android only the app's              own folders are writable without a permission this build does              not request - pick one of the offered places instead.",
+            root.display()
+        )));
+    }
+    open_vault(&app, &state, &root)?;
+    vault::write_vault_path(&app_config_dir(&app)?, &root)?;
+    Ok(root.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -1204,15 +1386,65 @@ fn backup_config(state: &State<'_, AppState>, file: &str) {
     }
 }
 
+/// Where the Notes tree is rooted.
+///
+/// The vault root unless `kb_path` names somewhere else that actually
+/// exists on this device. Two cases make the fallback the only sane
+/// answer, and both were errors before:
+///
+/// - **Nothing configured.** A vault always has notes in it - that is
+///   what a vault is - so refusing to show them until a folder is
+///   picked made the phone's Notes tab permanently empty.
+/// - **A path from another machine.** `settings/` is device-local and
+///   does not sync, but a vault copied wholesale from a desktop carries
+///   its app.yml along, and `D:\Projects\...` means nothing on a phone.
+///   Falling back beats reporting a drive letter the user cannot fix.
 fn kb_root(state: &State<'_, AppState>) -> Result<PathBuf> {
     let guard = state.vault.lock().unwrap();
     let vault = guard
         .as_ref()
         .ok_or_else(|| Error::State("no vault selected".into()))?;
-    if vault.config.kb_path.trim().is_empty() {
-        return Err(Error::State("KB folder is not configured".into()));
+    let configured = vault.config.kb_path.trim();
+    if !configured.is_empty() {
+        let path = PathBuf::from(configured);
+        if path.is_dir() {
+            return Ok(path);
+        }
     }
-    Ok(PathBuf::from(vault.config.kb_path.trim()))
+    Ok(vault.root.clone())
+}
+
+/// What the Notes tree is actually rooted at, and whether that is what
+/// the settings asked for. A silent fallback would leave someone whose
+/// external notes drive is unplugged quietly writing into the vault
+/// instead, so the screens that can say so are given the means to.
+#[tauri::command]
+async fn kb_status(state: State<'_, AppState>) -> Result<KbStatus> {
+    let configured = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        vault.config.kb_path.trim().to_string()
+    };
+    let root = kb_root(&state)?;
+    let unreachable = !configured.is_empty() && Path::new(&configured) != root;
+    Ok(KbStatus {
+        root: root.to_string_lossy().into_owned(),
+        configured,
+        unreachable,
+    })
+}
+
+#[derive(serde::Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+struct KbStatus {
+    /// The folder the tree is being read from right now.
+    root: String,
+    /// What `kb_path` says, empty when unset.
+    configured: String,
+    /// `configured` is set but not usable here, so `root` is a fallback.
+    unreachable: bool,
 }
 
 /// (Re)arms the KB watcher when the tree is loaded, so external edits
@@ -1461,6 +1693,372 @@ async fn open_external(url: String) -> Result<()> {
     Ok(())
 }
 
+/// True on Android. The frontend shows the Dropbox link screen instead of
+/// the desktop folder picker when this is set: a phone has no synced vault
+/// folder to point a picker at (docs/android/SPIKES.md, Spike A).
+#[tauri::command]
+fn platform_is_mobile() -> bool {
+    cfg!(mobile)
+}
+
+fn now_unix() -> i64 {
+    chrono::Utc::now().timestamp()
+}
+
+/// Step 1 of linking: a fresh PKCE pair, its verifier saved to disk, and
+/// the URL for the user to approve in a browser. On disk rather than in
+/// memory because this flow leaves the app: Android may evict it while the
+/// user is on the consent page (dropbox_link.rs).
+#[tauri::command]
+async fn dropbox_auth_url(app: AppHandle) -> Result<String> {
+    let pkce = sync_dropbox_oauth::new_pkce_challenge()?;
+    // No redirect_uri: Dropbox shows the code on screen for the user to
+    // paste back, which keeps intent-filter plumbing out of the
+    // regenerated gen/android project (ROADMAP.md Phase 1).
+    let url = sync_dropbox_oauth::authorize_url(&pkce.challenge, None);
+    dropbox_link::save_pending_auth(&app_config_dir(&app)?, &pkce.verifier, now_unix())?;
+    Ok(url)
+}
+
+/// Step 2: trade the pasted code for tokens. Consumes the pending verifier
+/// - code and verifier are both single-use, so a failed attempt has to
+/// restart from the browser instead of retrying against a spent pair.
+#[tauri::command]
+async fn dropbox_connect(app: AppHandle, code: String) -> Result<dropbox_link::DropboxStatus> {
+    let dir = app_config_dir(&app)?;
+    let verifier = dropbox_link::take_pending_auth(&dir, now_unix())?;
+    let tokens = sync_dropbox_oauth::exchange_code(
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        code.trim(),
+        &verifier,
+        None,
+    )?;
+    dropbox_link::store_initial(&dir, &tokens, now_unix())?;
+    dropbox_link::status(&dir, now_unix())
+}
+
+#[tauri::command]
+async fn dropbox_status(app: AppHandle) -> Result<dropbox_link::DropboxStatus> {
+    dropbox_link::status(&app_config_dir(&app)?, now_unix())
+}
+
+#[tauri::command]
+async fn dropbox_disconnect(app: AppHandle) -> Result<()> {
+    dropbox_link::clear(&app_config_dir(&app)?)
+}
+
+/// Smoke test for a fresh link: report what the App folder actually holds,
+/// so a green result here means OAuth, token refresh, the HTTP client and
+/// the App-folder scope all work end to end. Reports folder and tombstone
+/// counts alongside the files, because "no files" alone doesn't say
+/// whether the vault failed to sync or was never copied to this folder.
+#[tauri::command]
+async fn dropbox_list_files(app: AppHandle) -> Result<dropbox_link::DropboxListing> {
+    let dir = app_config_dir(&app)?;
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let census = sync_dropbox::census(&sync_dropbox::HttpDropboxTransport::new(token))?;
+    Ok(dropbox_link::DropboxListing {
+        files: census.files,
+        folders: census.folders,
+        deleted: census.deleted,
+    })
+}
+
+/// Pulls the shared vault from the linked app folder into this device's
+/// private storage.
+///
+/// The local copy is where `app.db` will be rebuilt and where the engine
+/// will run - it never goes back up, because `sync_paths` does not list
+/// it as shared. Nothing opens the vault yet; this lands the files.
+#[tauri::command]
+async fn dropbox_pull_vault(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<dropbox_link::DropboxPull> {
+    let dir = app_config_dir(&app)?;
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let provider =
+        sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
+    let local_root = dir.join("vault");
+    let report = sync_bootstrap::pull_vault(&provider, &local_root, |done, total| {
+        // Hundreds of files over the network: without this the screen
+        // sits still long enough to read as a hang.
+        let _ = app.emit("dropbox-pull-progress", (done, total));
+    })?;
+    dropbox_link::save_vault_root(&dir, &report.vault_root)?;
+    // The pulled copy is a vault like any other: opening it runs the
+    // migrations and rebuilds app.db from the JSONL snapshot through the
+    // same disposable-cache path the desktop uses, then the engine and
+    // every existing command work against it unchanged. Remembering it as
+    // the selected vault is what makes the app come back to it on the
+    // next launch instead of the link screen.
+    open_vault(&app, &state, &local_root)?;
+    vault::write_vault_path(&dir, &local_root)?;
+    // Opening the vault writes app.db and re-exports the snapshot, so
+    // without this every file would look locally changed and the first
+    // push would send the whole vault back unaltered.
+    sync_push::adopt_local_baseline(
+        &local_root,
+        &sync_bootstrap::VaultRoot(report.vault_root.clone()),
+    )?;
+    Ok(dropbox_link::DropboxPull {
+        vault_root: report.vault_root,
+        files: report.files,
+        bytes: report.bytes,
+        skipped: report.skipped,
+        failed: report.failed,
+    })
+}
+
+/// Sends this device's vault changes back to Dropbox.
+///
+/// Exports the database to its JSONL snapshot first: the files on disk
+/// are what gets uploaded, so anything still only in app.db would be left
+/// behind. Every write is guarded by the revision this device last saw,
+/// so a file the other end has moved on is reported as a conflict rather
+/// than overwritten.
+#[tauri::command]
+async fn dropbox_push_vault(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<dropbox_link::DropboxPush> {
+    let dir = app_config_dir(&app)?;
+    let local_root = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
+        vault.root.clone()
+    };
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let provider =
+        sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
+    let root = dropbox_link::load_vault_root(&dir)?;
+    let report = sync_push::push_vault(&provider, &local_root, &root, |done, total| {
+        let _ = app.emit("dropbox-push-progress", (done, total));
+    })?;
+    Ok(dropbox_link::DropboxPush {
+        uploaded: report.uploaded,
+        bytes: report.bytes,
+        conflicts: report.conflicts,
+        failed: report.failed,
+    })
+}
+
+/// One full sync pass: bring down what the other device wrote, merge it
+/// into what this one wrote, send the result back, and propagate
+/// deletions both ways (`sync_cycle.rs`).
+///
+/// Replaces pull-then-push as the everyday action. Those two remain for
+/// the cases they were built for - a first pull onto a device, and a
+/// deliberate one-way upload - but neither can reconcile a file both ends
+/// changed, which is the normal state of a vault used from two devices.
+#[tauri::command]
+async fn dropbox_sync(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<dropbox_link::DropboxSync> {
+    let dir = app_config_dir(&app)?;
+    let local_root = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        // The snapshot is what travels, so anything still only in app.db
+        // would be left behind by a pass that started without this.
+        state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
+        vault.root.clone()
+    };
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let provider =
+        sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
+    let root = dropbox_link::load_vault_root(&dir)?;
+    let device = device::ensure(&dir)?;
+    let now = chrono::Utc::now().to_rfc3339();
+    let report = match sync_cycle::sync_vault(
+        &provider,
+        &local_root,
+        &root,
+        &device,
+        &now,
+        |done, total| {
+            let _ = app.emit("dropbox-sync-progress", (done, total));
+        },
+    ) {
+        Ok(report) => {
+            sync_cycle::record_pass(&local_root, &now, None);
+            report
+        }
+        Err(e) => {
+            // A pass that could not run is worth remembering too: the
+            // difference between "in step" and "has not managed to sync
+            // since Tuesday" is the whole point of showing a standing.
+            sync_cycle::record_pass(&local_root, &now, Some(e.to_string()));
+            return Err(e);
+        }
+    };
+    if report.state_changed {
+        // The merge rewrote the JSONL snapshot underneath a database that
+        // was built from the old one. Dropping app.db and reopening runs
+        // the existing restore path over the merged files - the same
+        // disposable-cache route `state_export.rs` documents, rather than
+        // a second way to write rows into SQLite.
+        rebuild_cache(&app, &state, &local_root)?;
+    }
+    let _ = app.emit("vault-updated", Vec::<String>::new());
+    Ok(dropbox_link::DropboxSync {
+        downloaded: report.downloaded,
+        merged: report.merged,
+        uploaded: report.uploaded,
+        removed_locally: report.removed_locally,
+        removed_remotely: report.removed_remotely,
+        conflicts: report.conflicts,
+        conflicted_copies: report.conflicted_copies,
+        failed: report.failed,
+    })
+}
+
+/// Rebuilds app.db from the JSONL snapshot on disk.
+///
+/// Closing the vault first is not optional: the file cannot be replaced
+/// under a live connection, and a connection left open over a deleted
+/// database would keep serving rows that no longer exist anywhere.
+fn rebuild_cache(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<()> {
+    *state.vault.lock().unwrap() = None;
+    let db = vault::db_path(root);
+    for path in [
+        db.clone(),
+        db.with_extension("db-wal"),
+        db.with_extension("db-shm"),
+    ] {
+        let _ = std::fs::remove_file(path);
+    }
+    open_vault(app, state, root)?;
+    Ok(())
+}
+
+/// Is a passphrase set on this device, and are its secrets readable?
+#[tauri::command]
+async fn app_lock_state(app: AppHandle) -> Result<secret_store::LockState> {
+    Ok(secret_store::state(&app_config_dir(&app)?))
+}
+
+/// Turn the lock on. Seals every secret already on disk under the new
+/// passphrase, so nothing is left behind in plaintext.
+#[tauri::command]
+async fn app_lock_enable(app: AppHandle, passphrase: String) -> Result<secret_store::LockState> {
+    let dir = app_config_dir(&app)?;
+    secret_store::enable(&dir, &passphrase, dropbox_link::SECRET_FILES)?;
+    Ok(secret_store::state(&dir))
+}
+
+#[tauri::command]
+async fn app_lock_disable(app: AppHandle, passphrase: String) -> Result<secret_store::LockState> {
+    let dir = app_config_dir(&app)?;
+    secret_store::disable(&dir, &passphrase, dropbox_link::SECRET_FILES)?;
+    Ok(secret_store::state(&dir))
+}
+
+#[tauri::command]
+async fn app_unlock(app: AppHandle, passphrase: String) -> Result<secret_store::LockState> {
+    let dir = app_config_dir(&app)?;
+    secret_store::unlock(&dir, &passphrase)?;
+    Ok(secret_store::state(&dir))
+}
+
+/// Forget the passphrase for this session. Cheap, and the only thing
+/// between a handed-over phone and a standing grant to the vault.
+#[tauri::command]
+async fn app_lock_now(app: AppHandle) -> Result<secret_store::LockState> {
+    secret_store::lock();
+    Ok(secret_store::state(&app_config_dir(&app)?))
+}
+
+/// Whether this device is in step, answered without touching the
+/// network - so a phone with no signal can still say what it is holding.
+#[tauri::command]
+async fn sync_standing(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<sync_cycle::SyncStanding> {
+    let local_root = {
+        let guard = state.vault.lock().unwrap();
+        match guard.as_ref() {
+            Some(vault) => vault.root.clone(),
+            None => return Ok(sync_cycle::SyncStanding::default()),
+        }
+    };
+    let root = dropbox_link::load_vault_root(&app_config_dir(&app)?)?;
+    sync_cycle::standing(&local_root, &root)
+}
+
+/// What this device had to choose between during past syncs.
+#[tauri::command]
+async fn sync_conflicts_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<sync_conflicts::ConflictEntry>> {
+    let guard = state.vault.lock().unwrap();
+    let Some(vault) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    Ok(sync_conflicts::load(&vault.root))
+}
+
+#[tauri::command]
+async fn sync_conflicts_clear(state: State<'_, AppState>) -> Result<()> {
+    let guard = state.vault.lock().unwrap();
+    let Some(vault) = guard.as_ref() else {
+        return Ok(());
+    };
+    sync_conflicts::clear(&vault.root)
+}
+
+/// Drops a marker file into the linked app folder and returns its name.
+///
+/// Answers "which folder is this app actually talking to?" from the other
+/// side: the answer cannot be derived from the app's name (Dropbox names
+/// the folder after whatever was typed into its console, under a
+/// localized parent), so the app writes something findable instead of
+/// anyone guessing a path. Also the first exercise of the write path.
+#[tauri::command]
+async fn dropbox_write_marker(app: AppHandle) -> Result<String> {
+    let dir = app_config_dir(&app)?;
+    let token = dropbox_link::valid_access_token(
+        &dir,
+        &sync_dropbox_oauth::HttpOauthTransport::new(),
+        now_unix(),
+    )?;
+    let provider =
+        sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
+    let body = format!(
+        "This is the Dropbox app folder Hypomnema is linked to.\n\n\
+         Put the vault's contents directly in this folder - not in a\n\
+         subfolder, and not in a folder of the same name created by hand\n\
+         elsewhere in Dropbox, which this app cannot see.\n\n\
+         Written by Hypomnema at {} UTC.\n",
+        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
+    );
+    provider.upsert(dropbox_link::MARKER_FILE, body.as_bytes())?;
+    Ok(dropbox_link::MARKER_FILE.to_string())
+}
+
 /// Panics land in <app-config-dir>/hypomnema.log so field errors are
 /// diagnosable without a console (M7 error reporting).
 fn install_panic_logger(log_path: PathBuf) {
@@ -1482,20 +2080,33 @@ fn install_panic_logger(log_path: PathBuf) {
     }));
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        // opener works on Android too, unlike open_external's xdg-open
+        // fallback - the Dropbox consent page has to reach a real browser.
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init());
+    // updater (GitHub-releases) and the global capture shortcut are
+    // desktop-only concepts (REQUIREMENTS.md §6) - mobile has no
+    // equivalent plugin to register in their place.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    builder
         .setup(|app| {
             if let Ok(dir) = app.path().app_config_dir() {
                 let _ = std::fs::create_dir_all(&dir);
                 install_panic_logger(dir.join("hypomnema.log"));
             }
             // the quick-capture window is pre-created hidden: a WebView
-            // spun up on demand takes long enough to defeat "quick"
+            // spun up on demand takes long enough to defeat "quick".
+            // Desktop-only - mobile's quick-add is in-app (§6), not a
+            // second always-on-top borderless window.
+            #[cfg(desktop)]
             if let Err(e) = tauri::WebviewWindowBuilder::new(
                 app,
                 "capture",
@@ -1516,6 +2127,7 @@ pub fn run() {
             // the vault (and its config) opens later, via vault_status
             // from the frontend; until then the defaults keep the
             // shortcut and tray alive so capture works pre-vault too
+            // (no-op on mobile, see the stubs above)
             let defaults = AppConfig::default();
             if let Some(msg) = sync_global_shortcut(app.handle(), &defaults) {
                 eprintln!("{msg}");
@@ -1565,6 +2177,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             vault_status,
             vault_select,
+            vault_use_local,
+            vault_local_path,
+            vault_browse,
+            vault_browse_mkdir,
+            storage_access,
+            storage_access_request,
+            vault_use_path,
             config_get,
             config_set,
             config_default,
@@ -1599,6 +2218,7 @@ pub fn run() {
             journal_list,
             journal_search,
             kb_tree,
+            kb_status,
             kb_read,
             kb_write,
             kb_create,
@@ -1632,7 +2252,25 @@ pub fn run() {
             tasks_search,
             daily_streaks,
             task_get,
-            open_external
+            open_external,
+            platform_is_mobile,
+            dropbox_auth_url,
+            dropbox_connect,
+            dropbox_status,
+            dropbox_disconnect,
+            dropbox_list_files,
+            dropbox_write_marker,
+            dropbox_pull_vault,
+            dropbox_push_vault,
+            dropbox_sync,
+            sync_conflicts_list,
+            sync_conflicts_clear,
+            sync_standing,
+            app_lock_state,
+            app_lock_enable,
+            app_lock_disable,
+            app_lock_now,
+            app_unlock
         ])
         .run(tauri::generate_context!())
         .expect("error while running hypomnema");

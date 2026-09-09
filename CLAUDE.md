@@ -1,19 +1,19 @@
 # Hypomnema (repo: app-pkb)
 
-Local-first personal productivity app for Windows: weekly task planner, journal, and Markdown knowledge base in one window. Tauri 2 (Rust core) + React + TypeScript frontend. All data lives in a user-chosen vault folder: user content at the top level (`journal/`, notes), and the app's working files under `.hypomnema/` - `app.db`, `settings/app.yml` (app settings), `config/` with per-feature user YAML files (`recurring.yml`, `scheduled.yml`, `birthdays.yml`, `weekly-focus.yml`, `day-reminders.yml`, `day-schedule.yml`, `templates/`), `tasks/` (bulk-editable Markdown mirror of manual tasks), and `backups/`. Path helpers live in `src-tauri/src/vault.rs`; never join layout paths by hand. The Rust core owns all business logic (task generation engine, dedup via `rule_runs`, overdue carry-over, YAML parsing, watchers); the React layer is presentation only. `docs/ARCHITECTURE.md` is the maintained map of the codebase (vault layout, UI sections, config schemas, engine invariants, module responsibilities, build/release) - read it before exploring the sources, and update the affected section in the same commit whenever a change alters anything it describes.
+Local-first personal productivity app for Windows: weekly task planner, journal, and Markdown knowledge base in one window. Tauri 2 (Rust core) + React + TypeScript frontend. All data lives in a user-chosen vault folder: user content at the top level (`journal/`, notes), and the app's working files under `.hypomnema/` - `app.db`, `settings/app.yml` (app settings), `config/` with per-feature user YAML files (`recurring.yml`, `scheduled.yml`, `birthdays.yml`, `weekly-focus.yml`, `day-reminders.yml`, `day-schedule.yml`, `templates/`), `tasks/` (bulk-editable Markdown mirror of manual tasks), and `backups/`. Path helpers live in `src-tauri/src/vault.rs`; never join layout paths by hand. The Rust core owns all business logic (task generation engine, dedup via `rule_runs`, overdue carry-over, YAML parsing, watchers); the React layer is presentation only. `docs/general/ARCHITECTURE.md` is the maintained map of the shared codebase (vault layout, UI sections, config schemas, engine invariants, module responsibilities); `docs/windows/ARCHITECTURE.md` covers desktop-only chrome and the Windows build/release flow; `docs/android/` covers the Android build. Read the relevant one before exploring the sources, and update whichever section describes what you're changing, in the same commit.
 
 ## Layout
 
 - `src/` - React frontend (Zustand store, Tailwind tokens, CodeMirror editor).
 - `src-tauri/src/` - Rust core: `engine.rs` (generation), `tasks.rs`, `db.rs` (migrations), `vault.rs`, `journal.rs`, `kb.rs`, `reminders.rs`.
-- `scripts/build.sh` - local installer build; `scripts/bump.sh` - version bump without release; `scripts/release.sh` - version bump + tag + push.
+- `scripts/` is split by what a script targets: `scripts/general/` (platform-agnostic - `bump.sh`), `scripts/windows/` (`build.sh`/`build.ps1` - local installer build; `release.sh`/`release.ps1` - version bump + tag + push), `scripts/android/` (`build-android.sh`).
 
 ## Versioning
 
 The `VERSION` file at the repo root is the single source of truth for the app version. Never edit it by hand and never edit versions in `package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` directly - always go through a script that syncs all manifests:
 
-- `scripts/bump.sh [major|minor|patch]` (default patch) bumps `VERSION` and syncs the manifests, nothing else. Use it while developing: bump with every user-visible feature batch (minor for features, patch for fixes/polish) and include the bump in the feature commit. The version is shown in the About dialog.
-- `scripts/release.sh [major|minor|patch]` does the same bump plus commit, tag `v<version>`, and push - it triggers the release pipeline, so use it only when actually cutting a release. The release workflow rejects tags that do not match `VERSION`.
+- `scripts/general/bump.sh [major|minor|patch]` (default patch) bumps `VERSION` and syncs the manifests, nothing else. Use it while developing: bump with every user-visible feature batch (minor for features, patch for fixes/polish) and include the bump in the feature commit. The version is shown in the About dialog.
+- `scripts/windows/release.sh [major|minor|patch]` does the same bump plus commit, tag `v<version>`, and push - it triggers the release pipeline, so use it only when actually cutting a release. The release workflow rejects tags that do not match `VERSION`.
 
 ## This machine: development and testing only
 

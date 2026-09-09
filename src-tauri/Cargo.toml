@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.55.0"
+version = "0.65.0"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
@@ -27,6 +27,21 @@ thiserror = "2"
 croner = "2"
 notify = "6"
 ts-rs = "10"
+ureq = { version = "2", features = ["json"] }
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.2"
+# Pure Rust, so the Android cross-compile stays free of native deps -
+# same constraint that picked ureq/rustls over a native-TLS client.
+aes-gcm = "0.10"
+argon2 = "0.5"
+tauri-plugin-opener = "2.5.5"
+
+# JNI is how the app asks Android for all-files access itself, rather
+# than telling the user to go find a settings screen. Android-only, and
+# already in the tree via tauri - named here so this crate can call it.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
 
 [profile.release]
 panic = "abort"

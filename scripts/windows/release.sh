@@ -107,7 +107,7 @@ function resolve_repo_root() {
   log_info "function resolve_repo_root - switch to the repository root"
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  REPO_ROOT="$(cd "$script_dir/.." && pwd)"
+  REPO_ROOT="$(cd "$script_dir/../.." && pwd)"
   cd "$REPO_ROOT"
 }
 

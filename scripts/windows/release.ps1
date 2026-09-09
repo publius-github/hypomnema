@@ -17,7 +17,7 @@ function Write-ErrorLog {
 }
 
 function Get-RepoRoot {
-  Split-Path -Parent $PSScriptRoot
+  Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 }
 
 function Assert-Command {

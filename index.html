@@ -2,7 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report
+         anything at all. Android has drawn apps under the status and
+         navigation bars since API 35 and this build targets 36, so the
+         insets are the only way the layout learns where the usable
+         screen is - see .safe-area in src/styles.css. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>app-pkb</title>
   </head>
   <body>

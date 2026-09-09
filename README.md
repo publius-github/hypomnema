@@ -2,7 +2,9 @@
 
 Локальное приложение (Windows-first, Tauri 2 + React) для личной продуктивности: недельный планировщик задач, дневник по шаблону и база знаний на Markdown в одном окне. Все данные лежат в выбранной пользователем папке-vault, без облака и регистрации. UI англоязычный.
 
-Техническая карта кодовой базы (модули, схемы конфигов, инварианты движка) - в `docs/ARCHITECTURE.md`.
+Техническая карта общего ядра (модули, схемы конфигов, инварианты движка) - в `docs/general/ARCHITECTURE.md`; Windows-специфика (трей, capture-окно, сборка/релиз) - в `docs/windows/ARCHITECTURE.md`.
+
+Мобильная (Android) часть — план и требования в `docs/android/`.
 
 ## Разделы
 
@@ -78,8 +80,8 @@ birthdays:
 Требования к машине сборки: Node.js 22+, Rust stable (rustup); на Windows дополнительно VS Build Tools (Desktop C++), WebView2, Git Bash; на Linux - `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
 ```bash
-npm ci && npm run tauri dev     # dev-режим с hot reload
-./scripts/build.sh              # локальная сборка инсталлятора (build.ps1 для PowerShell)
+npm ci && npm run tauri dev             # dev-режим с hot reload
+./scripts/windows/build.sh              # локальная сборка инсталлятора (build.ps1 для PowerShell)
 ```
 
 Артефакты попадают в `src-tauri/target/release/bundle/`.
@@ -89,12 +91,12 @@ npm ci && npm run tauri dev     # dev-режим с hot reload
 Источник истины для версии - файл `VERSION` в корне; руками его и версии в манифестах не редактируем:
 
 ```bash
-./scripts/bump.sh [major|minor|patch]      # бамп + синк манифестов, без коммита
-./scripts/release.sh [major|minor|patch]   # бамп + коммит + тег v<версия> + push (release.ps1 для PowerShell)
+./scripts/general/bump.sh [major|minor|patch]      # бамп + синк манифестов, без коммита
+./scripts/windows/release.sh [major|minor|patch]   # бамп + коммит + тег v<версия> + push (release.ps1 для PowerShell)
 ```
 
 Workflow `release.yml` на теге `v*` сверяет тег с `VERSION`, собирает Windows-инсталлятор через `tauri-action` и прикладывает его к draft GitHub Release. CI (`ci.yml`) на PR и push в main гоняет lint/typecheck/test/build фронта и fmt/clippy/test Rust-ядра.
 
 ### Автообновления
 
-Приложение при старте проверяет `releases/latest/download/latest.json` этого репозитория и предлагает обновиться. Манифест подписывается: в GitHub Secrets нужны `TAURI_SIGNING_PRIVATE_KEY` (содержимое `~/.tauri/app-pkb.key`) и `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; паблик-ключ прописан в `src-tauri/tauri.conf.json`. Без секретов release-workflow падает на подписи. Локальный `build.sh` подписывает updater-артефакты, только если ключ лежит в `~/.tauri/app-pkb.key`. Чтобы обновления доходили, draft-релиз нужно публиковать - `latest.json` отдаётся только из опубликованного релиза.
+Приложение при старте проверяет `releases/latest/download/latest.json` этого репозитория и предлагает обновиться. Манифест подписывается: в GitHub Secrets нужны `TAURI_SIGNING_PRIVATE_KEY` (содержимое `~/.tauri/app-pkb.key`) и `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; паблик-ключ прописан в `src-tauri/tauri.conf.json`. Без секретов release-workflow падает на подписи. Локальный `scripts/windows/build.sh` подписывает updater-артефакты, только если ключ лежит в `~/.tauri/app-pkb.key`. Чтобы обновления доходили, draft-релиз нужно публиковать - `latest.json` отдаётся только из опубликованного релиза.
