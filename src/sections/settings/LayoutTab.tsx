@@ -285,6 +285,8 @@ export default function LayoutTab() {
           "done_section_gap",
           "list_postponed_section_gap",
           "list_done_section_gap",
+          "waiting_section_gap",
+          "list_waiting_section_gap",
           "list_task_lines",
           "list_dialog_task_lines",
         ]}
@@ -336,8 +338,10 @@ export default function LayoutTab() {
             {(
               [
                 ["Before Postponed (days)", "postponed_section_gap"],
+                ["Before Waiting (days)", "waiting_section_gap"],
                 ["Before Done (days)", "done_section_gap"],
                 ["Before Postponed (lists)", "list_postponed_section_gap"],
+                ["Before Waiting (lists)", "list_waiting_section_gap"],
                 ["Before Done (lists)", "list_done_section_gap"],
               ] as const
             ).map(([label, key]) => (
@@ -354,7 +358,7 @@ export default function LayoutTab() {
             ))}
           </div>
           <span className="text-xs text-content-muted">
-            Sections are the cadence groups; the Postponed and Done blocks
+            Sections are the cadence groups; the Postponed, Waiting and Done blocks
             take their own gaps, separately for the day columns and the
             custom list columns, so they can sit visibly lower. Category
             blocks group tasks by their {"{X}"} prefix or list inside a

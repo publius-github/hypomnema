@@ -71,10 +71,25 @@ function task(overrides: Partial<Task>): Task {
 }
 
 describe("nextStatus", () => {
-  it("cycles todo -> done -> postponed -> todo", () => {
+  it("cycles todo -> done -> postponed -> waiting -> todo", () => {
     expect(nextStatus("todo")).toBe("done");
     expect(nextStatus("done")).toBe("postponed");
-    expect(nextStatus("postponed")).toBe("todo");
+    expect(nextStatus("postponed")).toBe("waiting");
+    expect(nextStatus("waiting")).toBe("todo");
+  });
+
+  it("brings a dropped task back to todo, never drops by clicking", () => {
+    expect(nextStatus("dropped")).toBe("todo");
+    const reachable = (["todo", "done", "postponed", "waiting"] as const).map(
+      (s) => nextStatus(s),
+    );
+    expect(reachable).not.toContain("dropped");
+  });
+
+  it("keeps checklists a plain toggle", () => {
+    expect(nextStatus("todo", true)).toBe("done");
+    expect(nextStatus("waiting", true)).toBe("todo");
+    expect(nextStatus("dropped", true)).toBe("todo");
   });
 });
 
@@ -293,6 +308,21 @@ describe("splitDone", () => {
     expect(active.map((t) => t.id)).toEqual([2]);
     expect(postponed.map((t) => t.id)).toEqual([3]);
     expect(done.map((t) => t.id)).toEqual([1]);
+  });
+
+  it("gives waiting its own section and files dropped under Done", () => {
+    const { active, postponed, waiting, done } = splitDone(
+      [
+        ...tasks,
+        task({ id: 4, status: "waiting" }),
+        task({ id: 5, status: "dropped" }),
+      ],
+      "separate",
+    );
+    expect(active.map((t) => t.id)).toEqual([2]);
+    expect(postponed.map((t) => t.id)).toEqual([3]);
+    expect(waiting.map((t) => t.id)).toEqual([4]);
+    expect(done.map((t) => t.id)).toEqual([1, 5]);
   });
 
   it("keeps just-clicked tasks in the section they were shown in", () => {

@@ -2,10 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../store";
 import { GrowingTextarea } from "./form";
-import { priorityPatch, sortSubtasks } from "../lib/tasks";
+import {
+  priorityPatch,
+  sortSubtasks,
+  isClosed,
+  STATUS_LABEL,
+} from "../lib/tasks";
 import { isExternalUrl } from "../lib/links";
 import { wikiTargetFromHref, wikiToMarkdownLinks } from "../lib/wiki";
 import type { Task, TaskStatus } from "../types";
+
+const TASK_STATUSES: TaskStatus[] = [
+  "todo",
+  "done",
+  "postponed",
+  "waiting",
+  "dropped",
+];
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
 
@@ -220,11 +233,19 @@ export default function TaskModal({
                 })
               }
             >
-              <option value="todo">To Do</option>
-              <option value="done">Done</option>
-              {(!checklist || task.status === "postponed") && (
-                <option value="postponed">Postponed</option>
-              )}
+              {/* a checklist is a plain todo <-> done toggle; a leftover
+                  row in another state keeps its option so it can be reset */}
+              {TASK_STATUSES.filter(
+                (status) =>
+                  !checklist ||
+                  status === "todo" ||
+                  status === "done" ||
+                  status === task.status,
+              ).map((status) => (
+                <option key={status} value={status}>
+                  {STATUS_LABEL[status]}
+                </option>
+              ))}
             </select>
           </label>
           <label className="flex flex-col gap-1">
@@ -526,11 +547,13 @@ function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
       ) : (
         <span
           className={`flex-1 cursor-text whitespace-pre-wrap break-words ${
-            sub.status === "done"
+            isClosed(sub.status)
               ? "text-content-muted line-through"
               : sub.status === "postponed"
                 ? "text-warn"
-                : ""
+                : sub.status === "waiting"
+                  ? "text-info"
+                  : ""
           }`}
           title="Click to edit"
           onClick={() => {

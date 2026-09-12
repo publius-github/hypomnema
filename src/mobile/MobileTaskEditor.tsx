@@ -10,7 +10,9 @@ const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
 const STATUSES: { id: TaskStatus; label: string }[] = [
   { id: "todo", label: "To do" },
   { id: "postponed", label: "Postponed" },
+  { id: "waiting", label: "Waiting" },
   { id: "done", label: "Done" },
+  { id: "dropped", label: "Dropped" },
 ];
 
 /**
@@ -191,13 +193,15 @@ export default function MobileTaskEditor({
           <span className="text-xs uppercase tracking-wide text-content-muted">
             Status
           </span>
-          <div className="flex gap-2">
-            {/* checklist lists have no postponed state; a leftover
-                postponed row keeps the button so it can be reset */}
+          <div className="flex flex-wrap gap-2">
+            {/* checklist lists are a plain todo <-> done toggle; a
+                leftover row in another state keeps its button so it can
+                be reset */}
             {STATUSES.filter(
               (entry) =>
-                entry.id !== "postponed" ||
-                task.status === "postponed" ||
+                entry.id === "todo" ||
+                entry.id === "done" ||
+                task.status === entry.id ||
                 lists.find((l) => l.id === task.list_id)?.kind !==
                   "checklist",
             ).map((entry) => (

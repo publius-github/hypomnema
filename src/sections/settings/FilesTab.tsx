@@ -65,6 +65,15 @@ export default function FilesTab() {
         </section>
       </SettingsGroup>
 
+      <SettingsGroup title="Notes" keys={["notes_timestamps"]}>
+        <Toggle
+          checked={config.notes_timestamps}
+          label="Created and Last edited lines on notes"
+          hint="Markdown notes saved from the Notes editor carry two lines at the top - Created: and Last edited:, date and time - kept up to date by the app. A note with a YAML frontmatter block gets them inside it. Created can be corrected by hand; Last edited moves whenever the text below it changes. A note without them takes its file dates on its first save; edits made in other editors are not stamped."
+          onChange={(v) => void updateConfig({ notes_timestamps: v })}
+        />
+      </SettingsGroup>
+
       <SettingsGroup
         title="Snapshots & mirror"
         keys={[

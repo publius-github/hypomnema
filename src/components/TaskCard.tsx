@@ -7,8 +7,10 @@ import {
   categoryChipColor,
   cadenceKeyOf,
   clampStyle,
+  isClosed,
   isListExact,
   nextStatus,
+  STATUS_LABEL,
   priorityPatch,
   sortSubtasks,
   splitCategory,
@@ -16,18 +18,7 @@ import {
   weekdayShort,
 } from "../lib/tasks";
 import type { Task } from "../types";
-
-// done takes the configurable checkbox color via the --color-done var
-const STATUS_BUTTON: Record<Task["status"], string> = {
-  todo: "border-content-muted text-content-muted",
-  done: "text-white",
-  postponed: "border-warn bg-warn text-white",
-};
-
-const DONE_BUTTON_STYLE = {
-  backgroundColor: "var(--color-done)",
-  borderColor: "var(--color-done)",
-};
+import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
 
 function TaskCard({
   task,
@@ -87,7 +78,7 @@ function TaskCard({
     (s) => s.config?.subtasks_done_last ?? true,
   );
   const subtasks = sortSubtasks(subtasksRaw, subtasksDoneLast);
-  const done = task.status === "done";
+  const closed = isClosed(task.status);
   // a {Category} prefix is a pure text label rendered as a chip
   const { category, text } = splitCategory(task.title);
   // cadence coloring reuses the manual color stripe; a manual color
@@ -148,8 +139,10 @@ function TaskCard({
     exactDate && task.origin_date
       ? `Scheduled for ${task.origin_date}`
       : null,
-    task.overdue && !done ? "Overdue" : null,
-    task.status === "postponed" ? "Postponed" : null,
+    task.overdue && !closed ? "Overdue" : null,
+    task.status !== "todo" && task.status !== "done"
+      ? STATUS_LABEL[task.status]
+      : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -189,45 +182,15 @@ function TaskCard({
         <button
           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
             multiline ? "mt-0.5" : ""
-          } ${STATUS_BUTTON[task.status]}`}
-          style={done ? DONE_BUTTON_STYLE : undefined}
-          title={`Status: ${task.status} (click: ${nextStatus(task.status, checklist)})`}
+          } ${statusBoxClass(task.status)}`}
+          style={statusBoxStyle(task.status)}
+          title={`Status: ${STATUS_LABEL[task.status]} (click: ${STATUS_LABEL[nextStatus(task.status, checklist)]})`}
           onClick={(e) => {
             e.stopPropagation();
             cycleStatus();
           }}
         >
-          {/* an SVG check sits dead-center; the ✓ glyph rode on its
-              font baseline and looked shifted inside the box */}
-          {done && (
-            <svg
-              viewBox="0 0 12 12"
-              className="h-3 w-3"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M2.5 6.5l2.5 2.5l4.5 -5" />
-            </svg>
-          )}
-          {task.status === "postponed" && (
-            <svg
-              viewBox="0 0 12 12"
-              className="h-3 w-3"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M1.5 6h8" />
-              <path d="M6.5 3l3 3-3 3" />
-            </svg>
-          )}
+          <StatusIcon status={task.status} />
         </button>
         {listExact && task.scheduled_date && !multiline && (
           // the same date label the scheduled/birthday cards wear, ahead
@@ -283,7 +246,7 @@ function TaskCard({
         <div
           className={`min-w-0 flex-1 cursor-pointer leading-snug ${
             multiline ? "break-words" : "truncate"
-          } ${done ? "text-content-muted line-through" : ""}`}
+          } ${closed ? "text-content-muted line-through" : ""}`}
           // multi-line titles clamp at the configured line count
           // instead of truncating on the first line
           style={multiline ? clampStyle(titleLines) : undefined}
@@ -318,11 +281,11 @@ function TaskCard({
           )}
           {category && multiline && " "}
           {dowLabel && (
-            // on a done card the marker joins the struck-through muted
+            // on a closed card the marker joins the struck-through muted
             // text instead of keeping its own bright color
             <span
               className="text-content-muted"
-              style={dowColor && !done ? { color: dowColor } : undefined}
+              style={dowColor && !closed ? { color: dowColor } : undefined}
               title="Weekday pinned by the rule's cron"
             >
               [{dowLabel}]{" "}
@@ -382,7 +345,7 @@ function TaskCard({
               </button>
             ))}
           {task.time && <span>{task.time}</span>}
-          {task.overdue && !done && (
+          {task.overdue && !closed && (
             <span className="rounded bg-danger/15 px-1 font-semibold uppercase text-danger">
               overdue
             </span>
@@ -398,6 +361,22 @@ function TaskCard({
               {expanded ? "▾" : "▸"}{" "}
               {subtasks.filter((s) => s.status === "done").length}/
               {subtasks.length}
+            </button>
+          )}
+          {!overlay && !closed && !checklist && (
+            // "not done, dropped": off the plan without pretending it
+            // was done - the review counts it as not done. The hold
+            // keeps the card in place long enough to undo a misclick.
+            <button
+              className="text-base leading-none opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
+              title="Not done, drop it"
+              onClick={(e) => {
+                e.stopPropagation();
+                void updateTask(task.id, { status: "dropped" });
+                holdStatus(task.id, task.status);
+              }}
+            >
+              ⊘
             </button>
           )}
           {!overlay && (
@@ -434,13 +413,17 @@ function TaskCard({
               />
               <span
                 className={`flex-1 ${
-                  sub.status === "done"
+                  isClosed(sub.status)
                     ? "text-content-muted line-through"
                     : sub.status === "postponed"
                       ? "text-warn"
-                      : ""
+                      : sub.status === "waiting"
+                        ? "text-info"
+                        : ""
                 }`}
-                title={sub.status === "postponed" ? "Postponed" : undefined}
+                title={
+                  sub.status === "todo" ? undefined : STATUS_LABEL[sub.status]
+                }
               >
                 {sub.title}
               </span>

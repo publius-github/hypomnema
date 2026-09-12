@@ -61,7 +61,7 @@ export default function MobileDay() {
   // the same Postponed/Done separation the desktop's day column makes
   // (done_display "separate"), with the same brief hold so a just-tapped
   // row does not fly away under the finger
-  const { active, postponed, done } = splitDone(
+  const { active, postponed, waiting, done } = splitDone(
     shown,
     config?.done_display ?? "inline",
     new Map(hold.map((h) => [h.id, h.status])),
@@ -243,6 +243,7 @@ export default function MobileDay() {
             postponed,
             config?.postponed_plate_color || null,
           )}
+          {section("Waiting", waiting, config?.waiting_plate_color || null)}
           {section("Done", done, config?.done_plate_color || null)}
         </div>
       )}

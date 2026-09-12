@@ -59,13 +59,13 @@ const GROUP_HELP: &str = "<!-- ^ the list's group: type a name to move this list
 
 const TODAY_HELP: &str = "<!-- Read-only day sheet, regenerated on every change - edits here are ignored. Check tasks off in the app or in the other mirror files. -->";
 
-const AGENDA_HELP: &str = "<!-- Agenda of generated tasks (recurring, scheduled events, birthdays) from today onward, grouped by day. Check a box ([x] done, [z] postponed, [ ] open), set an HH:MM time after the checkbox or toggle the \"! \" priority mark and it syncs back. Title and date edits do NOT sync - the YAML files in .hypomnema/config/ own them. A new line without an id creates a manual task on that day; deleting lines changes nothing, the app rewrites this file. -->";
+const AGENDA_HELP: &str = "<!-- Agenda of generated tasks (recurring, scheduled events, birthdays) from today onward, grouped by day. Check a box ([x] done, [z] postponed, [xz] done but waiting, [zz] dropped (not done), [ ] open), set an HH:MM time after the checkbox or toggle the \"! \" priority mark and it syncs back. Title and date edits do NOT sync - the YAML files in .hypomnema/config/ own them. A new line without an id creates a manual task on that day; deleting lines changes nothing, the app rewrites this file. -->";
 
-const FORMAT_HELP: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed; an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. The trailing ^id is the sync key: keep it when editing a line, leave it out on new lines, and deleting a whole line deletes that task. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
+const FORMAT_HELP: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed, [xz] = done but waiting, [zz] = dropped (not done); an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. The trailing ^id is the sync key: keep it when editing a line, leave it out on new lines, and deleting a whole line deletes that task. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
 
 /// Same help, for vaults with the sync keys turned off: without an id a
 /// line is matched by its text, which changes what editing one means.
-const FORMAT_HELP_NO_IDS: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed; an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. Lines carry no sync key here (Settings > Files), so a line is matched to its task by text: retyping a title replaces the task, and deleting a whole line deletes it. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
+const FORMAT_HELP_NO_IDS: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed, [xz] = done but waiting, [zz] = dropped (not done); an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. Lines carry no sync key here (Settings > Files), so a line is matched to its task by text: retyping a title replaces the task, and deleting a whole line deletes it. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
 
 fn list_marker(id: i64) -> String {
     format!("{LIST_MARKER_PREFIX}{id} -->")
@@ -112,6 +112,8 @@ fn render_line(task: &Task, indent: usize, ids: bool) -> String {
     let mark = match task.status.as_str() {
         "done" => "x",
         "postponed" => "z",
+        "waiting" => "xz",
+        "dropped" => "zz",
         _ => " ",
     };
     let mut line = format!("{}- [{mark}] ", "  ".repeat(indent));
@@ -175,6 +177,8 @@ fn render_plain_line(task: &Task, title: &str) -> String {
     let mark = match task.status.as_str() {
         "done" => "x",
         "postponed" => "z",
+        "waiting" => "xz",
+        "dropped" => "zz",
         _ => " ",
     };
     let mut line = format!("- [{mark}] ");
@@ -254,7 +258,7 @@ fn today_content(conn: &Connection, config_dir: &Path, today: &str, days: u32) -
     }
     // carried-over tasks sit on today wearing the overdue flag; they get
     // their own section instead of blending into the day's plan
-    let overdue_open = |t: &Task| t.overdue && t.status != "done";
+    let overdue_open = |t: &Task| t.overdue && !tasks::is_closed(&t.status);
     let mut overdue: Vec<&Task> = snapshot
         .iter()
         .filter(|t| in_window(t) && overdue_open(t))
@@ -541,6 +545,16 @@ fn parse_task_line(t: &str) -> std::result::Result<Line, String> {
     {
         ("done", r)
     } else if let Some(r) = t
+        .strip_prefix("- [xz] ")
+        .or_else(|| t.strip_prefix("- [XZ] "))
+    {
+        ("waiting", r)
+    } else if let Some(r) = t
+        .strip_prefix("- [zz] ")
+        .or_else(|| t.strip_prefix("- [ZZ] "))
+    {
+        ("dropped", r)
+    } else if let Some(r) = t
         .strip_prefix("- [z] ")
         .or_else(|| t.strip_prefix("- [Z] "))
         // [>] is what versions before 0.41 wrote; still read, never written
@@ -549,7 +563,7 @@ fn parse_task_line(t: &str) -> std::result::Result<Line, String> {
         ("postponed", r)
     } else if t.starts_with("- [") {
         return Err(format!(
-            "unrecognized checkbox in '{t}' (use [ ], [x] or [z])"
+            "unrecognized checkbox in '{t}' (use [ ], [x], [z], [xz] or [zz])"
         ));
     } else if let Some(r) = t.strip_prefix("- ") {
         // a plain bullet is accepted as a new open task (bulk paste)
@@ -1461,6 +1475,46 @@ mod tests {
             .unwrap();
         assert!(out.contains("- [z] old marker"));
         assert!(!out.contains("- [>]"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// waiting and dropped round-trip through their two-letter markers
+    #[test]
+    fn waiting_and_dropped_markers_round_trip() {
+        let (conn, dir) = setup("waiting-dropped");
+        let list = list_create(&conn, "Waits", None, false).unwrap();
+        let path = dir.join("Waits.md");
+        let content = format!(
+            "{}\n- [xz] asked the landlord\n- [ZZ] old idea\n",
+            list_marker(list.id)
+        );
+        assert!(import_file(&conn, &path, &content, TODAY, true, None).unwrap());
+        let parents = tasks::manual_parent_tasks(&conn).unwrap();
+        let status_of = |title: &str| {
+            parents
+                .iter()
+                .find(|t| t.title == title)
+                .map(|t| t.status.clone())
+        };
+        assert_eq!(status_of("asked the landlord").as_deref(), Some("waiting"));
+        assert_eq!(status_of("old idea").as_deref(), Some("dropped"));
+
+        let written = export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            &dir.join("config"),
+            TODAY,
+            &HashSet::new(),
+            &opts(true, false),
+        )
+        .unwrap();
+        let (_, out) = written
+            .iter()
+            .find(|(p, _)| p.file_name().unwrap() == "Waits.md")
+            .unwrap();
+        assert!(out.contains("- [xz] asked the landlord"));
+        assert!(out.contains("- [zz] old idea"));
         let _ = fs::remove_dir_all(&dir);
     }
 

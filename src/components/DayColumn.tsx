@@ -56,7 +56,7 @@ function DayColumn({
       ),
     ),
   );
-  const { active, postponed, done } = splitDone(
+  const { active, postponed, waiting, done } = splitDone(
     dayTasks,
     config?.done_display ?? "inline",
     new Map(hold.map((h) => [h.id, h.status])),
@@ -77,9 +77,9 @@ function DayColumn({
 
   // the alternating chip palette runs down the whole column: one
   // counter over every card in render order, cadence sections and the
-  // Postponed/Done blocks included
+  // Postponed/Waiting/Done blocks included
   const blockIndex = categoryBlockIndex(
-    [...groups.flatMap((g) => g.tasks), ...postponed, ...done],
+    [...groups.flatMap((g) => g.tasks), ...postponed, ...waiting, ...done],
     taskCategory,
   );
 
@@ -229,6 +229,12 @@ function DayColumn({
           postponed,
           config?.postponed_plate_color ?? "",
           config?.postponed_section_gap ?? 12,
+        )}
+        {section(
+          "Waiting",
+          waiting,
+          config?.waiting_plate_color ?? "",
+          config?.waiting_section_gap ?? 12,
         )}
         {section(
           "Done",

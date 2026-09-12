@@ -1,10 +1,5 @@
 import { useEffect, useRef } from "react";
-import {
-  EditorState,
-  Prec,
-  RangeSetBuilder,
-  type Extension,
-} from "@codemirror/state";
+import { EditorState, Prec, RangeSetBuilder, type Extension, Transaction } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -414,6 +409,7 @@ export function modeExtensions(mode: EditorMode): Extension[] {
 export default function MarkdownEditor({
   docKey,
   value,
+  initialAnchor = 0,
   onChange,
   showLineNumbers = false,
   mode = "markdown",
@@ -422,6 +418,8 @@ export default function MarkdownEditor({
   /** Identity of the document; changing it resets the editor state. */
   docKey: string;
   value: string;
+  /** where the cursor starts when the document is (re)created */
+  initialAnchor?: number;
   onChange: (content: string) => void;
   showLineNumbers?: boolean;
   mode?: EditorMode;
@@ -437,12 +435,16 @@ export default function MarkdownEditor({
   // last content the editor itself reported; anything else arriving via
   // the value prop is an external change that must reach the document
   const lastEmittedRef = useRef(value);
+  // set while an external value is being put in place: that is not an
+  // edit, and reporting it would schedule a save of what just arrived
+  const applyingExternalRef = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
     lastEmittedRef.current = value;
     const state = EditorState.create({
       doc: value,
+      selection: { anchor: Math.min(initialAnchor, value.length) },
       extensions: [
         history(),
         // IDE-grade editing: multiple cursors (Alt-click), rectangular
@@ -501,7 +503,7 @@ export default function MarkdownEditor({
           if (update.docChanged) {
             const content = update.state.doc.toString();
             lastEmittedRef.current = content;
-            onChangeRef.current(content);
+            if (!applyingExternalRef.current) onChangeRef.current(content);
           }
         }),
       ],
@@ -517,16 +519,39 @@ export default function MarkdownEditor({
   }, [docKey]);
 
   // External reload of the same document (e.g. the file changed on
-  // disk): replace the doc in place - the editor is only rebuilt on
-  // docKey changes and would otherwise silently ignore the new value.
+  // disk, or a save stamped the note's header): update the doc in place -
+  // the editor is only rebuilt on docKey changes and would otherwise
+  // silently ignore the new value. Only the span that differs is
+  // replaced, so the cursor and scroll position survive, and it stays out
+  // of the undo history (undo must not take a reload back).
   useEffect(() => {
     const view = viewRef.current;
     if (!view || value === lastEmittedRef.current) return;
     const current = view.state.doc.toString();
     if (value !== current) {
-      view.dispatch({
-        changes: { from: 0, to: current.length, insert: value },
-      });
+      const max = Math.min(current.length, value.length);
+      let from = 0;
+      while (from < max && current[from] === value[from]) from++;
+      let tail = 0;
+      while (
+        tail < max - from &&
+        current[current.length - 1 - tail] === value[value.length - 1 - tail]
+      ) {
+        tail++;
+      }
+      applyingExternalRef.current = true;
+      try {
+        view.dispatch({
+          changes: {
+            from,
+            to: current.length - tail,
+            insert: value.slice(from, value.length - tail),
+          },
+          annotations: Transaction.addToHistory.of(false),
+        });
+      } finally {
+        applyingExternalRef.current = false;
+      }
     }
     lastEmittedRef.current = value;
   }, [value]);

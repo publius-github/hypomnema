@@ -332,15 +332,199 @@ pub fn read(root: &Path, rel: &str) -> Result<String> {
     Ok(fs::read_to_string(resolve(root, rel)?)?)
 }
 
-pub fn write(root: &Path, rel: &str, content: &str) -> Result<()> {
+/// Writes a note. With `stamp` (a Markdown note, timestamps on) the
+/// Created / Last edited header is put on first. Returns the text that
+/// is now on disk, so the editor can take the header over; a save that
+/// changes nothing is not rewritten.
+pub fn write(root: &Path, rel: &str, content: &str, stamp: bool) -> Result<String> {
     let path = resolve(root, rel)?;
+    let on_disk = fs::read_to_string(&path).ok();
+    let content = if stamp {
+        let now = chrono::Local::now().format(STAMP_FORMAT).to_string();
+        let (created, modified) = file_times(&path).unwrap_or_else(|| (now.clone(), now.clone()));
+        stamp_note(content, on_disk.as_deref(), &created, &modified, &now)
+    } else {
+        content.to_string()
+    };
+    if on_disk.as_deref() == Some(content.as_str()) {
+        return Ok(content);
+    }
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
     // Notes are primary user data: a crash mid-autosave must not
     // truncate the file, same guarantee the YAML configs already have.
-    crate::vault::write_atomic(&path, content)?;
-    Ok(())
+    crate::vault::write_atomic(&path, &content)?;
+    Ok(content)
+}
+
+/// The two ownership lines the app keeps at the top of a Markdown note:
+/// when it was created, and when its text last changed through the app.
+/// Plain `Label: value` lines, so they read as-is in any editor; they
+/// double as YAML keys, and a note with a frontmatter block keeps them
+/// inside it, where other tools look for metadata.
+pub const CREATED_LABEL: &str = "Created:";
+pub const EDITED_LABEL: &str = "Last edited:";
+/// Local time, minute resolution.
+pub const STAMP_FORMAT: &str = "%Y-%m-%d %H:%M";
+/// How many lines (past the frontmatter, if any) are searched for the
+/// header: a line typed above it must not make the app lose the header
+/// and write a second one.
+const HEADER_SCAN_LINES: usize = 8;
+
+/// `YYYY-MM-DD`, optionally followed by ` HH:MM`: a date corrected by
+/// hand without a time is still the user's own statement and is kept.
+fn is_stamp(value: &str) -> bool {
+    let b = value.as_bytes();
+    let date = b.len() >= 10
+        && b[..10].iter().enumerate().all(|(i, c)| {
+            if i == 4 || i == 7 {
+                *c == b'-'
+            } else {
+                c.is_ascii_digit()
+            }
+        });
+    date && match &b[10..] {
+        [] => true,
+        [b' ', h1, h2, b':', m1, m2] => [h1, h2, m1, m2].iter().all(|c| c.is_ascii_digit()),
+        _ => false,
+    }
+}
+
+fn line_text(line: &str) -> &str {
+    line.trim_end_matches(['\n', '\r'])
+}
+
+fn stamp_of(line: &str, label: &str) -> Option<String> {
+    let value = line_text(line).strip_prefix(label)?.trim();
+    is_stamp(value).then(|| value.to_string())
+}
+
+/// Index of the closing fence when the text opens with a `---`
+/// frontmatter block.
+fn frontmatter_end(lines: &[&str]) -> Option<usize> {
+    if lines.first().map(|l| line_text(l)) != Some("---") {
+        return None;
+    }
+    lines
+        .iter()
+        .skip(1)
+        .position(|l| matches!(line_text(l), "---" | "..."))
+        .map(|i| i + 1)
+}
+
+struct NoteHeader {
+    created: Option<String>,
+    edited: Option<String>,
+    /// The note with the header lines (and the plain layout's blank
+    /// separator) taken out.
+    body: String,
+}
+
+fn split_header(content: &str) -> NoteHeader {
+    let lines: Vec<&str> = content.split_inclusive('\n').collect();
+    let fm_end = frontmatter_end(&lines);
+    let scan_from = usize::from(fm_end.is_some());
+    let scan_to = fm_end.map_or(0, |end| end + 1) + HEADER_SCAN_LINES;
+    let mut dropped = vec![false; lines.len()];
+    let (mut created, mut edited) = (None, None);
+    for (i, line) in lines.iter().enumerate().take(scan_to).skip(scan_from) {
+        if Some(i) == fm_end {
+            continue;
+        }
+        if created.is_none() {
+            if let Some(value) = stamp_of(line, CREATED_LABEL) {
+                created = Some(value);
+                dropped[i] = true;
+                continue;
+            }
+        }
+        if edited.is_none() {
+            if let Some(value) = stamp_of(line, EDITED_LABEL) {
+                edited = Some(value);
+                dropped[i] = true;
+            }
+        }
+    }
+    // the blank line the plain layout puts under the header goes with it
+    if let Some(last) = dropped.iter().rposition(|d| *d) {
+        let in_frontmatter = fm_end.is_some_and(|end| last < end);
+        if !in_frontmatter
+            && lines
+                .get(last + 1)
+                .is_some_and(|l| line_text(l).trim().is_empty())
+        {
+            dropped[last + 1] = true;
+        }
+    }
+    let body = lines
+        .iter()
+        .zip(&dropped)
+        .filter(|(_, gone)| !**gone)
+        .map(|(line, _)| *line)
+        .collect();
+    NoteHeader {
+        created,
+        edited,
+        body,
+    }
+}
+
+fn render_header(body: &str, created: &str, edited: &str) -> String {
+    let eol = if body.contains("\r\n") { "\r\n" } else { "\n" };
+    let header = format!("{CREATED_LABEL} {created}{eol}{EDITED_LABEL} {edited}{eol}");
+    let lines: Vec<&str> = body.split_inclusive('\n').collect();
+    if frontmatter_end(&lines).is_some() {
+        // inside the frontmatter, right under its opening fence
+        let open = lines[0];
+        format!("{open}{header}{}", &body[open.len()..])
+    } else {
+        format!("{header}{eol}{body}")
+    }
+}
+
+/// Puts the Created / Last edited header on a note being saved, always
+/// at the top (or at the top of its frontmatter). Created comes from the
+/// incoming text when it carries one (a hand correction wins), else from
+/// the file on disk, else from the file system. Last edited moves to
+/// `now` only when the text under the header changed: re-saving the same
+/// text (a flush, the editor adopting the header) must not claim an edit.
+pub fn stamp_note(
+    incoming: &str,
+    on_disk: Option<&str>,
+    file_created: &str,
+    file_modified: &str,
+    now: &str,
+) -> String {
+    let new = split_header(incoming);
+    let old = on_disk.map(split_header);
+    let created = new
+        .created
+        .clone()
+        .or_else(|| old.as_ref().and_then(|o| o.created.clone()))
+        .unwrap_or_else(|| file_created.to_string());
+    let edited = match old {
+        Some(old) if old.body == new.body => old
+            .edited
+            .or(new.edited)
+            .unwrap_or_else(|| file_modified.to_string()),
+        _ => now.to_string(),
+    };
+    render_header(&new.body, &created, &edited)
+}
+
+/// A file's birth and modification times as stamps; the birth time falls
+/// back to the modification time where the file system records none.
+fn file_times(path: &Path) -> Option<(String, String)> {
+    let meta = fs::metadata(path).ok()?;
+    let modified = meta.modified().ok()?;
+    let created = meta.created().unwrap_or(modified);
+    let stamp = |t: std::time::SystemTime| {
+        chrono::DateTime::<chrono::Local>::from(t)
+            .format(STAMP_FORMAT)
+            .to_string()
+    };
+    Some((stamp(created), stamp(modified)))
 }
 
 /// New files default to .md; an explicit extension is kept as-is.
@@ -628,7 +812,7 @@ mod tests {
         let root = root("traversal");
         assert!(read(&root, "../secret.md").is_err());
         assert!(read(&root, "/etc/passwd").is_err());
-        assert!(write(&root, "a/../../x.md", "boom").is_err());
+        assert!(write(&root, "a/../../x.md", "boom", false).is_err());
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -639,7 +823,7 @@ mod tests {
         assert_eq!(created, "notes/idea.md");
         assert!(create(&root, "notes/idea.md").is_err());
 
-        write(&root, "notes/idea.md", "content").unwrap();
+        write(&root, "notes/idea.md", "content", false).unwrap();
         assert_eq!(read(&root, "notes/idea.md").unwrap(), "content");
 
         rename(&root, "notes/idea.md", "notes/renamed").unwrap();
@@ -675,7 +859,7 @@ mod tests {
     fn copy_into_generates_unique_names() {
         let root = root("copy");
         create(&root, "a.md").unwrap();
-        write(&root, "a.md", "x").unwrap();
+        write(&root, "a.md", "x", false).unwrap();
         assert_eq!(copy_into(&root, "a.md", "").unwrap(), "a copy.md");
         assert_eq!(copy_into(&root, "a.md", "").unwrap(), "a copy 2.md");
         assert_eq!(read(&root, "a copy.md").unwrap(), "x");
@@ -700,6 +884,124 @@ mod tests {
 
         rename(&root, "renamed.txt", "explicit.yml").unwrap();
         assert!(read(&root, "explicit.yml").is_ok());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    const NOW: &str = "2026-09-12 11:00";
+    const THEN: &str = "2026-09-01 09:00";
+
+    fn stamped(body: &str, created: &str, edited: &str) -> String {
+        format!("Created: {created}\nLast edited: {edited}\n\n{body}")
+    }
+
+    #[test]
+    fn a_new_note_gets_the_header_on_top() {
+        assert_eq!(
+            stamp_note("# Idea\n", None, NOW, NOW, NOW),
+            stamped("# Idea\n", NOW, NOW)
+        );
+        assert_eq!(stamp_note("", None, NOW, NOW, NOW), stamped("", NOW, NOW));
+    }
+
+    #[test]
+    fn last_edited_moves_only_when_the_text_changed() {
+        let disk = stamped("body\n", THEN, THEN);
+        // a re-save of the same text keeps both stamps
+        assert_eq!(stamp_note(&disk, Some(&disk), NOW, NOW, NOW), disk);
+        // the editor without the header yet (a phone textarea) too
+        assert_eq!(stamp_note("body\n", Some(&disk), NOW, NOW, NOW), disk);
+        // an edit moves Last edited and keeps Created
+        assert_eq!(
+            stamp_note(
+                &stamped("body\nmore\n", THEN, THEN),
+                Some(&disk),
+                NOW,
+                NOW,
+                NOW
+            ),
+            stamped("body\nmore\n", THEN, NOW)
+        );
+    }
+
+    #[test]
+    fn an_unstamped_note_takes_its_file_times() {
+        let file_created = "2025-01-02 03:04";
+        let file_modified = "2025-05-06 07:08";
+        assert_eq!(
+            stamp_note("old\n", Some("old\n"), file_created, file_modified, NOW),
+            stamped("old\n", file_created, file_modified)
+        );
+        assert_eq!(
+            stamp_note(
+                "old\nnew\n",
+                Some("old\n"),
+                file_created,
+                file_modified,
+                NOW
+            ),
+            stamped("old\nnew\n", file_created, NOW)
+        );
+    }
+
+    #[test]
+    fn a_hand_corrected_created_date_wins() {
+        let disk = stamped("body\n", THEN, THEN);
+        let incoming = stamped("body\n", "2020-02-02", THEN);
+        assert_eq!(
+            stamp_note(&incoming, Some(&disk), NOW, NOW, NOW),
+            stamped("body\n", "2020-02-02", THEN)
+        );
+    }
+
+    #[test]
+    fn text_typed_above_the_header_never_duplicates_it() {
+        let disk = stamped("body\n", THEN, THEN);
+        let incoming = format!("# Title\n{disk}");
+        assert_eq!(
+            stamp_note(&incoming, Some(&disk), NOW, NOW, NOW),
+            stamped("# Title\nbody\n", THEN, NOW)
+        );
+    }
+
+    #[test]
+    fn a_frontmatter_note_keeps_the_header_inside_it() {
+        let note = "---\ntags: [a]\n---\nbody\n";
+        let out = stamp_note(note, None, NOW, NOW, NOW);
+        assert_eq!(
+            out,
+            format!("---\nCreated: {NOW}\nLast edited: {NOW}\ntags: [a]\n---\nbody\n")
+        );
+        assert_eq!(stamp_note(&out, Some(&out), THEN, THEN, THEN), out);
+    }
+
+    #[test]
+    fn prose_that_merely_starts_with_a_label_is_not_a_header() {
+        assert_eq!(
+            stamp_note("Created: by hand\n", None, NOW, NOW, NOW),
+            stamped("Created: by hand\n", NOW, NOW)
+        );
+    }
+
+    #[test]
+    fn crlf_notes_get_crlf_header_lines() {
+        assert_eq!(
+            stamp_note("a\r\nb\r\n", None, NOW, NOW, NOW),
+            format!("Created: {NOW}\r\nLast edited: {NOW}\r\n\r\na\r\nb\r\n")
+        );
+    }
+
+    #[test]
+    fn write_returns_the_stamped_text_and_skips_a_no_op() {
+        let root = std::env::temp_dir().join("app-pkb-kb-stamp");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let first = write(&root, "n.md", "hi\n", true).unwrap();
+        assert!(first.starts_with("Created: "));
+        assert!(first.ends_with("\n\nhi\n"));
+        assert_eq!(read(&root, "n.md").unwrap(), first);
+        assert_eq!(write(&root, "n.md", &first, true).unwrap(), first);
+        // without the stamp flag the text goes to disk as given
+        assert_eq!(write(&root, "n.md", "plain", false).unwrap(), "plain");
         let _ = fs::remove_dir_all(&root);
     }
 }

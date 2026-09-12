@@ -44,6 +44,9 @@ pub struct AppConfig {
     pub list_columns: u32,
     /// Show line numbers in the Notes editor (config files always do).
     pub kb_line_numbers: bool,
+    /// Markdown notes saved from the Notes editor carry a `Created:` and
+    /// a `Last edited:` line at the top, kept up to date by the app.
+    pub notes_timestamps: bool,
     /// Hide daily-cadence tasks on future day columns - they repeat
     /// every day anyway and only clutter the look-ahead.
     pub daily_tasks_today_only: bool,
@@ -126,6 +129,10 @@ pub struct AppConfig {
     pub done_section_gap: u32,
     pub list_postponed_section_gap: u32,
     pub list_done_section_gap: u32,
+    /// The same gap before the Waiting section (done but waiting on
+    /// someone), which sits between Postponed and Done.
+    pub waiting_section_gap: u32,
+    pub list_waiting_section_gap: u32,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -263,6 +270,7 @@ pub struct AppConfig {
     pub cadence_color_general: String,
     pub postponed_plate_color: String,
     pub done_plate_color: String,
+    pub waiting_plate_color: String,
     /// The card stripe of a dated list task keeps the exact-date color
     /// inside its list too; off = the list color rules there. Day
     /// columns always use the exact-date color.
@@ -365,6 +373,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "cadence_color_general",
     "postponed_plate_color",
     "done_plate_color",
+    "waiting_plate_color",
     // dated list tasks
     "list_date_chip_color",
     "list_exact_stripe",
@@ -398,6 +407,8 @@ pub const PROFILE_KEYS: &[&str] = &[
     "done_section_gap",
     "list_postponed_section_gap",
     "list_done_section_gap",
+    "waiting_section_gap",
+    "list_waiting_section_gap",
     "list_task_lines",
     "list_dialog_task_lines",
     // card markers
@@ -425,6 +436,7 @@ impl Default for AppConfig {
             dashboard_today_only: false,
             list_columns: 4,
             kb_line_numbers: false,
+            notes_timestamps: true,
             daily_tasks_today_only: false,
             dashboard_split: 60,
             calendar_daily_days: 3,
@@ -458,6 +470,8 @@ impl Default for AppConfig {
             done_section_gap: 12,
             list_postponed_section_gap: 12,
             list_done_section_gap: 12,
+            waiting_section_gap: 12,
+            list_waiting_section_gap: 12,
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
@@ -507,6 +521,7 @@ impl Default for AppConfig {
             cadence_color_general: String::new(),
             postponed_plate_color: String::new(),
             done_plate_color: String::new(),
+            waiting_plate_color: String::new(),
             list_exact_stripe: false,
             md_preset: "vscode".into(),
             // custom starts from the Dark+ values
@@ -629,6 +644,8 @@ impl AppConfig {
         self.done_section_gap = self.done_section_gap.min(400);
         self.list_postponed_section_gap = self.list_postponed_section_gap.min(400);
         self.list_done_section_gap = self.list_done_section_gap.min(400);
+        self.waiting_section_gap = self.waiting_section_gap.min(400);
+        self.list_waiting_section_gap = self.list_waiting_section_gap.min(400);
         self.ui_font = self.ui_font.trim().to_string();
         self.editor_font = self.editor_font.trim().to_string();
         // hex colors land in inline styles; anything malformed falls
@@ -698,6 +715,7 @@ impl AppConfig {
         sanitize_optional_color(&mut self.cadence_color_general);
         sanitize_optional_color(&mut self.postponed_plate_color);
         sanitize_optional_color(&mut self.done_plate_color);
+        sanitize_optional_color(&mut self.waiting_plate_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -784,6 +802,7 @@ impl AppConfig {
             ),
             ("list_columns", self.list_columns.to_string()),
             ("kb_line_numbers", self.kb_line_numbers.to_string()),
+            ("notes_timestamps", self.notes_timestamps.to_string()),
             (
                 "daily_tasks_today_only",
                 self.daily_tasks_today_only.to_string(),
@@ -843,6 +862,11 @@ impl AppConfig {
             (
                 "list_done_section_gap",
                 self.list_done_section_gap.to_string(),
+            ),
+            ("waiting_section_gap", self.waiting_section_gap.to_string()),
+            (
+                "list_waiting_section_gap",
+                self.list_waiting_section_gap.to_string(),
             ),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
@@ -924,6 +948,7 @@ impl AppConfig {
             ("cadence_color_general", self.cadence_color_general.clone()),
             ("postponed_plate_color", self.postponed_plate_color.clone()),
             ("done_plate_color", self.done_plate_color.clone()),
+            ("waiting_plate_color", self.waiting_plate_color.clone()),
             ("list_exact_stripe", self.list_exact_stripe.to_string()),
             ("md_preset", self.md_preset.clone()),
             ("md_color_heading", self.md_color_heading.clone()),

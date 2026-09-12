@@ -29,3 +29,39 @@ export const parentDirOf = (path: string) =>
   path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
 
 export const basenameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+
+/**
+ * Where the text under the Created / Last edited header the app keeps on
+ * notes starts (0 without one): a note opens with the cursor there, so
+ * typing straight away does not land inside the header lines.
+ */
+export function noteBodyOffset(content: string): number {
+  const match = /^Created: [^\n]*\nLast edited: [^\n]*\n(\r?\n)?/.exec(content);
+  return match ? match[0].length : 0;
+}
+
+/**
+ * A save came back with the note's header stamped (`sent` -> `written`)
+ * while the editor may have moved on since the text was sent. The stamp
+ * only touches the start of the note, so the head that differs between
+ * the two is carried over onto the current text. null when the current
+ * text no longer starts with the sent head - the header itself was
+ * edited meanwhile, and the next save stamps it again anyway.
+ */
+export function rebaseStamp(
+  sent: string,
+  written: string,
+  current: string,
+): string | null {
+  const max = Math.min(sent.length, written.length);
+  let tail = 0;
+  while (
+    tail < max &&
+    sent[sent.length - 1 - tail] === written[written.length - 1 - tail]
+  ) {
+    tail++;
+  }
+  const sentHead = sent.slice(0, sent.length - tail);
+  if (!current.startsWith(sentHead)) return null;
+  return written.slice(0, written.length - tail) + current.slice(sentHead.length);
+}

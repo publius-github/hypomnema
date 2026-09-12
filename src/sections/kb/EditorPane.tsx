@@ -5,7 +5,7 @@ import TaskModal from "../../components/TaskModal";
 import { useAppStore } from "../../store";
 import { splitCategory } from "../../lib/tasks";
 import type { BacklinksResult, KbSearchHit, Task } from "../../types";
-import type { OpenDoc } from "./util";
+import { noteBodyOffset, type OpenDoc } from "./util";
 
 /**
  * Collapsible backlinks strip under the editor: notes whose [[wiki
@@ -191,6 +191,9 @@ export default function EditorPane({
         <MarkdownEditor
           docKey={`${current.kind}:${current.path}`}
           value={current.content}
+          initialAnchor={
+            current.kind === "note" ? noteBodyOffset(current.content) : 0
+          }
           onChange={onChange}
           mode={
             current.path.toLowerCase().endsWith(".md")

@@ -7,10 +7,13 @@ import {
   compareTasks,
   nextStatus,
   priorityPatch,
+  isClosed,
+  STATUS_LABEL,
 } from "../lib/tasks";
 import { ColorPicker } from "./form";
 import TaskModal from "./TaskModal";
 import type { List, Task } from "../types";
+import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
 
 /**
  * List dialog: rename, favorite, color (used as the card stripe of the
@@ -64,8 +67,8 @@ export default function ListModal({
   // same order as the list column: optional alphabetical, done sinks
   const alpha = config?.list_tasks_sort_alpha ?? false;
   const sorted = [...listTasks].sort((a, b) => {
-    const aDone = shown(a) === "done";
-    const bDone = shown(b) === "done";
+    const aDone = isClosed(shown(a));
+    const bDone = isClosed(shown(b));
     if (aDone !== bDone) {
       return aDone ? 1 : -1;
     }
@@ -327,30 +330,17 @@ function ListTaskRow({
   const subtasks = useAppStore(
     useShallow((s) => s.tasks.filter((t) => t.parent_task_id === task.id)),
   );
-  const done = task.status === "done";
+  const closed = isClosed(task.status);
   const subDone = subtasks.filter((s) => s.status === "done").length;
 
   return (
     <div className="group flex items-start gap-2 rounded-md border border-line bg-surface-alt px-2 py-1 text-sm">
-      {/* the same three-state cycle the task cards use, so a postponed
-          task is visible here too, not just done/not-done */}
+      {/* the same status cycle the task cards use, so a postponed or
+          waiting task is visible here too, not just done/not-done */}
       <button
-        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-          task.status === "postponed"
-            ? "border-warn bg-warn text-white"
-            : done
-              ? "text-white"
-              : "border-content-muted text-content-muted"
-        }`}
-        style={
-          done
-            ? {
-                backgroundColor: "var(--color-done)",
-                borderColor: "var(--color-done)",
-              }
-            : undefined
-        }
-        title={`Status: ${task.status} (click: ${nextStatus(task.status, checklist)})`}
+        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${statusBoxClass(task.status)}`}
+        style={statusBoxStyle(task.status)}
+        title={`Status: ${STATUS_LABEL[task.status]} (click: ${STATUS_LABEL[nextStatus(task.status, checklist)]})`}
         onClick={() => {
           void updateTask(task.id, {
             status: nextStatus(task.status, checklist),
@@ -358,45 +348,19 @@ function ListTaskRow({
           holdStatus(task.id, task.status);
         }}
       >
-        {done && (
-          <svg
-            viewBox="0 0 12 12"
-            className="h-3 w-3"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <path d="M2.5 6.5l2.5 2.5l4.5 -5" />
-          </svg>
-        )}
-        {task.status === "postponed" && (
-          <svg
-            viewBox="0 0 12 12"
-            className="h-3 w-3"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <path d="M1.5 6h8" />
-            <path d="M6.5 3l3 3-3 3" />
-          </svg>
-        )}
+        <StatusIcon status={task.status} />
       </button>
       <button
         className={`min-w-0 flex-1 text-left ${
           titleLines > 1 ? "break-words" : "truncate"
         } ${
-          done
+          closed
             ? "text-content-muted line-through"
             : task.status === "postponed"
               ? "text-warn"
-              : ""
+              : task.status === "waiting"
+                ? "text-info"
+                : ""
         }`}
         style={titleLines > 1 ? clampStyle(titleLines) : undefined}
         title="Open task (subtasks, description, date)"

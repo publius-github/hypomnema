@@ -228,6 +228,76 @@ const MIGRATIONS: &[&str] = &[
             updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
         WHERE id = NEW.id;
     END;",
+    // 019: two more task statuses. 'waiting' is done on the user's side
+    // but still waiting on someone else - open, carried over like
+    // postponed; 'dropped' is not done and taken off the plan - closed
+    // like done (swept, pruned, never carried), but never counted as a
+    // completion. A CHECK constraint cannot be altered, so the table is
+    // rebuilt. The new table's self-reference names tasks_new: DROP
+    // TABLE tasks then has no child table to cascade into (with foreign
+    // keys on it would otherwise delete every subtask), and the rename
+    // rewrites the reference to tasks. Indexes and the migration 016
+    // stamp triggers go with the old table and are recreated; the copy
+    // keeps every row's stamps, since nothing about a row changed.
+    "CREATE TABLE tasks_new (
+        id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        description_md TEXT NOT NULL DEFAULT '',
+        list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL,
+        scheduled_date TEXT,
+        time TEXT,
+        status TEXT NOT NULL DEFAULT 'todo'
+            CHECK (status IN ('todo', 'done', 'postponed', 'waiting', 'dropped')),
+        color TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        parent_task_id INTEGER REFERENCES tasks_new(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        completed_at TEXT,
+        overdue INTEGER NOT NULL DEFAULT 0,
+        origin TEXT NOT NULL DEFAULT 'manual',
+        rule_key TEXT,
+        period_key TEXT,
+        archived_at TEXT,
+        cadence TEXT,
+        origin_date TEXT,
+        priority INTEGER NOT NULL DEFAULT 0,
+        dow_label TEXT,
+        updated_at TEXT,
+        updated_by TEXT
+    );
+    INSERT INTO tasks_new (id, title, description_md, list_id, scheduled_date, time,
+                           status, color, sort_order, parent_task_id, created_at,
+                           completed_at, overdue, origin, rule_key, period_key,
+                           archived_at, cadence, origin_date, priority, dow_label,
+                           updated_at, updated_by)
+        SELECT id, title, description_md, list_id, scheduled_date, time,
+               status, color, sort_order, parent_task_id, created_at,
+               completed_at, overdue, origin, rule_key, period_key,
+               archived_at, cadence, origin_date, priority, dow_label,
+               updated_at, updated_by
+        FROM tasks;
+    DROP TABLE tasks;
+    ALTER TABLE tasks_new RENAME TO tasks;
+    CREATE INDEX idx_tasks_scheduled_date ON tasks(scheduled_date);
+    CREATE INDEX idx_tasks_list_id ON tasks(list_id);
+    CREATE INDEX idx_tasks_parent ON tasks(parent_task_id);
+    CREATE INDEX idx_tasks_rule_period ON tasks(rule_key, period_key);
+    CREATE TRIGGER tasks_stamp_insert AFTER INSERT ON tasks
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+        UPDATE tasks SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    CREATE TRIGGER tasks_stamp_update AFTER UPDATE ON tasks
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+        UPDATE tasks SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -455,6 +525,66 @@ mod tests {
         assert_eq!(priority, 0);
         assert_eq!(cadence.as_deref(), Some("yearly"));
         assert_eq!(origin_date.as_deref(), Some("2026-03-14"));
+    }
+
+    /// The task-table rebuild in 019 runs with foreign keys ON too: the
+    /// subtasks must survive the DROP, keep cascading afterwards, and
+    /// every row keeps the stamps it had - while new writes are stamped
+    /// by the recreated triggers.
+    #[test]
+    fn migration_019_rebuilds_tasks_intact_with_foreign_keys_on() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (idx, migration) in MIGRATIONS.iter().take(18).enumerate() {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", (idx + 1) as i64)
+                .unwrap();
+        }
+        set_device_id(&conn, "device-a").unwrap();
+        conn.execute_batch(
+            "INSERT INTO lists (id, name) VALUES (1, 'Work');
+             INSERT INTO tasks (id, title, created_at, list_id, status, priority,
+                                updated_at, updated_by)
+             VALUES (1, 'parent', '', 1, 'postponed', 1, '2026-01-01T00:00:00Z', 'old');
+             INSERT INTO tasks (id, title, created_at, parent_task_id, updated_at, updated_by)
+             VALUES (2, 'child', '', 1, '2026-01-01T00:00:00Z', 'old');",
+        )
+        .unwrap();
+
+        migrate(&conn).unwrap();
+
+        let rows: Vec<(i64, Option<i64>, String, i64, String)> = conn
+            .prepare(
+                "SELECT id, parent_task_id, status, priority, updated_by
+                 FROM tasks ORDER BY id",
+            )
+            .unwrap()
+            .query_map([], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+            })
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                (1, None, "postponed".into(), 1, "old".into()),
+                (2, Some(1), "todo".into(), 0, "old".into()),
+            ]
+        );
+        for status in ["waiting", "dropped"] {
+            conn.execute("UPDATE tasks SET status = ?1 WHERE id = 2", [status])
+                .unwrap();
+        }
+        assert!(conn
+            .execute("UPDATE tasks SET status = 'later' WHERE id = 2", [])
+            .is_err());
+        assert_eq!(stamps_of(&conn, 2).1.as_deref(), Some("device-a"));
+        conn.execute("DELETE FROM tasks WHERE id = 1", []).unwrap();
+        let left: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(left, 0, "the subtask cascades with its parent");
     }
 
     /// The list-table rebuild in 015 runs with foreign keys ON in

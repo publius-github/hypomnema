@@ -434,9 +434,9 @@ fn generate_recurring(
 /// still-open ones (incl. overdue carry-overs), and the pre-today
 /// history that would otherwise keep cluttering the Calendar - the
 /// config is the source of truth for what recurring work exists.
-/// Only a copy already completed TODAY survives, so editing a rule
-/// (which re-identifies it) never makes a just-checked-off task
-/// vanish from the day column. A broken file never reaches this
+/// Only a copy already acted on TODAY (done, dropped or waiting)
+/// survives, so editing a rule (which re-identifies it) never makes a
+/// just-checked-off task vanish from the day column. A broken file never reaches this
 /// point, so the last valid state is preserved.
 fn reconcile_recurring(
     conn: &Connection,
@@ -466,13 +466,15 @@ fn reconcile_recurring(
              WHERE parent_task_id IN
                    (SELECT id FROM tasks
                     WHERE origin = 'recurring' AND rule_key = ?1
-                      AND (COALESCE(scheduled_date, '') != ?2 OR status != 'done'))",
+                      AND (COALESCE(scheduled_date, '') != ?2
+                           OR status NOT IN ('done', 'dropped', 'waiting')))",
             (key, &today_str),
         )?;
         outcome.removed += conn.execute(
             "DELETE FROM tasks
              WHERE origin = 'recurring' AND rule_key = ?1
-               AND (COALESCE(scheduled_date, '') != ?2 OR status != 'done')",
+               AND (COALESCE(scheduled_date, '') != ?2
+                    OR status NOT IN ('done', 'dropped', 'waiting'))",
             (key, &today_str),
         )?;
         // Editing a rule re-identifies it: the new key regenerated
@@ -486,7 +488,7 @@ fn reconcile_recurring(
                AND EXISTS (SELECT 1 FROM tasks old
                            WHERE old.origin = 'recurring'
                              AND old.rule_key = ?1
-                             AND old.status = 'done'
+                             AND old.status IN ('done', 'dropped', 'waiting')
                              AND old.archived_at IS NULL
                              AND old.title = tasks.title
                              AND old.scheduled_date = tasks.scheduled_date)",
@@ -674,7 +676,7 @@ fn run_birthdays(
                 conn.execute(
                     "UPDATE tasks SET title = ?1
                      WHERE rule_key = ?2 AND period_key = ?3
-                       AND status != 'done' AND archived_at IS NULL
+                       AND status NOT IN ('done', 'dropped') AND archived_at IS NULL
                        AND title != ?1",
                     (&generated.title, &generated.rule_key, &generated.period_key),
                 )?;
@@ -692,7 +694,7 @@ fn run_birthdays(
 fn dedupe_legacy_recurring(conn: &Connection) -> Result<usize> {
     let mut deduped = conn.execute(
         "DELETE FROM tasks
-         WHERE origin = 'recurring' AND status != 'done'
+         WHERE origin = 'recurring' AND status NOT IN ('done', 'dropped', 'waiting')
            AND archived_at IS NULL AND parent_task_id IS NULL
            AND rule_key IS NOT NULL
            AND EXISTS (SELECT 1 FROM tasks twin
@@ -732,7 +734,7 @@ fn move_overdue_to_today(
     Ok(conn.execute(
         "UPDATE tasks SET scheduled_date = ?1,
                 overdue = CASE WHEN priority = 1 AND ?2 = 0 THEN 0 ELSE 1 END
-         WHERE status != 'done'
+         WHERE status NOT IN ('done', 'dropped')
            AND archived_at IS NULL
            AND parent_task_id IS NULL
            AND scheduled_date IS NOT NULL
@@ -747,10 +749,12 @@ fn move_overdue_to_today(
 /// whose next firing has already arrived, would otherwise sit next
 /// to each other as duplicates. The copy kept is today's own firing
 /// (overdue = 0) when it exists, otherwise the newest overdue copy.
+/// A waiting copy is never the one deleted: the user's part of it is
+/// done, and what it still waits on is not today's firing.
 fn collapse_carried_copies(conn: &Connection, today_str: &str) -> Result<usize> {
     Ok(conn.execute(
         "DELETE FROM tasks
-         WHERE origin = 'recurring' AND status != 'done'
+         WHERE origin = 'recurring' AND status NOT IN ('done', 'dropped', 'waiting')
            AND archived_at IS NULL
            AND parent_task_id IS NULL
            AND rule_key IS NOT NULL
@@ -762,7 +766,8 @@ fn collapse_carried_copies(conn: &Connection, today_str: &str) -> Result<usize> 
                          AND live.archived_at IS NULL
                          AND live.scheduled_date = ?1
                          AND (live.overdue = 0
-                              OR (live.status != 'done' AND live.id > tasks.id)))",
+                              OR (live.status NOT IN ('done', 'dropped')
+                                  AND live.id > tasks.id)))",
         [today_str],
     )?)
 }
@@ -779,7 +784,7 @@ fn rehome_dailies(conn: &Connection, priority_overdue: bool) -> Result<()> {
     conn.execute(
         "UPDATE tasks SET scheduled_date = origin_date
          WHERE origin = 'recurring' AND cadence = 'daily'
-           AND status != 'done' AND archived_at IS NULL
+           AND status NOT IN ('done', 'dropped') AND archived_at IS NULL
            AND origin_date IS NOT NULL
            AND scheduled_date != origin_date",
         [],
@@ -787,8 +792,9 @@ fn rehome_dailies(conn: &Connection, priority_overdue: bool) -> Result<()> {
     Ok(())
 }
 
-/// Overdue carry-over (req. 7, 8): every non-done task scheduled before
-/// today moves to today and keeps an overdue mark until completed.
+/// Overdue carry-over (req. 7, 8): every open task (not done or
+/// dropped - postponed and waiting ride along) scheduled before today
+/// moves to today and keeps an overdue mark until completed.
 /// Daily-cadence tasks are exempt: a daily is never overdue, today has
 /// its own instance - a missed one just stays unchecked in its day.
 /// Returns (carried_over, deduped).
@@ -828,7 +834,7 @@ fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usiz
     let today_str = today.format("%Y-%m-%d").to_string();
     Ok(conn.execute(
         "DELETE FROM tasks
-         WHERE origin = 'manual' AND status = 'done'
+         WHERE origin = 'manual' AND status IN ('done', 'dropped')
            AND parent_task_id IS NULL
            AND list_id IS NOT NULL
            AND list_id NOT IN (SELECT id FROM lists WHERE kind = 'checklist')
@@ -856,7 +862,7 @@ fn prune(conn: &Connection, retention_days: u32, now: DateTime<Local>) -> Result
     let today_str = now.date_naive().format("%Y-%m-%d").to_string();
     let pruned = conn.execute(
         "DELETE FROM tasks
-         WHERE status = 'done'
+         WHERE status IN ('done', 'dropped')
            AND parent_task_id IS NULL
            AND completed_at IS NOT NULL
            AND completed_at < ?1
@@ -2186,6 +2192,35 @@ mod tests {
             })
             .unwrap();
         assert_eq!(done_date, "2026-08-20");
+    }
+
+    /// Waiting rides the carry-over like postponed (the user's part is
+    /// done, the wait is not over); dropped stays on its day like done,
+    /// and retention prunes it with the done tasks.
+    #[test]
+    fn carry_over_takes_waiting_and_leaves_dropped() {
+        let (conn, dir) = setup("waiting-dropped");
+        conn.execute_batch(
+            "INSERT INTO tasks (id, title, scheduled_date, status, completed_at, created_at)
+             VALUES (1, 'waiting', '2026-08-20', 'waiting', NULL, ''),
+                    (2, 'dropped', '2026-08-20', 'dropped', '2026-08-20T10:00:00+00:00', ''),
+                    (3, 'old dropped', '2026-06-01', 'dropped', '2026-06-01T10:00:00+00:00', '');",
+        )
+        .unwrap();
+        let outcome = run(&conn, &dir, &config(1, 7, 30), at("2026-08-28", "12:00:00")).unwrap();
+        assert_eq!(outcome.carried_over, 1);
+        assert_eq!(outcome.pruned, 1);
+        let dates: Vec<(i64, String)> = conn
+            .prepare("SELECT id, scheduled_date FROM tasks ORDER BY id")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            dates,
+            vec![(1, "2026-08-28".to_string()), (2, "2026-08-20".to_string())]
+        );
     }
 
     #[test]

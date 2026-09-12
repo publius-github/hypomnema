@@ -18,6 +18,9 @@ import {
   splitCategory,
   tintStyle,
   todayISO,
+  isClosed,
+  STATUS_GLYPH,
+  STATUS_GLYPH_CLASS,
 } from "../lib/tasks";
 import type { OutlookEvent, Task } from "../types";
 import TaskModal from "../components/TaskModal";
@@ -403,28 +406,18 @@ export default function Calendar() {
             onOpen={() => setOpenTask(task)}
           >
             <span
-              className={
-                task.status === "postponed"
-                  ? "text-warn"
-                  : task.status === "done"
-                    ? ""
-                    : "text-content-muted"
-              }
+              className={STATUS_GLYPH_CLASS[task.status]}
               style={
                 task.status === "done"
                   ? { color: "var(--color-done)" }
                   : undefined
               }
             >
-              {task.status === "done"
-                ? "✓"
-                : task.status === "postponed"
-                  ? "→"
-                  : "○"}
+              {STATUS_GLYPH[task.status]}
             </span>
             <span
               className={`min-w-0 flex-1 truncate ${
-                task.status === "done" ? "text-content-muted line-through" : ""
+                isClosed(task.status) ? "text-content-muted line-through" : ""
               }`}
             >
               {task.dow_label &&

@@ -57,7 +57,8 @@ pub struct Task {
     pub list_id: Option<i64>,
     pub scheduled_date: Option<String>,
     pub time: Option<String>,
-    #[ts(type = "\"todo\" | \"done\" | \"postponed\"")]
+    /// See [`STATUSES`].
+    #[ts(type = "\"todo\" | \"done\" | \"postponed\" | \"waiting\" | \"dropped\"")]
     pub status: String,
     pub color: Option<String>,
     #[ts(type = "number")]
@@ -743,6 +744,20 @@ pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
     task_get(conn, id)
 }
 
+/// Every status a task can hold. `todo`, `postponed` and `waiting` (done
+/// on the user's side, still waiting on someone else) are open: carried
+/// over, listed as upcoming. `done` and `dropped` (not done, taken off
+/// the plan) are closed: swept, pruned, never carried - and only `done`
+/// counts as a completion. SQL spells the closed pair out as
+/// `status IN ('done', 'dropped')`; the engine additionally never deletes
+/// a `waiting` row as a duplicate, since the user has acted on it.
+pub const STATUSES: &[&str] = &["todo", "done", "postponed", "waiting", "dropped"];
+
+/// Done or dropped: nothing is left to act on.
+pub fn is_closed(status: &str) -> bool {
+    matches!(status, "done" | "dropped")
+}
+
 pub fn task_get(conn: &Connection, id: i64) -> Result<Task> {
     conn.query_row("SELECT * FROM tasks WHERE id = ?1", [id], row_to_task)
         .map_err(Into::into)
@@ -753,10 +768,11 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
     // half of it applied.
     let tx = conn.unchecked_transaction()?;
     if let Some(status) = &patch.status {
-        if !["todo", "done", "postponed"].contains(&status.as_str()) {
+        if !STATUSES.contains(&status.as_str()) {
             return Err(Error::State(format!("invalid status: {status}")));
         }
-        let completed_at = if status == "done" {
+        // the moment a task left the plan, for the sweeps and retention
+        let completed_at = if is_closed(status) {
             Some(Utc::now().to_rfc3339())
         } else {
             None
@@ -1000,8 +1016,8 @@ pub fn task_restore(conn: &Connection, deleted: &DeletedTasks) -> Result<Vec<Tas
     Ok(restored)
 }
 
-/// Maintenance helper (Settings): removes every task marked done, with
-/// subtasks of done parents. Soft delete, like task_delete: hard-deleting
+/// Maintenance helper (Settings): removes every closed task (done or
+/// dropped), with subtasks of closed parents. Soft delete, like task_delete: hard-deleting
 /// a generated task would erase the tombstone that stops the engine from
 /// regenerating a still-current period as a fresh todo. Checklist lists
 /// are exempt: their checked items are state to keep, not history to
@@ -1017,9 +1033,10 @@ pub fn tasks_delete_done(conn: &Connection) -> Result<usize> {
                    AND l.id = COALESCE(tasks.list_id,
                                        (SELECT p.list_id FROM tasks p
                                         WHERE p.id = tasks.parent_task_id)))
-           AND (status = 'done'
+           AND (status IN ('done', 'dropped')
                 OR parent_task_id IN (SELECT id FROM tasks
-                                      WHERE status = 'done' AND archived_at IS NULL))",
+                                      WHERE status IN ('done', 'dropped')
+                                        AND archived_at IS NULL))",
         [Utc::now().to_rfc3339()],
     )?)
 }
@@ -1844,6 +1861,32 @@ mod tests {
         group_delete(&conn, group.id).unwrap();
         assert!(groups_all(&conn).unwrap().is_empty());
         assert_eq!(lists_all(&conn).unwrap()[0].group_id, None);
+    }
+
+    #[test]
+    fn dropped_closes_the_task_and_waiting_keeps_it_open() {
+        let conn = conn();
+        let task = task_create(
+            &conn,
+            &NewTask {
+                title: "t".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let set = |status: &str| {
+            task_update(
+                &conn,
+                task.id,
+                &TaskPatch {
+                    status: Some(status.into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+        assert!(set("dropped").completed_at.is_some());
+        assert!(set("waiting").completed_at.is_none());
     }
 
     #[test]

@@ -40,6 +40,11 @@ list_columns: number,
  */
 kb_line_numbers: boolean, 
 /**
+ * Markdown notes saved from the Notes editor carry a `Created:` and
+ * a `Last edited:` line at the top, kept up to date by the app.
+ */
+notes_timestamps: boolean, 
+/**
  * Hide daily-cadence tasks on future day columns - they repeat
  * every day anyway and only clutter the look-ahead.
  */
@@ -153,6 +158,11 @@ list_category_block_gap: number,
  * visibly below the active tasks independently.
  */
 postponed_section_gap: number, done_section_gap: number, list_postponed_section_gap: number, list_done_section_gap: number, 
+/**
+ * The same gap before the Waiting section (done but waiting on
+ * someone), which sits between Postponed and Done.
+ */
+waiting_section_gap: number, list_waiting_section_gap: number, 
 /**
  * Order of the cadence sections inside a day column.
  */
@@ -361,7 +371,7 @@ list_date_chip_color: string,
  * Section plate colors: the General cadence group and the Postponed
  * and Done blocks; empty = the neutral plate style.
  */
-cadence_color_general: string, postponed_plate_color: string, done_plate_color: string, 
+cadence_color_general: string, postponed_plate_color: string, done_plate_color: string, waiting_plate_color: string, 
 /**
  * The card stripe of a dated list task keeps the exact-date color
  * inside its list too; off = the list color rules there. Day

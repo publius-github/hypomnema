@@ -321,6 +321,7 @@ export default function AppearanceTab() {
         keys={[
           "cadence_color_general",
           "postponed_plate_color",
+          "waiting_plate_color",
           "done_plate_color",
         ]}
       >
@@ -332,6 +333,7 @@ export default function AppearanceTab() {
           [
             ["General", "cadence_color_general"],
             ["Postponed", "postponed_plate_color"],
+            ["Waiting", "waiting_plate_color"],
             ["Done", "done_plate_color"],
           ] as const
         ).map(([label, key]) => (

@@ -4,11 +4,14 @@ import { useAppStore } from "../store";
 import type { JournalSearchHit, KbSearchHit, Task } from "../types";
 import TaskModal from "./TaskModal";
 import Icon from "./icons";
+import { isClosed } from "../lib/tasks";
 
 const STATUS_GLYPH: Record<string, string> = {
   todo: "○",
   done: "●",
   postponed: "◐",
+  waiting: "◷",
+  dropped: "✕",
 };
 
 // One flattened list drives the keyboard navigation; the group headers
@@ -186,7 +189,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
               <>
                 <span
                   className={
-                    task.status === "done"
+                    isClosed(task.status)
                       ? "text-content-muted"
                       : task.status === "postponed"
                         ? "text-warn"
@@ -197,7 +200,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
                 </span>
                 <span
                   className={`min-w-0 flex-1 truncate ${
-                    task.status === "done"
+                    isClosed(task.status)
                       ? "text-content-muted line-through"
                       : ""
                   }`}

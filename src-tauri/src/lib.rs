@@ -1543,8 +1543,22 @@ async fn kb_read(state: State<'_, AppState>, path: String) -> Result<String> {
 }
 
 #[tauri::command]
-async fn kb_write(state: State<'_, AppState>, path: String, content: String) -> Result<()> {
-    kb::write(&kb_root(&state)?, &path, &content)
+async fn kb_write(state: State<'_, AppState>, path: String, content: String) -> Result<String> {
+    let root = kb_root(&state)?;
+    let stamp = {
+        let guard = state.vault.lock().unwrap();
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        // Markdown notes only, and never a journal entry reached through
+        // a vault-rooted Notes tree: the journal keeps its own shape
+        let markdown = Path::new(&path)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+        let journal = root == vault.root && path.starts_with("journal/");
+        vault.config.notes_timestamps && markdown && !journal
+    };
+    kb::write(&root, &path, &content, stamp)
 }
 
 #[tauri::command]

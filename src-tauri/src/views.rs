@@ -103,7 +103,7 @@ pub fn upcoming_events(
                     "SELECT EXISTS(SELECT 1 FROM tasks
                                    WHERE rule_key = ?1 AND period_key = ?2
                                      AND archived_at IS NULL AND parent_task_id IS NULL
-                                     AND status != 'done')",
+                                     AND status NOT IN ('done', 'dropped'))",
                     (&rule_key, &event.date),
                     |row| row.get(0),
                 )?;
@@ -125,7 +125,7 @@ pub fn upcoming_events(
         "SELECT t.scheduled_date, t.title, t.time, l.name
          FROM tasks t JOIN lists l ON l.id = t.list_id
          WHERE t.origin = 'manual' AND t.archived_at IS NULL
-           AND t.parent_task_id IS NULL AND t.status != 'done'
+           AND t.parent_task_id IS NULL AND t.status NOT IN ('done', 'dropped')
            AND t.priority = 0 AND t.scheduled_date >= ?1",
     )?;
     let list_tasks = stmt

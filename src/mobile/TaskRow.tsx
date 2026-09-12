@@ -11,6 +11,7 @@ import {
   splitCategory,
   tintStyle,
   weekdayShort,
+  isClosed,
 } from "../lib/tasks";
 import { useEditTask } from "./editing";
 import type { List, Task } from "../types";
@@ -65,6 +66,7 @@ export default function TaskRow({
   const { setEditing } = useEditTask();
 
   const done = task.status === "done";
+  const closed = isClosed(task.status);
   const subtasks = tasks.filter((t) => t.parent_task_id === task.id);
   const subtasksDone = subtasks.filter((t) => t.status === "done").length;
 
@@ -123,7 +125,7 @@ export default function TaskRow({
             // seconds (done_display "separate"), so a mistap can be
             // fixed before the row flies away
             holdStatus(task.id, task.status);
-            void updateTask(task.id, { status: done ? "todo" : "done" });
+            void updateTask(task.id, { status: closed ? "todo" : "done" });
           }}
           className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 pr-1 text-left"
         >
@@ -132,15 +134,17 @@ export default function TaskRow({
             className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
               done
                 ? "border-accent bg-accent text-white"
-                : "border-line text-transparent"
+                : task.status === "dropped"
+                  ? "border-content-muted bg-content-muted text-surface"
+                  : "border-line text-transparent"
             }`}
           >
-            ✓
+            {task.status === "dropped" ? "✕" : "✓"}
           </span>
           <span className="min-w-0">
             <span
               className={`flex flex-wrap items-baseline gap-x-1.5 gap-y-1 ${
-                done ? "text-content-muted line-through" : ""
+                closed ? "text-content-muted line-through" : ""
               }`}
             >
               {dowLabel && (
@@ -192,11 +196,13 @@ export default function TaskRow({
                   {subtasksDone}/{subtasks.length}
                 </span>
               )}
-              {task.overdue && !done && (
+              {task.overdue && !closed && (
                 <span className="text-warn">overdue</span>
               )}
               {task.priority && <span className="text-accent">★</span>}
-              {task.status === "postponed" && <span>postponed</span>}
+              {(task.status === "postponed" || task.status === "waiting") && (
+                <span>{task.status}</span>
+              )}
             </span>
           </span>
         </button>

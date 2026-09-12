@@ -23,17 +23,55 @@ export function clampStyle(lines: number): CSSProperties {
   };
 }
 
-// The checkbox cycles todo -> done -> postponed -> todo: postponing is
-// one extra click on a just-completed task (the done-hold delay keeps
-// it in place long enough to make that click). Checklist lists have no
+// The checkbox cycles todo -> done -> postponed -> waiting -> todo:
+// postponing is one extra click on a just-completed task (the done-hold
+// delay keeps it in place long enough to make that click), "done but
+// waiting" one more. Dropped is never a click away - it is chosen on
+// purpose (the card's drop button, the dialog, the review) - and a click
+// on a dropped task brings it back to todo. Checklist lists have no
 // postponed state - their checkbox is a plain todo <-> done toggle (a
-// leftover postponed row from before the type switch cycles back to
-// todo).
+// leftover row in any other state cycles back to todo).
 export const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
   todo: "done",
   done: "postponed",
-  postponed: "todo",
+  postponed: "waiting",
+  waiting: "todo",
+  dropped: "todo",
 };
+
+export const STATUS_LABEL: Record<TaskStatus, string> = {
+  todo: "To Do",
+  done: "Done",
+  postponed: "Postponed",
+  waiting: "Done, waiting",
+  dropped: "Not done, dropped",
+};
+
+/** One-character status marks for the text rows (Calendar, Review). */
+export const STATUS_GLYPH: Record<TaskStatus, string> = {
+  todo: "○",
+  done: "✓",
+  postponed: "→",
+  waiting: "◷",
+  dropped: "✕",
+};
+
+/** Text color of those marks; done takes --color-done inline. */
+export const STATUS_GLYPH_CLASS: Record<TaskStatus, string> = {
+  todo: "text-content-muted",
+  done: "",
+  postponed: "text-warn",
+  waiting: "text-info",
+  dropped: "text-content-muted",
+};
+
+/**
+ * Done or dropped: nothing is left to act on. Closed tasks are struck
+ * through and never overdue; only done counts as a completion.
+ */
+export function isClosed(status: TaskStatus): boolean {
+  return status === "done" || status === "dropped";
+}
 
 export function nextStatus(status: TaskStatus, checklist = false): TaskStatus {
   if (checklist) return status === "todo" ? "done" : "todo";
@@ -370,11 +408,11 @@ export function mondayOf(date: string): string {
   return addDaysISO(date, -((d.getDay() + 6) % 7));
 }
 
-/** Subtask order: optionally done-last, then the regular comparator. */
+/** Subtask order: optionally closed-last, then the regular comparator. */
 export function sortSubtasks(subtasks: Task[], doneLast: boolean): Task[] {
   return [...subtasks].sort((a, b) => {
-    if (doneLast && (a.status === "done") !== (b.status === "done")) {
-      return a.status === "done" ? 1 : -1;
+    if (doneLast && isClosed(a.status) !== isClosed(b.status)) {
+      return isClosed(a.status) ? 1 : -1;
     }
     return compareTasks(a, b);
   });
@@ -536,6 +574,8 @@ export function compareTasks(a: Task, b: Task): number {
 export interface DoneSplit {
   active: Task[];
   postponed: Task[];
+  waiting: Task[];
+  /** done and dropped: the closed tasks share the bottom section */
   done: Task[];
 }
 
@@ -567,8 +607,9 @@ export function currentAndNextBlock(
 
 /**
  * Done display mode (req. 15): inline keeps everything in place,
- * separate splits postponed and done into their own bottom sections
- * (Postponed above Done). Tasks in `hold` were just clicked: they stay
+ * separate splits postponed, waiting and closed tasks into their own
+ * bottom sections (Postponed, then Waiting, then Done - which also holds
+ * the dropped tasks). Tasks in `hold` were just clicked: they stay
  * in the active block for a few seconds so a misclick can be fixed
  * before the card flies away.
  */
@@ -577,13 +618,16 @@ export function splitDone(
   mode: string,
   hold?: ReadonlyMap<number, TaskStatus>,
 ): DoneSplit {
-  if (mode !== "separate") return { active: tasks, postponed: [], done: [] };
+  if (mode !== "separate") {
+    return { active: tasks, postponed: [], waiting: [], done: [] };
+  }
   // a held task keeps the section it was displayed in when its checkbox
   // was clicked, wherever the status cycle has moved it since
   const shown = (t: Task) => hold?.get(t.id) ?? t.status;
   return {
     active: tasks.filter((t) => shown(t) === "todo"),
     postponed: tasks.filter((t) => shown(t) === "postponed"),
-    done: tasks.filter((t) => shown(t) === "done"),
+    waiting: tasks.filter((t) => shown(t) === "waiting"),
+    done: tasks.filter((t) => isClosed(shown(t))),
   };
 }

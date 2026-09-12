@@ -16,6 +16,7 @@ import {
   flattenAll,
   flattenFiles,
   parentDirOf,
+  rebaseStamp,
 } from "./kb/util";
 
 import type { KbNode, KbSearchHit } from "../types";
@@ -176,8 +177,20 @@ export default function KnowledgeBase() {
         setConfigErrors(errors);
         if (errors.length === 0) setSaved(true);
       } else {
-        await invoke("kb_write", { path: doc.path, content: doc.content });
+        const written = await invoke<string>("kb_write", {
+          path: doc.path,
+          content: doc.content,
+        });
         setSaved(true);
+        // the save stamped the note's Created / Last edited header: the
+        // editor takes it over without losing what was typed meanwhile
+        if (written !== doc.content) {
+          setCurrent((cur) => {
+            if (!cur || cur.kind !== "note" || cur.path !== doc.path) return cur;
+            const next = rebaseStamp(doc.content, written, cur.content);
+            return next === null ? cur : { ...cur, content: next };
+          });
+        }
       }
     } catch (e) {
       setError(e);

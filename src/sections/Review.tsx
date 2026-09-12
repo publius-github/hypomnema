@@ -8,6 +8,9 @@ import {
   splitCategory,
   todayISO,
   weekdayShort,
+  isClosed,
+  STATUS_GLYPH,
+  STATUS_GLYPH_CLASS,
 } from "../lib/tasks";
 import type { DashboardContext, List, OutlookEvent, Task } from "../types";
 import TaskModal from "../components/TaskModal";
@@ -127,8 +130,13 @@ export default function Review() {
   const done = useMemo(() => past.filter((t) => t.status === "done"), [past]);
   const rate =
     past.length > 0 ? Math.round((done.length / past.length) * 100) : null;
+  // dropped is neither: not done, but off the plan on purpose
+  const dropped = useMemo(
+    () => past.filter((t) => t.status === "dropped"),
+    [past],
+  );
   const stillOpen = useMemo(
-    () => past.filter((t) => t.status !== "done"),
+    () => past.filter((t) => !isClosed(t.status)),
     [past],
   );
   const byOrigin = useMemo(() => {
@@ -161,7 +169,8 @@ export default function Review() {
   }, [nextTasks, nextOutlook]);
 
   // clearing an open leftover is the review's job: push it a week out,
-  // drop it back to its list's backlog, or close it right here
+  // drop it back to its list's backlog, or close it right here (done,
+  // or dropped as not done)
   const pushNextWeek = (task: Task) =>
     void updateTask(task.id, {
       scheduled_date: nextWeekTarget(weekStart, today),
@@ -201,29 +210,23 @@ export default function Review() {
         onClick={() => setOpenTask(task)}
       >
         <span
-          className={
-            task.status === "postponed" ? "text-warn" : "text-content-muted"
-          }
+          className={STATUS_GLYPH_CLASS[task.status]}
           style={
             task.status === "done" ? { color: "var(--color-done)" } : undefined
           }
         >
-          {task.status === "done"
-            ? "✓"
-            : task.status === "postponed"
-              ? "→"
-              : "○"}
+          {STATUS_GLYPH[task.status]}
         </span>
         <span
           className={`min-w-0 flex-1 truncate ${
-            showDone && task.status === "done"
+            showDone && isClosed(task.status)
               ? "text-content-muted line-through"
               : ""
           }`}
         >
           {splitCategory(task.title).text}
         </span>
-        {task.overdue && task.status !== "done" && (
+        {task.overdue && !isClosed(task.status) && (
           <span className="rounded bg-danger/15 px-1.5 py-0.5 text-[11px] font-semibold text-danger">
             OVERDUE
           </span>
@@ -259,6 +262,11 @@ export default function Review() {
             "Done",
             "Mark done",
             () => void updateTask(task.id, { status: "done" }),
+          )}
+          {rowAction(
+            "Drop",
+            "Not done, drop it: off the plan, and counted as not done",
+            () => void updateTask(task.id, { status: "dropped" }),
           )}
           <button
             className="rounded border border-line px-1.5 py-0.5 text-[11px] text-content-muted hover:border-danger hover:text-danger"
@@ -333,6 +341,9 @@ export default function Review() {
         {stillOpen.length > 0 && (
           <StatTile value={String(stillOpen.length)} label="still open" />
         )}
+        {dropped.length > 0 && (
+          <StatTile value={String(dropped.length)} label="dropped, not done" />
+        )}
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
@@ -354,6 +365,14 @@ export default function Review() {
               {tasks.map((t) => taskRow(t, true))}
             </div>
           ))}
+          {dropped.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+                Dropped, not done
+              </div>
+              {dropped.map((t) => taskRow(t, true))}
+            </div>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3">

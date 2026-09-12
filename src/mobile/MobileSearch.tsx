@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
-import { daysBetweenISO } from "../lib/tasks";
+import {
+  daysBetweenISO,
+  isClosed,
+} from "../lib/tasks";
 import { useEditTask } from "./editing";
 import { useMobileNav } from "./nav";
 import { useBackStep } from "./back";
@@ -11,6 +14,8 @@ const STATUS_GLYPH: Record<string, string> = {
   todo: "○",
   done: "●",
   postponed: "◐",
+  waiting: "◷",
+  dropped: "✕",
 };
 
 /**
@@ -141,7 +146,7 @@ export default function MobileSearch({ onClose }: { onClose: () => void }) {
           >
             <span
               className={
-                task.status === "done"
+                isClosed(task.status)
                   ? "text-content-muted"
                   : task.status === "postponed"
                     ? "text-warn"
@@ -152,7 +157,7 @@ export default function MobileSearch({ onClose }: { onClose: () => void }) {
             </span>
             <span
               className={`min-w-0 flex-1 break-words ${
-                task.status === "done" ? "text-content-muted line-through" : ""
+                isClosed(task.status) ? "text-content-muted line-through" : ""
               }`}
             >
               {task.title}

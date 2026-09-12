@@ -86,7 +86,7 @@ function ListColumn({
     }
     return compareTasks(a, b);
   });
-  const { active, postponed, done } = splitDone(
+  const { active, postponed, waiting, done } = splitDone(
     sorted,
     config?.done_display ?? "inline",
     new Map(hold.map((h) => [h.id, h.status])),
@@ -116,9 +116,9 @@ function ListColumn({
 
   // one running counter for the alternating chip palette, over every
   // card of the column in render order (priority block, backlog,
-  // Postponed, Done) - inside a list only the {X} prefix is a category
+  // Postponed, Waiting, Done) - inside a list only the {X} prefix is a category
   const blockIndex = categoryBlockIndex(
-    [...prioritized, ...rest, ...postponed, ...done],
+    [...prioritized, ...rest, ...postponed, ...waiting, ...done],
     (t: Task) => categoryOf(t.title),
   );
 
@@ -330,6 +330,12 @@ function ListColumn({
           postponed,
           config?.postponed_plate_color ?? "",
           config?.list_postponed_section_gap ?? 12,
+        )}
+        {section(
+          "Waiting",
+          waiting,
+          config?.waiting_plate_color ?? "",
+          config?.list_waiting_section_gap ?? 12,
         )}
         {section(
           "Done",
