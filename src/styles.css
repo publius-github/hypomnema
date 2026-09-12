@@ -21,7 +21,7 @@
      only the pre-config fallback */
   --color-done: #22c55e;
   /* waiting (done, waiting) marks; config-driven via waiting_color */
-  --color-waiting: #3a9e94;
+  --color-waiting: #3b80c0;
   /* markdown token colors per the VS Code Light+ spec (light_vs.json):
      heading #800000, bold #000080, italic #800080, inline raw #800000,
      link/checkbox text = string #a31515, quote/comment #008000,

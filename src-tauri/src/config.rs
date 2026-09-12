@@ -107,8 +107,8 @@ pub struct AppConfig {
     pub category_color_b: String,
     /// Checked (done) checkboxes on task cards and subtasks.
     pub done_color: String,
-    /// Done-but-waiting status marks: a calm teal between the done green
-    /// and the info blue, so it reads as "done, not over yet".
+    /// Done-but-waiting status marks: a muted blue, quieter than the
+    /// info tone, so it reads as "done, not over yet".
     pub waiting_color: String,
     /// Vertical gap between task cards inside a column, px.
     /// (New numeric keys replace the old cadence_group_gap/category_gap
@@ -466,7 +466,7 @@ impl Default for AppConfig {
             category_color_a: "#3b82f6".into(),
             category_color_b: "#a855f7".into(),
             done_color: "#22c55e".into(),
-            waiting_color: "#3a9e94".into(),
+            waiting_color: "#3b80c0".into(),
             task_gap: 6,
             section_gap: 12,
             category_block_gap: 12,

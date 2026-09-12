@@ -130,8 +130,8 @@ category_color_a: string, category_color_b: string,
  */
 done_color: string, 
 /**
- * Done-but-waiting status marks: a calm teal between the done green
- * and the info blue, so it reads as "done, not over yet".
+ * Done-but-waiting status marks: a muted blue, quieter than the
+ * info tone, so it reads as "done, not over yet".
  */
 waiting_color: string, 
 /**

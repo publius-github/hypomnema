@@ -58,7 +58,7 @@ export const defaultConfig: AppConfig = {
   category_color_a: "#3b82f6",
   category_color_b: "#a855f7",
   done_color: "#22c55e",
-  waiting_color: "#3a9e94",
+  waiting_color: "#3b80c0",
   task_gap: 6,
   section_gap: 12,
   category_block_gap: 12,
