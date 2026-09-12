@@ -1,13 +1,13 @@
 import type { TaskStatus } from "../types";
 
 // The status checkbox look shared by the task cards and the list
-// dialog rows. Done takes the configurable checkbox color via the
-// --color-done var; the others use theme tokens.
+// dialog rows. Done and waiting take their configurable colors via the
+// --color-done / --color-waiting vars; the others use theme tokens.
 const STATUS_BOX: Record<TaskStatus, string> = {
   todo: "border-content-muted text-content-muted",
   done: "text-white",
   postponed: "border-warn bg-warn text-white",
-  waiting: "border-info bg-info text-white",
+  waiting: "border-waiting bg-waiting text-white",
   dropped: "border-content-muted bg-content-muted text-surface",
 };
 

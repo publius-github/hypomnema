@@ -202,6 +202,7 @@ export default function AppearanceTab() {
           "cadence_color_yearly",
           "cadence_color_exact",
           "done_color",
+          "waiting_color",
         ]}
       >
         <Toggle
@@ -239,6 +240,13 @@ export default function AppearanceTab() {
           <ColorPicker
             value={config.done_color}
             onChange={(color) => void updateConfig({ done_color: color })}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Done, waiting mark color</span>
+          <ColorPicker
+            value={config.waiting_color}
+            onChange={(color) => void updateConfig({ waiting_color: color })}
           />
         </div>
       </SettingsGroup>
@@ -333,7 +341,7 @@ export default function AppearanceTab() {
           [
             ["General", "cadence_color_general"],
             ["Postponed", "postponed_plate_color"],
-            ["Waiting", "waiting_plate_color"],
+            ["Done, waiting", "waiting_plate_color"],
             ["Done", "done_plate_color"],
           ] as const
         ).map(([label, key]) => (

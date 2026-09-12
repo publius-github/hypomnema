@@ -200,8 +200,9 @@ export default function TaskRow({
                 <span className="text-warn">overdue</span>
               )}
               {task.priority && <span className="text-accent">★</span>}
-              {(task.status === "postponed" || task.status === "waiting") && (
-                <span>{task.status}</span>
+              {task.status === "postponed" && <span>postponed</span>}
+              {task.status === "waiting" && (
+                <span className="text-waiting">done, waiting</span>
               )}
             </span>
           </span>

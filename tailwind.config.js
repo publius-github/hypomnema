@@ -14,6 +14,8 @@ export default {
         danger: "rgb(var(--color-danger) / <alpha-value>)",
         warn: "rgb(var(--color-warn) / <alpha-value>)",
         info: "rgb(var(--color-info) / <alpha-value>)",
+        // a plain hex var (configurable, like --color-done): no opacity modifiers
+        waiting: "var(--color-waiting)",
       },
     },
   },

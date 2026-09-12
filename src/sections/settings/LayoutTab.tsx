@@ -338,10 +338,10 @@ export default function LayoutTab() {
             {(
               [
                 ["Before Postponed (days)", "postponed_section_gap"],
-                ["Before Waiting (days)", "waiting_section_gap"],
+                ["Before Done, waiting (days)", "waiting_section_gap"],
                 ["Before Done (days)", "done_section_gap"],
                 ["Before Postponed (lists)", "list_postponed_section_gap"],
-                ["Before Waiting (lists)", "list_waiting_section_gap"],
+                ["Before Done, waiting (lists)", "list_waiting_section_gap"],
                 ["Before Done (lists)", "list_done_section_gap"],
               ] as const
             ).map(([label, key]) => (

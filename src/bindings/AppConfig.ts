@@ -130,6 +130,11 @@ category_color_a: string, category_color_b: string,
  */
 done_color: string, 
 /**
+ * Done-but-waiting status marks: a calm teal between the done green
+ * and the info blue, so it reads as "done, not over yet".
+ */
+waiting_color: string, 
+/**
  * Vertical gap between task cards inside a column, px.
  * (New numeric keys replace the old cadence_group_gap/category_gap
  * booleans; stale keys in app.yml are ignored by serde.)

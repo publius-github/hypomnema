@@ -359,7 +359,7 @@ function ListTaskRow({
             : task.status === "postponed"
               ? "text-warn"
               : task.status === "waiting"
-                ? "text-info"
+                ? "text-waiting"
                 : ""
         }`}
         style={titleLines > 1 ? clampStyle(titleLines) : undefined}

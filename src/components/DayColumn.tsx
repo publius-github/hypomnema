@@ -231,7 +231,7 @@ function DayColumn({
           config?.postponed_section_gap ?? 12,
         )}
         {section(
-          "Waiting",
+          "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
           config?.waiting_section_gap ?? 12,

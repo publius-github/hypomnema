@@ -243,7 +243,7 @@ export default function MobileDay() {
             postponed,
             config?.postponed_plate_color || null,
           )}
-          {section("Waiting", waiting, config?.waiting_plate_color || null)}
+          {section("Done, waiting", waiting, config?.waiting_plate_color || null)}
           {section("Done", done, config?.done_plate_color || null)}
         </div>
       )}

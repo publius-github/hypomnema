@@ -107,6 +107,9 @@ pub struct AppConfig {
     pub category_color_b: String,
     /// Checked (done) checkboxes on task cards and subtasks.
     pub done_color: String,
+    /// Done-but-waiting status marks: a calm teal between the done green
+    /// and the info blue, so it reads as "done, not over yet".
+    pub waiting_color: String,
     /// Vertical gap between task cards inside a column, px.
     /// (New numeric keys replace the old cadence_group_gap/category_gap
     /// booleans; stale keys in app.yml are ignored by serde.)
@@ -363,6 +366,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "cadence_color_yearly",
     "cadence_color_exact",
     "done_color",
+    "waiting_color",
     // category chips
     "category_color",
     "category_color_mode",
@@ -462,6 +466,7 @@ impl Default for AppConfig {
             category_color_a: "#3b82f6".into(),
             category_color_b: "#a855f7".into(),
             done_color: "#22c55e".into(),
+            waiting_color: "#3a9e94".into(),
             task_gap: 6,
             section_gap: 12,
             category_block_gap: 12,
@@ -682,6 +687,7 @@ impl AppConfig {
         }
         self.chip_font_scale = self.chip_font_scale.clamp(50, 200);
         sanitize_color(&mut self.done_color, defaults.done_color);
+        sanitize_color(&mut self.waiting_color, defaults.waiting_color);
         sanitize_color(&mut self.md_color_heading, defaults.md_color_heading);
         sanitize_color(&mut self.md_color_bold, defaults.md_color_bold);
         sanitize_color(&mut self.md_color_italic, defaults.md_color_italic);
@@ -843,6 +849,7 @@ impl AppConfig {
             ("category_color_a", self.category_color_a.clone()),
             ("category_color_b", self.category_color_b.clone()),
             ("done_color", self.done_color.clone()),
+            ("waiting_color", self.waiting_color.clone()),
             ("task_gap", self.task_gap.to_string()),
             ("section_gap", self.section_gap.to_string()),
             ("category_block_gap", self.category_block_gap.to_string()),

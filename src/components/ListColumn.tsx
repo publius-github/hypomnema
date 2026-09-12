@@ -332,7 +332,7 @@ function ListColumn({
           config?.list_postponed_section_gap ?? 12,
         )}
         {section(
-          "Waiting",
+          "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
           config?.list_waiting_section_gap ?? 12,

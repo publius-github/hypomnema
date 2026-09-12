@@ -552,7 +552,7 @@ function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
               : sub.status === "postponed"
                 ? "text-warn"
                 : sub.status === "waiting"
-                  ? "text-info"
+                  ? "text-waiting"
                   : ""
           }`}
           title="Click to edit"

@@ -10,7 +10,7 @@ const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
 const STATUSES: { id: TaskStatus; label: string }[] = [
   { id: "todo", label: "To do" },
   { id: "postponed", label: "Postponed" },
-  { id: "waiting", label: "Waiting" },
+  { id: "waiting", label: "Done, waiting" },
   { id: "done", label: "Done" },
   { id: "dropped", label: "Dropped" },
 ];

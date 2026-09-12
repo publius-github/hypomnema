@@ -418,7 +418,7 @@ function TaskCard({
                     : sub.status === "postponed"
                       ? "text-warn"
                       : sub.status === "waiting"
-                        ? "text-info"
+                        ? "text-waiting"
                         : ""
                 }`}
                 title={

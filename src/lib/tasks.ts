@@ -61,7 +61,7 @@ export const STATUS_GLYPH_CLASS: Record<TaskStatus, string> = {
   todo: "text-content-muted",
   done: "",
   postponed: "text-warn",
-  waiting: "text-info",
+  waiting: "text-waiting",
   dropped: "text-content-muted",
 };
 
