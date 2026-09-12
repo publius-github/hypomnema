@@ -180,13 +180,48 @@ function ensure_rust_targets() {
   done
 }
 
+function esbuild_platform_package() {
+  # The @esbuild/<platform> optional dep is a reliable proxy for which OS the
+  # whole node_modules was installed for: it is a required build dependency and
+  # ships a distinct native binary per platform, installed alongside the other
+  # per-platform binaries (rollup, the tauri CLI).
+  local platform
+  platform="$(node -p 'process.platform + "-" + process.arch')"
+  case "$platform" in
+    linux-x64) printf '@esbuild/linux-x64' ;;
+    linux-arm64) printf '@esbuild/linux-arm64' ;;
+    darwin-x64) printf '@esbuild/darwin-x64' ;;
+    darwin-arm64) printf '@esbuild/darwin-arm64' ;;
+    win32-x64) printf '@esbuild/win32-x64' ;;
+    *) printf '' ;;
+  esac
+}
+
 function install_frontend_dependencies() {
   printf "\n"
-  log_info "function install_frontend_dependencies - npm ci"
-  if [ -d node_modules ]; then
-    log_info "node_modules already present, skipping npm ci"
-  else
+  log_info "function install_frontend_dependencies - install node_modules for this platform"
+  # node_modules can sit on a drive shared with a Windows checkout. npm installs
+  # native binaries (esbuild, rollup, the tauri CLI) as per-platform optional
+  # deps, and its optional-deps bug (npm/cli#4828) means an install done for one
+  # OS omits the others' binaries. Under WSL that surfaces as vite/rollup
+  # failing to resolve modules, or the tauri CLI failing to load. So a present
+  # node_modules is not enough - it also has to match this platform.
+  local expected
+  expected="$(esbuild_platform_package)"
+  if [ ! -d node_modules ]; then
     npm ci
+  elif [ -z "$expected" ]; then
+    log_warn "unrecognized platform; cannot verify node_modules, leaving it as-is"
+  elif [ -d "node_modules/$expected" ]; then
+    log_info "node_modules already present and built for this platform ($expected)"
+  else
+    log_warn "node_modules is missing $expected: it was installed for another OS"
+    log_warn "(shared drive between Windows and WSL). Reinstalling for this platform."
+    npm ci
+  fi
+  if [ -n "$expected" ] && [ ! -d "node_modules/$expected" ]; then
+    log_error "node_modules still missing $expected after install (npm/cli#4828?)"
+    exit 1
   fi
 }
 
