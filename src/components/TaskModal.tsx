@@ -168,8 +168,8 @@ export default function TaskModal({
       >
         <div className="flex items-start gap-3">
           {/* the title is one logical line, but long ones wrap here so
-              the whole text is visible; Enter commits instead of
-              inserting a newline */}
+              the whole text is visible; Enter commits and closes the
+              dialog instead of inserting a newline */}
           <textarea
             ref={titleRef}
             rows={1}
@@ -180,9 +180,9 @@ export default function TaskModal({
             readOnly={generated}
             onChange={(e) => setTitle(e.target.value.replace(/\n/g, " "))}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                 e.preventDefault();
-                e.currentTarget.blur();
+                commitAndClose();
               }
             }}
             onBlur={commitTitle}
