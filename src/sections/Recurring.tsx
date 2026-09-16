@@ -132,6 +132,14 @@ export default function Recurring() {
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {rule.description || "(no description)"}
                   </span>
+                  {rule.threshold != null && (
+                    <span
+                      className="shrink-0 text-xs text-content-muted"
+                      title="Rate chip alerts below this completion rate"
+                    >
+                      alert &lt; {rule.threshold}%
+                    </span>
+                  )}
                 </div>
                 <ul className="mt-1 pl-1 text-sm text-content-muted">
                   {rule.items.map((item, j) => (
@@ -341,6 +349,41 @@ function ScheduleBuilder({
   );
 }
 
+/** Empty = the Settings default; otherwise a whole percent 0-100. */
+function parseThreshold(draft: string): number | undefined {
+  const trimmed = draft.trim();
+  if (trimmed === "") return undefined;
+  const n = Math.round(Number(trimmed));
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : undefined;
+}
+
+function ThresholdInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const fallback = useAppStore((s) => s.config?.habit_rate_threshold ?? 80);
+  return (
+    <label
+      className="flex items-center gap-2 text-xs text-content-muted"
+      title="The task cards' Rate chip turns loud below this completion rate; empty = the default from Settings"
+    >
+      Rate alert below, %
+      <input
+        className="input w-20"
+        type="number"
+        min={0}
+        max={100}
+        placeholder={String(fallback)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
 function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
   const setError = (e: unknown) => useAppStore.getState().setError(String(e));
   const [schedule, setSchedule] = useState<BuilderState>(() =>
@@ -348,6 +391,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
   );
   const [description, setDescription] = useState("");
   const [items, setItems] = useState("");
+  const [threshold, setThreshold] = useState("");
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -363,11 +407,13 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
           schedule: cron,
           description: description.trim(),
           items: parsedItems,
+          threshold: parseThreshold(threshold),
         },
       });
       setSchedule(parseSchedule(""));
       setDescription("");
       setItems("");
+      setThreshold("");
       await onWrite();
     } catch (err) {
       setError(err);
@@ -392,9 +438,10 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
         value={items}
         onChange={(e) => setItems(e.target.value)}
       />
-      <button className="btn-primary self-end">
-        Add rule
-      </button>
+      <div className="flex items-center justify-between gap-2">
+        <ThresholdInput value={threshold} onChange={setThreshold} />
+        <button className="btn-primary">Add rule</button>
+      </div>
     </form>
   );
 }
@@ -404,7 +451,7 @@ function RuleEditForm({
   onSave,
   onCancel,
 }: {
-  rule: RecurringRule;
+  rule: RecurringRuleView;
   onSave: (replacement: RecurringRule) => void;
   onCancel: () => void;
 }) {
@@ -413,6 +460,9 @@ function RuleEditForm({
   );
   const [description, setDescription] = useState(rule.description);
   const [items, setItems] = useState(rule.items.join("\n"));
+  const [threshold, setThreshold] = useState(
+    rule.threshold == null ? "" : String(rule.threshold),
+  );
 
   return (
     <form
@@ -429,6 +479,7 @@ function RuleEditForm({
           schedule: cron,
           description: description.trim(),
           items: parsedItems,
+          threshold: parseThreshold(threshold),
         });
       }}
     >
@@ -444,7 +495,8 @@ function RuleEditForm({
         value={items}
         onChange={(e) => setItems(e.target.value)}
       />
-      <div className="self-end">
+      <div className="flex items-center justify-between gap-2">
+        <ThresholdInput value={threshold} onChange={setThreshold} />
         <EditFormButtons onCancel={onCancel} />
       </div>
     </form>

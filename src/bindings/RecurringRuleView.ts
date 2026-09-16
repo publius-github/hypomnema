@@ -2,6 +2,11 @@
 
 export type RecurringRuleView = { schedule: string, description: string, items: Array<string>, 
 /**
+ * the rule's own rate alert threshold, percent; None = the default
+ * from config.habit_rate_threshold
+ */
+threshold: number | null, 
+/**
  * file the rule lives in, relative to config/; only rules from the
  * root recurring.yml are editable through the UI
  */

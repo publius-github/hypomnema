@@ -6,6 +6,7 @@ import type {
   DashboardContext,
   DeletedTasks,
   EngineOutcome,
+  HabitRate,
   KbNode,
   List,
   ListGroup,
@@ -18,6 +19,13 @@ import type {
 import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
 import { MD_TOKENS, resolveMdColors } from "./lib/mdPresets";
 import { THEME_TOKEN_VARS, resolveThemeColors } from "./lib/themePresets";
+
+/// Settings the backend's habit rates are computed from.
+const HABIT_RATE_KEYS: (keyof AppConfig)[] = [
+  "habit_rate_threshold",
+  "habit_rate_window",
+  "habit_rate_min_instances",
+];
 
 /// Settings that change how many days the views show: both the snapshot
 /// window and the engine horizon derive from them.
@@ -40,6 +48,10 @@ interface AppState {
   tasks: Task[];
   configErrors: ConfigError[];
   dashboard: DashboardContext | null;
+  /// completion rate per recurring rule item, keyed by rule_key; items
+  /// without enough settled instances are absent
+  habitRates: Record<string, HabitRate>;
+  loadHabitRates: () => Promise<void>;
   /// bumped after every engine pass (manual or watcher-triggered) so
   /// sections holding YAML-derived local state know to reload
   vaultVersion: number;
@@ -222,6 +234,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   tasks: [],
   configErrors: [],
   dashboard: null,
+  habitRates: {},
+  loadHabitRates: async () => {
+    try {
+      const rates = await invoke<HabitRate[]>("habit_rates");
+      set({
+        habitRates: Object.fromEntries(rates.map((r) => [r.rule_key, r])),
+      });
+    } catch {
+      // a missing rate only hides a chip; not worth an error banner
+    }
+  },
   vaultVersion: 0,
 
   init: async () => {
@@ -308,6 +331,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         invoke<DashboardContext>("dashboard_context", { dates }),
       ]);
       set({ today, lists, groups, tasks, dashboard });
+      void get().loadHabitRates();
     } catch (e) {
       set({ error: String(e) });
     }
@@ -344,6 +368,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? updated : t)),
       }));
+      // a status change on a recurring instance moves its rule's rate
+      if (updated.origin === "recurring" && "status" in patch) {
+        void get().loadHabitRates();
+      }
     } catch (e) {
       // roll back only this task: restoring a whole snapshot would
       // clobber concurrent optimistic updates of other tasks
@@ -631,6 +659,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (WINDOW_KEYS.some((key) => key in patch)) {
         await get().runEngine();
         await get().refresh();
+      } else if (HABIT_RATE_KEYS.some((key) => key in patch)) {
+        await get().loadHabitRates();
       }
     } catch (e) {
       applyTheme(current);

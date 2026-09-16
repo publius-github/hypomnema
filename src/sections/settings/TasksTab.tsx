@@ -1,4 +1,10 @@
-import { Field, NumberInput, TextInput, Toggle } from "../../components/form";
+import {
+  ColorPicker,
+  Field,
+  NumberInput,
+  TextInput,
+  Toggle,
+} from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import { useAppStore } from "../../store";
 
@@ -74,6 +80,70 @@ export default function TasksTab() {
               hint="Rules free on both day fields (e.g. 0 9 * * *) wear an [EVERYDAY] marker instead of going unlabeled."
               onChange={(v) => void updateConfig({ cron_everyday_label: v })}
             />
+          </div>
+        )}
+      </SettingsGroup>
+
+      <SettingsGroup
+        title="Habit rate"
+        keys={[
+          "habit_rate_chip",
+          "habit_rate_threshold",
+          "habit_rate_window",
+          "habit_rate_min_instances",
+          "habit_rate_alert_color",
+        ]}
+      >
+        <Toggle
+          checked={config.habit_rate_chip}
+          label="Completion rate chip on recurring tasks"
+          hint="A Rate: 82% chip next to the priority and overdue marks: how many of the item's recent instances were done. Done and waiting count as done; dropped and a missed daily count as not done."
+          onChange={(v) => void updateConfig({ habit_rate_chip: v })}
+        />
+
+        {config.habit_rate_chip && (
+          <div className="flex flex-col gap-3 pl-6">
+            <Field label="Alert below, % (a rule's own threshold in recurring.yml wins)">
+              <NumberInput
+                value={config.habit_rate_threshold}
+                min={0}
+                onCommit={(n) =>
+                  void updateConfig({ habit_rate_threshold: Math.min(100, n) })
+                }
+              />
+            </Field>
+
+            <Field label="Count the last N instances (0 = all history)">
+              <NumberInput
+                value={config.habit_rate_window}
+                min={0}
+                onCommit={(n) =>
+                  void updateConfig({ habit_rate_window: Math.min(3650, n) })
+                }
+              />
+            </Field>
+
+            <Field label="Show the rate after at least N instances">
+              <NumberInput
+                value={config.habit_rate_min_instances}
+                min={1}
+                onCommit={(n) =>
+                  void updateConfig({
+                    habit_rate_min_instances: Math.min(365, n),
+                  })
+                }
+              />
+            </Field>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Alert chip color</span>
+              <ColorPicker
+                value={config.habit_rate_alert_color}
+                onChange={(color) =>
+                  void updateConfig({ habit_rate_alert_color: color })
+                }
+              />
+            </div>
           </div>
         )}
       </SettingsGroup>

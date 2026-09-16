@@ -13,7 +13,7 @@ use crate::config::AppConfig;
 use crate::config_files::{
     load_extras, load_yaml, parse_mmdd, BirthdaysFile, ConfigError, RecurringFile, ScheduledFile,
 };
-use crate::engine::{cadence_of, parse_item, scheduled_rule_key};
+use crate::engine::{cadence_of, parse_item, recurring_rule_key, scheduled_rule_key};
 use crate::error::Result;
 
 #[derive(Debug, Serialize, TS)]
@@ -22,6 +22,9 @@ pub struct RecurringRuleView {
     pub schedule: String,
     pub description: String,
     pub items: Vec<String>,
+    /// the rule's own rate alert threshold, percent; None = the default
+    /// from config.habit_rate_threshold
+    pub threshold: Option<u32>,
     /// file the rule lives in, relative to config/; only rules from the
     /// root recurring.yml are editable through the UI
     pub source: String,
@@ -486,6 +489,125 @@ pub fn daily_streaks(conn: &Connection, today: NaiveDate) -> Result<Vec<DailyStr
     Ok(out)
 }
 
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct HabitRate {
+    pub rule_key: String,
+    #[ts(type = "number")]
+    pub done: u32,
+    /// settled instances counted, the rate's denominator
+    #[ts(type = "number")]
+    pub total: u32,
+    /// done share in whole percent, rounded down so a rate shown as 80%
+    /// is never one that alerts at an 80% threshold
+    #[ts(type = "number")]
+    pub rate: u32,
+    /// effective threshold: the rule's own, else the config default
+    #[ts(type = "number")]
+    pub threshold: u32,
+    /// rate is below the threshold
+    pub alert: bool,
+}
+
+/// Completion rate per recurring rule item (one `rule_key` each), over
+/// its newest `habit_rate_window` settled instances. Settled means:
+/// done or waiting (done on the user's side) counts as done; dropped
+/// counts as not done; a daily instance still open after its day counts
+/// as not done too, since dailies never carry over. An open instance of
+/// any other cadence is still live work (it carries over as overdue),
+/// so it waits until it is closed. Items with fewer than
+/// `habit_rate_min_instances` settled instances get no rate.
+pub fn habit_rates(
+    conn: &Connection,
+    config_dir: &Path,
+    config: &AppConfig,
+    today: NaiveDate,
+) -> Result<Vec<HabitRate>> {
+    let mut thresholds = std::collections::HashMap::new();
+    let mut errors = Vec::new();
+    let mut sources = vec![
+        load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors).unwrap_or_default(),
+    ];
+    sources.extend(
+        load_extras::<RecurringFile>(config_dir, "tasks", &mut errors)
+            .into_iter()
+            .map(|(_, file)| file),
+    );
+    for rule in sources.iter().flat_map(|file| &file.tasks) {
+        if let Some(threshold) = rule.threshold {
+            for item in &rule.items {
+                thresholds.insert(recurring_rule_key(rule, item), threshold.min(100));
+            }
+        }
+    }
+
+    let today_str = today.format("%Y-%m-%d").to_string();
+    let mut stmt = conn.prepare(
+        "SELECT rule_key, status, cadence,
+                COALESCE(origin_date, scheduled_date) AS day
+         FROM tasks
+         WHERE origin = 'recurring' AND rule_key IS NOT NULL
+           AND archived_at IS NULL AND parent_task_id IS NULL
+         ORDER BY rule_key, day DESC, id DESC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>("rule_key")?,
+            row.get::<_, String>("status")?,
+            row.get::<_, Option<String>>("cadence")?,
+            row.get::<_, Option<String>>("day")?,
+        ))
+    })?;
+    let window = config.habit_rate_window;
+    let mut counts: Vec<(String, u32, u32)> = Vec::new();
+    for row in rows {
+        let (rule_key, status, cadence, day) = row?;
+        let done = match status.as_str() {
+            "done" | "waiting" => true,
+            "dropped" => false,
+            _ if cadence.as_deref() == Some("daily")
+                && day.as_deref().is_some_and(|d| d < today_str.as_str()) =>
+            {
+                false
+            }
+            _ => continue,
+        };
+        if counts
+            .last()
+            .map(|(key, _, _)| key != &rule_key)
+            .unwrap_or(true)
+        {
+            counts.push((rule_key, 0, 0));
+        }
+        let (_, hits, total) = counts.last_mut().expect("just pushed");
+        if window > 0 && *total >= window {
+            continue;
+        }
+        *total += 1;
+        if done {
+            *hits += 1;
+        }
+    }
+    Ok(counts
+        .into_iter()
+        .filter(|(_, _, total)| *total >= config.habit_rate_min_instances.max(1))
+        .map(|(rule_key, done, total)| {
+            let threshold = thresholds
+                .get(&rule_key)
+                .copied()
+                .unwrap_or(config.habit_rate_threshold);
+            HabitRate {
+                alert: done * 100 < threshold * total,
+                rate: done * 100 / total,
+                threshold,
+                rule_key,
+                done,
+                total,
+            }
+        })
+        .collect())
+}
+
 /// All recurring rules with cron validation errors surfaced, so the
 /// Recurring view shows broken rules next to working ones.
 pub fn recurring_list(config_dir: &Path) -> RecurringResult {
@@ -517,6 +639,7 @@ pub fn recurring_list(config_dir: &Path) -> RecurringResult {
                 schedule: rule.schedule,
                 description: rule.description,
                 items: rule.items,
+                threshold: rule.threshold,
                 source: source.clone(),
             });
         }
@@ -580,6 +703,90 @@ mod tests {
         assert_eq!(streaks[1].title, "journal");
         assert_eq!(streaks[1].streak, 1);
         assert!(!streaks[1].done_today);
+    }
+
+    #[test]
+    fn habit_rates_count_settled_instances_against_thresholds() {
+        let dir = std::env::temp_dir().join("app-pkb-views-habit-rates");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 0 * * 1\"\n    threshold: 50\n    items:\n      - \"review\"\n",
+        )
+        .unwrap();
+        let weekly_key = recurring_rule_key(
+            &crate::config_files::RecurringRule {
+                schedule: "0 0 * * 1".into(),
+                description: String::new(),
+                items: vec![],
+                threshold: None,
+            },
+            "review",
+        );
+
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrate(&conn).unwrap();
+        let insert = |rule: &str, cadence: &str, date: &str, status: &str| {
+            conn.execute(
+                "INSERT INTO tasks (title, created_at, origin, cadence, rule_key,
+                                    period_key, scheduled_date, origin_date, status)
+                 VALUES ('t', 'x', 'recurring', ?1, ?2, ?3, ?3, ?3, ?4)",
+                (cadence, rule, date, status),
+            )
+            .unwrap();
+        };
+        // weekly: 5 done, 3 dropped, one open overdue copy still live
+        for (i, status) in [
+            "done", "done", "done", "done", "done", "dropped", "dropped", "dropped",
+        ]
+        .iter()
+        .enumerate()
+        {
+            insert(
+                &weekly_key,
+                "weekly",
+                &format!("2026-07-{:02}", i + 1),
+                status,
+            );
+        }
+        insert(&weekly_key, "weekly", "2026-08-24", "todo");
+        // daily: a missed past day counts, today's open one does not,
+        // waiting counts as done
+        insert("d", "daily", "2026-08-28", "done");
+        insert("d", "daily", "2026-08-29", "todo");
+        insert("d", "daily", "2026-08-30", "waiting");
+        insert("d", "daily", "2026-08-31", "todo");
+        // too few settled instances for a rate
+        insert("few", "daily", "2026-08-30", "done");
+
+        let today = NaiveDate::from_ymd_opt(2026, 8, 31).unwrap();
+        let config = AppConfig {
+            habit_rate_threshold: 80,
+            habit_rate_window: 0,
+            habit_rate_min_instances: 3,
+            ..AppConfig::default()
+        };
+        let rates = habit_rates(&conn, &dir, &config, today).unwrap();
+        assert_eq!(rates.len(), 2);
+        let daily = rates.iter().find(|r| r.rule_key == "d").unwrap();
+        assert_eq!((daily.done, daily.total, daily.rate), (2, 3, 66));
+        assert_eq!(daily.threshold, 80);
+        assert!(daily.alert);
+        let weekly = rates.iter().find(|r| r.rule_key == weekly_key).unwrap();
+        assert_eq!((weekly.done, weekly.total, weekly.rate), (5, 8, 62));
+        // the rule's own threshold wins over the default
+        assert_eq!(weekly.threshold, 50);
+        assert!(!weekly.alert);
+
+        // the window keeps only the newest settled instances
+        let windowed = AppConfig {
+            habit_rate_window: 3,
+            ..config
+        };
+        let rates = habit_rates(&conn, &dir, &windowed, today).unwrap();
+        let weekly = rates.iter().find(|r| r.rule_key == weekly_key).unwrap();
+        assert_eq!((weekly.done, weekly.total), (0, 3));
     }
 
     #[test]

@@ -38,6 +38,21 @@ pub struct RecurringRule {
     pub description: String,
     #[serde(default)]
     pub items: Vec<String>,
+    /// Completion-rate alert threshold for this rule's items, percent;
+    /// absent = `config.habit_rate_threshold`. Not part of the rule key,
+    /// so setting it never regenerates or orphans the rule's history.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub threshold: Option<u32>,
+}
+
+fn check_threshold(rule: &RecurringRule) -> Result<()> {
+    match rule.threshold {
+        Some(t) if t > 100 => Err(crate::error::Error::State(format!(
+            "rate threshold {t}% is out of range, expected 0-100"
+        ))),
+        _ => Ok(()),
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -408,6 +423,7 @@ pub fn append_recurring(config_dir: &Path, mut rule: RecurringRule) -> Result<()
             "a recurring rule needs at least one item".into(),
         ));
     }
+    check_threshold(&rule)?;
     splice_item(
         config_dir,
         "recurring.yml",
@@ -484,6 +500,7 @@ pub fn edit_recurring(
                     "a recurring rule needs at least one item".into(),
                 ));
             }
+            check_threshold(&rule)?;
             splice_item(
                 config_dir,
                 "recurring.yml",
@@ -951,6 +968,7 @@ mod tests {
                 schedule: "0 0 * * *".into(),
                 description: String::new(),
                 items: vec!["x".into()],
+                threshold: None,
             },
         )
         .unwrap();
@@ -961,6 +979,7 @@ mod tests {
                 schedule: "bad".into(),
                 description: String::new(),
                 items: vec!["x".into()],
+                threshold: None,
             }),
         )
         .is_err());
@@ -971,6 +990,7 @@ mod tests {
                 schedule: "0 0 * * 1".into(),
                 description: "Mondays".into(),
                 items: vec!["y".into()],
+                threshold: None,
             }),
         )
         .unwrap();
@@ -994,6 +1014,7 @@ mod tests {
                 schedule: "0 0 1 * *".into(),
                 description: "Monthly".into(),
                 items: vec!["bills".into()],
+                threshold: None,
             },
         )
         .unwrap();
@@ -1009,6 +1030,7 @@ mod tests {
                 schedule: "0 0 * * 2".into(),
                 description: "Tuesdays".into(),
                 items: vec!["review".into()],
+                threshold: None,
             }),
         )
         .unwrap();

@@ -1713,6 +1713,20 @@ async fn daily_streaks(state: State<'_, AppState>) -> Result<Vec<views::DailyStr
 }
 
 #[tauri::command]
+async fn habit_rates(state: State<'_, AppState>) -> Result<Vec<views::HabitRate>> {
+    let guard = state.vault.lock().unwrap();
+    let vault = guard
+        .as_ref()
+        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    views::habit_rates(
+        &vault.conn,
+        &vault.config_dir(),
+        &vault.config,
+        chrono::Local::now().date_naive(),
+    )
+}
+
+#[tauri::command]
 async fn task_get(state: State<'_, AppState>, id: i64) -> Result<tasks::Task> {
     with_conn(&state, |conn| tasks::task_get(conn, id))
 }
@@ -2325,6 +2339,7 @@ pub fn run() {
             kb_backlinks,
             tasks_search,
             daily_streaks,
+            habit_rates,
             task_get,
             open_external,
             platform_is_mobile,

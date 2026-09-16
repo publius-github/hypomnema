@@ -11,6 +11,7 @@ export type { BirthdayView } from "./bindings/BirthdayView";
 export type { BirthdaysResult } from "./bindings/BirthdaysResult";
 export type { ConfigError } from "./bindings/ConfigError";
 export type { DailyStreak } from "./bindings/DailyStreak";
+export type { HabitRate } from "./bindings/HabitRate";
 export type { DeletedTasks } from "./bindings/DeletedTasks";
 export type { DashboardContext } from "./bindings/DashboardContext";
 export type { DayContext } from "./bindings/DayContext";

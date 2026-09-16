@@ -273,6 +273,30 @@ cron_weekday_labels: boolean,
  */
 cron_everyday_label: boolean, 
 /**
+ * Recurring task cards wear a `Rate: 82%` chip: the share of the
+ * rule item's settled instances that were done.
+ */
+habit_rate_chip: boolean, 
+/**
+ * Default alert threshold, percent: below it the rate chip turns
+ * loud. A rule's own `threshold:` in recurring.yml wins over it.
+ */
+habit_rate_threshold: number, 
+/**
+ * How many of the newest settled instances the rate counts
+ * (0 = every one still in the database).
+ */
+habit_rate_window: number, 
+/**
+ * Settled instances needed before a rate is shown at all, so one
+ * early miss does not read as 0%.
+ */
+habit_rate_min_instances: number, 
+/**
+ * Color of the rate chip once it falls below its threshold.
+ */
+habit_rate_alert_color: string, 
+/**
  * Order the dashboard list columns alphabetically (favorites still
  * come first); off = manual creation order.
  */

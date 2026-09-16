@@ -87,6 +87,11 @@ export const defaultConfig: AppConfig = {
   tasks_mirror_today_days: 1,
   cron_weekday_labels: true,
   cron_everyday_label: true,
+  habit_rate_chip: true,
+  habit_rate_threshold: 80,
+  habit_rate_window: 30,
+  habit_rate_min_instances: 3,
+  habit_rate_alert_color: "#f97316",
   lists_sort_alpha: false,
   lists_page_columns: 4,
   lists_page_align_rows: true,
@@ -188,6 +193,7 @@ export function baseHandlers(overrides: CommandHandlers = {}): CommandHandlers {
     dashboard_context: () => emptyDashboard,
     calendar_outlook: () => [],
     profiles_list: () => [],
+    habit_rates: () => [],
     ...overrides,
   };
 }

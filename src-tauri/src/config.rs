@@ -204,6 +204,20 @@ pub struct AppConfig {
     /// With cron_weekday_labels on, rules free on both day fields wear
     /// an [EVERYDAY] marker instead of going unlabeled.
     pub cron_everyday_label: bool,
+    /// Recurring task cards wear a `Rate: 82%` chip: the share of the
+    /// rule item's settled instances that were done.
+    pub habit_rate_chip: bool,
+    /// Default alert threshold, percent: below it the rate chip turns
+    /// loud. A rule's own `threshold:` in recurring.yml wins over it.
+    pub habit_rate_threshold: u32,
+    /// How many of the newest settled instances the rate counts
+    /// (0 = every one still in the database).
+    pub habit_rate_window: u32,
+    /// Settled instances needed before a rate is shown at all, so one
+    /// early miss does not read as 0%.
+    pub habit_rate_min_instances: u32,
+    /// Color of the rate chip once it falls below its threshold.
+    pub habit_rate_alert_color: String,
     /// Order the dashboard list columns alphabetically (favorites still
     /// come first); off = manual creation order.
     pub lists_sort_alpha: bool,
@@ -418,6 +432,8 @@ pub const PROFILE_KEYS: &[&str] = &[
     // card markers
     "cron_weekday_labels",
     "cron_everyday_label",
+    "habit_rate_chip",
+    "habit_rate_alert_color",
 ];
 
 impl Default for AppConfig {
@@ -499,6 +515,11 @@ impl Default for AppConfig {
             tasks_mirror_today_days: 1,
             cron_weekday_labels: true,
             cron_everyday_label: true,
+            habit_rate_chip: true,
+            habit_rate_threshold: 80,
+            habit_rate_window: 30,
+            habit_rate_min_instances: 3,
+            habit_rate_alert_color: "#f97316".into(),
             lists_sort_alpha: false,
             lists_page_columns: 4,
             lists_page_align_rows: true,
@@ -688,6 +709,13 @@ impl AppConfig {
         self.chip_font_scale = self.chip_font_scale.clamp(50, 200);
         sanitize_color(&mut self.done_color, defaults.done_color);
         sanitize_color(&mut self.waiting_color, defaults.waiting_color);
+        sanitize_color(
+            &mut self.habit_rate_alert_color,
+            defaults.habit_rate_alert_color,
+        );
+        self.habit_rate_threshold = self.habit_rate_threshold.min(100);
+        self.habit_rate_window = self.habit_rate_window.min(3650);
+        self.habit_rate_min_instances = self.habit_rate_min_instances.clamp(1, 365);
         sanitize_color(&mut self.md_color_heading, defaults.md_color_heading);
         sanitize_color(&mut self.md_color_bold, defaults.md_color_bold);
         sanitize_color(&mut self.md_color_italic, defaults.md_color_italic);
@@ -908,6 +936,20 @@ impl AppConfig {
             ),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
             ("cron_everyday_label", self.cron_everyday_label.to_string()),
+            ("habit_rate_chip", self.habit_rate_chip.to_string()),
+            (
+                "habit_rate_threshold",
+                self.habit_rate_threshold.to_string(),
+            ),
+            ("habit_rate_window", self.habit_rate_window.to_string()),
+            (
+                "habit_rate_min_instances",
+                self.habit_rate_min_instances.to_string(),
+            ),
+            (
+                "habit_rate_alert_color",
+                self.habit_rate_alert_color.clone(),
+            ),
             ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
             ("lists_page_columns", self.lists_page_columns.to_string()),
             (

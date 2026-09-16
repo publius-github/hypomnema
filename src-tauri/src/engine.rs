@@ -2301,6 +2301,7 @@ mod tests {
                 schedule: "0 6 * * *".into(),
                 description: "Daily".into(),
                 items: vec!["{Home} water plants".into(), "  ".into()],
+                threshold: None,
             },
         )
         .unwrap();
@@ -2310,6 +2311,7 @@ mod tests {
                 schedule: "not a cron".into(),
                 description: String::new(),
                 items: vec!["x".into()],
+                threshold: None,
             },
         )
         .is_err());
@@ -2319,6 +2321,7 @@ mod tests {
                 schedule: "0 6 * * *".into(),
                 description: String::new(),
                 items: vec![],
+                threshold: None,
             },
         )
         .is_err());
@@ -2377,6 +2380,7 @@ mod tests {
             schedule: "0 9 * * 1-5".into(),
             description: "Weekday mornings".into(),
             items: vec!["{Work} stand-up".into()],
+            threshold: None,
         };
         assert_eq!(
             recurring_rule_key(&rule, "{Work} stand-up"),

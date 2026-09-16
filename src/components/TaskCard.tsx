@@ -131,6 +131,18 @@ function TaskCard({
       : null,
   );
   const dowColor = useAppStore((s) => s.config?.dow_label_color || "");
+  // habit-tracker view of a recurring item: its completion rate, loud
+  // once it falls below the rule's threshold
+  const habitRate = useAppStore((s) =>
+    (s.config?.habit_rate_chip ?? true) &&
+    task.origin === "recurring" &&
+    task.rule_key
+      ? (s.habitRates[task.rule_key] ?? null)
+      : null,
+  );
+  const rateAlertColor = useAppStore(
+    (s) => s.config?.habit_rate_alert_color || "#f97316",
+  );
 
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
   const tooltip = [
@@ -348,6 +360,19 @@ function TaskCard({
           {task.overdue && !closed && (
             <span className="rounded bg-danger/15 px-1 font-semibold uppercase text-danger">
               overdue
+            </span>
+          )}
+          {habitRate && (
+            <span
+              className={`whitespace-nowrap rounded px-1 ${
+                habitRate.alert ? "font-semibold" : "bg-line/40"
+              }`}
+              style={
+                habitRate.alert ? tintStyle(rateAlertColor) : undefined
+              }
+              title={`Done ${habitRate.done} of the last ${habitRate.total}; alert below ${habitRate.threshold}%`}
+            >
+              Rate: {habitRate.rate}%
             </span>
           )}
           {subtasks.length > 0 && (
