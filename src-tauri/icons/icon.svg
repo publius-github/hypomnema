@@ -1,13 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- transparent canvas: the tablet fills the frame so the icon reads
-       at taskbar size instead of floating on a dark square -->
-  <!-- mid-tone frame and bright strokes: must stay readable on a dark
-       Windows taskbar as well as a light one -->
-  <g transform="translate(-204.8 -204.8) scale(5.6)">
-    <rect x="46" y="40" width="164" height="176" rx="22" fill="#6B82C4"/>
-    <rect x="64" y="58" width="128" height="140" rx="12" fill="#26335C"/>
-    <line x1="86" y1="96" x2="170" y2="96" stroke="#B4C4EC" stroke-width="11" stroke-linecap="round"/>
-    <line x1="86" y1="124" x2="128" y2="124" stroke="#B4C4EC" stroke-width="11" stroke-linecap="round"/>
-    <polyline points="86,158 110,180 172,118" fill="none" stroke="#7FB1FF" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- "The Meander Habit": a slate tile with an H traced as nested
+       contour lines. The dark bands reuse the tile gradient, so they read
+       as cut-outs. Source for every platform icon: tauri icon
+       icons/icon-manifest.json (Android layers in android-*.svg). -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#666C75"/>
+      <stop offset="1" stop-color="#3A3F47"/>
+    </linearGradient>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#tile)"/>
+  <rect x="52" y="52" width="920" height="920" rx="204" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="8"/>
+  <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M322 330V694M702 330V694M322 512H702" stroke="#F4F5F7" stroke-width="198"/>
+    <path d="M322 330V694M702 330V694M322 512H702" stroke="url(#tile)" stroke-width="154"/>
+    <path d="M322 330V694M702 330V694M322 512H702" stroke="#F4F5F7" stroke-width="110"/>
+    <path d="M322 330V694M702 330V694M322 512H702" stroke="url(#tile)" stroke-width="66"/>
+    <path d="M322 330V694M702 330V694M322 512H702" stroke="#F4F5F7" stroke-width="22"/>
   </g>
 </svg>

@@ -104,6 +104,10 @@ Written against the desktop's keyboard/mouse interaction model. The phone gets i
 - Global keys: Ctrl/Cmd+K search, Ctrl/Cmd+1..9 sections. 60s rollover engine re-run; the 30s due-task notification timer lives in `src/components/DueToasts.tsx` (rendered by both the desktop layout and the phone shell) - Snooze hides the toast and forgets the notified id after `notify_snooze_minutes`, so the 30s check raises it again while the task stays open.
 - Undo toast (bottom center on the desktop in `App.tsx`, above the tab bar on the phone in `MobileApp.tsx`): deleting a task or archiving a list offers Undo for `undo_toast_seconds`; one pending entry at a time (`store.undoEntry`), task undo calls `task_restore` with the snapshot, list undo calls `list_unarchive`.
 
+## Icons
+
+One mark on every platform: a slate tile with an H traced as nested contour lines ("The Meander Habit"). `src-tauri/icons/icon.svg` is the tile; `android-bg.svg`/`android-fg.svg` are the Android adaptive layers (the H alone, shrunk into the launcher's safe zone). `npx tauri icon src-tauri/icons/icon-manifest.json` regenerates everything: the desktop/iOS PNGs, `.ico` and `.icns` land in `src-tauri/icons/`, but the Android mipmaps are written straight into the uncommitted `src-tauri/gen/android` - copy its `res/mipmap-*` folders into `src-tauri/icons/android/`, which `scripts/android/build-android.sh` (`sync_launcher_icons`) copies back into the generated project on every build.
+
 ## Versioning
 
 `VERSION` at the repo root is the single version source, synced into `package.json`/`src-tauri/tauri.conf.json`/`src-tauri/Cargo.toml` by `scripts/general/bump.sh` (never edit those manifests by hand). Bumping and cutting an actual release are separate concerns per build target - see `docs/windows/ARCHITECTURE.md` for the Windows release flow (`scripts/windows/release.sh`/`release.ps1`, `release.yml`) and `docs/android/` for the Android build.

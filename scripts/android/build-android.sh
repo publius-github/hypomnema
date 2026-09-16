@@ -235,6 +235,21 @@ function ensure_android_project() {
   fi
 }
 
+function sync_launcher_icons() {
+  printf "\n"
+  log_info "function sync_launcher_icons - copy the committed launcher icons into gen/android"
+  # src-tauri/icons/android holds the output of
+  # `npx tauri icon src-tauri/icons/icon-manifest.json`; the CLI writes
+  # it straight into gen/android, which is regenerated and never
+  # committed, so the copy kept beside icon.svg is what every build uses.
+  local res="src-tauri/gen/android/app/src/main/res"
+  if [ ! -d "$res" ]; then
+    log_error "expected $res to exist after 'tauri android init'"
+    exit 1
+  fi
+  cp -R src-tauri/icons/android/. "$res/"
+}
+
 function configure_storage_permission() {
   printf "\n"
   log_info "function configure_storage_permission - let the folder browser see shared storage"
@@ -472,6 +487,7 @@ function main() {
   ensure_rust_targets
   install_frontend_dependencies
   ensure_android_project
+  sync_launcher_icons
   configure_storage_permission
   configure_signing
   build_apk
