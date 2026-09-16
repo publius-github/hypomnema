@@ -4,6 +4,8 @@ Supplement to `docs/general/ARCHITECTURE.md` (the shared Rust core + React front
 
 ## Desktop-only chrome (`lib.rs`)
 
+Single instance: `tauri-plugin-single-instance` (desktop-only dependency, registered first in `run`) turns a second launch - typically a shortcut clicked while the app sits in the tray under `close_to_tray` - into `show_main` on the running instance and an immediate exit, so two copies never fight over the capture shortcut (the loser's banner read "HotKey already registered") or write the same vault.
+
 Two windows: `main` (the app) and `capture`, a small hidden always-on-top window pre-created in `.setup()` that `src/main.tsx` routes to `CaptureWindow.tsx` via the `#/capture` hash - one input calling `capture_task` (task into the `capture_list` list, created manual+favorite on first use via `tasks::ensure_inbox`; the command emits `vault-updated` so the main window refreshes). Shown by the OS-global shortcut `capture_shortcut` and the tray menu; hidden on Esc, focus loss or close, never destroyed. The tray icon (`tray_icon`, menu Show / Quick capture / Quit, left click shows main) and `close_to_tray` (main window close hides instead of quitting; forced off without the tray) are synced from the config in setup, on vault open, on `config_set` and on the watcher reload; a shortcut that fails to parse/register surfaces in the error banner and never blocks saving.
 
 None of this exists on mobile: the tray, global-shortcut and updater plugins, and the pre-created capture window are `#[cfg(desktop)]`-only in `lib.rs`; mobile gets no-op `#[cfg(mobile)]` stubs with the same signatures so shared call sites need no branching (see `docs/android/SPIKES.md`, Spike B).

@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.73.2"
+version = "0.73.3"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
@@ -36,6 +36,13 @@ getrandom = "0.2"
 aes-gcm = "0.10"
 argon2 = "0.5"
 tauri-plugin-opener = "2.5.5"
+
+# A second launch (a shortcut clicked while the app sits in the tray)
+# must hand over to the running instance: two copies fight over the
+# global capture shortcut and both write the same vault. Desktop-only
+# plugin; a phone app is single-instance by the OS already.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
 
 # JNI is how the app asks Android for all-files access itself, rather
 # than telling the user to go find a settings screen. Android-only, and

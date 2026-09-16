@@ -202,7 +202,8 @@ fn export_options(config: &AppConfig) -> tasks_mirror::ExportOptions {
     }
 }
 
-// Only reached from the tray (`sync_tray`, desktop-only below) -
+// Reached from the tray (`sync_tray`, desktop-only below) and from a
+// second launch handed over by the single-instance plugin -
 // `unminimize` itself is a desktop-only WebviewWindow method on mobile.
 #[cfg(desktop)]
 fn show_main(app: &AppHandle) {
@@ -226,7 +227,8 @@ fn show_capture(app: &AppHandle) {
 
 /// (Re-)registers the global capture shortcut from the config. Returns
 /// a message for the error banner when the combination cannot be
-/// parsed or is taken by another app - registration failure must never
+/// parsed or is taken by another app (a second Hypomnema can no longer
+/// be the one holding it - see the single-instance plugin in `run`) - registration failure must never
 /// block saving the config that caused it.
 ///
 /// Desktop-only: global shortcuts and the tray (below) are desktop
@@ -2164,7 +2166,15 @@ fn install_panic_logger(log_path: PathBuf) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // registered first, so a second launch exits before it sets anything
+    // up (tray, capture shortcut, watchers) and the running instance
+    // brings its window back instead
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        show_main(app);
+    }));
+    let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         // opener works on Android too, unlike open_external's xdg-open
