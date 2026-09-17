@@ -434,6 +434,9 @@ function Recurring({
     schedule: string;
     description: string;
     items: string;
+    // carried through untouched: the phone has no threshold control, and
+    // editing a rule here must not drop its own rate-alert threshold
+    threshold?: number;
   }>({ schedule: "", description: "", items: "" });
 
   return (
@@ -469,6 +472,9 @@ function Recurring({
                         schedule: rule.schedule,
                         description: rule.description,
                         items: rule.items.join("\n"),
+                        // the view type spells "no threshold" as null,
+                        // the rule payload as an absent key
+                        threshold: rule.threshold ?? undefined,
                       });
                     }}
                     className="text-sm text-content-muted"
@@ -526,6 +532,9 @@ function Recurring({
                       schedule: draft.schedule.trim(),
                       description: draft.description.trim(),
                       items: lines,
+                      ...(draft.threshold === undefined
+                        ? {}
+                        : { threshold: draft.threshold }),
                     };
                     void act(() =>
                       invoke("recurring_edit", { index, replacement }),

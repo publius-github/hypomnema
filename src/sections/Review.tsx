@@ -85,9 +85,12 @@ export default function Review() {
           setNextTasks(tasks.filter((t) => inRange(t, nextStart, nextEnd)));
       })
       .catch(() => setNextTasks([]));
+    // `to` is inclusive here, unlike tasks_snapshot's exclusive endDate:
+    // one day further would hang the Monday after next week off the
+    // Next week panel as an eighth day
     void invoke<OutlookEvent[]>("calendar_outlook", {
       from: nextStart,
-      to: addDaysISO(nextEnd, 1),
+      to: nextEnd,
     })
       .then((events) => {
         if (!cancelled) setNextOutlook(events);

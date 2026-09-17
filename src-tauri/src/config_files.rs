@@ -638,11 +638,6 @@ fn check_day_schedule(content: &str) -> Option<String> {
         .map(|e| e.to_string())
 }
 
-/// "HH:MM" on a real clock.
-pub(crate) fn valid_hhmm(value: &str) -> bool {
-    chrono::NaiveTime::parse_from_str(value, "%H:%M").is_ok()
-}
-
 fn validate_reminder(entry: &DayReminder) -> Result<()> {
     if !crate::reminders::DAY_TYPES.contains(&entry.day_type.as_str()) {
         return Err(crate::error::Error::State(format!(
@@ -659,18 +654,26 @@ fn validate_reminder(entry: &DayReminder) -> Result<()> {
     Ok(())
 }
 
-fn validate_block(block: &ScheduleBlock) -> Result<()> {
-    if !valid_hhmm(&block.from) || !valid_hhmm(&block.to) {
+/// Validates a block and zero-pads its times: the day-schedule model
+/// compares "HH:MM" strings lexicographically, so a "9:00" written into
+/// the file would sort after 23:00 and never read as the current block.
+fn validate_block(block: &mut ScheduleBlock) -> Result<()> {
+    let pad = |value: &str| {
+        chrono::NaiveTime::parse_from_str(value, "%H:%M").map(|t| t.format("%H:%M").to_string())
+    };
+    let (Ok(from), Ok(to)) = (pad(&block.from), pad(&block.to)) else {
         return Err(crate::error::Error::State(format!(
             "invalid block times '{}'-'{}', expected HH:MM",
             block.from, block.to
         )));
-    }
+    };
     if block.label.trim().is_empty() {
         return Err(crate::error::Error::State(
             "a schedule block needs a label".into(),
         ));
     }
+    block.from = from;
+    block.to = to;
     Ok(())
 }
 
@@ -762,8 +765,8 @@ pub fn edit_day_reminder(
     }
 }
 
-pub fn append_schedule_block(config_dir: &Path, block: ScheduleBlock) -> Result<()> {
-    validate_block(&block)?;
+pub fn append_schedule_block(config_dir: &Path, mut block: ScheduleBlock) -> Result<()> {
+    validate_block(&mut block)?;
     splice_item(
         config_dir,
         "day-schedule.yml",
@@ -780,8 +783,8 @@ pub fn edit_schedule_block(
     replacement: Option<ScheduleBlock>,
 ) -> Result<()> {
     match replacement {
-        Some(block) => {
-            validate_block(&block)?;
+        Some(mut block) => {
+            validate_block(&mut block)?;
             splice_item(
                 config_dir,
                 "day-schedule.yml",
@@ -885,8 +888,11 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
         }
         "day-schedule.yml" => {
             match serde_yaml::from_str::<crate::reminders::DayScheduleFile>(content) {
-                Ok(parsed) => {
-                    for (index, block) in parsed.blocks.iter().enumerate() {
+                Ok(mut parsed) => {
+                    for (index, block) in parsed.blocks.iter_mut().enumerate() {
+                        // the padding validate_block applies is thrown
+                        // away here: this path only reports, it never
+                        // rewrites the file the user is editing
                         if let Err(e) = validate_block(block) {
                             errors.push(ConfigError {
                                 file: file.into(),
@@ -919,6 +925,36 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn schedule_block_times_are_zero_padded_on_write() {
+        let dir = dir("block-padding");
+        append_schedule_block(
+            &dir,
+            ScheduleBlock {
+                from: "9:00".into(),
+                to: "12:5".into(),
+                label: "Deep work".into(),
+            },
+        )
+        .unwrap();
+        let mut errors = Vec::new();
+        let file =
+            load_yaml::<crate::reminders::DayScheduleFile>(&dir, "day-schedule.yml", &mut errors)
+                .unwrap();
+        assert_eq!(file.blocks[0].from, "09:00");
+        assert_eq!(file.blocks[0].to, "12:05");
+        assert!(append_schedule_block(
+            &dir,
+            ScheduleBlock {
+                from: "25:00".into(),
+                to: "26:00".into(),
+                label: "Nope".into(),
+            },
+        )
+        .is_err());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -4,6 +4,7 @@ import { useAppStore } from "../store";
 import {
   addDaysISO,
   compareTasks,
+  isClosed,
   mondayOf,
   todayISO,
   weekdayShort,
@@ -71,9 +72,12 @@ export default function MobileReview() {
           setNextTasks(all.filter((t) => inRange(t, nextStart, nextEnd)));
       })
       .catch(() => setNextTasks([]));
+    // calendar_outlook's `to` is inclusive, unlike the exclusive
+    // endDate above: one day further hangs the Monday after next week
+    // off the panel as an eighth day
     void invoke<OutlookEvent[]>("calendar_outlook", {
       from: nextStart,
-      to: addDaysISO(nextEnd, 1),
+      to: nextEnd,
     })
       .then((events) => !cancelled && setNextOutlook(events))
       .catch(() => setNextOutlook([]));
@@ -99,8 +103,10 @@ export default function MobileReview() {
     [tasks, today],
   );
   const done = useMemo(() => past.filter((t) => t.status === "done"), [past]);
+  // dropped is closed, not open: a task taken off the plan on purpose
+  // is not leftover work - same rule the desktop review follows
   const stillOpen = useMemo(
-    () => past.filter((t) => t.status !== "done").sort(compareTasks),
+    () => past.filter((t) => !isClosed(t.status)).sort(compareTasks),
     [past],
   );
   const rate =

@@ -139,6 +139,8 @@ export default function Calendar() {
   const monthStart = iso(year, month, 1);
   const nextMonthStart =
     month === 11 ? iso(year + 1, 0, 1) : iso(year, month + 1, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthEnd = iso(year, month, daysInMonth);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,9 +164,11 @@ export default function Calendar() {
       .catch((e) => useAppStore.getState().setError(String(e)));
     // projected occurrences beyond the grid horizon (Settings > Calendar
     // outlook controls how far each cadence reaches)
+    // calendar_outlook's `to` is inclusive, unlike tasks_snapshot's
+    // exclusive endDate above
     void invoke<OutlookEvent[]>("calendar_outlook", {
       from: monthStart,
-      to: nextMonthStart,
+      to: monthEnd,
     })
       .then((events) => {
         if (!cancelled) setOutlook(events);
@@ -173,7 +177,7 @@ export default function Calendar() {
     return () => {
       cancelled = true;
     };
-  }, [monthStart, nextMonthStart, storeTasks, vaultVersion]);
+  }, [monthStart, nextMonthStart, monthEnd, storeTasks, vaultVersion]);
 
   // keep the opened task fresh after edits made in the modal
   useEffect(() => {
@@ -206,7 +210,6 @@ export default function Calendar() {
     return map;
   }, [outlook]);
 
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
   // Monday-first offset of the 1st
   const offset = (new Date(year, month, 1).getDay() + 6) % 7;
   const cells: (number | null)[] = [

@@ -35,6 +35,29 @@ pub(crate) struct DayScheduleFile {
     pub(crate) blocks: Vec<ScheduleBlock>,
 }
 
+/// The whole day-schedule model compares `from`/`to` against a
+/// zero-padded "HH:MM" clock string (`currentAndNextBlock` on the
+/// frontend sorts and compares them lexicographically), so a
+/// hand-written `from: 9:00` would sort after 23:00 and never read as
+/// the current block. chrono parses it happily, so normalize the pair
+/// on the way out of the file; a time that is not a clock time at all
+/// is left as written and surfaces as an invalid block.
+fn normalized_blocks(file: DayScheduleFile) -> Vec<ScheduleBlock> {
+    let pad = |value: &str| {
+        chrono::NaiveTime::parse_from_str(value, "%H:%M")
+            .map(|t| t.format("%H:%M").to_string())
+            .unwrap_or_else(|_| value.to_string())
+    };
+    file.blocks
+        .into_iter()
+        .map(|block| ScheduleBlock {
+            from: pad(&block.from),
+            to: pad(&block.to),
+            label: block.label,
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export, export_to = "../../src/bindings/")]
 pub struct ScheduleBlock {
@@ -173,7 +196,7 @@ pub fn overview(
         rotation: focus_file.rotation.unwrap_or_else(|| "cycle".into()),
         phrases: focus_file.phrases,
         reminders: reminders_file.reminders,
-        blocks: schedule_file.blocks,
+        blocks: normalized_blocks(schedule_file),
         today: today.format("%Y-%m-%d").to_string(),
         today_reminders,
         errors,
@@ -230,7 +253,7 @@ pub fn dashboard_context(
     Ok(DashboardContext {
         focus,
         days,
-        blocks: schedule_file.blocks,
+        blocks: normalized_blocks(schedule_file),
         errors,
     })
 }
@@ -310,6 +333,27 @@ mod tests {
         assert_eq!(ctx.days[1].reminders, vec!["Rest"]); // Saturday
         assert_eq!(ctx.blocks.len(), 1);
         assert!(ctx.errors.is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn block_times_are_zero_padded_on_read() {
+        let (conn, dir) = setup("blocks-padding");
+        fs::write(
+            dir.join("day-schedule.yml"),
+            "blocks:\n  - from: \"9:00\"\n    to: \"12:30\"\n    label: \"Deep work\"\n",
+        )
+        .unwrap();
+
+        // a hand-written "9:00" would sort after "23:00" and never read
+        // as the current block
+        let ctx = dashboard_context(&conn, &dir, &["2026-08-28".to_string()]).unwrap();
+        assert_eq!(ctx.blocks[0].from, "09:00");
+        assert_eq!(ctx.blocks[0].to, "12:30");
+
+        let today = NaiveDate::from_ymd_opt(2026, 8, 28).unwrap();
+        let view = overview(&conn, &dir, today).unwrap();
+        assert_eq!(view.blocks[0].from, "09:00");
         let _ = fs::remove_dir_all(&dir);
     }
 }

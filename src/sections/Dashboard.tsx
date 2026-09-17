@@ -71,6 +71,16 @@ export default function Dashboard() {
 
   const columns = config.dashboard_today_only ? 1 : config.grid_columns;
   const dates = gridDates(addDaysISO(today, gridOffset), columns);
+  // options of the Days dropdown: 1..14, plus whatever the config holds
+  // when it sits outside that range (grid_columns clamps at 31 on the
+  // Rust side, so a hand-edited app.yml can hold a wider grid - without
+  // its own option the select renders blank)
+  const dayCounts = [
+    ...new Set([
+      ...Array.from({ length: 14 }, (_, i) => i + 1),
+      config.grid_columns,
+    ]),
+  ].sort((a, b) => a - b);
   // fresh vault: nothing exists yet, so the automation features are
   // invisible - point at them once
   const freshVault = tasks.length === 0 && lists.length === 0;
@@ -145,7 +155,7 @@ export default function Dashboard() {
                   .updateConfig({ grid_columns: Number(e.target.value) })
               }
             >
-              {Array.from({ length: 14 }, (_, i) => i + 1).map((n) => (
+              {dayCounts.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
