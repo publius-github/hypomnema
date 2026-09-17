@@ -45,28 +45,13 @@ export default function LayoutTab() {
       <SettingsGroup
         title="Dashboard"
         keys={[
-          "grid_columns",
           "dashboard_today_only",
           "list_columns",
           "dashboard_split",
         ]}
       >
-        <Field label="Week grid columns (today + following days)">
-          <select
-            className="input"
-            value={config.grid_columns}
-            onChange={(e) =>
-              void updateConfig({ grid_columns: Number(e.target.value) })
-            }
-          >
-            {[2, 3, 5, 7, 10].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </Field>
-
+        {/* the day-column count is set on the dashboard header itself
+            (the Days dropdown), where the grid it resizes is visible */}
         <Toggle
           checked={config.dashboard_today_only}
           label="Dashboard shows only today"

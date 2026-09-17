@@ -132,8 +132,28 @@ export default function Dashboard() {
               </button>
             )}
           </div>
+          {/* the day count lives here, not in Settings: the same
+              control the Days page carries, on the grid it resizes */}
+          <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
+            <span>Days</span>
+            <select
+              className="input px-1 py-0.5 text-xs"
+              value={config.grid_columns}
+              onChange={(e) =>
+                void useAppStore
+                  .getState()
+                  .updateConfig({ grid_columns: Number(e.target.value) })
+              }
+            >
+              {Array.from({ length: 14 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
-            className="btn-ghost ml-auto px-2 py-0.5 text-xs"
+            className="btn-ghost px-2 py-0.5 text-xs"
             title="Add a task to any day or list"
             onClick={() => setQuickAddOpen(true)}
           >
