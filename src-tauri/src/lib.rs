@@ -58,6 +58,119 @@ struct AppState {
     /// watcher skips files that still match, so our own exports never
     /// trigger an import round-trip.
     mirror_written: Arc<Mutex<HashMap<PathBuf, String>>>,
+    /// Kicks the export worker (`start_export_worker`): a mutating
+    /// command sends one unit here instead of rewriting the mirror and
+    /// the state snapshot itself, so the vault lock is held for the SQL
+    /// alone and a burst of edits costs one export, not N.
+    export_tx: Mutex<Option<mpsc::Sender<()>>>,
+}
+
+impl AppState {
+    /// Asks the export worker for a mirror + state snapshot rewrite.
+    /// Never blocks and never fails: a worker that is gone (only at
+    /// shutdown) simply means no further exports.
+    fn request_export(&self) {
+        if let Some(tx) = self.export_tx.lock().unwrap().as_ref() {
+            let _ = tx.send(());
+        }
+    }
+}
+
+/// Debounce applied by the export worker: long enough to fold a drag
+/// reorder or a checklist sweep into one rewrite, short enough that a
+/// phone reading `today.md` over a synced folder never notices.
+const EXPORT_DEBOUNCE: Duration = Duration::from_millis(200);
+
+/// Rewrites the state snapshot and the task mirror files from `conn`,
+/// as the config asks. Best effort by design: a failing export must not
+/// fail whatever triggered it - the next successful export catches the
+/// files up. `skip` names mirror files whose import just failed (left
+/// untouched so the user can fix them in place); `preserve_pending`
+/// leaves alone a file that differs from its merge base, i.e. an outside
+/// edit the tasks watcher has not imported yet.
+fn export_files(
+    conn: &rusqlite::Connection,
+    root: &Path,
+    config: &AppConfig,
+    skip: &std::collections::HashSet<PathBuf>,
+    preserve_pending: bool,
+    written: &Arc<Mutex<HashMap<PathBuf, String>>>,
+) {
+    // the state snapshot rides the same triggers as the mirror but is
+    // independent of it: it backs the db-less restore, not bulk editing
+    if config.state_snapshot {
+        let _ = state_export::export(conn, &vault::state_dir(root));
+    }
+    if !config.tasks_mirror {
+        return;
+    }
+    if let Ok(files) = tasks_mirror::export(
+        conn,
+        &vault::tasks_dir(root),
+        &vault::mirror_base_dir(root),
+        &vault::config_dir(root),
+        &today_string(),
+        skip,
+        &tasks_mirror::ExportOptions {
+            preserve_pending,
+            ..export_options(config)
+        },
+    ) {
+        *written.lock().unwrap() = files.into_iter().collect();
+    }
+}
+
+/// The export worker: one thread that turns `request_export` kicks into
+/// mirror + snapshot rewrites on its own DB connection, under the engine
+/// lock so it never interleaves with a pass or a mirror import, and
+/// after a short debounce so a burst of edits is written once.
+///
+/// It reads the vault only through a brief lock to learn the root and
+/// the config; the export itself runs against a second connection (WAL
+/// and busy_timeout make that safe, as for the watchers), so a slow disk
+/// stalls this thread and nothing else.
+fn start_export_worker(app: AppHandle) {
+    let (tx, rx) = mpsc::channel::<()>();
+    *app.state::<AppState>().export_tx.lock().unwrap() = Some(tx);
+    std::thread::spawn(move || {
+        while rx.recv().is_ok() {
+            std::thread::sleep(EXPORT_DEBOUNCE);
+            while rx.try_recv().is_ok() {}
+
+            let state = app.state::<AppState>();
+            let snapshot = {
+                let guard = state.vault.lock().unwrap();
+                guard
+                    .as_ref()
+                    .map(|vault| (vault.root.clone(), vault.config.clone()))
+            };
+            let Some((root, config)) = snapshot else {
+                continue;
+            };
+            if !config.state_snapshot && !config.tasks_mirror {
+                continue;
+            }
+            let engine_lock = state.engine_lock.clone();
+            let _pass = engine_lock.lock().unwrap();
+            // A vault being rebuilt from its snapshot has no app.db for a
+            // moment (`rebuild_cache`, `backup_restore_db`, both under the
+            // engine lock); opening one here would create an empty
+            // database and export nothing over the files being restored.
+            if !vault::db_path(&root).exists() {
+                continue;
+            }
+            if let Ok(conn) = db::open(&vault::db_path(&root)) {
+                export_files(
+                    &conn,
+                    &root,
+                    &config,
+                    &Default::default(),
+                    true,
+                    &state.mirror_written,
+                );
+            }
+        }
+    });
 }
 
 /// Shared filter for both filesystem watchers: access events carry no
@@ -149,22 +262,7 @@ fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
                     )?;
                     // the pass may have moved manual tasks (overdue
                     // carry-over), so the text mirror must follow
-                    if config.state_snapshot {
-                        let _ = state_export::export(&conn, &vault::state_dir(&root));
-                    }
-                    if config.tasks_mirror {
-                        if let Ok(files) = tasks_mirror::export(
-                            &conn,
-                            &vault::tasks_dir(&root),
-                            &vault::mirror_base_dir(&root),
-                            &vault::config_dir(&root),
-                            &today_string(),
-                            &Default::default(),
-                            &export_options(&config),
-                        ) {
-                            *written.lock().unwrap() = files.into_iter().collect();
-                        }
-                    }
+                    export_files(&conn, &root, &config, &Default::default(), true, &written);
                     Ok(outcome)
                 })
             };
@@ -324,38 +422,21 @@ fn today_string() -> String {
         .to_string()
 }
 
-/// Rewrites the task mirror files after a database change. Best effort
-/// by design: a failing export must not fail the command that made the
-/// change - the next successful export catches the files up.
-fn mirror_export_with(
-    vault: &Vault,
-    written: &Arc<Mutex<std::collections::HashMap<PathBuf, String>>>,
-) {
-    // the state snapshot rides the same triggers as the mirror but is
-    // independent of it: it backs the db-less restore, not bulk editing
-    if vault.config.state_snapshot {
-        let _ = state_export::export(&vault.conn, &vault::state_dir(&vault.root));
-    }
-    if !vault.config.tasks_mirror {
-        return;
-    }
-    if let Ok(files) = tasks_mirror::export(
-        &vault.conn,
-        &vault::tasks_dir(&vault.root),
-        &vault::mirror_base_dir(&vault.root),
-        &vault::config_dir(&vault.root),
-        &today_string(),
-        &Default::default(),
-        &export_options(&vault.config),
-    ) {
-        *written.lock().unwrap() = files.into_iter().collect();
-    }
-}
-
-fn mirror_export(state: &State<'_, AppState>) {
+/// Synchronous export on the vault's own connection. Only for the places
+/// that must see the files on disk before they return - opening a vault
+/// (the pull flow adopts the exported files as its sync baseline right
+/// after) - everything else goes through `AppState::request_export`.
+fn mirror_export_now(state: &State<'_, AppState>) {
     let guard = state.vault.lock().unwrap();
     if let Some(vault) = guard.as_ref() {
-        mirror_export_with(vault, &state.mirror_written);
+        export_files(
+            &vault.conn,
+            &vault.root,
+            &vault.config,
+            &Default::default(),
+            true,
+            &state.mirror_written,
+        );
     }
 }
 
@@ -469,23 +550,9 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                         }
                     }
                 }
-                if config.state_snapshot {
-                    let _ = state_export::export(&conn, &vault::state_dir(&root));
-                }
-                if let Ok(files) = tasks_mirror::export(
-                    &conn,
-                    &dir,
-                    &vault::mirror_base_dir(&root),
-                    &vault::config_dir(&root),
-                    &today,
-                    &failed,
-                    &tasks_mirror::ExportOptions {
-                        preserve_pending: false,
-                        ..export_options(&config)
-                    },
-                ) {
-                    *written.lock().unwrap() = files.into_iter().collect();
-                }
+                // having just imported the disk, this export may rewrite
+                // every file (no `preserve_pending`)
+                export_files(&conn, &root, &config, &failed, false, &written);
             }
             if changed || !errors.is_empty() {
                 let _ = app.emit("vault-updated", errors);
@@ -522,7 +589,7 @@ fn open_vault(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Resu
     // and lets the old debounce thread exit.
     start_config_watcher(app.clone(), root)?;
     if config.tasks_mirror {
-        mirror_export(state);
+        mirror_export_now(state);
         let _ = start_tasks_watcher(app.clone(), &vault::tasks_dir(root));
     } else {
         *state.tasks_watcher.lock().unwrap() = None;
@@ -724,7 +791,7 @@ async fn config_set(app: AppHandle, state: State<'_, AppState>, config: AppConfi
     sync_tray(&app, &saved);
     // the task mirror toggle takes effect immediately
     if mirror_now && !mirror_was {
-        mirror_export(&state);
+        state.request_export();
         let _ = start_tasks_watcher(app, &vault::tasks_dir(&root));
     } else if !mirror_now && mirror_was {
         // dropping the watcher closes its channel and ends the thread;
@@ -819,14 +886,14 @@ async fn list_create(
     let list = with_conn(&state, |conn| {
         tasks::list_create(conn, &name, color.as_deref(), false)
     })?;
-    mirror_export(&state);
+    state.request_export();
     Ok(list)
 }
 
 #[tauri::command]
 async fn list_rename(state: State<'_, AppState>, id: i64, name: String) -> Result<()> {
     with_conn(&state, |conn| tasks::list_rename(conn, id, &name))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(())
 }
 
@@ -851,7 +918,7 @@ async fn list_set_meta(
 #[tauri::command]
 async fn list_set_all_statuses(state: State<'_, AppState>, id: i64, done: bool) -> Result<usize> {
     let changed = with_conn(&state, |conn| tasks::list_set_all_statuses(conn, id, done))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(changed)
 }
 
@@ -863,7 +930,7 @@ async fn list_groups_all(state: State<'_, AppState>) -> Result<Vec<tasks::ListGr
 #[tauri::command]
 async fn list_group_create(state: State<'_, AppState>, name: String) -> Result<tasks::ListGroup> {
     let group = with_conn(&state, |conn| tasks::group_create(conn, &name))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(group)
 }
 
@@ -877,28 +944,28 @@ async fn list_group_set_meta(
     with_conn(&state, |conn| {
         tasks::group_set_meta(conn, id, &name, color.as_deref())
     })?;
-    mirror_export(&state);
+    state.request_export();
     Ok(())
 }
 
 #[tauri::command]
 async fn list_group_delete(state: State<'_, AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::group_delete(conn, id))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(())
 }
 
 #[tauri::command]
 async fn list_set_group(state: State<'_, AppState>, id: i64, group_id: Option<i64>) -> Result<()> {
     with_conn(&state, |conn| tasks::list_set_group(conn, id, group_id))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(())
 }
 
 #[tauri::command]
 async fn list_archive(state: State<'_, AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::list_archive(conn, id))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(())
 }
 
@@ -910,7 +977,7 @@ async fn lists_archived(state: State<'_, AppState>) -> Result<Vec<tasks::List>> 
 #[tauri::command]
 async fn list_unarchive(state: State<'_, AppState>, id: i64) -> Result<()> {
     with_conn(&state, |conn| tasks::list_unarchive(conn, id))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(())
 }
 
@@ -928,7 +995,7 @@ async fn tasks_snapshot(
 #[tauri::command]
 async fn task_create(state: State<'_, AppState>, new: tasks::NewTask) -> Result<tasks::Task> {
     let task = with_conn(&state, |conn| tasks::task_create(conn, &new))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(task)
 }
 
@@ -957,7 +1024,7 @@ async fn capture_task(
             },
         )?
     };
-    mirror_export(&state);
+    state.request_export();
     let _ = app.emit("vault-updated", Vec::<config_files::ConfigError>::new());
     Ok(task)
 }
@@ -973,7 +1040,7 @@ async fn inbox_list(state: State<'_, AppState>) -> Result<tasks::List> {
             .ok_or_else(|| Error::State("no vault selected".into()))?;
         tasks::ensure_inbox(&vault.conn, &vault.config.capture_list)?
     };
-    mirror_export(&state);
+    state.request_export();
     Ok(list)
 }
 
@@ -984,14 +1051,14 @@ async fn task_update(
     patch: tasks::TaskPatch,
 ) -> Result<tasks::Task> {
     let task = with_conn(&state, |conn| tasks::task_update(conn, id, &patch))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(task)
 }
 
 #[tauri::command]
 async fn task_delete(state: State<'_, AppState>, id: i64) -> Result<tasks::DeletedTasks> {
     let deleted = with_conn(&state, |conn| tasks::task_delete(conn, id))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(deleted)
 }
 
@@ -1001,14 +1068,14 @@ async fn task_restore(
     deleted: tasks::DeletedTasks,
 ) -> Result<Vec<tasks::Task>> {
     let restored = with_conn(&state, |conn| tasks::task_restore(conn, &deleted))?;
-    mirror_export(&state);
+    state.request_export();
     Ok(restored)
 }
 
 #[tauri::command]
 async fn tasks_delete_done(state: State<'_, AppState>) -> Result<usize> {
     let count = with_conn(&state, tasks::tasks_delete_done)?;
-    mirror_export(&state);
+    state.request_export();
     Ok(count)
 }
 
@@ -1039,6 +1106,10 @@ async fn backup_restore_db(
             .ok_or_else(|| Error::State("no vault selected".into()))?;
         vault.root.clone()
     };
+    // no engine pass, mirror import or export may open the database
+    // while its file is being swapped
+    let engine_lock = state.engine_lock.clone();
+    let _pass = engine_lock.lock().unwrap();
     // drop the connection before touching the file on disk
     *state.vault.lock().unwrap() = None;
     let restored = backup::restore_db_backup(&root, &id, chrono::Local::now());
@@ -1073,7 +1144,7 @@ async fn tasks_reorder(
     with_conn(&state, |conn| {
         tasks::list_reorder(conn, list_id, &ordered_ids)
     })?;
-    mirror_export(&state);
+    state.request_export();
     Ok(())
 }
 
@@ -1102,8 +1173,7 @@ async fn engine_run(state: State<'_, AppState>) -> Result<engine::EngineOutcome>
         });
     }
     // the pass may have created/moved tasks; keep the text mirror fresh
-    // (inline: the vault guard is still held, mirror_export would deadlock)
-    mirror_export_with(vault, &state.mirror_written);
+    state.request_export();
     Ok(outcome)
 }
 
@@ -1877,6 +1947,11 @@ async fn dropbox_pull_vault(
     state: State<'_, AppState>,
 ) -> Result<dropbox_link::DropboxPull> {
     let dir = app_config_dir(&app)?;
+    // held for the whole pull: the state files being written are the
+    // export worker's and the watchers' output too, and app.db is
+    // dropped and rebuilt below
+    let engine_lock = state.engine_lock.clone();
+    let _pass = engine_lock.lock().unwrap();
     let token = dropbox_link::valid_access_token(
         &dir,
         &sync_dropbox_oauth::HttpOauthTransport::new(),
@@ -1944,6 +2019,10 @@ async fn dropbox_push_vault(
     state: State<'_, AppState>,
 ) -> Result<dropbox_link::DropboxPush> {
     let dir = app_config_dir(&app)?;
+    // the files on disk are what travels; no export may rewrite them
+    // between the snapshot taken here and the upload
+    let engine_lock = state.engine_lock.clone();
+    let _pass = engine_lock.lock().unwrap();
     let local_root = {
         let guard = state.vault.lock().unwrap();
         let vault = guard
@@ -1985,6 +2064,12 @@ async fn dropbox_sync(
     state: State<'_, AppState>,
 ) -> Result<dropbox_link::DropboxSync> {
     let dir = app_config_dir(&app)?;
+    // Held for the whole pass. The merge rewrites the JSONL snapshot the
+    // export worker and the watchers also write, and `rebuild_cache`
+    // drops app.db underneath them; commands keep working meanwhile
+    // (they take only the vault lock), their exports queue up behind.
+    let engine_lock = state.engine_lock.clone();
+    let _pass = engine_lock.lock().unwrap();
     let local_root = {
         let guard = state.vault.lock().unwrap();
         let vault = guard
@@ -2048,7 +2133,9 @@ async fn dropbox_sync(
     })
 }
 
-/// Rebuilds app.db from the JSONL snapshot on disk.
+/// Rebuilds app.db from the JSONL snapshot on disk. The caller holds the
+/// engine lock (not taken here: `std::sync::Mutex` is not reentrant), so
+/// no worker opens the database while its file is gone.
 ///
 /// Closing the vault first is not optional: the file cannot be replaced
 /// under a live connection, and a connection left open over a deleted
@@ -2243,6 +2330,7 @@ pub fn run() {
                 let _ = std::fs::create_dir_all(&dir);
                 install_panic_logger(dir.join("hypomnema.log"));
             }
+            start_export_worker(app.handle().clone());
             // the quick-capture window is pre-created hidden: a WebView
             // spun up on demand takes long enough to defeat "quick".
             // Desktop-only - mobile's quick-add is in-app (§6), not a
