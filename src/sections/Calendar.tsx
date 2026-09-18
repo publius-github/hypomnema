@@ -161,7 +161,7 @@ export default function Calendar() {
         }
       })
       .catch((e) => useAppStore.getState().setError(errorMessage(e)));
-    // projected occurrences beyond the grid horizon (Settings > Calendar
+    // projected occurrences beyond the grid horizon (Settings > Recurring
     // outlook controls how far each cadence reaches)
     // calendar_outlook's `to` is inclusive, unlike tasks_snapshot's
     // exclusive endDate above
@@ -260,7 +260,7 @@ export default function Calendar() {
   const categoryOfTask = (task: Task) =>
     categoryOf(task.title) ?? listName(task.list_id);
   // same chip color a category wears on the task cards, so a category
-  // is recognisable across the app (Settings > Appearance)
+  // is recognisable across the app (Settings > Task cards)
   const chipHue = (name: string, blockIndex?: number) =>
     categoryChipColor(name, lists, config, blockIndex);
   // tasks of the day grouped by category, so the alternating chip
@@ -275,7 +275,7 @@ export default function Calendar() {
   // rule the day columns follow
   const blockIndex = categoryBlockIndex(selectedTasks, categoryOfTask);
   // chips follow the row text: 100% is exactly the size of the task
-  // title next to them (Settings > Appearance)
+  // title next to them (Settings > Task cards)
   const chipSize = `${config?.chip_font_scale ?? 100}%`;
 
   return (

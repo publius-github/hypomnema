@@ -224,6 +224,18 @@ pub(crate) async fn config_default() -> Result<AppConfig> {
     Ok(AppConfig::default())
 }
 
+/// The keys a profile covers (`PROFILE_KEYS`). The Rust list stays the
+/// single source of truth: the Settings page reads it to say, per
+/// group, whether a profile captures it - a question the tab layout
+/// alone cannot answer, since the scope cuts across groups.
+#[tauri::command]
+pub(crate) async fn profile_scope() -> Result<Vec<String>> {
+    Ok(crate::config::PROFILE_KEYS
+        .iter()
+        .map(|k| (*k).to_string())
+        .collect())
+}
+
 #[tauri::command]
 pub(crate) async fn profiles_list(state: State<'_, AppState>) -> Result<Vec<String>> {
     let guard = state.vault.lock_or_recover();

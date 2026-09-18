@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { ConfirmModal } from "../../components/dialogs";
 import { useAppStore } from "../../store";
+import {
+  SETTINGS_TABS,
+  profileGroups,
+  type SettingsGroupId,
+  type SettingsTab,
+} from "../../lib/settingsCatalog";
 
 /** Client-side mirror of the Rust name rules - the backend still has
  *  the final say. */
@@ -17,12 +23,22 @@ function nameProblem(name: string): string | null {
 }
 
 /**
- * Settings profiles: named snapshots of the visual settings (appearance
- * and layout - never paths, engine or data handling). The built-in
- * Default resets everything visual to factory values; app.yml is backed
- * up before any apply.
+ * Settings profiles: named snapshots of the visual settings - never
+ * paths, recurring parameters or data handling. The built-in Default
+ * resets everything visual to factory values; app.yml is backed up
+ * before any apply.
+ *
+ * The scope cuts across the tabs (a group can be visual in part and
+ * behavioral in the rest), so the page spells it out instead of leaving
+ * the user to infer it: the covered groups are listed here, each one is
+ * marked in place on its own tab, and both read the Rust PROFILE_KEYS
+ * through `profile_scope`.
  */
-export default function ProfilesTab() {
+export default function ProfilesTab({
+  onJump,
+}: {
+  onJump: (tab: SettingsTab, group: SettingsGroupId) => void;
+}) {
   const profiles = useAppStore((s) => s.profiles);
   const loadProfiles = useAppStore((s) => s.loadProfiles);
   const saveProfile = useAppStore((s) => s.saveProfile);
@@ -36,6 +52,8 @@ export default function ProfilesTab() {
     | null
   >(null);
   const [status, setStatus] = useState<string | null>(null);
+  const profileKeys = useAppStore((s) => s.profileKeys);
+  const covered = profileGroups(profileKeys);
 
   useEffect(() => {
     void loadProfiles();
@@ -62,12 +80,40 @@ export default function ProfilesTab() {
   return (
     <>
       <p className="text-xs text-content-muted">
-        A profile is a named snapshot of the visual settings - everything
-        under Appearance and Layout. Applying one replaces those settings
-        wholesale (a backup copy of app.yml lands in backups/config/
-        first); behavior, folders, engine and notification settings are
-        never part of a profile.
+        A profile is a named snapshot of the visual settings. Applying one
+        replaces every setting it covers wholesale (a backup copy of
+        app.yml lands in backups/config/ first); folders, data handling,
+        recurring parameters, notifications and the interaction timings
+        are never part of a profile.
       </p>
+
+      {covered.length > 0 && (
+        <section className="flex flex-col gap-1 rounded-md border border-line px-3 py-2">
+          <span className="text-xs font-medium text-content-muted">
+            A profile covers
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {covered.map((group) => (
+              <button
+                key={group.id}
+                className="btn-ghost px-2 py-0.5 text-xs"
+                title={
+                  group.partial
+                    ? "Part of this group is visual and covered; the rest is behavior and stays as it is."
+                    : "Every field in this group is saved and replaced by a profile."
+                }
+                onClick={() => onJump(group.tab, group.id)}
+              >
+                {SETTINGS_TABS.find((t) => t.id === group.tab)?.label} ›{" "}
+                {group.title}
+                {group.partial && (
+                  <span className="ml-1 text-content-muted">(partly)</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex items-center gap-2 rounded-md border border-line px-3 py-2">
         <span className="min-w-0 flex-1 text-sm">
@@ -132,7 +178,7 @@ export default function ProfilesTab() {
           {name.trim() && nameProblem(name)
             ? nameProblem(name)
             : (status ??
-              "Snapshots the current Appearance and Layout settings under this name.")}
+              "Snapshots the settings listed above under this name.")}
         </span>
       </div>
 
@@ -143,7 +189,7 @@ export default function ProfilesTab() {
               ? "Reset all visual settings to their defaults?"
               : `Apply profile "${confirm.name}"?`
           }
-          message="Replaces every Appearance and Layout setting. A backup copy of app.yml is written to backups/config/ first."
+          message="Replaces every setting a profile covers. A backup copy of app.yml is written to backups/config/ first."
           onConfirm={() => {
             setConfirm(null);
             void applyProfile(confirm.name);

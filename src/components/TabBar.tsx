@@ -123,7 +123,7 @@ export default function TabBar() {
   const updateConfig = useAppStore((s) => s.updateConfig);
   const [aboutOpen, setAboutOpen] = useState(false);
 
-  // hidden sections (Settings > Layout) leave the rail entirely
+  // hidden sections (Settings > Views) leave the rail entirely
   const order = config?.section_order ?? DEFAULT_ORDER;
   const hidden = useMemo(() => config?.section_hidden ?? [], [config]);
   const visible = useMemo(

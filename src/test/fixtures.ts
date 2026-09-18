@@ -193,6 +193,17 @@ export function baseHandlers(overrides: CommandHandlers = {}): CommandHandlers {
     dashboard_context: () => emptyDashboard,
     calendar_outlook: () => [],
     profiles_list: () => [],
+    // a representative slice of the Rust PROFILE_KEYS (one whole group,
+    // so the "in profiles" marker has something to render); the real
+    // scope is pinned on the Rust side and in settingsCatalog.test.ts
+    profile_scope: () => [
+      "theme",
+      "theme_preset",
+      "accent_color",
+      "surface_color",
+      "surface_alt_color",
+      "line_color",
+    ],
     habit_rates: () => [],
     ...overrides,
   };

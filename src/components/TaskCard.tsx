@@ -120,7 +120,7 @@ function TaskCard({
     listName ? categoryChipColor(listName, s.lists, s.config, blockIndex) : null,
   );
   // chips read at the size of the text they sit next to; 100% is
-  // exactly the card's own text size (Settings > Appearance)
+  // exactly the card's own text size (Settings > Task cards)
   const chipSize = useAppStore((s) => `${s.config?.chip_font_scale ?? 100}%`);
   // [SAT#1]-style marker for weekday-pinned recurring rules; rules
   // firing every day carry [EVERYDAY] behind its own toggle

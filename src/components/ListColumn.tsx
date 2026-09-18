@@ -270,7 +270,7 @@ function ListColumn({
       {confirmArchive && (
         <ConfirmModal
           title={`Archive list "${list.name}"?`}
-          message="The column disappears from the dashboard; its tasks stay in the database. Restore it from Settings > Maintenance."
+          message="The column disappears from the dashboard; its tasks stay in the database. Restore it from Settings > Data."
           onConfirm={() => {
             setConfirmArchive(false);
             void archiveList(list.id);

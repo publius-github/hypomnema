@@ -88,7 +88,7 @@ fn rotate(dir: &Path, prefix: &str, keep: usize) -> Result<()> {
 }
 
 /// One file under backups/db/ or backups/config/, as shown in the
-/// Maintenance tab's restore list.
+/// Data tab's restore list.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
 pub struct BackupEntry {

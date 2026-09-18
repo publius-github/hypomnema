@@ -1,48 +1,97 @@
 import { useState } from "react";
 import { useAppStore } from "../store";
+import { SettingsFocusContext } from "../components/SettingsGroup";
+import {
+  SETTINGS_TABS,
+  searchSettings,
+  type SettingsGroupId,
+  type SettingsTab,
+} from "../lib/settingsCatalog";
 import ProfilesTab from "./settings/ProfilesTab";
 import AppearanceTab from "./settings/AppearanceTab";
-import LayoutTab from "./settings/LayoutTab";
-import TasksTab from "./settings/TasksTab";
-import EngineTab from "./settings/EngineTab";
-import CalendarTab from "./settings/CalendarTab";
-import NotificationsTab from "./settings/NotificationsTab";
-import FilesTab from "./settings/FilesTab";
-import MaintenanceTab from "./settings/MaintenanceTab";
+import ViewsTab from "./settings/ViewsTab";
+import TaskCardsTab from "./settings/TaskCardsTab";
+import ColumnsTab from "./settings/ColumnsTab";
+import RecurringTab from "./settings/RecurringTab";
+import CaptureTab from "./settings/CaptureTab";
+import DataTab from "./settings/DataTab";
 
-// One tab per concern: how it looks (Appearance), how the pages are
-// laid out (Layout, incl. the section order), how cards and lists
-// behave (Tasks & Lists), how tasks are generated (Engine), then the
-// smaller areas. Groups sitting fully at their defaults render
-// collapsed behind a Customize affordance (SettingsGroup).
-const TABS = [
-  { id: "profiles", label: "Profiles" },
-  { id: "appearance", label: "Appearance" },
-  { id: "layout", label: "Layout" },
-  { id: "tasks", label: "Tasks & Lists" },
-  { id: "engine", label: "Engine" },
-  { id: "calendar", label: "Calendar" },
-  { id: "notifications", label: "Notifications" },
-  { id: "files", label: "Files" },
-  { id: "maintenance", label: "Maintenance" },
-] as const;
-type Tab = (typeof TABS)[number]["id"];
-
+/**
+ * One tab per thing being configured rather than per kind of setting:
+ * the global chrome (Appearance), the pages (Views), the task card, the
+ * columns tasks sit in, the recurring machinery, capture and alerts,
+ * and the vault's data. Inside a group, look, geometry and behavior sit
+ * together - "make the Done block quieter" is one question, not three
+ * tabs. The map itself (groups, fields, search terms) lives in
+ * `lib/settingsCatalog.ts`; groups sitting fully at their defaults
+ * render collapsed behind a Customize affordance (SettingsGroup).
+ */
 export default function Settings() {
-  const [tab, setTab] = useState<Tab>("appearance");
+  const [tab, setTab] = useState<SettingsTab>("appearance");
+  const [query, setQuery] = useState("");
+  const [focus, setFocus] = useState<SettingsGroupId | null>(null);
   // The page used to sit in a fixed narrow column, which pushed half the
   // tab strip onto a second line on anything but a huge font. The width
   // is a setting now (0 = the whole window), like every other layout
   // proportion.
   const width = useAppStore((s) => s.config?.settings_width ?? 1120);
+  const hits = searchSettings(query);
+
+  const jump = (target: SettingsTab, group: SettingsGroupId) => {
+    setTab(target);
+    setFocus(group);
+    setQuery("");
+  };
 
   return (
     <div
       className="mx-auto flex h-full w-full flex-col gap-4 p-6"
       style={{ maxWidth: width > 0 ? width : undefined }}
     >
+      <div className="relative flex flex-col gap-2">
+        <input
+          className="input w-full max-w-md"
+          placeholder="Search settings..."
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setFocus(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setQuery("");
+            if (e.key === "Enter" && hits.length > 0)
+              jump(hits[0].tab, hits[0].group);
+          }}
+        />
+        {query.trim() !== "" && (
+          <div className="absolute top-10 z-20 flex w-full max-w-md flex-col overflow-hidden rounded-md border border-line bg-surface-alt shadow-lg">
+            {hits.length === 0 ? (
+              <span className="px-3 py-2 text-xs text-content-muted">
+                Nothing matches &quot;{query}&quot;.
+              </span>
+            ) : (
+              <div className="max-h-80 overflow-y-auto">
+                {hits.map((hit) => (
+                  <button
+                    key={hit.key}
+                    className="flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-sm hover:bg-line/40"
+                    onClick={() => jump(hit.tab, hit.group)}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{hit.label}</span>
+                    <span className="shrink-0 text-xs text-content-muted">
+                      {SETTINGS_TABS.find((t) => t.id === hit.tab)?.label} ›{" "}
+                      {hit.groupTitle}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-wrap gap-1 border-b border-line">
-        {TABS.map((t) => (
+        {SETTINGS_TABS.map((t) => (
           <button
             key={t.id}
             className={`px-3 py-2 text-sm font-medium ${
@@ -50,24 +99,28 @@ export default function Settings() {
                 ? "border-b-2 border-accent text-accent"
                 : "text-content-muted hover:text-content"
             }`}
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id);
+              setFocus(null);
+            }}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-10">
-        {tab === "profiles" && <ProfilesTab />}
-        {tab === "appearance" && <AppearanceTab />}
-        {tab === "layout" && <LayoutTab />}
-        {tab === "tasks" && <TasksTab />}
-        {tab === "engine" && <EngineTab />}
-        {tab === "calendar" && <CalendarTab />}
-        {tab === "notifications" && <NotificationsTab />}
-        {tab === "files" && <FilesTab />}
-        {tab === "maintenance" && <MaintenanceTab />}
-      </div>
+      <SettingsFocusContext.Provider value={focus}>
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-10">
+          {tab === "profiles" && <ProfilesTab onJump={jump} />}
+          {tab === "appearance" && <AppearanceTab />}
+          {tab === "views" && <ViewsTab />}
+          {tab === "cards" && <TaskCardsTab />}
+          {tab === "columns" && <ColumnsTab />}
+          {tab === "recurring" && <RecurringTab />}
+          {tab === "capture" && <CaptureTab />}
+          {tab === "data" && <DataTab />}
+        </div>
+      </SettingsFocusContext.Provider>
     </div>
   );
 }

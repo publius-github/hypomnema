@@ -716,7 +716,7 @@ function VaultPanel({ vaultPath }: { vaultPath: string | null }) {
 }
 
 /**
- * The desktop Maintenance tab, sized for a thumb: delete-done sweep,
+ * The desktop Data tab's cleanup and restores, sized for a thumb: delete-done sweep,
  * archived-list restore, and the restore lists for both backup kinds.
  * Destructive actions confirm through the in-app ConfirmModal (the
  * WebView's native confirm is unstyled and, on Android, easy to dismiss

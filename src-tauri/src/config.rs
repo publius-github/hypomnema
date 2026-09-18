@@ -342,16 +342,21 @@ pub const SECTIONS: &[&str] = &[
 
 pub const CADENCE_GROUPS: &[&str] = &["exact", "general", "daily", "weekly", "monthly", "yearly"];
 
-/// Fields a settings profile snapshots: the visual customization -
-/// appearance and layout - and nothing behavioral. Deliberately out:
-/// paths and data handling (kb_path, mirror, snapshots, backups),
-/// engine and calendar parameters, notifications, capture/tray, the
+/// Fields a settings profile snapshots: the visual customization - the
+/// look of the chrome, the cards and the columns - and nothing
+/// behavioral. In Settings terms it is all of Appearance, the geometry
+/// of Views, the colors and markers of Task cards, and the whole of
+/// Columns; the Settings page marks each group with what a profile does
+/// to it, reading this very list through `profile_scope`. Deliberately
+/// out: paths and data handling (kb_path, mirror, snapshots, backups),
+/// recurring/calendar parameters, notifications, capture/tray, the
 /// view-mode toggles (*_today_only - flipped live on the pages, a
-/// profile changing them would be surprising), section_order, and the
-/// interaction timings (done_hold_seconds, undo_toast_seconds - the
-/// undo window is a safety net, not a look). Applying a profile resets
-/// every key here to its default and overlays the profile's values;
-/// keys outside this list in a profile file are ignored.
+/// profile changing them would be surprising), section_order, the list
+/// sorting rules, and the interaction timings (done_hold_seconds,
+/// undo_toast_seconds - the undo window is a safety net, not a look).
+/// Applying a profile resets every key here to its default and overlays
+/// the profile's values; keys outside this list in a profile file are
+/// ignored.
 pub const PROFILE_KEYS: &[&str] = &[
     // theme and chrome
     "theme",

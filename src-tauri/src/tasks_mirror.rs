@@ -65,7 +65,7 @@ const FORMAT_HELP: &str = "<!-- Bulk-editable task mirror. One task per line: \"
 
 /// Same help, for vaults with the sync keys turned off: without an id a
 /// line is matched by its text, which changes what editing one means.
-const FORMAT_HELP_NO_IDS: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed, [xz] = done but waiting, [zz] = dropped (not done); an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. Lines carry no sync key here (Settings > Files), so a line is matched to its task by text: retyping a title replaces the task, and deleting a whole line deletes it. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
+const FORMAT_HELP_NO_IDS: &str = "<!-- Bulk-editable task mirror. One task per line: \"- [ ] title\"; [x] = done, [z] = postponed, [xz] = done but waiting, [zz] = dropped (not done); an optional HH:MM right after the checkbox is the task time; \"! \" before the title marks priority; a two-space indented line is a subtask of the task above. Lines carry no sync key here (Settings > Data), so a line is matched to its task by text: retyping a title replaces the task, and deleting a whole line deletes it. Recurring/scheduled/birthday tasks are not mirrored here - edit the YAML files in .hypomnema/config/ instead. -->";
 
 fn list_marker(id: i64) -> String {
     format!("{LIST_MARKER_PREFIX}{id} -->")

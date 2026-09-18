@@ -199,7 +199,7 @@ const CADENCE_KEYS = new Set(["daily", "weekly", "monthly", "yearly"]);
  * Tasks of one day column, grouped into sections: exact-date items
  * (scheduled events and birthdays), General (manual one-offs, priority
  * pins, anything without a rule cadence), then the rule cadences. The
- * section order is user-configurable (Settings > Appearance) and
+ * section order is user-configurable (Settings > Columns) and
  * arrives via `order`; unknown names are dropped and missing ones are
  * appended in default position, mirroring the Rust-side sanitizing.
  */

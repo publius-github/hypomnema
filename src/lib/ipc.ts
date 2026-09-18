@@ -153,6 +153,7 @@ export interface Commands {
   profile_apply: { args: { name: string }; result: AppConfig };
   profile_delete: { args: { name: string }; result: string[] };
   profile_save: { args: { name: string }; result: string[] };
+  profile_scope: { args: void; result: string[] };
   profiles_list: { args: void; result: string[] };
   recurring_add: { args: { rule: RecurringRule }; result: void };
   recurring_edit: {

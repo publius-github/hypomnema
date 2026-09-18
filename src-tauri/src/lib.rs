@@ -187,6 +187,7 @@ pub fn run() {
             cmd_vault::config_get,
             cmd_vault::config_set,
             cmd_vault::config_default,
+            cmd_vault::profile_scope,
             cmd_vault::profiles_list,
             cmd_vault::profile_save,
             cmd_vault::profile_apply,

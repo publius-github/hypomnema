@@ -2,7 +2,7 @@
 
 /**
  * One file under backups/db/ or backups/config/, as shown in the
- * Maintenance tab's restore list.
+ * Data tab's restore list.
  */
 export type BackupEntry = { 
 /**

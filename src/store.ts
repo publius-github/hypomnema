@@ -88,8 +88,14 @@ interface AppState {
   selectVault: (path: string) => Promise<void>;
   updateConfig: (patch: Partial<AppConfig>) => Promise<void>;
   /// factory defaults, fetched once - drives "is this at its default?"
-  /// (settings group disclosure) and the Profiles tab
+  /// (settings group disclosure, the per-group Reset) and the Profiles
+  /// tab
   defaults: AppConfig | null;
+  /// config keys a settings profile covers (Rust PROFILE_KEYS, fetched
+  /// once beside the defaults): the Settings page marks each group with
+  /// what a profile does to it, and the list is authoritative on the
+  /// Rust side, so the frontend never keeps a second copy of the scope
+  profileKeys: (keyof AppConfig)[] | null;
   /// saved settings-profile names (the built-in Default is not listed)
   profiles: string[];
   loadProfiles: () => Promise<void>;
@@ -263,6 +269,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ loaded: true, vaultPath, config });
       invoke("config_default")
         .then((defaults) => set({ defaults }))
+        .catch((e) => set({ error: errorMessage(e) }));
+      invoke("profile_scope")
+        .then((keys) =>
+          set({ profileKeys: keys as (keyof AppConfig)[] }),
+        )
         .catch((e) => set({ error: errorMessage(e) }));
       if (vaultPath) {
         await get().runEngine();
@@ -688,6 +699,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   defaults: null,
+  profileKeys: null,
   profiles: [],
 
   loadProfiles: async () => {
