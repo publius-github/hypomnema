@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
   addDaysISO,
@@ -11,7 +11,7 @@ import {
 } from "../lib/tasks";
 import { useMobileNav } from "./nav";
 import TaskRow from "./TaskRow";
-import type { DashboardContext, OutlookEvent, Task } from "../types";
+import type { OutlookEvent, Task } from "../types";
 
 const ORIGIN_LABELS: Record<string, string> = {
   manual: "manual",
@@ -54,7 +54,7 @@ export default function MobileReview() {
       t.scheduled_date !== null &&
       t.scheduled_date >= from &&
       t.scheduled_date <= until;
-    void invoke<Task[]>("tasks_snapshot", {
+    void invoke("tasks_snapshot", {
       startDate: start,
       endDate: addDaysISO(end, 1),
     })
@@ -62,7 +62,7 @@ export default function MobileReview() {
         if (!cancelled) setTasks(all.filter((t) => inRange(t, start, end)));
       })
       .catch((e) => setError(String(e)));
-    void invoke<Task[]>("tasks_snapshot", {
+    void invoke("tasks_snapshot", {
       startDate: nextStart,
       endDate: addDaysISO(nextEnd, 1),
     })
@@ -74,7 +74,7 @@ export default function MobileReview() {
     // calendar_outlook's `to` is inclusive, unlike the exclusive
     // endDate above: one day further hangs the Monday after next week
     // off the panel as an eighth day
-    void invoke<OutlookEvent[]>("calendar_outlook", {
+    void invoke("calendar_outlook", {
       from: nextStart,
       to: nextEnd,
     })
@@ -82,10 +82,10 @@ export default function MobileReview() {
       .catch(() => setNextOutlook([]));
     // `dates`, plural: the command takes the whole day window a view
     // shows, and pins the focus phrase for the first of them.
-    void invoke<DashboardContext>("dashboard_context", { dates: [start] })
+    void invoke("dashboard_context", { dates: [start] })
       .then((context) => !cancelled && setFocus(context.focus))
       .catch(() => setFocus(null));
-    void invoke<DashboardContext>("dashboard_context", { dates: [nextStart] })
+    void invoke("dashboard_context", { dates: [nextStart] })
       .then((context) => !cancelled && setNextFocus(context.focus))
       .catch(() => setNextFocus(null));
     return () => {

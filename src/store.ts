@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./lib/ipc";
 import type {
   AppConfig,
   ConfigError,
@@ -240,7 +240,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   habitRates: {},
   loadHabitRates: async () => {
     try {
-      const rates = await invoke<HabitRate[]>("habit_rates");
+      const rates = await invoke("habit_rates");
       set({
         habitRates: Object.fromEntries(rates.map((r) => [r.rule_key, r])),
       });
@@ -252,14 +252,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   init: async () => {
     try {
-      const vaultPath = await invoke<string | null>("vault_status");
+      const vaultPath = await invoke("vault_status");
       let config: AppConfig | null = null;
       if (vaultPath) {
-        config = await invoke<AppConfig>("config_get");
+        config = await invoke("config_get");
       }
       applyTheme(config);
       set({ loaded: true, vaultPath, config });
-      invoke<AppConfig>("config_default")
+      invoke("config_default")
         .then((defaults) => set({ defaults }))
         .catch(() => undefined);
       if (vaultPath) {
@@ -272,7 +272,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   selectVault: async (path: string) => {
     try {
-      const config = await invoke<AppConfig>("vault_select", { path });
+      const config = await invoke("vault_select", { path });
       applyTheme(config);
       set({ vaultPath: path, config, error: null });
       await get().runEngine();
@@ -287,7 +287,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // engine run at exactly one refetch for them.
   runEngine: async () => {
     try {
-      const outcome = await invoke<EngineOutcome>("engine_run");
+      const outcome = await invoke("engine_run");
       set((s) => ({
         configErrors: outcome.errors,
         vaultVersion: s.vaultVersion + 1,
@@ -330,13 +330,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     );
     try {
       const [lists, groups, tasks, dashboard] = await Promise.all([
-        invoke<List[]>("lists_all"),
-        invoke<ListGroup[]>("list_groups_all"),
-        invoke<Task[]>("tasks_snapshot", {
+        invoke("lists_all"),
+        invoke("list_groups_all"),
+        invoke("tasks_snapshot", {
           startDate: start,
           endDate: addDaysISO(start, columns),
         }),
-        invoke<DashboardContext>("dashboard_context", { dates }),
+        invoke("dashboard_context", { dates }),
       ]);
       if (seq !== refreshSeq) return;
       set({ today, lists, groups, tasks, dashboard });
@@ -354,7 +354,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // sync/watcher events.
   createTask: async (task) => {
     try {
-      const created = await invoke<Task>("task_create", { new: task });
+      const created = await invoke("task_create", { new: task });
       set((s) => ({ tasks: [...s.tasks, created] }));
     } catch (e) {
       set({ error: String(e) });
@@ -370,15 +370,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       tasks: s.tasks.map((t) => {
         if (t.id !== id) return t;
-        const merged = { ...t };
-        for (const [key, value] of Object.entries(patch)) {
-          (merged as unknown as Record<string, unknown>)[key] = value;
-        }
-        return merged;
+        return { ...t, ...patch };
       }),
     }));
     try {
-      const updated = await invoke<Task>("task_update", { id, patch });
+      const updated = await invoke("task_update", { id, patch });
       if (taskUpdateSeq.get(id) !== seq) return;
       set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? updated : t)),
@@ -456,7 +452,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // subtasks and drops the rule_runs ledger row, so a deleted
       // generated instance of a live rule regenerates on the next run.
       // The returned snapshot backs the Undo toast.
-      const deleted = await invoke<DeletedTasks>("task_delete", { id });
+      const deleted = await invoke("task_delete", { id });
       set((s) => ({
         tasks: s.tasks.filter((t) => t.id !== id && t.parent_task_id !== id),
       }));
@@ -493,7 +489,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().dismissUndo();
     try {
       if (entry.kind === "task") {
-        const restored = await invoke<Task[]>("task_restore", {
+        const restored = await invoke("task_restore", {
           deleted: entry.deleted,
         });
         if (restored.length > 0) {
@@ -514,7 +510,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   createList: async (name, groupId = null) => {
     try {
-      const created = await invoke<List>("list_create", { name, color: null });
+      const created = await invoke("list_create", { name, color: null });
       // a list born inside an open group view joins that group right away
       if (groupId !== null) {
         await invoke("list_set_group", { id: created.id, groupId });
@@ -590,7 +586,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   createGroup: async (name) => {
     try {
-      const created = await invoke<ListGroup>("list_group_create", { name });
+      const created = await invoke("list_group_create", { name });
       set((s) => ({ groups: [...s.groups, created] }));
     } catch (e) {
       set({ error: String(e) });
@@ -683,7 +679,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       // the snapshot taken before this call may predate a concurrent
       // patch that did reach disk; what app.yml holds now is the truth
-      const live = await invoke<AppConfig>("config_get").catch(() => current);
+      const live = await invoke("config_get").catch(() => current);
       applyTheme(live);
       set({ config: live, error: String(e) });
     }
@@ -694,7 +690,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadProfiles: async () => {
     try {
-      set({ profiles: await invoke<string[]>("profiles_list") });
+      set({ profiles: await invoke("profiles_list") });
     } catch {
       set({ profiles: [] });
     }
@@ -702,7 +698,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   saveProfile: async (name: string) => {
     try {
-      const profiles = await invoke<string[]>("profile_save", { name });
+      const profiles = await invoke("profile_save", { name });
       set({ profiles });
       return true;
     } catch (e) {
@@ -713,7 +709,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deleteProfile: async (name: string) => {
     try {
-      const profiles = await invoke<string[]>("profile_delete", { name });
+      const profiles = await invoke("profile_delete", { name });
       set({ profiles });
     } catch (e) {
       set({ error: String(e) });
@@ -723,7 +719,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   applyProfile: async (name: string) => {
     const current = get().config;
     try {
-      const next = await invoke<AppConfig>("profile_apply", { name });
+      const next = await invoke("profile_apply", { name });
       applyTheme(next);
       set({ config: next });
       // same contract as updateConfig: a changed day-grid width needs an
@@ -771,7 +767,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const target = name.trim().toLowerCase();
     if (!target) return;
     try {
-      const tree = await invoke<KbNode[]>("kb_tree");
+      const tree = await invoke("kb_tree");
       const find = (nodes: KbNode[]): string | null => {
         for (const node of nodes) {
           if (!node.is_dir) {

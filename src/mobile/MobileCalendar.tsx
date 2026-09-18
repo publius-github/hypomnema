@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { addDaysISO, compareTasks, todayISO } from "../lib/tasks";
 import TaskRow from "./TaskRow";
@@ -56,7 +56,7 @@ export default function MobileCalendar() {
   );
 
   useEffect(() => {
-    void invoke<OutlookEvent[]>("calendar_outlook", { from, to })
+    void invoke("calendar_outlook", { from, to })
       .then(setOutlook)
       .catch((e) => setError(String(e)));
   }, [from, to, setError, vaultVersion]);
@@ -67,7 +67,7 @@ export default function MobileCalendar() {
   // signal that keeps this local copy honest.
   useEffect(() => {
     let cancelled = false;
-    void invoke<Task[]>("tasks_snapshot", {
+    void invoke("tasks_snapshot", {
       startDate: from,
       endDate: addDaysISO(to, 1),
     })

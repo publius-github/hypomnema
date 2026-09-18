@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppStore } from "../store";
@@ -50,7 +50,7 @@ export default function DropboxLink({
   };
 
   useEffect(() => {
-    void invoke<DropboxStatus>("dropbox_status")
+    void invoke("dropbox_status")
       .then(applyStatus)
       .catch((e) => setError(String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,14 +71,14 @@ export default function DropboxLink({
 
   const startAuth = () =>
     run(async () => {
-      const url = await invoke<string>("dropbox_auth_url");
+      const url = await invoke("dropbox_auth_url");
       await openUrl(url);
       setAwaitingCode(true);
     });
 
   const connect = () =>
     run(async () => {
-      const next = await invoke<DropboxStatus>("dropbox_connect", {
+      const next = await invoke("dropbox_connect", {
         code: code.trim(),
       });
       applyStatus(next);
@@ -88,7 +88,7 @@ export default function DropboxLink({
 
   const listFiles = () =>
     run(async () => {
-      setListing(await invoke<DropboxListing>("dropbox_list_files"));
+      setListing(await invoke("dropbox_list_files"));
     });
 
   const pullVault = () =>
@@ -96,7 +96,7 @@ export default function DropboxLink({
       setPull(null);
       setProgress([0, 0]);
       try {
-        setPull(await invoke<DropboxPull>("dropbox_pull_vault"));
+        setPull(await invoke("dropbox_pull_vault"));
         // The backend opened the pulled copy as this device's vault, so
         // re-initialising the store swaps this screen for the real app.
         await useAppStore.getState().init();
@@ -107,7 +107,7 @@ export default function DropboxLink({
 
   const writeMarker = () =>
     run(async () => {
-      setMarker(await invoke<string>("dropbox_write_marker"));
+      setMarker(await invoke("dropbox_write_marker"));
     });
 
   const disconnect = () =>

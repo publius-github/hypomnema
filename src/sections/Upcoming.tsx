@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { ConfirmModal } from "../components/dialogs";
 import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
@@ -25,10 +25,10 @@ export default function Upcoming() {
   const load = useCallback(async () => {
     try {
       const [upcoming, bdays] = await Promise.all([
-        invoke<{ events: UpcomingEvent[]; errors: ConfigError[] }>(
+        invoke(
           "upcoming_events",
         ),
-        invoke<{ birthdays: BirthdayView[]; errors: ConfigError[] }>(
+        invoke(
           "birthdays_list",
         ),
       ]);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type { JournalSearchHit, KbSearchHit, Task } from "../types";
 import TaskModal from "./TaskModal";
@@ -53,14 +53,14 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
     // tasks failing is an error worth surfacing; notes and journal
     // quietly return nothing when unavailable (KB not configured yet)
     const [taskHits, noteHits, journalHits] = await Promise.all([
-      invoke<Task[]>("tasks_search", { query: q }).catch((e) => {
+      invoke("tasks_search", { query: q }).catch((e) => {
         useAppStore.getState().setError(String(e));
         return [] as Task[];
       }),
-      invoke<KbSearchHit[]>("kb_search", { query: q }).catch(
+      invoke("kb_search", { query: q }).catch(
         () => [] as KbSearchHit[],
       ),
-      invoke<JournalSearchHit[]>("journal_search", { query: q }).catch(
+      invoke("journal_search", { query: q }).catch(
         () => [] as JournalSearchHit[],
       ),
     ]);
@@ -87,7 +87,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
       return;
     }
     let cancelled = false;
-    invoke<Task>("task_get", { id: selected.id })
+    invoke("task_get", { id: selected.id })
       .then((t) => {
         if (!cancelled) setSelected((prev) => (prev?.id === t.id ? t : prev));
       })

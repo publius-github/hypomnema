@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
   addDaysISO,
@@ -12,7 +12,7 @@ import {
   STATUS_GLYPH,
   STATUS_GLYPH_CLASS,
 } from "../lib/tasks";
-import type { DashboardContext, List, OutlookEvent, Task } from "../types";
+import type { OutlookEvent, Task } from "../types";
 import TaskModal from "../components/TaskModal";
 
 const ORIGIN_LABELS: Record<string, string> = {
@@ -66,7 +66,7 @@ export default function Review() {
       t.scheduled_date !== null &&
       t.scheduled_date >= from &&
       t.scheduled_date <= until;
-    void invoke<Task[]>("tasks_snapshot", {
+    void invoke("tasks_snapshot", {
       startDate: weekStart,
       endDate: addDaysISO(weekEnd, 1),
     })
@@ -75,7 +75,7 @@ export default function Review() {
           setWeekTasks(tasks.filter((t) => inRange(t, weekStart, weekEnd)));
       })
       .catch((e) => useAppStore.getState().setError(String(e)));
-    void invoke<Task[]>("tasks_snapshot", {
+    void invoke("tasks_snapshot", {
       startDate: nextStart,
       endDate: addDaysISO(nextEnd, 1),
     })
@@ -87,7 +87,7 @@ export default function Review() {
     // `to` is inclusive here, unlike tasks_snapshot's exclusive endDate:
     // one day further would hang the Monday after next week off the
     // Next week panel as an eighth day
-    void invoke<OutlookEvent[]>("calendar_outlook", {
+    void invoke("calendar_outlook", {
       from: nextStart,
       to: nextEnd,
     })
@@ -97,12 +97,12 @@ export default function Review() {
       .catch(() => setNextOutlook([]));
     // the focus phrase is pinned per ISO week; asking for a week pins it,
     // which is fine - the rotation is a deterministic cycle anyway
-    void invoke<DashboardContext>("dashboard_context", { dates: [weekStart] })
+    void invoke("dashboard_context", { dates: [weekStart] })
       .then((ctx) => {
         if (!cancelled) setWeekFocus(ctx.focus);
       })
       .catch(() => setWeekFocus(null));
-    void invoke<DashboardContext>("dashboard_context", { dates: [nextStart] })
+    void invoke("dashboard_context", { dates: [nextStart] })
       .then((ctx) => {
         if (!cancelled) setNextFocus(ctx.focus);
       })
@@ -183,7 +183,7 @@ export default function Review() {
       // a listless task needs a home to be a backlog entry at all: the
       // quick-capture Inbox, created on first use
       try {
-        listId = (await invoke<List>("inbox_list")).id;
+        listId = (await invoke("inbox_list")).id;
       } catch (e) {
         useAppStore.getState().setError(String(e));
         return;

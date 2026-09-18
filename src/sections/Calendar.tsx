@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import {
   DndContext,
   DragOverlay,
@@ -143,7 +143,7 @@ export default function Calendar() {
 
   useEffect(() => {
     let cancelled = false;
-    void invoke<Task[]>("tasks_snapshot", {
+    void invoke("tasks_snapshot", {
       startDate: monthStart,
       endDate: nextMonthStart,
     })
@@ -165,7 +165,7 @@ export default function Calendar() {
     // outlook controls how far each cadence reaches)
     // calendar_outlook's `to` is inclusive, unlike tasks_snapshot's
     // exclusive endDate above
-    void invoke<OutlookEvent[]>("calendar_outlook", {
+    void invoke("calendar_outlook", {
       from: monthStart,
       to: monthEnd,
     })
@@ -187,7 +187,7 @@ export default function Calendar() {
       return;
     }
     let cancelled = false;
-    invoke<Task>("task_get", { id: openTask.id })
+    invoke("task_get", { id: openTask.id })
       .then((t) => {
         // closed (or switched) while in flight: do not reopen it
         if (!cancelled) setOpenTask((prev) => (prev?.id === t.id ? t : prev));

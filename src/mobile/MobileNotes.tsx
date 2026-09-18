@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { CONFIG_FILES, basenameOf, parentDirOf } from "../sections/kb/util";
 import { useBackStep } from "./back";
@@ -37,13 +37,13 @@ export default function MobileNotes() {
   const [newName, setNewName] = useState("");
 
   useEffect(() => {
-    void invoke<KbStatus>("kb_status")
+    void invoke("kb_status")
       .then(setStatus)
       .catch(() => {});
   }, []);
 
   const loadTree = useCallback(() => {
-    void invoke<KbNode[]>("kb_tree")
+    void invoke("kb_tree")
       .then(setTree)
       .catch((e) => setError(String(e)));
   }, [setError]);
@@ -62,7 +62,7 @@ export default function MobileNotes() {
 
   const openPath = useCallback(
     (path: string) => {
-      void invoke<string>("kb_read", { path })
+      void invoke("kb_read", { path })
         .then((content) => setNote({ kind: "note", path, content }))
         .catch((e) => setError(String(e)));
     },
@@ -71,7 +71,7 @@ export default function MobileNotes() {
 
   const openConfig = useCallback(
     (file: string) => {
-      void invoke<string>("config_file_get", { file })
+      void invoke("config_file_get", { file })
         .then((content) => setNote({ kind: "config", path: file, content }))
         .catch((e) => setError(String(e)));
     },
@@ -113,7 +113,7 @@ export default function MobileNotes() {
       kind === "note" && !trimmed.endsWith(".md")
         ? `${folder}${trimmed}.md`
         : `${folder}${trimmed}`;
-    void invoke<string>(kind === "note" ? "kb_create" : "kb_mkdir", { path })
+    void invoke(kind === "note" ? "kb_create" : "kb_mkdir", { path })
       .then((created) => {
         setCreating(null);
         setNewName("");
@@ -135,7 +135,7 @@ export default function MobileNotes() {
               setHits(null);
               return;
             }
-            void invoke<KbSearchHit[]>("kb_search", { query: query.trim() })
+            void invoke("kb_search", { query: query.trim() })
               .then(setHits)
               .catch((err) => setError(String(err)));
           }}
@@ -174,7 +174,7 @@ export default function MobileNotes() {
                 .getState()
                 .updateConfig({ kb_path: "" })
                 .then(() =>
-                  invoke<KbStatus>("kb_status").then(setStatus),
+                  invoke("kb_status").then(setStatus),
                 );
             }}
           >
@@ -376,7 +376,7 @@ function NoteEditor({
       if (note.kind === "config") {
         // invalid YAML is reported and never written (last valid state
         // stays active), same as the desktop's Config editor
-        const errors = await invoke<{ line: number | null; message: string }[]>(
+        const errors = await invoke(
           "config_file_set",
           { file: note.path, content: outstanding },
         );
@@ -431,7 +431,7 @@ function NoteEditor({
   const loadBacklinks = () => {
     setShowBacklinks((v) => !v);
     if (backlinks) return;
-    void invoke<BacklinksResult>("kb_backlinks", { path: note.path })
+    void invoke("kb_backlinks", { path: note.path })
       .then(setBacklinks)
       .catch((e) => setError(String(e)));
   };

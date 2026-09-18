@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type { DirListing } from "../types";
 
@@ -38,13 +38,13 @@ export default function MobileVaultFolder({
 
   const go = useCallback((path?: string) => {
     setError(null);
-    void invoke<DirListing>("vault_browse", { path })
+    void invoke("vault_browse", { path: path ?? null })
       .then(setListing)
       .catch((e) => setError(String(e)));
   }, []);
 
   const checkAccess = useCallback(() => {
-    void invoke<boolean>("storage_access")
+    void invoke("storage_access")
       .then(setAccess)
       .catch(() => setAccess(true));
   }, []);
@@ -71,7 +71,7 @@ export default function MobileVaultFolder({
   const use = (path: string) => {
     setBusy(true);
     setError(null);
-    void invoke<string>("vault_use_path", { path })
+    void invoke("vault_use_path", { path })
       .then((chosen) => {
         void useAppStore.getState().init();
         onChosen(chosen);
@@ -84,7 +84,7 @@ export default function MobileVaultFolder({
     if (!listing) return;
     const name = window.prompt("New folder name");
     if (!name?.trim()) return;
-    void invoke<string>("vault_browse_mkdir", {
+    void invoke("vault_browse_mkdir", {
       parent: listing.path,
       name: name.trim(),
     })

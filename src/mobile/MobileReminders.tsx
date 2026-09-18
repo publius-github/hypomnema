@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type { RemindersOverview } from "../types";
 
@@ -31,7 +31,7 @@ export default function MobileReminders() {
   const vaultVersion = useAppStore((s) => s.vaultVersion);
 
   const load = useCallback(() => {
-    void invoke<RemindersOverview>("reminders_overview")
+    void invoke("reminders_overview")
       .then(setOverview)
       .catch((e) => setError(String(e)));
   }, [setError]);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { addDaysISO } from "../lib/tasks";
 import { useBackStep } from "./back";
@@ -69,7 +69,7 @@ export default function MobileJournal() {
     void (async () => {
       await flush();
       try {
-        const entry = await invoke<{ date: string; content: string }>(
+        const entry = await invoke(
           "journal_open",
           { date },
         );
@@ -148,7 +148,7 @@ export default function MobileJournal() {
         <button
           onClick={() => {
             // newest first: the recent past is what gets reopened
-            void invoke<string[]>("journal_list")
+            void invoke("journal_list")
               .then((dates) => {
                 setEntries([...dates].sort((a, b) => b.localeCompare(a)));
                 setBrowsing(true);

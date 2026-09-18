@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
   addDaysISO,
@@ -16,7 +16,7 @@ import {
   isClosed,
 } from "../lib/tasks";
 import { useEditTask } from "./editing";
-import type { List, Task } from "../types";
+import type { Task } from "../types";
 
 /**
  * One task, sized for a thumb and legible at a glance.
@@ -298,7 +298,7 @@ export default function TaskRow({
                       // a listless task needs a home to be a backlog
                       // entry at all: the quick-capture Inbox
                       try {
-                        listId = (await invoke<List>("inbox_list")).id;
+                        listId = (await invoke("inbox_list")).id;
                       } catch (e) {
                         useAppStore.getState().setError(String(e));
                         return;

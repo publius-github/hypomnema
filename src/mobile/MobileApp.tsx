@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
 import MobileDay from "./MobileDay";
@@ -93,7 +93,7 @@ export default function MobileApp() {
   const [lock, setLock] = useState<LockState | null>(null);
   const [lockSkipped, setLockSkipped] = useState(false);
   useEffect(() => {
-    void invoke<LockState>("app_lock_state")
+    void invoke("app_lock_state")
       .then(setLock)
       .catch(() => setLock({ enabled: false, unlocked: true }));
   }, []);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
 import MarkdownEditor from "../components/MarkdownEditor";
@@ -22,7 +22,7 @@ export default function Journal() {
 
   const loadDates = useCallback(async () => {
     try {
-      setDates(await invoke<string[]>("journal_list"));
+      setDates(await invoke("journal_list"));
     } catch (e) {
       setError(e);
     }
@@ -63,7 +63,7 @@ export default function Journal() {
       const seq = ++openSeq.current;
       await flushPending();
       try {
-        const entry = await invoke<{ date: string; content: string }>(
+        const entry = await invoke(
           "journal_open",
           { date },
         );

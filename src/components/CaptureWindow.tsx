@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { AppConfig } from "./../types";
 
 /**
  * Body of the quick-capture window: one input, Enter files the title
@@ -21,7 +20,7 @@ export default function CaptureWindow() {
     // dark/light class so the surface tokens resolve
     const applyThemeClass = async () => {
       try {
-        const config = await invoke<AppConfig>("config_get");
+        const config = await invoke("config_get");
         document.documentElement.classList.toggle(
           "dark",
           config.theme !== "light",

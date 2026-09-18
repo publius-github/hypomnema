@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../lib/ipc";
 import { useAppStore } from "../../store";
 import { ConfirmModal } from "../../components/dialogs";
-import type { AppConfig, BackupEntry, BackupsOverview, List } from "../../types";
+import type { BackupEntry, BackupsOverview, List } from "../../types";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -69,7 +69,7 @@ export default function MaintenanceTab() {
 
   const loadArchived = useCallback(async () => {
     try {
-      setArchived(await invoke<List[]>("lists_archived"));
+      setArchived(await invoke("lists_archived"));
     } catch (e) {
       useAppStore.getState().setError(String(e));
     }
@@ -77,7 +77,7 @@ export default function MaintenanceTab() {
 
   const loadBackups = useCallback(async () => {
     try {
-      setBackups(await invoke<BackupsOverview>("backups_list"));
+      setBackups(await invoke("backups_list"));
     } catch (e) {
       useAppStore.getState().setError(String(e));
     }
@@ -91,7 +91,7 @@ export default function MaintenanceTab() {
   const deleteDone = async () => {
     setConfirming(false);
     try {
-      const deleted = await invoke<number>("tasks_delete_done");
+      const deleted = await invoke("tasks_delete_done");
       setStatus(`Deleted ${deleted} done task(s)`);
       await useAppStore.getState().refresh();
     } catch (e) {
@@ -118,7 +118,7 @@ export default function MaintenanceTab() {
       if (kind === "db") {
         // the whole database is being swapped: reload config, then rerun
         // the engine and refetch every view, same as opening a vault
-        const config = await invoke<AppConfig>("backup_restore_db", {
+        const config = await invoke("backup_restore_db", {
           id: entry.id,
         });
         useAppStore.setState({ config });

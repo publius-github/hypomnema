@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { addDaysISO, gridDates } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
@@ -38,7 +38,7 @@ export default function Days() {
       .tasks.some((t) => t.id === editingTaskId);
     if (inStore) return;
     let cancelled = false;
-    invoke<Task>("task_get", { id: editingTaskId })
+    invoke("task_get", { id: editingTaskId })
       .then((t) => {
         if (!cancelled) setFetchedTask(t);
       })

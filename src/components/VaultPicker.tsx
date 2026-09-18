@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
 import MobileVaultSetup from "../mobile/MobileVaultSetup";
@@ -15,7 +15,7 @@ export default function VaultPicker() {
   const [probeError, setProbeError] = useState<string | null>(null);
 
   useEffect(() => {
-    void invoke<boolean>("platform_is_mobile")
+    void invoke("platform_is_mobile")
       .then(setIsMobile)
       .catch((e) => {
         // Fall back to the user agent, not to the desktop picker: that

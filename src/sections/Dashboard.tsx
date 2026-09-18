@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
 import {
@@ -55,7 +55,7 @@ export default function Dashboard() {
       .tasks.some((t) => t.id === editingTaskId);
     if (inStore) return;
     let cancelled = false;
-    invoke<Task>("task_get", { id: editingTaskId })
+    invoke("task_get", { id: editingTaskId })
       .then((t) => {
         if (!cancelled) setFetchedTask(t);
       })

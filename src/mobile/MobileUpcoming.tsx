@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type {
   BirthdayEntry,
@@ -36,13 +36,13 @@ export default function MobileUpcoming() {
   const vaultVersion = useAppStore((s) => s.vaultVersion);
 
   const load = useCallback(() => {
-    void invoke<UpcomingResult>("upcoming_events")
+    void invoke("upcoming_events")
       .then(setScheduled)
       .catch((e) => setError(String(e)));
-    void invoke<BirthdaysResult>("birthdays_list")
+    void invoke("birthdays_list")
       .then(setBirthdays)
       .catch((e) => setError(String(e)));
-    void invoke<RecurringResult>("recurring_list")
+    void invoke("recurring_list")
       .then(setRecurring)
       .catch((e) => setError(String(e)));
   }, [setError]);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
 import { ConfirmModal } from "../components/dialogs";
@@ -30,10 +30,7 @@ export default function Recurring() {
 
   const load = useCallback(async () => {
     try {
-      const result = await invoke<{
-        rules: RecurringRuleView[];
-        errors: ConfigError[];
-      }>("recurring_list");
+      const result = await invoke("recurring_list");
       setRules(result.rules);
       setFileErrors(result.errors);
     } catch (e) {

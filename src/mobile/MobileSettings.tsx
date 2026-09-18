@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { LockSettings } from "./MobileLock";
@@ -56,19 +56,19 @@ export default function MobileSettings() {
   useBackStep(panel !== null, () => setPanel(null));
 
   const loadSyncState = useCallback(() => {
-    void invoke<ConflictEntry[]>("sync_conflicts_list")
+    void invoke("sync_conflicts_list")
       .then(setConflicts)
       .catch(() => {});
-    void invoke<SyncStanding>("sync_standing")
+    void invoke("sync_standing")
       .then(setStanding)
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    void invoke<DropboxStatus>("dropbox_status")
+    void invoke("dropbox_status")
       .then(setStatus)
       .catch(() => {});
-    void invoke<LockState>("app_lock_state")
+    void invoke("app_lock_state")
       .then(setLock)
       .catch(() => {});
     loadSyncState();
@@ -270,7 +270,7 @@ function SyncPanel({
           disabled={busy}
           onClick={() =>
             void run(async () => {
-              setSync(await invoke<DropboxSync>("dropbox_sync"));
+              setSync(await invoke("dropbox_sync"));
               await useAppStore.getState().refresh();
             })
           }
@@ -355,7 +355,7 @@ function SyncPanel({
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  setPull(await invoke<DropboxPull>("dropbox_pull_vault"));
+                  setPull(await invoke("dropbox_pull_vault"));
                   await useAppStore.getState().refresh();
                 })
               }
@@ -728,10 +728,10 @@ function MaintenancePanel() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    void invoke<List[]>("lists_archived")
+    void invoke("lists_archived")
       .then(setArchived)
       .catch((e) => setError(String(e)));
-    void invoke<BackupsOverview>("backups_list")
+    void invoke("backups_list")
       .then(setBackups)
       .catch((e) => setError(String(e)));
   }, [setError]);
@@ -754,7 +754,7 @@ function MaintenancePanel() {
     if (!window.confirm("Delete every task marked done? This cannot be undone."))
       return;
     void act(async () => {
-      const deleted = await invoke<number>("tasks_delete_done");
+      const deleted = await invoke("tasks_delete_done");
       setStatus(`Deleted ${deleted} done task(s)`);
       await useAppStore.getState().refresh();
     });
@@ -776,7 +776,7 @@ function MaintenancePanel() {
     void act(async () => {
       // the whole database is being swapped: reload config, then rerun
       // the engine and refetch every view, same as opening a vault
-      const config = await invoke<AppConfig>("backup_restore_db", {
+      const config = await invoke("backup_restore_db", {
         id: entry.id,
       });
       useAppStore.setState({ config });

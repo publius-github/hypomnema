@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import DropboxLink from "../components/DropboxLink";
 import MobileVaultFolder from "./MobileVaultFolder";
@@ -21,7 +21,7 @@ export default function MobileVaultSetup() {
   const setError = useAppStore((s) => s.setError);
 
   useEffect(() => {
-    void invoke<string>("vault_local_path")
+    void invoke("vault_local_path")
       .then(setPath)
       .catch(() => {});
   }, []);
@@ -64,7 +64,7 @@ export default function MobileVaultSetup() {
           disabled={busy}
           onClick={() => {
             setBusy(true);
-            void invoke<string>("vault_use_local")
+            void invoke("vault_use_local")
               .then(() => useAppStore.getState().init())
               .catch((e) => setError(String(e)))
               .finally(() => setBusy(false));

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
@@ -63,7 +63,7 @@ export default function KnowledgeBase() {
 
   const loadTree = useCallback(async () => {
     try {
-      setTree(await invoke<KbNode[]>("kb_tree"));
+      setTree(await invoke("kb_tree"));
     } catch (e) {
       setError(e);
     }
@@ -83,7 +83,7 @@ export default function KnowledgeBase() {
       const doc = currentRef.current;
       if (doc && doc.kind === "note" && savedRef.current) {
         try {
-          const content = await invoke<string>("kb_read", { path: doc.path });
+          const content = await invoke("kb_read", { path: doc.path });
           setCurrent((prev) =>
             prev && prev.path === doc.path ? { ...prev, content } : prev,
           );
@@ -136,7 +136,7 @@ export default function KnowledgeBase() {
     const seq = ++openSeq.current;
     await flushPending();
     try {
-      const content = await invoke<string>("kb_read", { path });
+      const content = await invoke("kb_read", { path });
       if (seq !== openSeq.current) return;
       setCurrent({ kind: "note", path, content });
       useAppStore.getState().setKbCurrent({ kind: "note", path });
@@ -151,7 +151,7 @@ export default function KnowledgeBase() {
     const seq = ++openSeq.current;
     await flushPending();
     try {
-      const content = await invoke<string>("config_file_get", { file });
+      const content = await invoke("config_file_get", { file });
       if (seq !== openSeq.current) return;
       setCurrent({ kind: "config", path: file, content });
       useAppStore.getState().setKbCurrent({ kind: "config", path: file });
@@ -177,14 +177,14 @@ export default function KnowledgeBase() {
       if (doc.kind === "config") {
         // invalid YAML is reported and never written (last valid
         // state stays active), same as the Settings editor
-        const errors = await invoke<{ line: number | null; message: string }[]>(
+        const errors = await invoke(
           "config_file_set",
           { file: doc.path, content: doc.content },
         );
         setConfigErrors(errors);
         if (errors.length === 0) setSaved(true);
       } else {
-        const written = await invoke<string>("kb_write", {
+        const written = await invoke("kb_write", {
           path: doc.path,
           content: doc.content,
         });
@@ -397,7 +397,7 @@ export default function KnowledgeBase() {
   const createFile = async (name: string) => {
     setDialog(null);
     try {
-      const path = await invoke<string>("kb_create", { path: name });
+      const path = await invoke("kb_create", { path: name });
       await loadTree();
       await openFile(path);
     } catch (e) {
@@ -408,7 +408,7 @@ export default function KnowledgeBase() {
   const createFolder = async (name: string) => {
     setDialog(null);
     try {
-      const path = await invoke<string>("kb_mkdir", { path: name });
+      const path = await invoke("kb_mkdir", { path: name });
       await loadTree();
       // a folder created invisibly (collapsed parents) reads as
       // "nothing happened": open the path down to it
@@ -428,7 +428,7 @@ export default function KnowledgeBase() {
 
   const copyPath = async (path: string) => {
     try {
-      const absolute = await invoke<string>("kb_abs_path", { path });
+      const absolute = await invoke("kb_abs_path", { path });
       await navigator.clipboard.writeText(absolute);
     } catch (e) {
       setError(e);
@@ -522,7 +522,7 @@ export default function KnowledgeBase() {
     }
     let stale = false;
     const timer = setTimeout(() => {
-      invoke<KbSearchHit[]>("kb_search", { query })
+      invoke("kb_search", { query })
         .then((hits) => {
           if (!stale) setContentHits(hits);
         })

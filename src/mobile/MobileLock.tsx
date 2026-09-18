@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import type { LockState } from "../types";
 
 /**
@@ -83,7 +83,7 @@ export function LockSettings({
                   return;
                 }
                 void act(() =>
-                  invoke<LockState>(
+                  invoke(
                     state.enabled ? "app_lock_disable" : "app_lock_enable",
                     { passphrase },
                   ),
@@ -109,7 +109,7 @@ export function LockSettings({
       )}
       {state.enabled && state.unlocked && (
         <button
-          onClick={() => void act(() => invoke<LockState>("app_lock_now"))}
+          onClick={() => void act(() => invoke("app_lock_now"))}
           className="self-start text-sm text-content-muted"
         >
           Lock now
@@ -140,7 +140,7 @@ export function LockScreen({
 
   const submit = () => {
     setError(null);
-    void invoke<LockState>("app_unlock", { passphrase })
+    void invoke("app_unlock", { passphrase })
       .then(onUnlocked)
       .catch((e) => setError(String(e)));
   };

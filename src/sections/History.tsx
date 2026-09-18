@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { splitCategory, todayISO, weekdayShort } from "../lib/tasks";
 import type { DailyStreak, Task } from "../types";
@@ -54,7 +54,7 @@ export default function History() {
 
   useEffect(() => {
     let cancelled = false;
-    void invoke<Task[]>("tasks_snapshot", {
+    void invoke("tasks_snapshot", {
       startDate: monthStart,
       endDate: nextMonthStart,
     })
@@ -71,7 +71,7 @@ export default function History() {
         );
       })
       .catch((e) => useAppStore.getState().setError(String(e)));
-    void invoke<DailyStreak[]>("daily_streaks")
+    void invoke("daily_streaks")
       .then((s) => {
         if (!cancelled) setStreaks(s);
       })

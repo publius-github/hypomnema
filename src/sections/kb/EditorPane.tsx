@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../lib/ipc";
 import MarkdownEditor from "../../components/MarkdownEditor";
 import TaskModal from "../../components/TaskModal";
 import { useAppStore } from "../../store";
@@ -21,7 +21,7 @@ function BacklinksPanel({ path }: { path: string }) {
   useEffect(() => {
     let cancelled = false;
     setData(null);
-    invoke<BacklinksResult>("kb_backlinks", { path })
+    invoke("kb_backlinks", { path })
       .then((result) => {
         if (!cancelled) setData(result);
       })

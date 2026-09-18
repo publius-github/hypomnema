@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { currentAndNextBlock } from "../lib/tasks";
 import { ConfirmModal } from "../components/dialogs";
@@ -63,7 +63,7 @@ export default function Reminders() {
 
   const load = useCallback(async () => {
     try {
-      setData(await invoke<RemindersOverview>("reminders_overview"));
+      setData(await invoke("reminders_overview"));
     } catch (e) {
       setError(e);
     }

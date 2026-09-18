@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useAppStore } from "./store";
 import { todayISO } from "./lib/tasks";
-import type { AppConfig, ConfigError, Section } from "./types";
+import type { ConfigError, Section } from "./types";
 import TabBar from "./components/TabBar";
 import SearchPalette from "./components/SearchPalette";
 import DueToasts from "./components/DueToasts";
@@ -37,7 +37,7 @@ export default function App() {
 
   useEffect(() => {
     void init();
-    void invoke<boolean>("platform_is_mobile")
+    void invoke("platform_is_mobile")
       .then(setIsMobile)
       .catch(() => setIsMobile(/Android/i.test(navigator.userAgent)));
   }, [init]);
@@ -82,7 +82,7 @@ export default function App() {
       // task views refetch on the `tasks` reference refresh() replaces
       useAppStore.setState((s) => ({ vaultVersion: s.vaultVersion + 1 }));
       try {
-        const config = await invoke<AppConfig>("config_get");
+        const config = await invoke("config_get");
         useAppStore.setState({ config });
       } catch {
         // vault temporarily unavailable; keep the current config
