@@ -86,7 +86,7 @@ export default function MobileCalendar() {
     return () => {
       cancelled = true;
     };
-  }, [from, to, setError, vaultVersion, storeTasks]);
+  }, [from, to, setError, storeTasks]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, { real: number; projected: number }>();

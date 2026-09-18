@@ -80,7 +80,6 @@ function RailButton({
 
 function SyncButton() {
   const runEngine = useAppStore((s) => s.runEngine);
-  const refresh = useAppStore((s) => s.refresh);
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
@@ -88,7 +87,6 @@ function SyncButton() {
     if (syncing) return;
     setSyncing(true);
     const outcome = await runEngine();
-    await refresh();
     setSyncing(false);
     if (!outcome) {
       setResult("failed");

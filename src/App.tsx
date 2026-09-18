@@ -78,6 +78,8 @@ export default function App() {
     const unlisten = listen<ConfigError[]>("vault-updated", async (event) => {
       const store = useAppStore.getState();
       store.setConfigErrors(event.payload);
+      // the bump reaches the sections that read YAML-backed views; the
+      // task views refetch on the `tasks` reference refresh() replaces
       useAppStore.setState((s) => ({ vaultVersion: s.vaultVersion + 1 }));
       try {
         const config = await invoke<AppConfig>("config_get");
@@ -147,7 +149,7 @@ export default function App() {
     const timer = setInterval(() => {
       const store = useAppStore.getState();
       if (store.vaultPath && todayISO() !== store.today) {
-        void store.runEngine().then(() => store.refresh());
+        void store.runEngine();
       }
     }, 60_000);
     return () => clearInterval(timer);

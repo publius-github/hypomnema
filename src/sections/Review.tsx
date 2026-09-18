@@ -40,7 +40,6 @@ function StatTile({ value, label }: { value: string; label: string }) {
  */
 export default function Review() {
   const lists = useAppStore((s) => s.lists);
-  const vaultVersion = useAppStore((s) => s.vaultVersion);
   const storeTasks = useAppStore((s) => s.tasks);
   const openJournalDate = useAppStore((s) => s.openJournalDate);
   const updateTask = useAppStore((s) => s.updateTask);
@@ -111,7 +110,7 @@ export default function Review() {
     return () => {
       cancelled = true;
     };
-  }, [weekStart, weekEnd, nextStart, nextEnd, storeTasks, vaultVersion]);
+  }, [weekStart, weekEnd, nextStart, nextEnd, storeTasks]);
 
   // keep the opened task fresh after edits made in the dialog
   useEffect(() => {

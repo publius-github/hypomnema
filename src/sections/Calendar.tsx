@@ -134,7 +134,6 @@ export default function Calendar() {
   const [openTask, setOpenTask] = useState<Task | null>(null);
   // any task mutation anywhere refreshes the month view
   const storeTasks = useAppStore((s) => s.tasks);
-  const vaultVersion = useAppStore((s) => s.vaultVersion);
 
   const monthStart = iso(year, month, 1);
   const nextMonthStart =
@@ -177,7 +176,7 @@ export default function Calendar() {
     return () => {
       cancelled = true;
     };
-  }, [monthStart, nextMonthStart, monthEnd, storeTasks, vaultVersion]);
+  }, [monthStart, nextMonthStart, monthEnd, storeTasks]);
 
   // keep the opened task fresh after edits made in the modal
   useEffect(() => {

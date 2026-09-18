@@ -264,7 +264,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         .catch(() => undefined);
       if (vaultPath) {
         await get().runEngine();
-        await get().refresh();
       }
     } catch (e) {
       set({ loaded: true, error: String(e) });
@@ -277,12 +276,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       applyTheme(config);
       set({ vaultPath: path, config, error: null });
       await get().runEngine();
-      await get().refresh();
     } catch (e) {
       set({ error: String(e) });
     }
   },
 
+  // A pass may generate, carry over or prune tasks, so the snapshot is
+  // refetched here rather than by every caller: the Review and Calendar
+  // sections refetch on the `tasks` reference alone, and that keeps one
+  // engine run at exactly one refetch for them.
   runEngine: async () => {
     try {
       const outcome = await invoke<EngineOutcome>("engine_run");
@@ -290,6 +292,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         configErrors: outcome.errors,
         vaultVersion: s.vaultVersion + 1,
       }));
+      await get().refresh();
       return outcome;
     } catch (e) {
       set({ error: String(e) });
@@ -674,7 +677,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       // a refetch instead of waiting for the settings watcher
       if (WINDOW_KEYS.some((key) => key in patch)) {
         await get().runEngine();
-        await get().refresh();
       } else if (HABIT_RATE_KEYS.some((key) => key in patch)) {
         await get().loadHabitRates();
       }
@@ -731,7 +733,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         WINDOW_KEYS.some((key) => current[key] !== next[key])
       ) {
         await get().runEngine();
-        await get().refresh();
       }
     } catch (e) {
       set({ error: String(e) });

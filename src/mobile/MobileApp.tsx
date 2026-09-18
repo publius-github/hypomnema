@@ -120,7 +120,7 @@ export default function MobileApp() {
     const runIfStale = () => {
       const store = useAppStore.getState();
       if (!store.vaultPath || document.visibilityState !== "visible") return;
-      void store.runEngine().then(() => store.refresh());
+      void store.runEngine();
     };
     runIfStale();
     document.addEventListener("visibilitychange", runIfStale);
@@ -188,7 +188,7 @@ export default function MobileApp() {
     const timer = setInterval(() => {
       const store = useAppStore.getState();
       if (store.vaultPath && todayISO() !== store.today) {
-        void store.runEngine().then(() => store.refresh());
+        void store.runEngine();
       }
     }, 60_000);
     return () => clearInterval(timer);

@@ -38,7 +38,6 @@ export default function MobileReview() {
   const [nextOutlook, setNextOutlook] = useState<OutlookEvent[]>([]);
   const [nextFocus, setNextFocus] = useState<string | null>(null);
   const setError = useAppStore((s) => s.setError);
-  const vaultVersion = useAppStore((s) => s.vaultVersion);
   const storeTasks = useAppStore((s) => s.tasks);
   const today = useAppStore((s) => s.today) || todayISO();
   const { setTab } = useMobileNav();
@@ -92,9 +91,10 @@ export default function MobileReview() {
     return () => {
       cancelled = true;
     };
-    // storeTasks: row actions mutate through the store, so its change is
-    // the refetch signal that keeps this local snapshot honest
-  }, [start, end, nextStart, nextEnd, setError, vaultVersion, storeTasks]);
+    // storeTasks: row actions mutate through the store and every
+    // refresh() replaces the array, so its change is the one refetch
+    // signal that keeps this local snapshot honest
+  }, [start, end, nextStart, nextEnd, setError, storeTasks]);
 
   // completion rate counts only days that already happened: planned
   // tasks later this week are not "missed" yet - same as the desktop
