@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
+import { PromptModal } from "../components/dialogs";
 import type { DirListing } from "../types";
 
 /**
@@ -33,6 +34,7 @@ export default function MobileVaultFolder({
 }) {
   const [listing, setListing] = useState<DirListing | null>(null);
   const [access, setAccess] = useState<boolean | null>(null);
+  const [naming, setNaming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,14 +82,11 @@ export default function MobileVaultFolder({
       .finally(() => setBusy(false));
   };
 
-  const makeFolder = () => {
+  // an in-app prompt: the WebView's window.prompt is unreliable on Android
+  const makeFolder = (name: string) => {
+    setNaming(false);
     if (!listing) return;
-    const name = window.prompt("New folder name");
-    if (!name?.trim()) return;
-    void invoke("vault_browse_mkdir", {
-      parent: listing.path,
-      name: name.trim(),
-    })
+    void invoke("vault_browse_mkdir", { parent: listing.path, name })
       .then((created) => go(created))
       .catch((e) => setError(errorMessage(e)));
   };
@@ -102,9 +101,21 @@ export default function MobileVaultFolder({
           <span className="min-w-0 flex-1 truncate text-center font-semibold">
             Choose a folder
           </span>
-          <button onClick={makeFolder} className="px-2 py-1 text-accent">
+          <button
+            onClick={() => setNaming(true)}
+            disabled={!listing}
+            className="px-2 py-1 text-accent disabled:opacity-50"
+          >
             New
           </button>
+          {naming && (
+            <PromptModal
+              title="New folder name"
+              submitLabel="Create"
+              onSubmit={makeFolder}
+              onCancel={() => setNaming(false)}
+            />
+          )}
         </div>
         <p className="mt-1 break-all px-2 font-mono text-xs text-content-muted">
           {listing?.path ?? "…"}

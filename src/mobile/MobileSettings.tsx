@@ -7,6 +7,7 @@ import MobileVaultFolder from "./MobileVaultFolder";
 import DropboxLink from "../components/DropboxLink";
 import { NumberField, Toggle } from "./controls";
 import { useBackStep } from "./back";
+import { ConfirmModal } from "../components/dialogs";
 
 /** Matches THEME_PRESETS in src-tauri/src/config.rs. */
 const THEME_PRESETS = [
@@ -717,8 +718,9 @@ function VaultPanel({ vaultPath }: { vaultPath: string | null }) {
 /**
  * The desktop Maintenance tab, sized for a thumb: delete-done sweep,
  * archived-list restore, and the restore lists for both backup kinds.
- * Confirms go through window.confirm - a custom dialog would cover the
- * very list the action refers to.
+ * Destructive actions confirm through the in-app ConfirmModal (the
+ * WebView's native confirm is unstyled and, on Android, easy to dismiss
+ * by accident); the dialog names what it is about to do.
  */
 function MaintenancePanel() {
   const setError = useAppStore((s) => s.setError);
@@ -726,6 +728,12 @@ function MaintenancePanel() {
   const [backups, setBackups] = useState<BackupsOverview | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    message: string;
+    label: string;
+    run: () => void;
+  } | null>(null);
 
   const load = useCallback(() => {
     void invoke("lists_archived")
@@ -750,15 +758,18 @@ function MaintenancePanel() {
     }
   };
 
-  const deleteDone = () => {
-    if (!window.confirm("Delete every task marked done? This cannot be undone."))
-      return;
-    void act(async () => {
-      const deleted = await invoke("tasks_delete_done");
-      setStatus(`Deleted ${deleted} done task(s)`);
-      await useAppStore.getState().refresh();
+  const deleteDone = () =>
+    setConfirm({
+      title: "Delete every task marked done?",
+      message: "This cannot be undone.",
+      label: "Delete",
+      run: () =>
+        void act(async () => {
+          const deleted = await invoke("tasks_delete_done");
+          setStatus(`Deleted ${deleted} done task(s)`);
+          await useAppStore.getState().refresh();
+        }),
     });
-  };
 
   const restoreList = (id: number) =>
     void act(async () => {
@@ -766,14 +777,14 @@ function MaintenancePanel() {
       await useAppStore.getState().refresh();
     });
 
-  const restoreDb = (entry: BackupEntry) => {
-    if (
-      !window.confirm(
-        `Restore the database from ${entry.label}? Everything created after it will be gone. The current database is kept as its own snapshot first.`,
-      )
-    )
-      return;
-    void act(async () => {
+  const restoreDb = (entry: BackupEntry) =>
+    setConfirm({
+      title: `Restore the database from ${entry.label}?`,
+      message:
+        "Everything created after it will be gone. The current database is kept as its own snapshot first.",
+      label: "Restore",
+      run: () =>
+        void act(async () => {
       // the whole database is being swapped: reload config, then rerun
       // the engine and refetch every view, same as opening a vault
       const config = await invoke("backup_restore_db", {
@@ -783,21 +794,20 @@ function MaintenancePanel() {
       await useAppStore.getState().runEngine();
       await useAppStore.getState().refresh();
       setStatus(`Restored database from ${entry.label}`);
+        }),
     });
-  };
 
-  const restoreConfig = (entry: BackupEntry) => {
-    if (
-      !window.confirm(
-        `Restore ${entry.label} from ${entry.modified}? The file currently on disk is kept as its own backup first.`,
-      )
-    )
-      return;
-    void act(async () => {
-      await invoke("backup_restore_config", { id: entry.id });
-      setStatus(`Restored ${entry.label} - changes apply in a moment`);
+  const restoreConfig = (entry: BackupEntry) =>
+    setConfirm({
+      title: `Restore ${entry.label} from ${entry.modified}?`,
+      message: "The file currently on disk is kept as its own backup first.",
+      label: "Restore",
+      run: () =>
+        void act(async () => {
+          await invoke("backup_restore_config", { id: entry.id });
+          setStatus(`Restored ${entry.label} - changes apply in a moment`);
+        }),
     });
-  };
 
   const backupList = (
     title: string,
@@ -832,6 +842,18 @@ function MaintenancePanel() {
 
   return (
     <div className="flex flex-col gap-3">
+      {confirm && (
+        <ConfirmModal
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.label}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            setConfirm(null);
+            confirm.run();
+          }}
+        />
+      )}
       {status && <p className="text-xs text-content-muted">{status}</p>}
       <button
         disabled={busy}

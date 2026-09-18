@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { invoke } from "../../lib/ipc";
-import MarkdownEditor from "../../components/MarkdownEditor";
+
+// CodeMirror loads on first use, same as in the Journal
+const MarkdownEditor = lazy(() => import("../../components/MarkdownEditor"));
 import TaskModal from "../../components/TaskModal";
 import { useAppStore } from "../../store";
 import { splitCategory } from "../../lib/tasks";
@@ -192,28 +194,30 @@ export default function EditorPane({
         </div>
       )}
       <div className="min-h-0 flex-1">
-        <MarkdownEditor
-          docKey={`${current.kind}:${current.path}`}
-          value={current.content}
-          initialAnchor={
-            current.kind === "note" ? noteBodyOffset(current.content) : 0
-          }
-          onChange={onChange}
-          mode={
-            current.path.toLowerCase().endsWith(".md")
-              ? "markdown"
-              : /\.ya?ml$/i.test(current.path)
-                ? "yaml"
-                : "plain"
-          }
-          showLineNumbers={
-            (current.kind === "config" && !current.path.endsWith(".md")) ||
-            lineNumbers
-          }
-          onWikiLink={(name) =>
-            void useAppStore.getState().openKbNoteByName(name)
-          }
-        />
+        <Suspense fallback={null}>
+          <MarkdownEditor
+            docKey={`${current.kind}:${current.path}`}
+            value={current.content}
+            initialAnchor={
+              current.kind === "note" ? noteBodyOffset(current.content) : 0
+            }
+            onChange={onChange}
+            mode={
+              current.path.toLowerCase().endsWith(".md")
+                ? "markdown"
+                : /\.ya?ml$/i.test(current.path)
+                  ? "yaml"
+                  : "plain"
+            }
+            showLineNumbers={
+              (current.kind === "config" && !current.path.endsWith(".md")) ||
+              lineNumbers
+            }
+            onWikiLink={(name) =>
+              void useAppStore.getState().openKbNoteByName(name)
+            }
+          />
+        </Suspense>
       </div>
       {current.kind === "note" && current.path.toLowerCase().endsWith(".md") && (
         <BacklinksPanel path={current.path} />

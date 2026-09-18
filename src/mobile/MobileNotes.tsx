@@ -3,6 +3,7 @@ import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { CONFIG_FILES, basenameOf, parentDirOf } from "../sections/kb/util";
 import { useBackStep } from "./back";
+import { ConfirmModal } from "../components/dialogs";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
 
 const SAVE_DEBOUNCE_MS = 1200;
@@ -345,6 +346,7 @@ function NoteEditor({
   const setError = useAppStore((s) => s.setError);
   const [content, setContent] = useState(note.content);
   const [saved, setSaved] = useState(true);
+  const [confirmTrash, setConfirmTrash] = useState(false);
   // a config file opens straight into the editor: its reading view is
   // YAML, which there is nothing to "read" - only to change
   const [editing, setEditing] = useState(note.kind === "config");
@@ -572,16 +574,25 @@ function NoteEditor({
           </div>
         )}
         <button
-          onClick={() => {
-            if (!window.confirm(`Move ${note.path} to the trash?`)) return;
-            void invoke("kb_delete", { path: note.path })
-              .then(onClose)
-              .catch((e) => setError(errorMessage(e)));
-          }}
+          onClick={() => setConfirmTrash(true)}
           className="w-full px-4 pb-3 text-left text-sm text-danger"
         >
           Move to trash
         </button>
+        {confirmTrash && (
+          <ConfirmModal
+            title="Move to trash?"
+            message={note.path}
+            confirmLabel="Move to trash"
+            onCancel={() => setConfirmTrash(false)}
+            onConfirm={() => {
+              setConfirmTrash(false);
+              void invoke("kb_delete", { path: note.path })
+                .then(onClose)
+                .catch((e) => setError(errorMessage(e)));
+            }}
+          />
+        )}
       </div>
       )}
     </div>

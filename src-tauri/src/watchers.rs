@@ -124,6 +124,18 @@ pub(crate) fn watch_event_is_relevant(event: &notify::Event) -> bool {
     !only_tmp
 }
 
+/// With the Notes rooted at the vault itself, a recursive watch also
+/// sees every write under `.hypomnema/` - the database and its WAL, the
+/// mirror files, the snapshot, the backups - none of which is a note.
+/// Reacting to those made every task edit emit `kb-updated`.
+pub(crate) fn is_work_dir_event(event: &notify::Event) -> bool {
+    !event.paths.is_empty()
+        && event
+            .paths
+            .iter()
+            .all(|path| path.components().any(|c| c.as_os_str() == vault::WORK_DIR))
+}
+
 /// Watches the user configs and the app settings folder and, after a
 /// debounce, reloads app.yml, runs the engine, and notifies the
 /// frontend (req. 18, safe reload per 19).
@@ -424,7 +436,7 @@ pub(crate) fn ensure_kb_watcher(
     let (tx, rx) = mpsc::channel::<()>();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if let Ok(event) = event {
-            if watch_event_is_relevant(&event) {
+            if watch_event_is_relevant(&event) && !is_work_dir_event(&event) {
                 let _ = tx.send(());
             }
         }
@@ -519,5 +531,28 @@ mod tests {
         // pathless events (some platforms emit them) are not dropped
         let bare = Event::new(EventKind::Modify(notify::event::ModifyKind::Any));
         assert!(watch_event_is_relevant(&bare));
+    }
+
+    #[test]
+    fn kb_watcher_ignores_the_apps_own_working_files() {
+        use notify::{Event, EventKind};
+        let db = Event::new(EventKind::Modify(notify::event::ModifyKind::Any))
+            .add_path("/vault/.hypomnema/app.db-wal".into());
+        assert!(is_work_dir_event(&db));
+        let note = Event::new(EventKind::Modify(notify::event::ModifyKind::Any))
+            .add_path("/vault/notes/a.md".into());
+        assert!(!is_work_dir_event(&note));
+        // a note called after the folder is still a note
+        let lookalike = Event::new(EventKind::Modify(notify::event::ModifyKind::Any))
+            .add_path("/vault/.hypomnema-notes/a.md".into());
+        assert!(!is_work_dir_event(&lookalike));
+        // a mixed batch with one real note still counts
+        let mixed = Event::new(EventKind::Modify(notify::event::ModifyKind::Any))
+            .add_path("/vault/.hypomnema/tasks/Inbox.md".into())
+            .add_path("/vault/notes/a.md".into());
+        assert!(!is_work_dir_event(&mixed));
+        // pathless events are not dropped
+        let bare = Event::new(EventKind::Modify(notify::event::ModifyKind::Any));
+        assert!(!is_work_dir_event(&bare));
     }
 }

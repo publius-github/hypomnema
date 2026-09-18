@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+
+// react-markdown (and its remark/rehype tree) only renders the preview
+const ReactMarkdown = lazy(() => import("react-markdown"));
 import { useAppStore } from "../store";
 import { useTaskTextDraft } from "../hooks/useTaskTextDraft";
 import { GrowingTextarea } from "./form";
@@ -349,13 +351,33 @@ export default function TaskModal({
               className="prose-sm min-h-[80px] max-w-none select-text rounded-md border border-line bg-surface-alt px-3 py-2 text-sm [&_a]:text-accent [&_code]:rounded [&_code]:bg-line/50 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-4 [&_ol_li]:list-decimal [&_p]:my-1 [&_ul_li]:list-disc"
               onDoubleClick={() => !generated && setPreview(false)}
             >
-              <ReactMarkdown
-                components={{
-                  // [[note]] links jump to the note; the modal closes
-                  // (committing pending edits) since Notes takes over
-                  a: ({ href, children }) => {
-                    const wiki = href ? wikiTargetFromHref(href) : null;
-                    if (wiki) {
+              <Suspense fallback={null}>
+                <ReactMarkdown
+                  components={{
+                    // [[note]] links jump to the note; the modal closes
+                    // (committing pending edits) since Notes takes over
+                    a: ({ href, children }) => {
+                      const wiki = href ? wikiTargetFromHref(href) : null;
+                      if (wiki) {
+                        return (
+                          <a
+                            href={href}
+                            className="text-accent underline"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              commitAndClose();
+                              void useAppStore
+                                .getState()
+                                .openKbNoteByName(wiki);
+                            }}
+                          >
+                            {children}
+                          </a>
+                        );
+                      }
+                      // a plain web link must leave the app: navigating
+                      // the webview would replace the app itself
                       return (
                         <a
                           href={href}
@@ -363,38 +385,20 @@ export default function TaskModal({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            commitAndClose();
-                            void useAppStore
-                              .getState()
-                              .openKbNoteByName(wiki);
+                            if (href && isExternalUrl(href)) {
+                              void useAppStore.getState().openExternal(href);
+                            }
                           }}
                         >
                           {children}
                         </a>
                       );
-                    }
-                    // a plain web link must leave the app: navigating
-                    // the webview would replace the app itself
-                    return (
-                      <a
-                        href={href}
-                        className="text-accent underline"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (href && isExternalUrl(href)) {
-                            void useAppStore.getState().openExternal(href);
-                          }
-                        }}
-                      >
-                        {children}
-                      </a>
-                    );
-                  },
-                }}
-              >
-                {wikiToMarkdownLinks(description || "*No description*")}
-              </ReactMarkdown>
+                    },
+                  }}
+                >
+                  {wikiToMarkdownLinks(description || "*No description*")}
+                </ReactMarkdown>
+              </Suspense>
             </div>
           ) : (
             <textarea

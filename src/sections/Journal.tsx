@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
-import MarkdownEditor from "../components/MarkdownEditor";
+import { lazy, Suspense } from "react";
+
+// CodeMirror and its language packs are the biggest thing in the bundle
+// and only two sections need them; the chunk loads on first use
+const MarkdownEditor = lazy(() => import("../components/MarkdownEditor"));
 
 interface OpenDoc {
   date: string;
@@ -163,14 +167,16 @@ export default function Journal() {
               </span>
             </div>
             <div className="min-h-0 flex-1">
-              <MarkdownEditor
-                docKey={`entry:${doc.date}`}
-                value={doc.content}
-                onChange={scheduleSave}
-                onWikiLink={(name) =>
-                  void useAppStore.getState().openKbNoteByName(name)
-                }
-              />
+              <Suspense fallback={null}>
+                <MarkdownEditor
+                  docKey={`entry:${doc.date}`}
+                  value={doc.content}
+                  onChange={scheduleSave}
+                  onWikiLink={(name) =>
+                    void useAppStore.getState().openKbNoteByName(name)
+                  }
+                />
+              </Suspense>
             </div>
           </>
         ) : (
