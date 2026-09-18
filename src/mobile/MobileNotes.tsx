@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { CONFIG_FILES, basenameOf, parentDirOf } from "../sections/kb/util";
 import { useBackStep } from "./back";
@@ -39,13 +39,13 @@ export default function MobileNotes() {
   useEffect(() => {
     void invoke("kb_status")
       .then(setStatus)
-      .catch(() => {});
-  }, []);
+      .catch((e) => setError(errorMessage(e)));
+  }, [setError]);
 
   const loadTree = useCallback(() => {
     void invoke("kb_tree")
       .then(setTree)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   }, [setError]);
   useEffect(loadTree, [loadTree]);
 
@@ -64,7 +64,7 @@ export default function MobileNotes() {
     (path: string) => {
       void invoke("kb_read", { path })
         .then((content) => setNote({ kind: "note", path, content }))
-        .catch((e) => setError(String(e)));
+        .catch((e) => setError(errorMessage(e)));
     },
     [setError],
   );
@@ -73,7 +73,7 @@ export default function MobileNotes() {
     (file: string) => {
       void invoke("config_file_get", { file })
         .then((content) => setNote({ kind: "config", path: file, content }))
-        .catch((e) => setError(String(e)));
+        .catch((e) => setError(errorMessage(e)));
     },
     [setError],
   );
@@ -120,7 +120,7 @@ export default function MobileNotes() {
         loadTree();
         if (kind === "note") openPath(created);
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   };
 
   return (
@@ -387,7 +387,7 @@ function NoteEditor({
         setSaved(true);
       }
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     }
   }, [note.path, note.kind, setError]);
   const flushRef = useRef(flush);
@@ -425,7 +425,7 @@ function NoteEditor({
     void flush()
       .then(() => invoke("kb_rename", { from: note.path, to }))
       .then(() => onOpen(to))
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   };
 
   const loadBacklinks = () => {
@@ -433,7 +433,7 @@ function NoteEditor({
     if (backlinks) return;
     void invoke("kb_backlinks", { path: note.path })
       .then(setBacklinks)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   };
 
   return (
@@ -576,7 +576,7 @@ function NoteEditor({
             if (!window.confirm(`Move ${note.path} to the trash?`)) return;
             void invoke("kb_delete", { path: note.path })
               .then(onClose)
-              .catch((e) => setError(String(e)));
+              .catch((e) => setError(errorMessage(e)));
           }}
           className="w-full px-4 pb-3 text-left text-sm text-danger"
         >

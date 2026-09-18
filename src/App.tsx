@@ -21,6 +21,7 @@ import Review from "./sections/Review";
 import Journal from "./sections/Journal";
 import KnowledgeBase from "./sections/KnowledgeBase";
 import Settings from "./sections/Settings";
+import { warn } from "./lib/log";
 
 export default function App() {
   const loaded = useAppStore((s) => s.loaded);
@@ -68,8 +69,9 @@ export default function App() {
     if (!theme) return;
     getCurrentWindow()
       .setTheme(theme === "light" ? "light" : "dark")
-      .catch(() => {
+      .catch((e) => {
         // theme permission missing or platform unsupported; cosmetic only
+        warn("window theme", e);
       });
   }, [theme]);
 
@@ -84,8 +86,9 @@ export default function App() {
       try {
         const config = await invoke("config_get");
         useAppStore.setState({ config });
-      } catch {
+      } catch (e) {
         // vault temporarily unavailable; keep the current config
+        warn("config reload", e);
       }
       await store.refresh();
     });

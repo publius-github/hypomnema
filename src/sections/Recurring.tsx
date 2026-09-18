@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
 import { ConfirmModal } from "../components/dialogs";
@@ -20,7 +20,7 @@ export default function Recurring() {
   const refresh = useAppStore((s) => s.refresh);
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const setError = useCallback(
-    (e: unknown) => useAppStore.getState().setError(String(e)),
+    (e: unknown) => useAppStore.getState().setError(errorMessage(e)),
     [],
   );
   const [rules, setRules] = useState<RecurringRuleView[]>([]);
@@ -382,7 +382,7 @@ function ThresholdInput({
 }
 
 function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
-  const setError = (e: unknown) => useAppStore.getState().setError(String(e));
+  const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
   const [schedule, setSchedule] = useState<BuilderState>(() =>
     parseSchedule(""),
   );

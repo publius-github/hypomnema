@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
@@ -25,7 +25,7 @@ export default function KnowledgeBase() {
   const config = useAppStore((s) => s.config);
   const updateConfig = useAppStore((s) => s.updateConfig);
   const setError = useCallback(
-    (e: unknown) => useAppStore.getState().setError(String(e)),
+    (e: unknown) => useAppStore.getState().setError(errorMessage(e)),
     [],
   );
   const [tree, setTree] = useState<KbNode[]>([]);

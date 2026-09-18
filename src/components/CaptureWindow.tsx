@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { warn } from "../lib/log";
+import { errorKind } from "../lib/ipc";
 
 /**
  * Body of the quick-capture window: one input, Enter files the title
@@ -25,8 +27,9 @@ export default function CaptureWindow() {
           "dark",
           config.theme !== "light",
         );
-      } catch {
+      } catch (e) {
         // no vault yet: keep the default dark chrome
+        if (errorKind(e) !== "no_vault") warn("capture theme", e);
       }
     };
     void applyThemeClass();
@@ -54,7 +57,7 @@ export default function CaptureWindow() {
       await invoke("capture_task", { title: text });
       hide();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     }
   };
 

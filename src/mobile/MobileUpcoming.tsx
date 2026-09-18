@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type {
   BirthdayEntry,
@@ -38,13 +38,13 @@ export default function MobileUpcoming() {
   const load = useCallback(() => {
     void invoke("upcoming_events")
       .then(setScheduled)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
     void invoke("birthdays_list")
       .then(setBirthdays)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
     void invoke("recurring_list")
       .then(setRecurring)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   }, [setError]);
 
   useEffect(load, [load, vaultVersion]);
@@ -56,7 +56,7 @@ export default function MobileUpcoming() {
       await useAppStore.getState().refresh();
       load();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     }
   };
 

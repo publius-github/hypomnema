@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
   addDaysISO,
@@ -61,7 +61,7 @@ export default function MobileReview() {
       .then((all) => {
         if (!cancelled) setTasks(all.filter((t) => inRange(t, start, end)));
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
     void invoke("tasks_snapshot", {
       startDate: nextStart,
       endDate: addDaysISO(nextEnd, 1),
@@ -70,7 +70,10 @@ export default function MobileReview() {
         if (!cancelled)
           setNextTasks(all.filter((t) => inRange(t, nextStart, nextEnd)));
       })
-      .catch(() => setNextTasks([]));
+      .catch((e) => {
+        setError(errorMessage(e));
+        setNextTasks([]);
+      });
     // calendar_outlook's `to` is inclusive, unlike the exclusive
     // endDate above: one day further hangs the Monday after next week
     // off the panel as an eighth day
@@ -79,15 +82,24 @@ export default function MobileReview() {
       to: nextEnd,
     })
       .then((events) => !cancelled && setNextOutlook(events))
-      .catch(() => setNextOutlook([]));
+      .catch((e) => {
+        setError(errorMessage(e));
+        setNextOutlook([]);
+      });
     // `dates`, plural: the command takes the whole day window a view
     // shows, and pins the focus phrase for the first of them.
     void invoke("dashboard_context", { dates: [start] })
       .then((context) => !cancelled && setFocus(context.focus))
-      .catch(() => setFocus(null));
+      .catch((e) => {
+        setError(errorMessage(e));
+        setFocus(null);
+      });
     void invoke("dashboard_context", { dates: [nextStart] })
       .then((context) => !cancelled && setNextFocus(context.focus))
-      .catch(() => setNextFocus(null));
+      .catch((e) => {
+        setError(errorMessage(e));
+        setNextFocus(null);
+      });
     return () => {
       cancelled = true;
     };

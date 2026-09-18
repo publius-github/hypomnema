@@ -218,3 +218,38 @@ export function invoke<K extends CommandName>(
     args[0] as Record<string, unknown> | undefined,
   );
 }
+
+/// What a rejected command carries: the Rust `Error` serializes itself as
+/// this object (src-tauri/src/error.rs), so the UI can branch on `kind`
+/// instead of matching English text.
+export interface IpcError {
+  kind: "io" | "db" | "config" | "state" | "no_vault" | "sync_conflict";
+  message: string;
+  path?: string;
+}
+
+export function isIpcError(e: unknown): e is IpcError {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    typeof (e as IpcError).kind === "string" &&
+    typeof (e as IpcError).message === "string"
+  );
+}
+
+/** The `kind` of a rejection when it came from the Rust core, else null. */
+export function errorKind(e: unknown): IpcError["kind"] | null {
+  return isIpcError(e) ? e.kind : null;
+}
+
+/**
+ * The one way a rejection becomes banner text. `String(e)` on the object
+ * the core now sends would read "[object Object]"; a thrown `Error`
+ * (the test mocks, a plugin) keeps its message; anything else is
+ * stringified as before.
+ */
+export function errorMessage(e: unknown): string {
+  if (isIpcError(e)) return e.message;
+  if (e instanceof Error) return e.message;
+  return String(e);
+}

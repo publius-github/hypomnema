@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
 import MarkdownEditor from "../components/MarkdownEditor";
@@ -11,7 +11,7 @@ interface OpenDoc {
 
 export default function Journal() {
   const setError = useCallback(
-    (e: unknown) => useAppStore.getState().setError(String(e)),
+    (e: unknown) => useAppStore.getState().setError(errorMessage(e)),
     [],
   );
   const [dates, setDates] = useState<string[]>([]);

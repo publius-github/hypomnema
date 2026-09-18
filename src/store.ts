@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { invoke } from "./lib/ipc";
+import { errorMessage, invoke } from "./lib/ipc";
 import type {
   AppConfig,
   ConfigError,
@@ -19,6 +19,7 @@ import type {
 import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
 import { MD_TOKENS, resolveMdColors } from "./lib/mdPresets";
 import { THEME_TOKEN_VARS, resolveThemeColors } from "./lib/themePresets";
+import { warn } from "./lib/log";
 
 /// Settings the backend's habit rates are computed from.
 const HABIT_RATE_KEYS: (keyof AppConfig)[] = [
@@ -244,8 +245,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         habitRates: Object.fromEntries(rates.map((r) => [r.rule_key, r])),
       });
-    } catch {
+    } catch (e) {
       // a missing rate only hides a chip; not worth an error banner
+      warn("habit rates", e);
     }
   },
   vaultVersion: 0,
@@ -261,12 +263,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ loaded: true, vaultPath, config });
       invoke("config_default")
         .then((defaults) => set({ defaults }))
-        .catch(() => undefined);
+        .catch((e) => set({ error: errorMessage(e) }));
       if (vaultPath) {
         await get().runEngine();
       }
     } catch (e) {
-      set({ loaded: true, error: String(e) });
+      set({ loaded: true, error: errorMessage(e) });
     }
   },
 
@@ -277,7 +279,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ vaultPath: path, config, error: null });
       await get().runEngine();
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -295,7 +297,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await get().refresh();
       return outcome;
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
       return null;
     }
   },
@@ -306,7 +308,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await invoke("open_external", { url });
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -343,7 +345,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().loadHabitRates();
     } catch (e) {
       if (seq !== refreshSeq) return;
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -357,7 +359,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const created = await invoke("task_create", { new: task });
       set((s) => ({ tasks: [...s.tasks, created] }));
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -385,7 +387,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     } catch (e) {
       if (taskUpdateSeq.get(id) !== seq) {
-        set({ error: String(e) });
+        set({ error: errorMessage(e) });
         return;
       }
       // roll back only this task: restoring a whole snapshot would
@@ -394,7 +396,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         tasks: previousTask
           ? s.tasks.map((t) => (t.id === id ? previousTask : t))
           : s.tasks,
-        error: String(e),
+        error: errorMessage(e),
       }));
     }
   },
@@ -440,7 +442,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         orderedIds: ids,
       });
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
       await get().refresh();
     }
   },
@@ -462,7 +464,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         deleted,
       });
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -504,7 +506,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().refresh();
       }
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -519,7 +521,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // new lists get the highest sort_order, so appending keeps order
       set((s) => ({ lists: [...s.lists, created] }));
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -530,7 +532,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         lists: s.lists.map((l) => (l.id === id ? { ...l, name } : l)),
       }));
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -548,7 +550,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         lists: s.lists.map((l) =>
           l.id === id ? { ...l, favorite: !favorite } : l,
         ),
-        error: String(e),
+        error: errorMessage(e),
       }));
     }
   },
@@ -570,7 +572,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       set((s) => ({
         lists: s.lists.map((l) => (l.id === id ? previous : l)),
-        error: String(e),
+        error: errorMessage(e),
       }));
     }
   },
@@ -580,7 +582,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await invoke("list_set_all_statuses", { id, done });
       await get().refresh();
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -589,7 +591,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const created = await invoke("list_group_create", { name });
       set((s) => ({ groups: [...s.groups, created] }));
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -608,7 +610,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       set((s) => ({
         groups: s.groups.map((g) => (g.id === id ? previous : g)),
-        error: String(e),
+        error: errorMessage(e),
       }));
     }
   },
@@ -623,7 +625,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ),
       }));
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -640,7 +642,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       set((s) => ({
         lists: s.lists.map((l) => (l.id === id ? previous : l)),
-        error: String(e),
+        error: errorMessage(e),
       }));
     }
   },
@@ -656,7 +658,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         listId: id,
       });
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -681,7 +683,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // patch that did reach disk; what app.yml holds now is the truth
       const live = await invoke("config_get").catch(() => current);
       applyTheme(live);
-      set({ config: live, error: String(e) });
+      set({ config: live, error: errorMessage(e) });
     }
   },
 
@@ -702,7 +704,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ profiles });
       return true;
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
       return false;
     }
   },
@@ -712,7 +714,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const profiles = await invoke("profile_delete", { name });
       set({ profiles });
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -731,7 +733,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().runEngine();
       }
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 
@@ -788,7 +790,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ error: `Note "${name.trim()}" not found in the notes folder` });
       }
     } catch (e) {
-      set({ error: String(e) });
+      set({ error: errorMessage(e) });
     }
   },
   journalOpenDate: null,

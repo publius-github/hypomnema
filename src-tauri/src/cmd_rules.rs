@@ -15,9 +15,7 @@ pub(crate) async fn recurring_add(
 ) -> Result<()> {
     backup_config(&state, "recurring.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::append_recurring(&vault.config_dir(), rule)
 }
 
@@ -28,9 +26,7 @@ pub(crate) async fn scheduled_add(
 ) -> Result<()> {
     backup_config(&state, "scheduled.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::append_scheduled(&vault.config_dir(), event)
 }
 
@@ -41,9 +37,7 @@ pub(crate) async fn birthday_add(
 ) -> Result<()> {
     backup_config(&state, "birthdays.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::append_birthday(&vault.config_dir(), entry)
 }
 
@@ -55,9 +49,7 @@ pub(crate) async fn recurring_edit(
 ) -> Result<()> {
     backup_config(&state, "recurring.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::edit_recurring(&vault.config_dir(), index, replacement)
 }
 
@@ -69,9 +61,7 @@ pub(crate) async fn scheduled_edit(
 ) -> Result<()> {
     backup_config(&state, "scheduled.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::edit_scheduled(&vault.config_dir(), original, replacement)
 }
 
@@ -83,9 +73,7 @@ pub(crate) async fn birthday_edit(
 ) -> Result<()> {
     backup_config(&state, "birthdays.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::edit_birthday(&vault.config_dir(), original, replacement)
 }
 
@@ -94,9 +82,7 @@ pub(crate) async fn reminders_overview(
     state: State<'_, AppState>,
 ) -> Result<reminders::RemindersOverview> {
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     reminders::overview(
         &vault.conn,
         &vault.config_dir(),
@@ -108,9 +94,7 @@ pub(crate) async fn reminders_overview(
 pub(crate) async fn focus_phrase_add(state: State<'_, AppState>, phrase: String) -> Result<()> {
     backup_config(&state, "weekly-focus.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::append_focus_phrase(&vault.config_dir(), phrase)
 }
 
@@ -122,9 +106,7 @@ pub(crate) async fn focus_phrase_edit(
 ) -> Result<()> {
     backup_config(&state, "weekly-focus.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::edit_focus_phrase(&vault.config_dir(), index, replacement)
 }
 
@@ -135,9 +117,7 @@ pub(crate) async fn day_reminder_add(
 ) -> Result<()> {
     backup_config(&state, "day-reminders.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::append_day_reminder(&vault.config_dir(), entry)
 }
 
@@ -149,9 +129,7 @@ pub(crate) async fn day_reminder_edit(
 ) -> Result<()> {
     backup_config(&state, "day-reminders.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::edit_day_reminder(&vault.config_dir(), index, replacement)
 }
 
@@ -162,9 +140,7 @@ pub(crate) async fn schedule_block_add(
 ) -> Result<()> {
     backup_config(&state, "day-schedule.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::append_schedule_block(&vault.config_dir(), block)
 }
 
@@ -176,9 +152,7 @@ pub(crate) async fn schedule_block_edit(
 ) -> Result<()> {
     backup_config(&state, "day-schedule.yml");
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     config_files::edit_schedule_block(&vault.config_dir(), index, replacement)
 }
 
@@ -201,9 +175,7 @@ pub(crate) fn editable_config_path(state: &State<'_, AppState>, file: &str) -> R
         return Err(Error::State(format!("not an editable config file: {file}")));
     }
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     Ok(vault.config_dir().join(file))
 }
 

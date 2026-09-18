@@ -6,6 +6,7 @@ import { useAppStore } from "../../store";
 import { splitCategory } from "../../lib/tasks";
 import type { BacklinksResult, KbSearchHit, Task } from "../../types";
 import { noteBodyOffset, type OpenDoc } from "./util";
+import { errorMessage } from "../../lib/ipc";
 
 /**
  * Collapsible backlinks strip under the editor: notes whose [[wiki
@@ -25,7 +26,10 @@ function BacklinksPanel({ path }: { path: string }) {
       .then((result) => {
         if (!cancelled) setData(result);
       })
-      .catch(() => setData(null));
+      .catch((e) => {
+        useAppStore.getState().setError(errorMessage(e));
+        setData(null);
+      });
     return () => {
       cancelled = true;
     };

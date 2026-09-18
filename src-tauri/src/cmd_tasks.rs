@@ -163,9 +163,7 @@ pub(crate) async fn capture_task(
 ) -> Result<tasks::Task> {
     let task = {
         let guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_ref()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         let inbox = tasks::ensure_inbox(&vault.conn, &vault.config.capture_list)?;
         tasks::task_create(
             &vault.conn,
@@ -187,9 +185,7 @@ pub(crate) async fn capture_task(
 pub(crate) async fn inbox_list(state: State<'_, AppState>) -> Result<tasks::List> {
     let list = {
         let guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_ref()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         tasks::ensure_inbox(&vault.conn, &vault.config.capture_list)?
     };
     state.request_export();
@@ -255,9 +251,7 @@ pub(crate) async fn engine_run(state: State<'_, AppState>) -> Result<engine::Eng
     let engine_lock = state.engine_lock.clone();
     let _pass = engine_lock.lock_or_recover();
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     let mut outcome = engine::run(
         &vault.conn,
         &vault.config_dir(),

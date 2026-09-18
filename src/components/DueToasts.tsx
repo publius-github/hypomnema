@@ -6,6 +6,7 @@ import {
 } from "@tauri-apps/plugin-notification";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
+import { warn } from "../lib/log";
 
 /** OS notification, best effort: the in-app toast always shows too. */
 async function systemNotify(title: string, body: string) {
@@ -15,8 +16,9 @@ async function systemNotify(title: string, body: string) {
       granted = (await requestPermission()) === "granted";
     }
     if (granted) sendNotification({ title, body });
-  } catch {
+  } catch (e) {
     // notifications unavailable on this platform
+    warn("system notification", e);
   }
 }
 

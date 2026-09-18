@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
   addDaysISO,
@@ -300,7 +300,7 @@ export default function TaskRow({
                       try {
                         listId = (await invoke("inbox_list")).id;
                       } catch (e) {
-                        useAppStore.getState().setError(String(e));
+                        useAppStore.getState().setError(errorMessage(e));
                         return;
                       }
                     }

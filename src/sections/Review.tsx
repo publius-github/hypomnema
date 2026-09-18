@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
   addDaysISO,
@@ -74,7 +74,7 @@ export default function Review() {
         if (!cancelled)
           setWeekTasks(tasks.filter((t) => inRange(t, weekStart, weekEnd)));
       })
-      .catch((e) => useAppStore.getState().setError(String(e)));
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
     void invoke("tasks_snapshot", {
       startDate: nextStart,
       endDate: addDaysISO(nextEnd, 1),
@@ -83,7 +83,10 @@ export default function Review() {
         if (!cancelled)
           setNextTasks(tasks.filter((t) => inRange(t, nextStart, nextEnd)));
       })
-      .catch(() => setNextTasks([]));
+      .catch((e) => {
+        useAppStore.getState().setError(errorMessage(e));
+        setNextTasks([]);
+      });
     // `to` is inclusive here, unlike tasks_snapshot's exclusive endDate:
     // one day further would hang the Monday after next week off the
     // Next week panel as an eighth day
@@ -94,19 +97,28 @@ export default function Review() {
       .then((events) => {
         if (!cancelled) setNextOutlook(events);
       })
-      .catch(() => setNextOutlook([]));
+      .catch((e) => {
+        useAppStore.getState().setError(errorMessage(e));
+        setNextOutlook([]);
+      });
     // the focus phrase is pinned per ISO week; asking for a week pins it,
     // which is fine - the rotation is a deterministic cycle anyway
     void invoke("dashboard_context", { dates: [weekStart] })
       .then((ctx) => {
         if (!cancelled) setWeekFocus(ctx.focus);
       })
-      .catch(() => setWeekFocus(null));
+      .catch((e) => {
+        useAppStore.getState().setError(errorMessage(e));
+        setWeekFocus(null);
+      });
     void invoke("dashboard_context", { dates: [nextStart] })
       .then((ctx) => {
         if (!cancelled) setNextFocus(ctx.focus);
       })
-      .catch(() => setNextFocus(null));
+      .catch((e) => {
+        useAppStore.getState().setError(errorMessage(e));
+        setNextFocus(null);
+      });
     return () => {
       cancelled = true;
     };
@@ -185,7 +197,7 @@ export default function Review() {
       try {
         listId = (await invoke("inbox_list")).id;
       } catch (e) {
-        useAppStore.getState().setError(String(e));
+        useAppStore.getState().setError(errorMessage(e));
         return;
       }
     }

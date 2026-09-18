@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { splitCategory, todayISO, weekdayShort } from "../lib/tasks";
 import type { DailyStreak, Task } from "../types";
@@ -70,12 +70,15 @@ export default function History() {
           ),
         );
       })
-      .catch((e) => useAppStore.getState().setError(String(e)));
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
     void invoke("daily_streaks")
       .then((s) => {
         if (!cancelled) setStreaks(s);
       })
-      .catch(() => setStreaks([]));
+      .catch((e) => {
+        useAppStore.getState().setError(errorMessage(e));
+        setStreaks([]);
+      });
     return () => {
       cancelled = true;
     };

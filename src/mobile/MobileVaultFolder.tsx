@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type { DirListing } from "../types";
 
@@ -40,7 +40,7 @@ export default function MobileVaultFolder({
     setError(null);
     void invoke("vault_browse", { path: path ?? null })
       .then(setListing)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   }, []);
 
   const checkAccess = useCallback(() => {
@@ -76,7 +76,7 @@ export default function MobileVaultFolder({
         void useAppStore.getState().init();
         onChosen(chosen);
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(errorMessage(e)))
       .finally(() => setBusy(false));
   };
 
@@ -89,7 +89,7 @@ export default function MobileVaultFolder({
       name: name.trim(),
     })
       .then((created) => go(created))
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   };
 
   return (
@@ -120,7 +120,7 @@ export default function MobileVaultFolder({
           <button
             onClick={() =>
               void invoke("storage_access_request").catch((e) =>
-                setError(String(e)),
+                setError(errorMessage(e)),
               )
             }
             className="shrink-0 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white"

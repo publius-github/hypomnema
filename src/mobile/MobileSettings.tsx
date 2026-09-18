@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { LockSettings } from "./MobileLock";
@@ -58,19 +58,19 @@ export default function MobileSettings() {
   const loadSyncState = useCallback(() => {
     void invoke("sync_conflicts_list")
       .then(setConflicts)
-      .catch(() => {});
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
     void invoke("sync_standing")
       .then(setStanding)
-      .catch(() => {});
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
   }, []);
 
   useEffect(() => {
     void invoke("dropbox_status")
       .then(setStatus)
-      .catch(() => {});
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
     void invoke("app_lock_state")
       .then(setLock)
-      .catch(() => {});
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
     loadSyncState();
   }, [loadSyncState]);
 
@@ -220,7 +220,7 @@ function SyncPanel({
     try {
       await action();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
       setProgress(null);
@@ -593,7 +593,7 @@ function TasksPanel({ config }: { config: AppConfig }) {
             .getState()
             .runEngine()
             .then(() => useAppStore.getState().refresh())
-            .catch((e) => setError(String(e)))
+            .catch((e) => setError(errorMessage(e)))
             .finally(() => setBusy(false));
         }}
         className="rounded-lg border border-line px-4 py-3 disabled:opacity-50"
@@ -730,10 +730,10 @@ function MaintenancePanel() {
   const load = useCallback(() => {
     void invoke("lists_archived")
       .then(setArchived)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
     void invoke("backups_list")
       .then(setBackups)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   }, [setError]);
 
   useEffect(load, [load]);
@@ -744,7 +744,7 @@ function MaintenancePanel() {
       await run();
       load();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

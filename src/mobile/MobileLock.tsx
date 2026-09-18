@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import type { LockState } from "../types";
 
 /**
@@ -32,7 +32,7 @@ export function LockSettings({
       setConfirm("");
       setOpen(false);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     }
   };
 
@@ -142,7 +142,7 @@ export function LockScreen({
     setError(null);
     void invoke("app_unlock", { passphrase })
       .then(onUnlocked)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   };
 
   return (

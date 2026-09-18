@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppStore } from "../store";
@@ -52,7 +52,7 @@ export default function DropboxLink({
   useEffect(() => {
     void invoke("dropbox_status")
       .then(applyStatus)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -63,7 +63,7 @@ export default function DropboxLink({
     try {
       await action();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

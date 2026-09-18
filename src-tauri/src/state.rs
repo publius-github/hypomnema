@@ -73,9 +73,7 @@ pub(crate) fn with_conn<T>(
     f: impl FnOnce(&rusqlite::Connection) -> Result<T>,
 ) -> Result<T> {
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     f(&vault.conn)
 }
 
@@ -84,9 +82,7 @@ pub(crate) fn with_vault_root<T>(
     f: impl FnOnce(&Path) -> Result<T>,
 ) -> Result<T> {
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     f(&vault.root)
 }
 

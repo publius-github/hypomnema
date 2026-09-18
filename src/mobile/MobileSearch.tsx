@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
   daysBetweenISO,
@@ -62,7 +62,7 @@ export default function MobileSearch({ onClose }: { onClose: () => void }) {
     // quietly return nothing when unavailable (KB not configured yet)
     const [taskHits, noteHits, journalHits] = await Promise.all([
       invoke("tasks_search", { query: q }).catch((e) => {
-        useAppStore.getState().setError(String(e));
+        useAppStore.getState().setError(errorMessage(e));
         return [] as Task[];
       }),
       invoke("kb_search", { query: q }).catch(

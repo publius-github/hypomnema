@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type { RemindersOverview } from "../types";
 
@@ -33,7 +33,7 @@ export default function MobileReminders() {
   const load = useCallback(() => {
     void invoke("reminders_overview")
       .then(setOverview)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   }, [setError]);
   useEffect(load, [load, vaultVersion]);
 
@@ -43,7 +43,7 @@ export default function MobileReminders() {
       load();
       await useAppStore.getState().refresh();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     }
   };
 

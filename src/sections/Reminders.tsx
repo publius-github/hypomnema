@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { currentAndNextBlock } from "../lib/tasks";
 import { ConfirmModal } from "../components/dialogs";
@@ -55,7 +55,7 @@ const EMPTY: RemindersOverview = {
 export default function Reminders() {
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const setError = useCallback(
-    (e: unknown) => useAppStore.getState().setError(String(e)),
+    (e: unknown) => useAppStore.getState().setError(errorMessage(e)),
     [],
   );
   const [tab, setTab] = useState<SubTab>("focus");
@@ -176,7 +176,7 @@ function FocusTab({
   current: string | null;
   onWrite: () => Promise<void>;
 }) {
-  const setError = (e: unknown) => useAppStore.getState().setError(String(e));
+  const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
   const [phrase, setPhrase] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
@@ -304,7 +304,7 @@ function DayRemindersTab({
   reminders: DayReminder[];
   onWrite: () => Promise<void>;
 }) {
-  const setError = (e: unknown) => useAppStore.getState().setError(String(e));
+  const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
   const [dayType, setDayType] = useState("workday");
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
@@ -467,7 +467,7 @@ function ScheduleTab({
   blocks: ScheduleBlock[];
   onWrite: () => Promise<void>;
 }) {
-  const setError = (e: unknown) => useAppStore.getState().setError(String(e));
+  const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [label, setLabel] = useState("");

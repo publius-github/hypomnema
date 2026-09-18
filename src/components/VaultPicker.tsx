@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
 import MobileVaultSetup from "../mobile/MobileVaultSetup";
@@ -22,7 +22,7 @@ export default function VaultPicker() {
         // picker cannot work on Android at all, so quietly rendering it
         // there is indistinguishable from "the new build didn't
         // install" - which is exactly how one real mix-up presented.
-        setProbeError(String(e));
+        setProbeError(errorMessage(e));
         setIsMobile(/Android/i.test(navigator.userAgent));
       });
   }, []);
@@ -38,7 +38,7 @@ export default function VaultPicker() {
         await selectVault(path);
       }
     } catch (e) {
-      useAppStore.setState({ error: String(e) });
+      useAppStore.setState({ error: errorMessage(e) });
     }
   };
 

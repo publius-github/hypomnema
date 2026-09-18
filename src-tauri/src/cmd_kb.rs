@@ -24,9 +24,7 @@ use crate::{journal, kb, tasks};
 ///   Falling back beats reporting a drive letter the user cannot fix.
 pub(crate) fn kb_root(state: &State<'_, AppState>) -> Result<PathBuf> {
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     let configured = vault.config.kb_path.trim();
     if !configured.is_empty() {
         let path = PathBuf::from(configured);
@@ -45,9 +43,7 @@ pub(crate) fn kb_root(state: &State<'_, AppState>) -> Result<PathBuf> {
 pub(crate) async fn kb_status(state: State<'_, AppState>) -> Result<KbStatus> {
     let configured = {
         let guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_ref()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         vault.config.kb_path.trim().to_string()
     };
     let root = kb_root(&state)?;
@@ -92,9 +88,7 @@ pub(crate) async fn kb_write(
     let root = kb_root(&state)?;
     let stamp = {
         let guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_ref()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         // Markdown notes only, and never a journal entry reached through
         // a vault-rooted Notes tree: the journal keeps its own shape
         let markdown = Path::new(&path)
@@ -230,9 +224,7 @@ pub(crate) async fn kb_backlinks(
         .to_string();
     let kb_root = kb_root(&state)?;
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     let notes = kb::backlinks(&kb_root, &path)?;
     let journal = journal::backlinks(&vault.root, &stem, &full_name)?;
     let tasks = tasks::backlinks(&vault.conn, &stem, &full_name)?;

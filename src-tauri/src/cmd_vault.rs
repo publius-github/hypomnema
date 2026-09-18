@@ -171,7 +171,7 @@ pub(crate) async fn config_get(state: State<'_, AppState>) -> Result<AppConfig> 
     guard
         .as_ref()
         .map(|vault| vault.config.clone())
-        .ok_or_else(|| Error::State("no vault selected".into()))
+        .ok_or_else(|| Error::NoVault)
 }
 
 #[tauri::command]
@@ -182,9 +182,7 @@ pub(crate) async fn config_set(
 ) -> Result<()> {
     let (root, mirror_was, mirror_now, saved) = {
         let mut guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_mut()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_mut().ok_or_else(|| Error::NoVault)?;
         let was = vault.config.tasks_mirror;
         vault.save_config(config)?;
         (
@@ -229,9 +227,7 @@ pub(crate) async fn config_default() -> Result<AppConfig> {
 #[tauri::command]
 pub(crate) async fn profiles_list(state: State<'_, AppState>) -> Result<Vec<String>> {
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     profiles::list(&vault.root)
 }
 
@@ -240,9 +236,7 @@ pub(crate) async fn profiles_list(state: State<'_, AppState>) -> Result<Vec<Stri
 #[tauri::command]
 pub(crate) async fn profile_save(state: State<'_, AppState>, name: String) -> Result<Vec<String>> {
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     profiles::save(&vault.root, &vault.config, &name)?;
     profiles::list(&vault.root)
 }
@@ -253,9 +247,7 @@ pub(crate) async fn profile_save(state: State<'_, AppState>, name: String) -> Re
 #[tauri::command]
 pub(crate) async fn profile_apply(state: State<'_, AppState>, name: String) -> Result<AppConfig> {
     let mut guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_mut()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_mut().ok_or_else(|| Error::NoVault)?;
     let next = profiles::apply(&vault.root, &vault.config, &name)?;
     if let Some(settings_dir) = vault::settings_file(&vault.root).parent() {
         let _ = backup::backup_config_file(
@@ -275,9 +267,7 @@ pub(crate) async fn profile_delete(
     name: String,
 ) -> Result<Vec<String>> {
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     profiles::delete(&vault.root, &name)?;
     profiles::list(&vault.root)
 }
@@ -285,9 +275,7 @@ pub(crate) async fn profile_delete(
 #[tauri::command]
 pub(crate) async fn backups_list(state: State<'_, AppState>) -> Result<backup::BackupsOverview> {
     let guard = state.vault.lock_or_recover();
-    let vault = guard
-        .as_ref()
-        .ok_or_else(|| Error::State("no vault selected".into()))?;
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
     backup::overview(&vault.root)
 }
 
@@ -304,9 +292,7 @@ pub(crate) async fn backup_restore_db(
 ) -> Result<AppConfig> {
     let root = {
         let guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_ref()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         vault.root.clone()
     };
     // no engine pass, mirror import or export may open the database
@@ -330,9 +316,7 @@ pub(crate) async fn backup_restore_db(
 pub(crate) async fn backup_restore_config(state: State<'_, AppState>, id: String) -> Result<()> {
     let (root, keep) = {
         let guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_ref()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         (vault.root.clone(), vault.config.backup_keep)
     };
     backup::restore_config_backup(&root, &id, keep, chrono::Local::now())

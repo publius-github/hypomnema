@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import {
   DndContext,
   DragOverlay,
@@ -160,7 +160,7 @@ export default function Calendar() {
           );
         }
       })
-      .catch((e) => useAppStore.getState().setError(String(e)));
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
     // projected occurrences beyond the grid horizon (Settings > Calendar
     // outlook controls how far each cadence reaches)
     // calendar_outlook's `to` is inclusive, unlike tasks_snapshot's

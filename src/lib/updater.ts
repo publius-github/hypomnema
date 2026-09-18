@@ -1,6 +1,7 @@
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { warn } from "./log";
 
 /**
  * Checks GitHub Releases for a newer version; on user consent downloads,
@@ -18,7 +19,8 @@ export async function checkForUpdates(): Promise<void> {
     if (!install) return;
     await update.downloadAndInstall();
     await relaunch();
-  } catch {
+  } catch (e) {
     // offline, dev build, or no release yet
+    warn("update check", e);
   }
 }

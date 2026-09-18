@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../../lib/ipc";
+import { errorMessage, invoke } from "../../lib/ipc";
 import { useAppStore } from "../../store";
 import { ConfirmModal } from "../../components/dialogs";
 import type { BackupEntry, BackupsOverview, List } from "../../types";
@@ -71,7 +71,7 @@ export default function MaintenanceTab() {
     try {
       setArchived(await invoke("lists_archived"));
     } catch (e) {
-      useAppStore.getState().setError(String(e));
+      useAppStore.getState().setError(errorMessage(e));
     }
   }, []);
 
@@ -79,7 +79,7 @@ export default function MaintenanceTab() {
     try {
       setBackups(await invoke("backups_list"));
     } catch (e) {
-      useAppStore.getState().setError(String(e));
+      useAppStore.getState().setError(errorMessage(e));
     }
   }, []);
 
@@ -95,7 +95,7 @@ export default function MaintenanceTab() {
       setStatus(`Deleted ${deleted} done task(s)`);
       await useAppStore.getState().refresh();
     } catch (e) {
-      useAppStore.getState().setError(String(e));
+      useAppStore.getState().setError(errorMessage(e));
     }
   };
 
@@ -105,7 +105,7 @@ export default function MaintenanceTab() {
       await loadArchived();
       await useAppStore.getState().refresh();
     } catch (e) {
-      useAppStore.getState().setError(String(e));
+      useAppStore.getState().setError(errorMessage(e));
     }
   };
 
@@ -133,7 +133,7 @@ export default function MaintenanceTab() {
       }
       await loadBackups();
     } catch (e) {
-      useAppStore.getState().setError(String(e));
+      useAppStore.getState().setError(errorMessage(e));
     } finally {
       setRestoring(false);
     }

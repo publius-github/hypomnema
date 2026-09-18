@@ -166,9 +166,7 @@ pub(crate) async fn dropbox_push_vault(
     let _pass = engine_lock.lock_or_recover();
     let local_root = {
         let guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_ref()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
         vault.root.clone()
     };
@@ -213,9 +211,7 @@ pub(crate) async fn dropbox_sync(
     let _pass = engine_lock.lock_or_recover();
     let local_root = {
         let guard = state.vault.lock_or_recover();
-        let vault = guard
-            .as_ref()
-            .ok_or_else(|| Error::State("no vault selected".into()))?;
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         // The snapshot is what travels, so anything still only in app.db
         // would be left behind by a pass that started without this.
         state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;

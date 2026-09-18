@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { addDaysISO, compareTasks, todayISO } from "../lib/tasks";
 import TaskRow from "./TaskRow";
@@ -58,7 +58,7 @@ export default function MobileCalendar() {
   useEffect(() => {
     void invoke("calendar_outlook", { from, to })
       .then(setOutlook)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
   }, [from, to, setError, vaultVersion]);
 
   // The month's own snapshot, same as the desktop calendar: the store's
@@ -82,7 +82,7 @@ export default function MobileCalendar() {
           ),
         );
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(errorMessage(e)));
     return () => {
       cancelled = true;
     };

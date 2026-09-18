@@ -16,6 +16,7 @@ import { EditingTaskContext } from "./editing";
 import { MobileNavContext } from "./nav";
 import { useBackStep } from "./back";
 import type { LockState } from "../types";
+import { warn } from "../lib/log";
 
 export type MobileTab = "day" | "lists" | "journal" | "notes" | "more";
 
@@ -152,10 +153,11 @@ export default function MobileApp() {
       try {
         await invoke("dropbox_sync");
         await store.refresh();
-      } catch {
+      } catch (e) {
         // Unlinked, offline, mid-flight token refresh: an automatic
         // pass that cannot run is not an error worth a banner. The
         // Sync now button reports properly when someone asks for it.
+        warn("automatic sync", e);
       } finally {
         syncing.current = false;
       }

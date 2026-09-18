@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { addDaysISO } from "../lib/tasks";
 import { useBackStep } from "./back";
@@ -42,7 +42,7 @@ export default function MobileJournal() {
         await invoke("journal_save", { date: entryDate, content: text });
         setSaved(true);
       } catch (e) {
-        setError(String(e));
+        setError(errorMessage(e));
       }
     },
     [setError],
@@ -78,7 +78,7 @@ export default function MobileJournal() {
         setContent(entry.content);
         setSaved(true);
       } catch (e) {
-        if (!cancelled) setError(String(e));
+        if (!cancelled) setError(errorMessage(e));
       }
     })();
     return () => {
@@ -153,7 +153,7 @@ export default function MobileJournal() {
                 setEntries([...dates].sort((a, b) => b.localeCompare(a)));
                 setBrowsing(true);
               })
-              .catch((e) => setError(String(e)));
+              .catch((e) => setError(errorMessage(e)));
           }}
           aria-label="All entries"
           className="px-2 py-1 text-lg text-content-muted"

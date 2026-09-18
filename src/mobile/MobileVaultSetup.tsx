@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "../lib/ipc";
+import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import DropboxLink from "../components/DropboxLink";
 import MobileVaultFolder from "./MobileVaultFolder";
@@ -23,8 +23,8 @@ export default function MobileVaultSetup() {
   useEffect(() => {
     void invoke("vault_local_path")
       .then(setPath)
-      .catch(() => {});
-  }, []);
+      .catch((e) => setError(errorMessage(e)));
+  }, [setError]);
 
   if (screen === "folder") {
     return (
@@ -66,7 +66,7 @@ export default function MobileVaultSetup() {
             setBusy(true);
             void invoke("vault_use_local")
               .then(() => useAppStore.getState().init())
-              .catch((e) => setError(String(e)))
+              .catch((e) => setError(errorMessage(e)))
               .finally(() => setBusy(false));
           }}
           className="rounded-lg bg-accent px-5 py-3 font-medium text-white disabled:opacity-50"

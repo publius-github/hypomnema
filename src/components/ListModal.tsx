@@ -14,6 +14,7 @@ import { ColorPicker } from "./form";
 import TaskModal from "./TaskModal";
 import type { List, Task } from "../types";
 import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
+import { errorMessage } from "../lib/ipc";
 
 /**
  * List dialog: rename, favorite, color (used as the card stripe of the
@@ -129,7 +130,7 @@ export default function ListModal({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch (e) {
-      useAppStore.getState().setError(String(e));
+      useAppStore.getState().setError(errorMessage(e));
     }
   };
 
