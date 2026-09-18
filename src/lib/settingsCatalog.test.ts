@@ -7,6 +7,7 @@ import {
   groupKeys,
   profileCoverage,
   profileGroups,
+  profileGroupsByTab,
   searchSettings,
   type SettingsGroupId,
 } from "./settingsCatalog";
@@ -116,6 +117,18 @@ describe("profileCoverage", () => {
 
   it("says nothing before the scope has loaded", () => {
     expect(profileCoverage("appearance.theme", null)).toBe("unknown");
+  });
+
+  it("folds the covered groups by tab, in page order", () => {
+    const rows = profileGroupsByTab([
+      ...keys,
+      "task_gap",
+      "lists_page_columns",
+    ]);
+    expect(rows.map((r) => r.tab)).toEqual(["appearance", "views", "cards", "columns"]);
+    expect(rows[1].groups.map((g) => g.title)).toEqual(["Lists page"]);
+    // a tab a profile never touches does not get an empty row
+    expect(rows.some((r) => r.tab === "data")).toBe(false);
   });
 
   it("lists the covered groups for the Profiles tab", () => {

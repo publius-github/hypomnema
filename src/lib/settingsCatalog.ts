@@ -157,11 +157,9 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "kb_line_numbers", label: "Line numbers in the Notes editor", group: "appearance.editor" },
 
   // --- Views ------------------------------------------------------
-  { key: "dashboard_today_only", label: "Dashboard shows only today", group: "views.dashboard" },
   { key: "list_columns", label: "List columns in the dashboard zone", group: "views.dashboard" },
   { key: "dashboard_split", label: "Dashboard split", group: "views.dashboard", terms: "day grid height divider" },
 
-  { key: "days_today_only", label: "Days page shows only today", group: "views.days" },
   { key: "days_page_columns", label: "Day columns on the Days page", group: "views.days" },
 
   { key: "lists_page_columns", label: "Grid columns on the Lists page", group: "views.lists" },
@@ -280,6 +278,14 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
     key: "grid_columns",
     why: "set by the Days dropdown on the dashboard/Days header, where the grid it resizes is visible",
   },
+  {
+    key: "dashboard_today_only",
+    why: "toggled on the dashboard header itself - a view mode belongs where the view is, and a second copy here only invites the two to disagree",
+  },
+  {
+    key: "days_today_only",
+    why: "the same toggle on the Days page header",
+  },
   { key: "sync_auto", why: "mobile only - the desktop reaches its vault through the filesystem" },
   { key: "sync_interval_minutes", why: "mobile only" },
   { key: "sync_on_leave", why: "mobile only" },
@@ -343,7 +349,34 @@ export function profileCoverage(
   return covered === keys.length ? "all" : "some";
 }
 
-/** Groups a profile covers, fully or partly - the Profiles tab's list. */
+/**
+ * The same list folded by tab - what the Profiles tab renders. A flat
+ * run of chips repeats "Appearance >" four times in a row; the tab name
+ * belongs on the line, once, with its groups behind it. Tabs come in
+ * page order, and a tab a profile never touches is simply absent.
+ */
+export function profileGroupsByTab(
+  profileKeys: (keyof AppConfig)[] | null,
+): {
+  tab: SettingsTab;
+  label: string;
+  groups: { id: SettingsGroupId; title: string; partial: boolean }[];
+}[] {
+  const covered = profileGroups(profileKeys);
+  return SETTINGS_TABS.map(({ id, label }) => ({
+    tab: id,
+    label,
+    groups: covered
+      .filter((group) => group.tab === id)
+      .map(({ id: groupId, title, partial }) => ({
+        id: groupId,
+        title,
+        partial,
+      })),
+  })).filter((row) => row.groups.length > 0);
+}
+
+/** Groups a profile covers, fully or partly - the flat list behind it. */
 export function profileGroups(
   profileKeys: (keyof AppConfig)[] | null,
 ): { id: SettingsGroupId; title: string; tab: SettingsTab; partial: boolean }[] {

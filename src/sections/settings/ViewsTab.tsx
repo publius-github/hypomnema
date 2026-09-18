@@ -37,15 +37,10 @@ export default function ViewsTab() {
   return (
     <>
       <SettingsGroup id="views.dashboard">
-        {/* the day-column count is set on the dashboard header itself
-            (the Days dropdown), where the grid it resizes is visible */}
-        <Toggle
-          checked={config.dashboard_today_only}
-          label="Dashboard shows only today"
-          hint="A single Today column with its to-do list instead of the week grid. Also toggled right on the dashboard."
-          onChange={(v) => void updateConfig({ dashboard_today_only: v })}
-        />
-
+        {/* the day-column count and the today-only switch are set on the
+            dashboard header itself, where the grid they reshape is
+            visible; a second copy here would only invite the two to
+            disagree */}
         <Field label="List columns visible in the bottom zone">
           <select
             className="input"
@@ -74,13 +69,8 @@ export default function ViewsTab() {
       </SettingsGroup>
 
       <SettingsGroup id="views.days">
-        <Toggle
-          checked={config.days_today_only}
-          label="Days page shows only today"
-          hint="Independent from the dashboard toggle. Also toggled right on the Days page."
-          onChange={(v) => void updateConfig({ days_today_only: v })}
-        />
-
+        {/* same as the dashboard: the page's own header owns its
+            today-only switch */}
         <Field label="Day columns on the Days page">
           <select
             className="input"

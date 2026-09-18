@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { ConfirmModal } from "../../components/dialogs";
 import { useAppStore } from "../../store";
 import {
-  SETTINGS_TABS,
-  profileGroups,
+  profileGroupsByTab,
   type SettingsGroupId,
   type SettingsTab,
 } from "../../lib/settingsCatalog";
@@ -53,7 +52,7 @@ export default function ProfilesTab({
   >(null);
   const [status, setStatus] = useState<string | null>(null);
   const profileKeys = useAppStore((s) => s.profileKeys);
-  const covered = profileGroups(profileKeys);
+  const covered = profileGroupsByTab(profileKeys);
 
   useEffect(() => {
     void loadProfiles();
@@ -92,26 +91,35 @@ export default function ProfilesTab({
           <span className="text-xs font-medium text-content-muted">
             A profile covers
           </span>
-          <div className="flex flex-wrap gap-1">
-            {covered.map((group) => (
-              <button
-                key={group.id}
-                className="btn-ghost px-2 py-0.5 text-xs"
-                title={
-                  group.partial
-                    ? "Part of this group is visual and covered; the rest is behavior and stays as it is."
-                    : "Every field in this group is saved and replaced by a profile."
-                }
-                onClick={() => onJump(group.tab, group.id)}
-              >
-                {SETTINGS_TABS.find((t) => t.id === group.tab)?.label} ›{" "}
-                {group.title}
-                {group.partial && (
-                  <span className="ml-1 text-content-muted">(partly)</span>
-                )}
-              </button>
+          <div className="flex flex-col gap-1">
+            {covered.map((row) => (
+              <div key={row.tab} className="flex flex-wrap items-baseline gap-1">
+                <span className="w-28 shrink-0 text-xs text-content-muted">
+                  {row.label}
+                </span>
+                {row.groups.map((group) => (
+                  <button
+                    key={group.id}
+                    className="btn-ghost px-2 py-0.5 text-xs"
+                    title={
+                      group.partial
+                        ? "Part of this group is visual and covered; the rest is behavior and stays as it is."
+                        : "Every field in this group is saved and replaced by a profile."
+                    }
+                    onClick={() => onJump(row.tab, group.id)}
+                  >
+                    {group.title}
+                    {group.partial && (
+                      <span className="ml-1 text-content-muted">(partly)</span>
+                    )}
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
+          <span className="pt-1 text-xs text-content-muted">
+            Tabs missing from this list are never touched by a profile.
+          </span>
         </section>
       )}
 

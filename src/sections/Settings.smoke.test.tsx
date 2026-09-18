@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -141,8 +142,13 @@ describe("Settings smoke", () => {
     // and the Profiles tab lists that same group
     fireEvent.click(screen.getByRole("button", { name: "Profiles" }));
     expect(screen.getByText("A profile covers")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: /Appearance › Theme & palette/ }),
-    ).toBeTruthy();
+    // the covered groups are folded under their tab's name, which shows
+    // once per row instead of on every chip (the tab strip above has an
+    // "Appearance" of its own, hence the scope)
+    const scope = screen.getByText("A profile covers").parentElement;
+    const row = within(scope as HTMLElement)
+      .getByText("Appearance")
+      .closest("div");
+    expect(row?.querySelector("button")?.textContent).toBe("Theme & palette");
   });
 });
