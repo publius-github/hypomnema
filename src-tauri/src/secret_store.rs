@@ -28,6 +28,7 @@ use ts_rs::TS;
 
 use crate::crypto::{self, Envelope};
 use crate::error::{Error, Result};
+use crate::state::LockOrRecover;
 
 /// Marker file that says a passphrase is set, and proves a candidate one
 /// is right without any secret having to be readable to check.
@@ -81,12 +82,12 @@ pub fn state(config_dir: &Path) -> LockState {
         enabled,
         // With no passphrase set there is nothing to unlock, and
         // reporting "locked" would make every caller special-case it.
-        unlocked: !enabled || UNLOCKED.lock().unwrap().is_some(),
+        unlocked: !enabled || UNLOCKED.lock_or_recover().is_some(),
     }
 }
 
 fn passphrase() -> Option<String> {
-    UNLOCKED.lock().unwrap().clone()
+    UNLOCKED.lock_or_recover().clone()
 }
 
 /// Turn the lock on, sealing every secret already on disk under the new
@@ -113,7 +114,7 @@ pub fn enable(config_dir: &Path, new_passphrase: &str, secrets: &[&str]) -> Resu
         proof: crypto::seal(new_passphrase, LOCK_PROOF)?,
     };
     write_json(&lock_path(config_dir), &lock)?;
-    *UNLOCKED.lock().unwrap() = Some(new_passphrase.to_string());
+    *UNLOCKED.lock_or_recover() = Some(new_passphrase.to_string());
     for (name, bytes) in plaintexts {
         write_secret(config_dir, name, &bytes)?;
     }
@@ -140,21 +141,21 @@ pub fn disable(config_dir: &Path, candidate: &str, secrets: &[&str]) -> Result<(
     if path.is_file() {
         fs::remove_file(path)?;
     }
-    *UNLOCKED.lock().unwrap() = None;
+    *UNLOCKED.lock_or_recover() = None;
     Ok(())
 }
 
 /// Checks a passphrase and remembers it for the session.
 pub fn unlock(config_dir: &Path, candidate: &str) -> Result<()> {
     verify(config_dir, candidate)?;
-    *UNLOCKED.lock().unwrap() = Some(candidate.to_string());
+    *UNLOCKED.lock_or_recover() = Some(candidate.to_string());
     Ok(())
 }
 
 /// Forgets the passphrase. Cheap, and the only thing standing between a
 /// handed-over phone and a standing grant to the vault.
 pub fn lock() {
-    *UNLOCKED.lock().unwrap() = None;
+    *UNLOCKED.lock_or_recover() = None;
 }
 
 fn verify(config_dir: &Path, candidate: &str) -> Result<()> {
