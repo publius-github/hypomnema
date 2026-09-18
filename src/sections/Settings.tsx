@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { useAppStore } from "../store";
-import { SettingsFocusContext } from "../components/SettingsGroup";
+import {
+  SettingsFocusContext,
+  type SettingsFocus,
+} from "../components/SettingsGroup";
 import {
   SETTINGS_TABS,
   searchSettings,
+  type SearchHit,
   type SettingsGroupId,
   type SettingsTab,
 } from "../lib/settingsCatalog";
@@ -29,7 +33,7 @@ import DataTab from "./settings/DataTab";
 export default function Settings() {
   const [tab, setTab] = useState<SettingsTab>("appearance");
   const [query, setQuery] = useState("");
-  const [focus, setFocus] = useState<SettingsGroupId | null>(null);
+  const [focus, setFocus] = useState<SettingsFocus | null>(null);
   // The page used to sit in a fixed narrow column, which pushed half the
   // tab strip onto a second line on anything but a huge font. The width
   // is a setting now (0 = the whole window), like every other layout
@@ -37,10 +41,18 @@ export default function Settings() {
   const width = useAppStore((s) => s.config?.settings_width ?? 1120);
   const hits = searchSettings(query);
 
-  const jump = (target: SettingsTab, group: SettingsGroupId) => {
-    setTab(target);
-    setFocus(group);
+  // a hit names the field, so the jump opens the group and, when the
+  // field sits behind a customization checkbox, that micro-group too
+  const jump = (hit: SearchHit) => {
+    setTab(hit.tab);
+    setFocus({ group: hit.group, sub: hit.sub ?? null });
     setQuery("");
+  };
+
+  // the Profiles tab points at whole groups, never at one field
+  const jumpToGroup = (target: SettingsTab, group: SettingsGroupId) => {
+    setTab(target);
+    setFocus({ group, sub: null });
   };
 
   return (
@@ -59,8 +71,7 @@ export default function Settings() {
           }}
           onKeyDown={(e) => {
             if (e.key === "Escape") setQuery("");
-            if (e.key === "Enter" && hits.length > 0)
-              jump(hits[0].tab, hits[0].group);
+            if (e.key === "Enter" && hits.length > 0) jump(hits[0]);
           }}
         />
         {query.trim() !== "" && (
@@ -75,7 +86,7 @@ export default function Settings() {
                   <button
                     key={hit.key}
                     className="flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-sm hover:bg-line/40"
-                    onClick={() => jump(hit.tab, hit.group)}
+                    onClick={() => jump(hit)}
                   >
                     <span className="min-w-0 flex-1 truncate">{hit.label}</span>
                     <span className="shrink-0 text-xs text-content-muted">
@@ -111,7 +122,7 @@ export default function Settings() {
 
       <SettingsFocusContext.Provider value={focus}>
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-10">
-          {tab === "profiles" && <ProfilesTab onJump={jump} />}
+          {tab === "profiles" && <ProfilesTab onJump={jumpToGroup} />}
           {tab === "appearance" && <AppearanceTab />}
           {tab === "views" && <ViewsTab />}
           {tab === "cards" && <TaskCardsTab />}

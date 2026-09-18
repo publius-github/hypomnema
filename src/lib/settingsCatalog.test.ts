@@ -3,13 +3,16 @@ import {
   EXCLUDED_KEYS,
   SETTINGS_CATALOG,
   SETTINGS_GROUPS,
+  SETTINGS_SUBGROUPS,
   SETTINGS_TABS,
   groupKeys,
+  subKeys,
   profileCoverage,
   profileGroups,
   profileGroupsByTab,
   searchSettings,
   type SettingsGroupId,
+  type SettingsSubId,
 } from "./settingsCatalog";
 import { defaultConfig } from "../test/fixtures";
 import type { AppConfig } from "../types";
@@ -61,6 +64,49 @@ describe("the settings catalog", () => {
   });
 });
 
+describe("micro-groups", () => {
+  it("gives every micro-group fields, all from the group it hangs under", () => {
+    for (const [id, sub] of Object.entries(SETTINGS_SUBGROUPS)) {
+      const keys = subKeys(id as SettingsSubId);
+      expect(keys.length).toBeGreaterThan(0);
+      const strays = SETTINGS_CATALOG.filter(
+        (e) => e.sub === id && e.group !== sub.group,
+      );
+      expect(strays).toEqual([]);
+    }
+  });
+
+  it("never hides a whole group behind a micro-group", () => {
+    // a micro-group covering every field of its group would be a second
+    // switch for the same question - such a group takes `knobs` instead
+    for (const [id, sub] of Object.entries(SETTINGS_SUBGROUPS)) {
+      expect(subKeys(id as SettingsSubId).length).toBeLessThan(
+        groupKeys(sub.group).length,
+      );
+    }
+  });
+
+  it("puts no micro-group inside a knobs group", () => {
+    const knobs = (Object.keys(SETTINGS_GROUPS) as SettingsGroupId[]).filter(
+      (id) => SETTINGS_GROUPS[id].knobs,
+    );
+    expect(knobs.length).toBeGreaterThan(0);
+    for (const id of knobs) {
+      expect(SETTINGS_CATALOG.filter((e) => e.group === id && e.sub)).toEqual(
+        [],
+      );
+      // and it must hold fields, since its header is the switch
+      expect(groupKeys(id).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("reports the micro-group a search hit sits in", () => {
+    const [hit] = searchSettings("done_section_gap");
+    expect(hit.sub).toBe("columns.day.spacing");
+    expect(searchSettings("done_display")[0].sub).toBeUndefined();
+  });
+});
+
 describe("searchSettings", () => {
   it("finds a setting by its label", () => {
     expect(searchSettings("snooze").map((h) => h.key)).toContain(
@@ -102,7 +148,16 @@ describe("profileCoverage", () => {
   ];
 
   it("reports a fully covered group", () => {
-    expect(profileCoverage("appearance.theme", ["theme", "theme_preset", "accent_color", "surface_color", "surface_alt_color", "line_color"])).toBe("all");
+    expect(
+      profileCoverage("appearance.theme", [
+        "theme",
+        "theme_preset",
+        "accent_color",
+        "surface_color",
+        "surface_alt_color",
+        "line_color",
+      ]),
+    ).toBe("all");
   });
 
   it("reports a partly covered group", () => {
@@ -125,7 +180,12 @@ describe("profileCoverage", () => {
       "task_gap",
       "lists_page_columns",
     ]);
-    expect(rows.map((r) => r.tab)).toEqual(["appearance", "views", "cards", "columns"]);
+    expect(rows.map((r) => r.tab)).toEqual([
+      "appearance",
+      "views",
+      "cards",
+      "columns",
+    ]);
     expect(rows[1].groups.map((g) => g.title)).toEqual(["Lists page"]);
     // a tab a profile never touches does not get an empty row
     expect(rows.some((r) => r.tab === "data")).toBe(false);

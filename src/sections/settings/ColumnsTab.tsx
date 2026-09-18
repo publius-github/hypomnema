@@ -1,22 +1,13 @@
-import {
-  ColorPicker,
-  Field,
-  NumberInput,
-  Toggle,
-} from "../../components/form";
-import SettingsGroup from "../../components/SettingsGroup";
+import { ColorPicker, Field, NumberInput, Toggle } from "../../components/form";
+import SettingsGroup, {
+  SettingsSubGroup,
+} from "../../components/SettingsGroup";
 import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
 import type { AppConfig, DoneDisplay } from "../../types";
 import { useAppStore } from "../../store";
 
 /** One vertical-rhythm knob, px. */
-function Gap({
-  label,
-  field,
-}: {
-  label: string;
-  field: keyof AppConfig;
-}) {
+function Gap({ label, field }: { label: string; field: keyof AppConfig }) {
   const config = useAppStore((s) => s.config);
   const updateConfig = useAppStore((s) => s.updateConfig);
   const value = config?.[field];
@@ -80,18 +71,14 @@ export default function ColumnsTab() {
           blocks - the sections the gaps and plates below refer to.
         </span>
 
-        <div className="flex flex-wrap gap-4">
-          <Gap label="Between tasks" field="task_gap" />
-          <Gap label="Between sections" field="section_gap" />
-        </div>
+        <SettingsSubGroup id="columns.shared.spacing">
+          <div className="flex flex-wrap gap-4">
+            <Gap label="Between tasks" field="task_gap" />
+            <Gap label="Between sections" field="section_gap" />
+          </div>
+        </SettingsSubGroup>
 
-        <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Section plates</span>
-          <span className="text-xs text-content-muted">
-            Colors of the section header plates inside a column. Empty keeps
-            the neutral plate style. The cadence sections take their color
-            from the cadence palette (Task cards &gt; Card colors).
-          </span>
+        <SettingsSubGroup id="columns.shared.plates">
           {(
             [
               ["Postponed", "postponed_plate_color"],
@@ -117,7 +104,7 @@ export default function ColumnsTab() {
               )}
             </div>
           ))}
-        </section>
+        </SettingsSubGroup>
       </SettingsGroup>
 
       <SettingsGroup id="columns.day">
@@ -170,20 +157,14 @@ export default function ColumnsTab() {
           </div>
         </section>
 
-        <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Spacing, px</span>
+        <SettingsSubGroup id="columns.day.spacing">
           <div className="flex flex-wrap gap-4">
             <Gap label="Category blocks" field="category_block_gap" />
             <Gap label="Before Postponed" field="postponed_section_gap" />
             <Gap label="Before Done, waiting" field="waiting_section_gap" />
             <Gap label="Before Done" field="done_section_gap" />
           </div>
-          <span className="text-xs text-content-muted">
-            Category blocks group tasks by their {"{X}"} prefix or list
-            inside a section. The Postponed, Waiting and Done gaps let
-            those blocks sit visibly below the active tasks.
-          </span>
-        </section>
+        </SettingsSubGroup>
       </SettingsGroup>
 
       <SettingsGroup id="columns.list">
@@ -208,20 +189,17 @@ export default function ColumnsTab() {
           onChange={(v) => void updateConfig({ clear_done_list_tasks: v })}
         />
 
-        <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Spacing, px</span>
+        <SettingsSubGroup id="columns.list.spacing">
           <div className="flex flex-wrap gap-4">
             <Gap label="Category blocks" field="list_category_block_gap" />
             <Gap label="Before Postponed" field="list_postponed_section_gap" />
-            <Gap label="Before Done, waiting" field="list_waiting_section_gap" />
+            <Gap
+              label="Before Done, waiting"
+              field="list_waiting_section_gap"
+            />
             <Gap label="Before Done" field="list_done_section_gap" />
           </div>
-          <span className="text-xs text-content-muted">
-            The same sections as a day column, with their own numbers: a
-            backlog is usually denser than the grid. The category-block gap
-            also applies inside the list dialog.
-          </span>
-        </section>
+        </SettingsSubGroup>
 
         <Field label="Task title lines in a list column (1 = one truncated line)">
           <NumberInput
@@ -247,8 +225,8 @@ export default function ColumnsTab() {
           <span className="text-sm font-medium">Dated tasks</span>
           <span className="text-xs text-content-muted">
             A list task with a date also shows on its day column, where it
-            always wears the exact-date look. These two control how loud it
-            is inside its own list before the date arrives.
+            always wears the exact-date look. These two control how loud it is
+            inside its own list before the date arrives.
           </span>
 
           <Toggle

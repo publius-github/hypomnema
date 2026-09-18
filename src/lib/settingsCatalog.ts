@@ -68,12 +68,20 @@ type GroupDef = {
   always?: boolean;
   /** No "reset to defaults" affordance (paths are not a look). */
   noReset?: boolean;
+  /**
+   * The whole group is fine-tuning - no switch inside it changes what
+   * the app does, only how loud or how far it does it. Such a group
+   * wears the customization checkbox on its own header instead of a
+   * collapse link: a micro-group nested inside would be a second
+   * switch for the same question.
+   */
+  knobs?: boolean;
 };
 
 export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
   "appearance.theme": { tab: "appearance", title: "Theme & palette" },
   "appearance.fonts": { tab: "appearance", title: "Fonts & sizes" },
-  "appearance.text": { tab: "appearance", title: "Text colors" },
+  "appearance.text": { tab: "appearance", title: "Text colors", knobs: true },
   "appearance.editor": { tab: "appearance", title: "Markdown editor" },
 
   "views.dashboard": { tab: "views", title: "Dashboard" },
@@ -91,9 +99,13 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
   "columns.day": { tab: "columns", title: "Day columns" },
   "columns.list": { tab: "columns", title: "List columns" },
 
-  "recurring.buckets": { tab: "recurring", title: "Cadence buckets" },
+  "recurring.buckets": { tab: "recurring", title: "Cadence buckets", knobs: true },
   "recurring.generation": { tab: "recurring", title: "Generation" },
-  "recurring.calendar": { tab: "recurring", title: "Calendar projections" },
+  "recurring.calendar": {
+    tab: "recurring",
+    title: "Calendar projections",
+    knobs: true,
+  },
 
   "capture.capture": { tab: "capture", title: "Quick capture" },
   "capture.tray": { tab: "capture", title: "Tray" },
@@ -116,11 +128,61 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
   },
 };
 
+/**
+ * Micro-groups: the tail of fine-tuning inside a group that otherwise
+ * holds real switches. Day columns is the shape - centering, daily
+ * tasks and the section order are decisions, the four gaps below them
+ * are pixel-pushing nobody asked for. A micro-group hides behind a
+ * checkbox that is ticked exactly when one of its fields left its
+ * default, and unticking it puts them all back.
+ *
+ * Only a genuinely optional knob belongs here. A group made entirely
+ * of knobs takes `knobs: true` above instead, so the page never shows
+ * two switches in a row for the same question.
+ */
+export type SettingsSubId =
+  | "columns.shared.spacing"
+  | "columns.shared.plates"
+  | "columns.day.spacing"
+  | "columns.list.spacing";
+
+type SubDef = {
+  group: SettingsGroupId;
+  /** Reads as the checkbox label: what turning it on lets you do. */
+  title: string;
+  hint?: string;
+};
+
+export const SETTINGS_SUBGROUPS: Record<SettingsSubId, SubDef> = {
+  "columns.shared.spacing": {
+    group: "columns.shared",
+    title: "Custom spacing",
+    hint: "The vertical rhythm every column uses, px.",
+  },
+  "columns.shared.plates": {
+    group: "columns.shared",
+    title: "Custom section plates",
+    hint: "Colors of the section header plates inside a column. Off keeps the neutral plate style; the cadence sections take their color from the cadence palette (Task cards > Card colors).",
+  },
+  "columns.day.spacing": {
+    group: "columns.day",
+    title: "Custom spacing",
+    hint: "Gaps inside a day column, px. Category blocks group tasks by their {X} prefix or list inside a section; the Postponed, Waiting and Done gaps let those blocks sit visibly below the active tasks.",
+  },
+  "columns.list.spacing": {
+    group: "columns.list",
+    title: "Custom spacing",
+    hint: "The same sections as a day column, with their own numbers: a backlog is usually denser than the grid. The category-block gap also applies inside the list dialog.",
+  },
+};
+
 export type CatalogEntry = {
   key: keyof AppConfig;
   /** Short searchable name; the control keeps its own fuller label. */
   label: string;
   group: SettingsGroupId;
+  /** The micro-group inside that group, when the field sits in one. */
+  sub?: SettingsSubId;
   /** Extra words a user might search by instead of the label. */
   terms?: string;
 };
@@ -203,27 +265,27 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   // --- Columns ----------------------------------------------------
   { key: "done_display", label: "Done tasks display", group: "columns.shared", terms: "inline separate block" },
-  { key: "task_gap", label: "Gap between tasks", group: "columns.shared", terms: "spacing density" },
-  { key: "section_gap", label: "Gap between sections", group: "columns.shared", terms: "spacing density" },
-  { key: "postponed_plate_color", label: "Postponed plate color", group: "columns.shared", terms: "section header" },
-  { key: "waiting_plate_color", label: "Done, waiting plate color", group: "columns.shared", terms: "section header" },
-  { key: "done_plate_color", label: "Done plate color", group: "columns.shared", terms: "section header" },
+  { key: "task_gap", label: "Gap between tasks", group: "columns.shared", sub: "columns.shared.spacing", terms: "spacing density" },
+  { key: "section_gap", label: "Gap between sections", group: "columns.shared", sub: "columns.shared.spacing", terms: "spacing density" },
+  { key: "postponed_plate_color", label: "Postponed plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
+  { key: "waiting_plate_color", label: "Done, waiting plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
+  { key: "done_plate_color", label: "Done plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
 
   { key: "day_header_centered", label: "Center day headers", group: "columns.day" },
   { key: "daily_tasks_today_only", label: "Daily tasks only on today", group: "columns.day" },
   { key: "cadence_group_order", label: "Day column section order", group: "columns.day", terms: "cadence groups" },
-  { key: "category_block_gap", label: "Gap between category blocks (days)", group: "columns.day", terms: "spacing density" },
-  { key: "postponed_section_gap", label: "Gap before Postponed (days)", group: "columns.day", terms: "spacing density" },
-  { key: "waiting_section_gap", label: "Gap before Done, waiting (days)", group: "columns.day", terms: "spacing density" },
-  { key: "done_section_gap", label: "Gap before Done (days)", group: "columns.day", terms: "spacing density" },
+  { key: "category_block_gap", label: "Gap between category blocks (days)", group: "columns.day", sub: "columns.day.spacing", terms: "spacing density" },
+  { key: "postponed_section_gap", label: "Gap before Postponed (days)", group: "columns.day", sub: "columns.day.spacing", terms: "spacing density" },
+  { key: "waiting_section_gap", label: "Gap before Done, waiting (days)", group: "columns.day", sub: "columns.day.spacing", terms: "spacing density" },
+  { key: "done_section_gap", label: "Gap before Done (days)", group: "columns.day", sub: "columns.day.spacing", terms: "spacing density" },
 
   { key: "lists_sort_alpha", label: "Sort lists alphabetically", group: "columns.list" },
   { key: "list_tasks_sort_alpha", label: "Sort tasks inside lists alphabetically", group: "columns.list" },
   { key: "clear_done_list_tasks", label: "Clear done list tasks at rollover", group: "columns.list" },
-  { key: "list_category_block_gap", label: "Gap between category blocks (lists)", group: "columns.list", terms: "spacing density" },
-  { key: "list_postponed_section_gap", label: "Gap before Postponed (lists)", group: "columns.list", terms: "spacing density" },
-  { key: "list_waiting_section_gap", label: "Gap before Done, waiting (lists)", group: "columns.list", terms: "spacing density" },
-  { key: "list_done_section_gap", label: "Gap before Done (lists)", group: "columns.list", terms: "spacing density" },
+  { key: "list_category_block_gap", label: "Gap between category blocks (lists)", group: "columns.list", sub: "columns.list.spacing", terms: "spacing density" },
+  { key: "list_postponed_section_gap", label: "Gap before Postponed (lists)", group: "columns.list", sub: "columns.list.spacing", terms: "spacing density" },
+  { key: "list_waiting_section_gap", label: "Gap before Done, waiting (lists)", group: "columns.list", sub: "columns.list.spacing", terms: "spacing density" },
+  { key: "list_done_section_gap", label: "Gap before Done (lists)", group: "columns.list", sub: "columns.list.spacing", terms: "spacing density" },
   { key: "list_task_lines", label: "Task title lines in a list column", group: "columns.list", terms: "truncate clamp" },
   { key: "list_dialog_task_lines", label: "Task title lines in the list dialog", group: "columns.list", terms: "truncate clamp" },
   { key: "list_exact_stripe", label: "Exact-date stripe inside the list", group: "columns.list", terms: "dated scheduled" },
@@ -303,6 +365,18 @@ const BY_GROUP = SETTINGS_CATALOG.reduce<
 /** The fields a group holds, in catalog order. */
 export function groupKeys(id: SettingsGroupId): (keyof AppConfig)[] {
   return BY_GROUP[id] ?? [];
+}
+
+const BY_SUB = SETTINGS_CATALOG.reduce<
+  Partial<Record<SettingsSubId, (keyof AppConfig)[]>>
+>((acc, entry) => {
+  if (entry.sub) (acc[entry.sub] ??= []).push(entry.key);
+  return acc;
+}, {});
+
+/** The fields a micro-group holds, in catalog order. */
+export function subKeys(id: SettingsSubId): (keyof AppConfig)[] {
+  return BY_SUB[id] ?? [];
 }
 
 export type SearchHit = CatalogEntry & {

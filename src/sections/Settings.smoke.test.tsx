@@ -133,6 +133,91 @@ describe("Settings smoke", () => {
     );
   });
 
+  it("hides the spacing knobs until they are asked for", () => {
+    // a changed day gap ticks that micro-group and opens its group; the
+    // shared and list groups stay folded, so their gaps are two clicks
+    // away rather than on screen
+    seed({ done_section_gap: 40 });
+    render(<Settings />);
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+
+    const day = screen.getByRole("checkbox", {
+      name: /Custom spacing/,
+    }) as HTMLInputElement;
+    expect(day.checked).toBe(true);
+    expect(screen.getByText("Before Done")).toBeTruthy();
+    expect(screen.getByText("1 changed")).toBeTruthy();
+
+    // open the untouched shared group: its spacing is there, unticked
+    fireEvent.click(screen.getAllByRole("button", { name: "Customize" })[0]);
+    const shared = screen.getAllByRole("checkbox", {
+      name: /Custom spacing/,
+    })[0] as HTMLInputElement;
+    expect(shared.checked).toBe(false);
+    expect(screen.queryByText("Between tasks")).toBeNull();
+
+    // ticking it only reveals the fields - no write, nothing changes
+    invokeMock.mockClear();
+    fireEvent.click(shared);
+    expect(screen.getByText("Between tasks")).toBeTruthy();
+    expect(
+      invokeMock.mock.calls.filter(([cmd]) => cmd === "config_set"),
+    ).toEqual([]);
+  });
+
+  it("puts a micro-group back to its defaults when unticked", async () => {
+    seed({ done_section_gap: 40, category_block_gap: 12 });
+    render(<Settings />);
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Custom spacing/ }));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        "config_set",
+        expect.objectContaining({
+          config: expect.objectContaining({
+            done_section_gap: defaultConfig.done_section_gap,
+            category_block_gap: defaultConfig.category_block_gap,
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("opens a micro-group the search sent it to", async () => {
+    // everything at its default, so the gaps are hidden on arrival
+    seed();
+    render(<Settings />);
+
+    fireEvent.change(screen.getByPlaceholderText("Search settings..."), {
+      target: { value: "gap before done days" },
+    });
+    fireEvent.click(await screen.findByText("Gap before Done (days)"));
+
+    // the hidden field is on screen, not behind an unticked checkbox
+    expect(screen.getByText("Before Done")).toBeTruthy();
+  });
+
+  it("wears the same checkbox on a group that is only knobs", () => {
+    seed({ calendar_yearly_years: 4 });
+    render(<Settings />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Recurring & calendar" }),
+    );
+
+    const projections = screen.getByRole("checkbox", {
+      name: /Calendar projections/,
+    }) as HTMLInputElement;
+    expect(projections.checked).toBe(true);
+    // the bucket thresholds sit at their defaults, so they stay folded
+    const buckets = screen.getByRole("checkbox", {
+      name: /Cadence buckets/,
+    }) as HTMLInputElement;
+    expect(buckets.checked).toBe(false);
+    expect(screen.queryByText("Minimum firings per year")).toBeNull();
+  });
+
   it("marks the groups a profile covers", () => {
     seed();
     render(<Settings />);
