@@ -235,9 +235,13 @@ pub fn list_create(conn: &Connection, name: &str, color: Option<&str>, auto: boo
                     "a list named \"{name}\" already exists"
                 )));
             }
-            conn.execute("UPDATE lists SET auto = 0 WHERE id = ?1", [existing.id])?;
+            conn.execute(
+                "UPDATE lists SET auto = 0, color = COALESCE(?2, color) WHERE id = ?1",
+                (existing.id, color),
+            )?;
             return Ok(List {
                 auto: false,
+                color: color.map(str::to_owned).or(existing.color),
                 ..existing
             });
         }
@@ -700,8 +704,19 @@ pub fn backlinks(conn: &Connection, stem: &str, full_name: &str) -> Result<Vec<T
     Ok(hits)
 }
 
+/// A title is one Markdown mirror line: a newline inside it would split
+/// the line in two and break the round trip.
+fn normalize_title(title: &str) -> String {
+    title
+        .split(['\r', '\n'])
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
-    let title = new.title.trim().to_string();
+    let title = normalize_title(&new.title);
     if title.is_empty() {
         return Err(Error::State("task title cannot be empty".into()));
     }
@@ -786,10 +801,11 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
         )?;
     }
     if let Some(title) = &patch.title {
-        conn.execute(
-            "UPDATE tasks SET title = ?1 WHERE id = ?2",
-            (title.trim(), id),
-        )?;
+        let title = normalize_title(title);
+        if title.is_empty() {
+            return Err(Error::State("task title cannot be empty".into()));
+        }
+        conn.execute("UPDATE tasks SET title = ?1 WHERE id = ?2", (title, id))?;
     }
     if let Some(description) = &patch.description_md {
         conn.execute(

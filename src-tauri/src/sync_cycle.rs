@@ -156,7 +156,7 @@ fn read_base(local_root: &Path, relative: &str) -> Option<String> {
     fs::read_to_string(base_path(local_root, relative)).ok()
 }
 
-fn write_base(local_root: &Path, relative: &str, bytes: &[u8]) -> Result<()> {
+pub(crate) fn write_base(local_root: &Path, relative: &str, bytes: &[u8]) -> Result<()> {
     let path = base_path(local_root, relative);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -394,19 +394,30 @@ pub fn sync_vault<P: SyncProvider>(
                 continue;
             }
         };
-        match apply_incoming(
+        // S8-style resilience: one file that cannot be applied (a merge
+        // parse error, a name the local filesystem rejects) is reported,
+        // not allowed to abort the pass with the manifest unsaved.
+        let applied = match apply_incoming(
             &ctx,
             &relative,
             &bytes,
             known.as_ref(),
             &mut conflicts,
             &mut report.conflicted_copies,
-        )? {
+        ) {
+            Ok(applied) => applied,
+            Err(_) => {
+                report.failed.push(remote.clone());
+                continue;
+            }
+        };
+        match applied {
             Incoming::Downloaded => report.downloaded += 1,
             Incoming::Merged => report.merged += 1,
             Incoming::Unchanged => {}
         }
-        if sync_state::state_file_of(&relative).is_some() {
+        if !matches!(applied, Incoming::Unchanged) && sync_state::state_file_of(&relative).is_some()
+        {
             report.state_changed = true;
         }
         manifest.insert(

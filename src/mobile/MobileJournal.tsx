@@ -63,6 +63,7 @@ export default function MobileJournal() {
     }
   }, [persist]);
 
+  const loadedDate = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -73,6 +74,7 @@ export default function MobileJournal() {
           { date },
         );
         if (cancelled) return;
+        loadedDate.current = entry.date;
         setContent(entry.content);
         setSaved(true);
       } catch (e) {
@@ -91,6 +93,9 @@ export default function MobileJournal() {
   useEffect(() => () => void flush(), [flush]);
 
   const edit = (text: string) => {
+    // the textarea still shows the previous day's text until the open
+    // lands; a keystroke now would queue that text under the new date
+    if (loadedDate.current !== date) return;
     setContent(text);
     setSaved(false);
     pending.current = { date, content: text };

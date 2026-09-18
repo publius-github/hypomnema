@@ -219,9 +219,20 @@ pub fn write_atomic(path: &Path, content: &str) -> Result<()> {
         .parent()
         .ok_or_else(|| Error::State(format!("no parent dir for {}", path.display())))?;
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
-    let tmp = dir.join(format!(".{name}.tmp"));
-    fs::write(&tmp, content)?;
-    fs::rename(&tmp, path)?;
+    // unique per write: the mirror is exported from commands and from the
+    // watcher threads at once, and two writers sharing `.name.tmp` would
+    // rename each other's half-written bytes into place
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = dir.join(format!(".{name}.{}-{seq}.tmp", std::process::id()));
+    if let Err(e) = fs::write(&tmp, content) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.into());
+    }
+    if let Err(e) = fs::rename(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.into());
+    }
     Ok(())
 }
 

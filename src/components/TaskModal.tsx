@@ -114,7 +114,9 @@ export default function TaskModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") commitAndClose();
+      // a subtask field handles its own Escape (cancel the edit) and
+      // marks the event; that keystroke must not also close the dialog
+      if (e.key === "Escape" && !e.defaultPrevented) commitAndClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

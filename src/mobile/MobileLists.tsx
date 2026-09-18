@@ -71,7 +71,10 @@ export default function MobileLists() {
 
   const listRow = (list: List) => {
     const open = tasks.filter(
-      (t) => t.list_id === list.id && t.status === "todo",
+      (t) =>
+        t.list_id === list.id &&
+        t.parent_task_id === null &&
+        t.status === "todo",
     ).length;
     return (
       <li key={list.id} className="border-b border-line/60">

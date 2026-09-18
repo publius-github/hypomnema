@@ -600,7 +600,8 @@ export function currentAndNextBlock(
       ? b.from <= hhmm && hhmm < b.to
       : hhmm >= b.from || hhmm < b.to;
   const current = sorted.find(covers) ?? null;
-  const next = sorted.find((b) => b.from > hhmm) ?? null;
+  // a midnight-spanning block that is current still has from > now
+  const next = sorted.find((b) => b !== current && b.from > hhmm) ?? null;
   if (!current && !next) return null;
   return { current, next };
 }

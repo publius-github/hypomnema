@@ -293,8 +293,22 @@ fn generate_recurring(
         // Guard against runaway schedules ("* * * * *" would enumerate
         // tens of thousands of firings and insert a task for each).
         const MAX_FIRINGS: usize = 2000;
+        let cadence = cadence_of(&cron, now, config);
         let mut firings = Vec::new();
-        let mut cursor = window_start;
+        // dailies discard every pre-today firing anyway (see
+        // `latest_missed`), so an hourly rule must not trip the guard
+        // on a long catch-up window it never uses
+        let mut cursor = if cadence == "daily" {
+            window_start.max(
+                today
+                    .and_hms_opt(0, 0, 0)
+                    .and_then(|t| t.and_local_timezone(Local).single())
+                    .map(|t| t - Duration::seconds(1))
+                    .unwrap_or(window_start),
+            )
+        } else {
+            window_start
+        };
         let mut overflow = false;
         loop {
             match cron.find_next_occurrence(&cursor, false) {
@@ -338,7 +352,6 @@ fn generate_recurring(
             });
             continue;
         }
-        let cadence = cadence_of(&cron, now, config);
         // rules pinned to concrete weekdays carry a [SAT#1]-style marker
         // shown before the task title
         let dow_label = crate::views::weekday_label(&rule.schedule);
@@ -574,20 +587,53 @@ fn run_scheduled(
         if date > horizon {
             continue;
         }
+        // chrono accepts `2026-9-8` and `9:30`; the task model compares
+        // these strings lexicographically, so store them zero-padded or
+        // the instance falls out of every window and never carries over
+        let time = match event.time.as_deref() {
+            Some(raw) => match chrono::NaiveTime::parse_from_str(raw, "%H:%M") {
+                Ok(t) => Some(t.format("%H:%M").to_string()),
+                Err(_) => {
+                    outcome.errors.push(ConfigError {
+                        file: source.into(),
+                        line: None,
+                        message: format!(
+                            "event {} ('{}'): invalid time '{}', expected HH:MM",
+                            index + 1,
+                            event.title,
+                            raw
+                        ),
+                    });
+                    continue;
+                }
+            },
+            None => None,
+        };
         let (list, title) = parse_item(&event.title);
         let generated = GeneratedTask {
             rule_key: scheduled_rule_key(event),
             period_key: event.date.clone(),
             title,
             list_name: list,
-            scheduled_date: event.date.clone(),
-            time: event.time.as_deref(),
+            scheduled_date: date.format("%Y-%m-%d").to_string(),
+            time: time.as_deref(),
             origin: "scheduled",
             cadence: None,
             dow_label: None,
         };
         if insert_generated(conn, &generated, now)? {
             outcome.generated += 1;
+        } else {
+            // the rule key leaves `time` out on purpose so a moved
+            // appointment updates the instance that exists; that only
+            // holds if the new time actually reaches it
+            conn.execute(
+                "UPDATE tasks SET time = ?1
+                 WHERE rule_key = ?2 AND period_key = ?3
+                   AND status NOT IN ('done', 'dropped') AND archived_at IS NULL
+                   AND time IS NOT ?1",
+                (&generated.time, &generated.rule_key, &generated.period_key),
+            )?;
         }
     }
     Ok(())
@@ -636,8 +682,8 @@ fn run_birthdays(
             continue;
         };
         // The occurrence that falls inside [today - catchup, horizon];
-        // check this year and the next (window may span New Year).
-        for year in [today.year(), today.year() + 1] {
+        // both ends may sit in another year than today.
+        for year in window_start.year()..=horizon.year() {
             let occurrence = crate::config_files::birthday_occurrence(year, month, day);
             let Some(occurrence) = occurrence else {
                 outcome.errors.push(ConfigError {
@@ -2122,6 +2168,64 @@ mod tests {
         assert_eq!(list, "Birthdays");
 
         assert_eq!(run(&conn, &dir, &cfg, now).unwrap().generated, 0);
+    }
+
+    #[test]
+    fn scheduled_event_stores_zero_padded_date_and_time_and_follows_a_moved_time() {
+        let (conn, dir) = setup("scheduled-padding");
+        fs::write(
+            dir.join("scheduled.yml"),
+            "events:\n  - date: 2026-9-8\n    title: \"dentist\"\n    time: \"9:30\"\n",
+        )
+        .unwrap();
+        let now = at("2026-09-07", "12:00:00");
+        let cfg = config(7, 7, 0);
+        assert_eq!(run(&conn, &dir, &cfg, now).unwrap().generated, 1);
+        let (date, time): (String, String) = conn
+            .query_row(
+                "SELECT scheduled_date, time FROM tasks WHERE title = 'dentist'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        // the model compares these strings; unpadded ones fall out of every window
+        assert_eq!((date.as_str(), time.as_str()), ("2026-09-08", "09:30"));
+
+        fs::write(
+            dir.join("scheduled.yml"),
+            "events:\n  - date: 2026-9-8\n    title: \"dentist\"\n    time: \"15:30\"\n",
+        )
+        .unwrap();
+        assert_eq!(run(&conn, &dir, &cfg, now).unwrap().generated, 0);
+        let time: String = conn
+            .query_row("SELECT time FROM tasks WHERE title = 'dentist'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(time, "15:30");
+    }
+
+    #[test]
+    fn birthday_missed_across_new_year_is_caught_up() {
+        let (conn, dir) = setup("birthday-new-year");
+        fs::write(
+            dir.join("birthdays.yml"),
+            "birthdays:\n  - name: \"Jane\"\n    date: \"12-27\"\n",
+        )
+        .unwrap();
+        // catch-up 14 days back from January 3rd reaches into December
+        let outcome = run(&conn, &dir, &config(14, 7, 0), at("2027-01-03", "12:00:00")).unwrap();
+        assert_eq!(outcome.generated, 1);
+        let (date, period): (String, String) = conn
+            .query_row(
+                "SELECT scheduled_date, period_key FROM tasks WHERE origin = 'birthday'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        // carry-over then moves it to today with the overdue mark
+        assert_eq!(date, "2027-01-03");
+        assert_eq!(period, "2026");
     }
 
     #[test]

@@ -52,6 +52,13 @@ export default function MobileTaskEditor({
   const [description, setDescription] = useState(task.description_md);
   const [date, setDate] = useState(task.scheduled_date ?? "");
   const [time, setTime] = useState(task.time ?? "");
+  // Priority and Unstar change the date behind these fields
+  useEffect(() => {
+    setDate(task.scheduled_date ?? "");
+  }, [task.scheduled_date]);
+  useEffect(() => {
+    setTime(task.time ?? "");
+  }, [task.time]);
   const [subtaskTitle, setSubtaskTitle] = useState("");
 
   const subtasks = sortSubtasks(
@@ -155,6 +162,7 @@ export default function MobileTaskEditor({
             <input
               type="time"
               value={time}
+              disabled={generated}
               onChange={(e) => {
                 setTime(e.target.value);
                 void updateTask(task.id, { time: e.target.value || null });
@@ -316,10 +324,11 @@ export default function MobileTaskEditor({
               onClick={() => {
                 const trimmed = subtaskTitle.trim();
                 if (!trimmed) return;
+                // a subtask carries no list of its own; the parent's
+                // list decides (same as the desktop dialog)
                 void createTask({
                   title: trimmed,
                   parent_task_id: task.id,
-                  list_id: task.list_id,
                 });
                 setSubtaskTitle("");
               }}

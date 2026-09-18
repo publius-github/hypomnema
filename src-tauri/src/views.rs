@@ -111,8 +111,13 @@ pub fn upcoming_events(
                     |row| row.get(0),
                 )?;
             if !materialized || still_open {
+                // shown and sorted as a zero-padded string like the
+                // engine stores it; an unpadded YAML date stays readable
+                let date = NaiveDate::parse_from_str(&event.date, "%Y-%m-%d")
+                    .map(|d| d.format("%Y-%m-%d").to_string())
+                    .unwrap_or(event.date);
                 pending.push(UpcomingEventView {
-                    date: event.date,
+                    date,
                     title: event.title,
                     time: event.time,
                     source: source.clone(),
@@ -318,7 +323,9 @@ pub fn calendar_outlook(
             };
             let end = cap.min(to);
             let mut cursor = now;
-            for _ in 0..500 {
+            // runaway guard: a multi-firings-per-day cron over the
+            // widest 366-day window stays well under this
+            for _ in 0..5000 {
                 let Ok(firing) = cron.find_next_occurrence(&cursor, false) else {
                     break;
                 };
@@ -365,7 +372,7 @@ pub fn calendar_outlook(
             if date > horizon && date >= from && date <= to.min(dates_cap) {
                 let (_, title) = parse_item(&event.title);
                 events.push(OutlookEvent {
-                    date: event.date.clone(),
+                    date: date.format("%Y-%m-%d").to_string(),
                     title,
                     kind: "date".into(),
                 });

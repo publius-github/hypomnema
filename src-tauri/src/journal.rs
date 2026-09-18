@@ -137,11 +137,20 @@ pub fn list_entries(vault: &Path) -> Result<Vec<String>> {
         if !year_entry.file_type()?.is_dir() || year_entry.file_name() == "templates" {
             continue;
         }
+        let year_name = year_entry.file_name().to_string_lossy().into_owned();
         for file in fs::read_dir(year_entry.path())? {
             let file = file?;
             let name = file.file_name().to_string_lossy().into_owned();
             if let Some(date) = name.strip_suffix(".md") {
-                if validate_date(date).is_ok() {
+                // `entry_path` re-derives <year>/<YYYY-MM-DD>.md from the
+                // date, so a file that is not exactly there would list
+                // but open as an empty template
+                let Ok(parsed) = validate_date(date) else {
+                    continue;
+                };
+                if parsed.format("%Y-%m-%d").to_string() == date
+                    && parsed.format("%Y").to_string() == year_name
+                {
                     dates.push(date.to_string());
                 }
             }

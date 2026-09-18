@@ -18,6 +18,9 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: (url: string) => openUrlMock(url),
 }));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(async () => () => {}),
+}));
 
 import DropboxLink from "./DropboxLink";
 import { dispatchCommands } from "../test/tauriMocks";

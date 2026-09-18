@@ -97,7 +97,7 @@ export default function MobileNotes() {
           setNote(null);
           loadTree();
         }}
-        onOpen={openPath}
+        onOpen={(name) => void useAppStore.getState().openKbNoteByName(name)}
       />
     );
   }
@@ -612,9 +612,7 @@ function ReadView({
         return (
           <button
             key={index}
-            onClick={() =>
-              onOpen(target.endsWith(".md") ? target : `${target}.md`)
-            }
+            onClick={() => onOpen(target)}
             className="text-accent underline"
           >
             {target}

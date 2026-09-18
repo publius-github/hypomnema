@@ -86,9 +86,17 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
       setSelected(live);
       return;
     }
+    let cancelled = false;
     invoke<Task>("task_get", { id: selected.id })
-      .then(setSelected)
-      .catch(() => setSelected(null));
+      .then((t) => {
+        if (!cancelled) setSelected((prev) => (prev?.id === t.id ? t : prev));
+      })
+      .catch(() => {
+        if (!cancelled) setSelected(null);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeTasks]);
 

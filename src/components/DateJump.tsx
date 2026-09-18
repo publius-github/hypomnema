@@ -16,10 +16,15 @@ export default function DateJump() {
       type="date"
       className="input px-1.5 py-0.5 text-xs"
       title="Jump to a date"
+      min="1970-01-01"
+      max="9999-12-31"
       value={addDaysISO(today, gridOffset)}
       onChange={(e) => {
-        if (e.target.value) {
-          setGridOffset(daysBetweenISO(today, e.target.value));
+        // typing a year fires onChange on every partial value
+        // (0002-, 0020-, 0202-); each one would start a snapshot fetch
+        const v = e.target.value;
+        if (v && Number(v.slice(0, 4)) >= 1970) {
+          setGridOffset(daysBetweenISO(today, v));
         }
       }}
     />

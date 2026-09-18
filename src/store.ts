@@ -222,6 +222,9 @@ function applyTheme(config: AppConfig | null) {
   }
 }
 
+let refreshSeq = 0;
+const taskUpdateSeq = new Map<number, number>();
+
 export const useAppStore = create<AppState>((set, get) => ({
   loaded: false,
   vaultPath: null,
@@ -307,6 +310,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   refresh: async () => {
     const config = get().config;
     if (!config) return;
+    // quick day jumps start overlapping snapshots; only the newest may land
+    const seq = ++refreshSeq;
     const today = todayISO();
     const start = addDaysISO(today, get().gridOffset);
     // one snapshot feeds every task view, so the window spans the
@@ -330,9 +335,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         }),
         invoke<DashboardContext>("dashboard_context", { dates }),
       ]);
+      if (seq !== refreshSeq) return;
       set({ today, lists, groups, tasks, dashboard });
       void get().loadHabitRates();
     } catch (e) {
+      if (seq !== refreshSeq) return;
       set({ error: String(e) });
     }
   },
@@ -353,6 +360,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updateTask: async (id, patch) => {
     const previousTask = get().tasks.find((t) => t.id === id);
+    // two quick patches on one task (a double status click) may answer
+    // out of order; only the latest call's row or rollback may land
+    const seq = (taskUpdateSeq.get(id) ?? 0) + 1;
+    taskUpdateSeq.set(id, seq);
     set((s) => ({
       tasks: s.tasks.map((t) => {
         if (t.id !== id) return t;
@@ -365,6 +376,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
     try {
       const updated = await invoke<Task>("task_update", { id, patch });
+      if (taskUpdateSeq.get(id) !== seq) return;
       set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? updated : t)),
       }));
@@ -373,6 +385,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         void get().loadHabitRates();
       }
     } catch (e) {
+      if (taskUpdateSeq.get(id) !== seq) {
+        set({ error: String(e) });
+        return;
+      }
       // roll back only this task: restoring a whole snapshot would
       // clobber concurrent optimistic updates of other tasks
       set((s) => ({
@@ -663,8 +679,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().loadHabitRates();
       }
     } catch (e) {
-      applyTheme(current);
-      set({ config: current, error: String(e) });
+      // the snapshot taken before this call may predate a concurrent
+      // patch that did reach disk; what app.yml holds now is the truth
+      const live = await invoke<AppConfig>("config_get").catch(() => current);
+      applyTheme(live);
+      set({ config: live, error: String(e) });
     }
   },
 

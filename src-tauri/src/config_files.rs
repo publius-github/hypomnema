@@ -905,6 +905,24 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
                 Err(e) => push_yaml_error(e),
             }
         }
+        "weekly-focus.yml" => {
+            match serde_yaml::from_str::<crate::reminders::WeeklyFocusFile>(content) {
+                Ok(parsed) => {
+                    if let Some(rotation) = &parsed.rotation {
+                        if rotation != "cycle" {
+                            errors.push(ConfigError {
+                                file: file.into(),
+                                line: None,
+                                message: format!(
+                                    "unsupported rotation '{rotation}', only 'cycle' is supported"
+                                ),
+                            });
+                        }
+                    }
+                }
+                Err(e) => push_yaml_error(e),
+            }
+        }
         _ => {
             if let Err(e) = serde_yaml::from_str::<serde_yaml::Value>(content) {
                 push_yaml_error(e);

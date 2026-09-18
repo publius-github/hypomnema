@@ -504,9 +504,9 @@ pub fn stamp_note(
         .or_else(|| old.as_ref().and_then(|o| o.created.clone()))
         .unwrap_or_else(|| file_created.to_string());
     let edited = match old {
-        Some(old) if old.body == new.body => old
+        Some(old) if old.body == new.body => new
             .edited
-            .or(new.edited)
+            .or(old.edited)
             .unwrap_or_else(|| file_modified.to_string()),
         _ => now.to_string(),
     };
@@ -589,7 +589,14 @@ pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {
     };
     let source = resolve(root, from)?;
     let target = resolve(root, &to)?;
-    if target.exists() {
+    // on a case-insensitive filesystem `note.md` -> `Note.md` finds the
+    // target "existing" - it is the source itself, and the rename is fine
+    let same_file = source != target
+        && matches!(
+            (fs::canonicalize(&source), fs::canonicalize(&target)),
+            (Ok(a), Ok(b)) if a == b
+        );
+    if target.exists() && !same_file {
         return Err(Error::State(format!("target already exists: {to}")));
     }
     if let Some(parent) = target.parent() {

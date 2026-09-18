@@ -285,7 +285,10 @@ describe("currentAndNextBlock", () => {
     expect(currentAndNextBlock(blocks, at(5, 0))?.current?.label).toBe(
       "Night",
     );
+    // the current block is not also the next one
+    expect(currentAndNextBlock(blocks, at(5, 0))?.next ?? null).toBeNull();
     expect(currentAndNextBlock(blocks, at(12, 0))?.current ?? null).toBeNull();
+    expect(currentAndNextBlock(blocks, at(12, 0))?.next?.label).toBe("Night");
   });
 });
 

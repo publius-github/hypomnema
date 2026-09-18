@@ -156,12 +156,16 @@ pub fn list_db_backups(root: &Path) -> Result<Vec<BackupEntry>> {
     let dir = vault::work_dir(root).join("backups").join("db");
     list_entries(
         &dir,
-        |name| name.starts_with("app-") && name.ends_with(".db"),
         |name| {
-            name.strip_prefix("app-")
-                .and_then(|s| s.strip_suffix(".db"))
-                .unwrap_or(name)
-                .to_string()
+            (name.starts_with("app-") || name.starts_with("pre-restore-app-"))
+                && name.ends_with(".db")
+        },
+        |name| {
+            name.strip_prefix("pre-restore-app-")
+                .map(|s| format!("pre-restore {s}"))
+                .or_else(|| name.strip_prefix("app-").map(str::to_string))
+                .map(|s| s.trim_end_matches(".db").to_string())
+                .unwrap_or_else(|| name.to_string())
         },
     )
 }
@@ -192,7 +196,15 @@ pub fn overview(root: &Path) -> Result<BackupsOverview> {
 /// itself copied aside first, so a restore is never a one-way door; the
 /// stale -wal/-shm siblings of the replaced database are dropped so no
 /// leftover frames apply to the restored file.
+fn check_backup_id(id: &str) -> Result<()> {
+    if id.is_empty() || id.contains(['/', '\\']) || id == "." || id == ".." {
+        return Err(Error::State(format!("invalid backup id: {id}")));
+    }
+    Ok(())
+}
+
 pub fn restore_db_backup(root: &Path, id: &str, now: DateTime<Local>) -> Result<()> {
+    check_backup_id(id)?;
     let dir = vault::work_dir(root).join("backups").join("db");
     let source = dir.join(id);
     if !source.is_file() {
@@ -200,8 +212,11 @@ pub fn restore_db_backup(root: &Path, id: &str, now: DateTime<Local>) -> Result<
     }
     let target = vault::db_path(root);
     if target.exists() {
+        // not `app-` prefixed: `rotate(&dir, "app-", keep)` would count
+        // these against `backup_keep` and, sorting after every dated
+        // snapshot, keep them while the dailies got deleted
         let safety = dir.join(format!(
-            "app-pre-restore-{}.db",
+            "pre-restore-app-{}.db",
             now.format("%Y%m%d-%H%M%S")
         ));
         fs::copy(&target, &safety)?;
@@ -216,6 +231,7 @@ pub fn restore_db_backup(root: &Path, id: &str, now: DateTime<Local>) -> Result<
 /// The file currently in place is itself backed up first, same as
 /// before any other programmatic rewrite of that file.
 pub fn restore_config_backup(root: &Path, id: &str, keep: u32, now: DateTime<Local>) -> Result<()> {
+    check_backup_id(id)?;
     let dir = vault::work_dir(root).join("backups").join("config");
     let source = dir.join(id);
     if !source.is_file() {
@@ -449,8 +465,15 @@ mod tests {
         assert_eq!(fs::read(&current_path).unwrap(), b"BACKUP-DB-BYTES");
         assert!(!current_path.with_extension("db-wal").exists());
         assert!(!current_path.with_extension("db-shm").exists());
-        let safety = backup_dir.join("app-pre-restore-20260901-090000.db");
+        let safety = backup_dir.join("pre-restore-app-20260901-090000.db");
         assert_eq!(fs::read(&safety).unwrap(), b"CURRENT-DB-BYTES");
+        // the safety copy is listed but never counted by the daily rotation
+        assert!(list_db_backups(&root)
+            .unwrap()
+            .iter()
+            .any(|e| e.id == "pre-restore-app-20260901-090000.db"));
+        rotate(&backup_dir, "app-", 1).unwrap();
+        assert!(safety.exists());
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -121,6 +121,10 @@ pub struct PullReport {
     pub bytes: usize,
     /// Already present at the same revision, so not fetched again.
     pub skipped: usize,
+    /// How many of the fetched files are JSONL state snapshots: when any
+    /// landed, an app.db already sitting in the local vault is stale and
+    /// must not be re-exported over them on the next open.
+    pub state_files: usize,
     /// Files that could not be fetched. A vault is hundreds of files, and
     /// one unreadable file is not a reason to throw away the other four
     /// hundred - the caller is told what is missing instead.
@@ -249,6 +253,9 @@ pub fn pull_vault<P: SyncProvider>(
             Ok((bytes, hash)) => {
                 report.files += 1;
                 report.bytes += bytes;
+                if crate::sync_state::state_file_of(relative).is_some() {
+                    report.state_files += 1;
+                }
                 manifest.insert(
                     remote.to_string(),
                     FileState {
@@ -298,6 +305,11 @@ fn fetch_one<P: SyncProvider>(
         fs::create_dir_all(parent)?;
     }
     fs::write(&target, &bytes)?;
+    // The first sync pass after a pull merges the snapshot three-way; with
+    // no base every row the other device deleted since would come back.
+    if crate::sync_state::state_file_of(relative).is_some() {
+        crate::sync_cycle::write_base(local_root, relative, &bytes)?;
+    }
     Ok((bytes.len(), crate::sync_push::content_hash(&bytes)))
 }
 

@@ -387,7 +387,7 @@ function DayRemindersTab({
           ),
         )}
       </div>
-      {confirmDelete !== null && (
+      {confirmDelete !== null && reminders[confirmDelete] && (
         <ConfirmModal
           title={`Delete "${reminders[confirmDelete].text}"?`}
           onConfirm={() => {
@@ -571,7 +571,7 @@ function ScheduleTab({
           ),
         )}
       </div>
-      {confirmDelete !== null && (
+      {confirmDelete !== null && blocks[confirmDelete] && (
         <ConfirmModal
           title={`Delete "${blocks[confirmDelete].label}"?`}
           onConfirm={() => {

@@ -145,6 +145,16 @@ fn to_jsonl<T: Serialize>(rows: &[T]) -> Result<String> {
     Ok(out)
 }
 
+/// A file the snapshot may lack (older exports) reads as empty; a file
+/// that exists but does not parse is an error like tasks.jsonl - an empty
+/// `rule_runs` would make the engine regenerate every current period.
+fn from_jsonl_optional<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<T>> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    from_jsonl(path)
+}
+
 fn from_jsonl<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<T>> {
     let content = fs::read_to_string(path)?;
     let mut rows = Vec::new();
@@ -288,13 +298,11 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
         return Ok(false);
     }
     let tasks: Vec<TaskRow> = from_jsonl(&tasks_path)?;
-    let lists: Vec<ListRow> = from_jsonl(&state_dir.join("lists.jsonl")).unwrap_or_default();
-    let groups: Vec<GroupRow> =
-        from_jsonl(&state_dir.join("list_groups.jsonl")).unwrap_or_default();
-    let runs: Vec<RuleRunRow> = from_jsonl(&state_dir.join("rule_runs.jsonl")).unwrap_or_default();
-    let seen: Vec<RuleSeenRow> = from_jsonl(&state_dir.join("rule_seen.jsonl")).unwrap_or_default();
-    let focus: Vec<FocusRow> =
-        from_jsonl(&state_dir.join("weekly_focus.jsonl")).unwrap_or_default();
+    let lists: Vec<ListRow> = from_jsonl_optional(&state_dir.join("lists.jsonl"))?;
+    let groups: Vec<GroupRow> = from_jsonl_optional(&state_dir.join("list_groups.jsonl"))?;
+    let runs: Vec<RuleRunRow> = from_jsonl_optional(&state_dir.join("rule_runs.jsonl"))?;
+    let seen: Vec<RuleSeenRow> = from_jsonl_optional(&state_dir.join("rule_seen.jsonl"))?;
+    let focus: Vec<FocusRow> = from_jsonl_optional(&state_dir.join("weekly_focus.jsonl"))?;
 
     let tx = conn.unchecked_transaction()?;
     // groups before lists: lists.group_id is an enforced FK
@@ -342,7 +350,18 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
     // parents before subtasks: the parent_task_id FK is enforced
     let mut ordered: Vec<&TaskRow> = tasks.iter().collect();
     ordered.sort_by_key(|t| (t.parent_task_id.is_some(), t.id));
+    // Same story as group_id above: a merged snapshot can keep a task
+    // whose list or parent the other device hard-deleted. A dangling
+    // list_id becomes "no list"; a subtask without its parent is dropped
+    // (a cascade delete would have taken it anyway).
+    let list_ids: std::collections::HashSet<i64> = lists.iter().map(|l| l.id).collect();
+    let task_ids: std::collections::HashSet<i64> = tasks.iter().map(|t| t.id).collect();
+    let ordered: Vec<&TaskRow> = ordered
+        .into_iter()
+        .filter(|t| t.parent_task_id.is_none_or(|pid| task_ids.contains(&pid)))
+        .collect();
     for t in ordered {
+        let list_id = t.list_id.filter(|lid| list_ids.contains(lid));
         tx.execute(
             "INSERT OR REPLACE INTO tasks
                  (id, title, description_md, list_id, scheduled_date, time, status,
@@ -355,7 +374,7 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
                 t.id,
                 t.title,
                 t.description_md,
-                t.list_id,
+                list_id,
                 t.scheduled_date,
                 t.time,
                 t.status,

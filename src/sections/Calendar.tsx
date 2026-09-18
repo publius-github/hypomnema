@@ -187,9 +187,18 @@ export default function Calendar() {
       setOpenTask(live);
       return;
     }
+    let cancelled = false;
     invoke<Task>("task_get", { id: openTask.id })
-      .then(setOpenTask)
-      .catch(() => setOpenTask(null));
+      .then((t) => {
+        // closed (or switched) while in flight: do not reopen it
+        if (!cancelled) setOpenTask((prev) => (prev?.id === t.id ? t : prev));
+      })
+      .catch(() => {
+        if (!cancelled) setOpenTask(null);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthTasks]);
 

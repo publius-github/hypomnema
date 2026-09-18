@@ -154,6 +154,11 @@ pub struct ExportOptions {
     /// `Some(days)` writes the read-only today.md day sheet covering
     /// that many days.
     pub today_file: Option<u32>,
+    /// Leave a file alone when the disk copy differs from its merge base:
+    /// that is an outside edit the watcher has not imported yet, and an
+    /// app-side rewrite would lose it. The watcher itself turns this off,
+    /// having just imported whatever the disk held.
+    pub preserve_pending: bool,
 }
 
 /// `{X}` title prefix as the category, like the day columns and the
@@ -318,6 +323,38 @@ fn write_if_changed(path: &Path, content: &str) -> Result<()> {
     crate::vault::write_atomic(path, content)
 }
 
+/// Is the disk copy an outside edit not yet imported? Only answerable
+/// when a base exists: a file the app never exported has no pending edit.
+fn has_pending_edit(path: &Path, base_dir: &Path) -> bool {
+    let Some(name) = path.file_name() else {
+        return false;
+    };
+    let Ok(base) = fs::read_to_string(base_dir.join(name)) else {
+        return false;
+    };
+    fs::read_to_string(path).is_ok_and(|disk| disk != base)
+}
+
+/// One managed file's write, shared by every file the export emits.
+fn write_managed(
+    path: PathBuf,
+    content: String,
+    base_dir: &Path,
+    skip: &HashSet<PathBuf>,
+    preserve_pending: bool,
+    written: &mut Vec<(PathBuf, String)>,
+) -> Result<()> {
+    if skip.contains(&path) {
+        return Ok(());
+    }
+    if preserve_pending && has_pending_edit(&path, base_dir) {
+        return Ok(());
+    }
+    write_if_changed(&path, &content)?;
+    written.push((path, content));
+    Ok(())
+}
+
 /// Rewrites the mirror files from the database. Returns every managed
 /// file with its content (changed or not) so the caller can update the
 /// self-write suppression map for the watcher. Paths in `skip` are left
@@ -391,10 +428,14 @@ pub fn export(
         }
         let path = tasks_dir.join(format!("{name}.md"));
         expected.insert(path.clone());
-        if !skip.contains(&path) {
-            write_if_changed(&path, &content)?;
-            written.push((path, content));
-        }
+        write_managed(
+            path,
+            content,
+            base_dir,
+            skip,
+            opts.preserve_pending,
+            &mut written,
+        )?;
     }
 
     // scheduled.md: manual dated tasks from today onward (older done
@@ -423,10 +464,14 @@ pub fn export(
     }
     let path = tasks_dir.join("scheduled.md");
     expected.insert(path.clone());
-    if !skip.contains(&path) {
-        write_if_changed(&path, &content)?;
-        written.push((path, content));
-    }
+    write_managed(
+        path,
+        content,
+        base_dir,
+        skip,
+        opts.preserve_pending,
+        &mut written,
+    )?;
 
     // agenda.md: generated instances from today onward, statuses sync
     // back (see AGENDA_HELP); off = the file is cleaned up below
@@ -455,10 +500,14 @@ pub fn export(
         }
         let path = tasks_dir.join("agenda.md");
         expected.insert(path.clone());
-        if !skip.contains(&path) {
-            write_if_changed(&path, &content)?;
-            written.push((path, content));
-        }
+        write_managed(
+            path,
+            content,
+            base_dir,
+            skip,
+            opts.preserve_pending,
+            &mut written,
+        )?;
     }
 
     // today.md: the read-only day sheet; off = cleaned up below
@@ -466,10 +515,14 @@ pub fn export(
         let content = today_content(conn, config_dir, today, days)?;
         let path = tasks_dir.join("today.md");
         expected.insert(path.clone());
-        if !skip.contains(&path) {
-            write_if_changed(&path, &content)?;
-            written.push((path, content));
-        }
+        write_managed(
+            path,
+            content,
+            base_dir,
+            skip,
+            opts.preserve_pending,
+            &mut written,
+        )?;
     }
 
     // drop managed files whose list is gone (archived, renamed); files
@@ -477,7 +530,13 @@ pub fn export(
     if let Ok(entries) = fs::read_dir(tasks_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("md") || expected.contains(&path) {
+            // a file whose import just failed (a conflicted copy, a
+            // rename that clashed) stays for the user to fix; deleting
+            // it here would throw away the very lines the error is about
+            if path.extension().and_then(|e| e.to_str()) != Some("md")
+                || expected.contains(&path)
+                || skip.contains(&path)
+            {
                 continue;
             }
             let first = fs::read_to_string(&path)
@@ -536,7 +595,7 @@ struct Entry {
     subs: Vec<Line>,
 }
 
-fn parse_task_line(t: &str) -> std::result::Result<Line, String> {
+fn parse_task_line(t: &str, ids: bool) -> std::result::Result<Line, String> {
     let (status, rest) = if let Some(r) = t.strip_prefix("- [ ] ") {
         ("todo", r)
     } else if let Some(r) = t
@@ -574,7 +633,10 @@ fn parse_task_line(t: &str) -> std::result::Result<Line, String> {
 
     let mut rest = rest.trim();
     let mut id = None;
-    if let Some(pos) = rest.rfind(" ^") {
+    if !ids {
+        // with the keys off the files carry none: a title that happens to
+        // end in ` ^12` must not hijack task 12
+    } else if let Some(pos) = rest.rfind(" ^") {
         let cand = &rest[pos + 2..];
         if !cand.is_empty() && cand.bytes().all(|b| b.is_ascii_digit()) {
             id = cand.parse::<i64>().ok();
@@ -615,7 +677,7 @@ fn parse_task_line(t: &str) -> std::result::Result<Line, String> {
 /// Parses a mirror file. Strict on purpose: an unparseable line aborts
 /// the whole import (nothing is applied), because silently skipping a
 /// line would delete the task it referred to.
-fn parse_content(content: &str, scheduled: bool) -> Result<Vec<Entry>> {
+fn parse_content(content: &str, scheduled: bool, ids: bool) -> Result<Vec<Entry>> {
     let mut entries: Vec<Entry> = Vec::new();
     let mut date: Option<String> = None;
     for (i, raw) in content.lines().enumerate() {
@@ -638,7 +700,8 @@ fn parse_content(content: &str, scheduled: bool) -> Result<Vec<Entry>> {
             continue;
         }
         let indent = raw.len() - raw.trim_start().len();
-        let line = parse_task_line(t).map_err(|msg| Error::State(format!("line {n}: {msg}")))?;
+        let line =
+            parse_task_line(t, ids).map_err(|msg| Error::State(format!("line {n}: {msg}")))?;
         if indent > 0 {
             entries
                 .last_mut()
@@ -733,8 +796,11 @@ pub fn import_file(
             .iter()
             .find(|l| l.id == id)
             .ok_or_else(|| Error::State(format!("{stem}.md: unknown list id {id}")))?;
-        // renaming the file renames the list
-        if sanitize_name(&list.name) != stem {
+        // renaming the file renames the list - unless the stem is the
+        // export's own collision form `Name (id)` (a reserved name, two
+        // lists differing only by case), which is not a rename at all
+        let clean = sanitize_name(&list.name);
+        if clean != stem && format!("{clean} ({id})") != stem {
             tasks::list_rename(conn, id, &stem)?;
             changed = true;
         }
@@ -784,9 +850,9 @@ pub fn import_file(
 
     let agenda = matches!(scope, Scope::Agenda);
     let dated = matches!(scope, Scope::Scheduled | Scope::Agenda);
-    let entries = parse_content(content, dated)?;
+    let entries = parse_content(content, dated, ids)?;
     // an unparseable base was never our own export - ignore it
-    let base_entries: Option<Vec<Entry>> = base.and_then(|b| parse_content(b, dated).ok());
+    let base_entries: Option<Vec<Entry>> = base.and_then(|b| parse_content(b, dated, ids).ok());
 
     // NOTE: no outer transaction - task_update opens its own; the parse
     // above already rejected every malformed line, so a mid-apply error
@@ -1178,6 +1244,7 @@ mod tests {
             ids,
             agenda,
             today_file: None,
+            preserve_pending: false,
         }
     }
 
@@ -1726,6 +1793,107 @@ mod tests {
     }
 
     #[test]
+    fn export_sweep_keeps_a_file_whose_import_failed() {
+        let (conn, dir) = setup("sweep-skip");
+        let content = format!("{SCHEDULED_MARKER}\n\n## 2026-09-01\n\n- [ ] duplicated\n");
+        let copy = dir.join("scheduled (conflicted copy).md");
+        fs::write(&copy, &content).unwrap();
+        assert!(import_file(&conn, &copy, &content, TODAY, true, None).is_err());
+        let failed: HashSet<PathBuf> = [copy.clone()].into_iter().collect();
+        export(
+            &conn,
+            &dir,
+            &dir.join("base"),
+            &dir.join("config"),
+            TODAY,
+            &failed,
+            &opts(true, false),
+        )
+        .unwrap();
+        // the lines only present in the copy would be gone with it
+        assert!(copy.exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn export_leaves_an_unimported_outside_edit_alone() {
+        let (conn, dir) = setup("pending-edit");
+        let list = list_create(&conn, "Inbox", None, false).unwrap();
+        let preserve = ExportOptions {
+            preserve_pending: true,
+            ..opts(true, false)
+        };
+        let run_export = |skip: &HashSet<PathBuf>, o: &ExportOptions| {
+            export(
+                &conn,
+                &dir,
+                &dir.join("base"),
+                &dir.join("config"),
+                TODAY,
+                skip,
+                o,
+            )
+            .unwrap()
+        };
+        run_export(&HashSet::new(), &preserve);
+        let file = dir.join("Inbox.md");
+        let edited = format!(
+            "{}- [ ] typed outside\n",
+            fs::read_to_string(&file).unwrap()
+        );
+        fs::write(&file, &edited).unwrap();
+        // an app-side change exports again: the outside line must survive
+        tasks::task_create(
+            &conn,
+            &tasks::NewTask {
+                title: "from the app".into(),
+                list_id: Some(list.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        run_export(&HashSet::new(), &preserve);
+        assert_eq!(fs::read_to_string(&file).unwrap(), edited);
+        // the watcher path (having imported the disk) does rewrite it
+        run_export(&HashSet::new(), &opts(true, false));
+        assert!(fs::read_to_string(&file).unwrap().contains("from the app"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn ids_off_a_trailing_caret_number_is_title_text() {
+        let (conn, dir) = setup("ids-off-caret");
+        let list = list_create(&conn, "Inbox", None, false).unwrap();
+        let victim = tasks::task_create(
+            &conn,
+            &tasks::NewTask {
+                title: "untouched".into(),
+                list_id: Some(list.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let path = dir.join("Inbox.md");
+        let content = format!(
+            "{}\n\n- [ ] review PR ^{}\n- [ ] untouched\n",
+            list_marker(list.id),
+            victim.id
+        );
+        assert!(import_file(&conn, &path, &content, TODAY, false, None).unwrap());
+        let mut titles: Vec<String> = tasks::manual_parent_tasks(&conn)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.title)
+            .collect();
+        titles.sort();
+        assert_eq!(
+            titles,
+            vec![format!("review PR ^{}", victim.id), "untouched".to_string()]
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn export_removes_files_of_archived_lists_and_keeps_foreign_md() {
         let (conn, dir) = setup("stale");
         let list = list_create(&conn, "Temp", None, false).unwrap();
@@ -1793,6 +1961,7 @@ mod tests {
                 ids: true,
                 agenda: false,
                 today_file: Some(2),
+                preserve_pending: false,
             },
         )
         .unwrap();

@@ -199,6 +199,7 @@ fn export_options(config: &AppConfig) -> tasks_mirror::ExportOptions {
         today_file: config
             .tasks_mirror_today
             .then_some(config.tasks_mirror_today_days),
+        preserve_pending: true,
     }
 }
 
@@ -364,6 +365,7 @@ fn mirror_export(state: &State<'_, AppState>) {
 fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
     let _ = std::fs::create_dir_all(tasks_dir);
     let (tx, rx) = mpsc::channel::<()>();
+    let kick = tx.clone();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if let Ok(event) = event {
             if watch_event_is_relevant(&event) {
@@ -377,6 +379,10 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
         .map_err(|e| Error::State(format!("cannot watch tasks dir: {e}")))?;
     let state = app.state::<AppState>();
     *state.tasks_watcher.lock().unwrap() = Some(watcher);
+    // one pass right away: a file edited while the app was closed differs
+    // from its merge base, the export leaves it alone (`preserve_pending`)
+    // and nothing else would ever import it
+    let _ = kick.send(());
 
     std::thread::spawn(move || {
         while rx.recv().is_ok() {
@@ -473,7 +479,10 @@ fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()> {
                     &vault::config_dir(&root),
                     &today,
                     &failed,
-                    &export_options(&config),
+                    &tasks_mirror::ExportOptions {
+                        preserve_pending: false,
+                        ..export_options(&config)
+                    },
                 ) {
                     *written.lock().unwrap() = files.into_iter().collect();
                 }
@@ -1032,8 +1041,12 @@ async fn backup_restore_db(
     };
     // drop the connection before touching the file on disk
     *state.vault.lock().unwrap() = None;
-    backup::restore_db_backup(&root, &id, chrono::Local::now())?;
-    open_vault(&app, &state, &root)
+    let restored = backup::restore_db_backup(&root, &id, chrono::Local::now());
+    // whatever happened to the file, the app must not be left without a
+    // vault: every command would answer "no vault selected" until the
+    // user picked the folder again
+    let reopened = open_vault(&app, &state, &root);
+    restored.and(reopened)
 }
 
 /// Restores one config or settings file from its backup in place; the
@@ -1878,6 +1891,22 @@ async fn dropbox_pull_vault(
         let _ = app.emit("dropbox-pull-progress", (done, total));
     })?;
     dropbox_link::save_vault_root(&dir, &report.vault_root)?;
+    // A repeated pull onto a device that already built app.db from an
+    // older snapshot: opening would skip the restore and re-export the
+    // stale database over the files just pulled, then push them as
+    // "changed here". Drop the cache so the open rebuilds from the pull.
+    if report.state_files > 0 && vault::db_path(&local_root).exists() {
+        let is_open_here = state
+            .vault
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|v| v.root == local_root);
+        if is_open_here {
+            *state.vault.lock().unwrap() = None;
+        }
+        remove_db_files(&local_root);
+    }
     // The pulled copy is a vault like any other: opening it runs the
     // migrations and rebuilds app.db from the JSONL snapshot through the
     // same disposable-cache path the desktop uses, then the engine and
@@ -2027,6 +2056,28 @@ async fn dropbox_sync(
 fn rebuild_cache(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> Result<()> {
     *state.vault.lock().unwrap() = None;
     let db = vault::db_path(root);
+    // Keep the old cache aside: a merged snapshot the restore rejects
+    // must not leave the device with no database and an unopenable vault.
+    let aside = db.with_extension("db.rebuild-bak");
+    let had_db = db.exists() && std::fs::copy(&db, &aside).is_ok();
+    remove_db_files(root);
+    match open_vault(app, state, root) {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&aside);
+            Ok(())
+        }
+        Err(e) => {
+            if had_db {
+                let _ = std::fs::rename(&aside, &db);
+                let _ = open_vault(app, state, root);
+            }
+            Err(e)
+        }
+    }
+}
+
+fn remove_db_files(root: &Path) {
+    let db = vault::db_path(root);
     for path in [
         db.clone(),
         db.with_extension("db-wal"),
@@ -2034,8 +2085,6 @@ fn rebuild_cache(app: &AppHandle, state: &State<'_, AppState>, root: &Path) -> R
     ] {
         let _ = std::fs::remove_file(path);
     }
-    open_vault(app, state, root)?;
-    Ok(())
 }
 
 /// Is a passphrase set on this device, and are its secrets readable?

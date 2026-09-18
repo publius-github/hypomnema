@@ -339,11 +339,26 @@ fn ascii_header_json(value: &Value) -> String {
 /// body, not a `ureq::Response`) so it's unit-testable without a real HTTP
 /// round trip - see the tests below.
 fn map_error_response(status: u16, body: String, conflict_path: Option<&str>) -> Error {
+    // Dropbox answers 409 for every endpoint-specific error - a stale rev
+    // (`path/conflict`) but also `insufficient_space`, `disallowed_name`,
+    // `too_many_write_operations`. Only the first is "the other device
+    // edited this"; the rest must surface as failures, or a full quota
+    // reads forever as a conflict that the next pass will settle.
     if status == 409 {
         if let Some(path) = conflict_path {
-            return Error::SyncConflict {
-                path: path.to_string(),
-            };
+            let summary = serde_json::from_str::<Value>(&body)
+                .ok()
+                .and_then(|v| {
+                    v.get("error_summary")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .unwrap_or_default();
+            if summary.is_empty() || summary.contains("conflict") {
+                return Error::SyncConflict {
+                    path: path.to_string(),
+                };
+            }
         }
     }
     Error::State(format!("Dropbox API error ({status}): {body}"))

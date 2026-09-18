@@ -60,8 +60,11 @@ export default function MobileUpcoming() {
     }
   };
 
-  const errors =
-    scheduled?.errors ?? birthdays?.errors ?? recurring?.errors ?? [];
+  const errors = [
+    ...(scheduled?.errors ?? []),
+    ...(birthdays?.errors ?? []),
+    ...(recurring?.errors ?? []),
+  ];
 
   return (
     <div className="flex h-full flex-col">

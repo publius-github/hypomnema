@@ -129,10 +129,15 @@ export default function KnowledgeBase() {
     return () => void flushPending();
   }, [flushPending]);
 
+  // two quick clicks race their reads: only the latest open may land
+  const openSeq = useRef(0);
+
   const openFile = async (path: string) => {
+    const seq = ++openSeq.current;
     await flushPending();
     try {
       const content = await invoke<string>("kb_read", { path });
+      if (seq !== openSeq.current) return;
       setCurrent({ kind: "note", path, content });
       useAppStore.getState().setKbCurrent({ kind: "note", path });
       setConfigErrors([]);
@@ -143,9 +148,11 @@ export default function KnowledgeBase() {
   };
 
   const openConfig = async (file: string) => {
+    const seq = ++openSeq.current;
     await flushPending();
     try {
       const content = await invoke<string>("config_file_get", { file });
+      if (seq !== openSeq.current) return;
       setCurrent({ kind: "config", path: file, content });
       useAppStore.getState().setKbCurrent({ kind: "config", path: file });
       setConfigErrors([]);
@@ -513,12 +520,20 @@ export default function KnowledgeBase() {
       setContentHits([]);
       return;
     }
+    let stale = false;
     const timer = setTimeout(() => {
       invoke<KbSearchHit[]>("kb_search", { query })
-        .then(setContentHits)
-        .catch(() => setContentHits([]));
+        .then((hits) => {
+          if (!stale) setContentHits(hits);
+        })
+        .catch(() => {
+          if (!stale) setContentHits([]);
+        });
     }, 250);
-    return () => clearTimeout(timer);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
   }, [query, kbPath]);
 
   const nameMatchPaths = new Set((searchResults ?? []).map((f) => f.path));

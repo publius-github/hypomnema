@@ -130,14 +130,17 @@ pub fn disable(config_dir: &Path, candidate: &str, secrets: &[&str]) -> Result<(
             plaintexts.push((*name, bytes));
         }
     }
+    // plaintexts first, lock file last: the reverse order would leave an
+    // AES envelope with no lock file behind a crash in between, and the
+    // token would then be read as garbage
+    for (name, bytes) in plaintexts {
+        fs::write(secret_path(config_dir, name), bytes)?;
+    }
     let path = lock_path(config_dir);
     if path.is_file() {
         fs::remove_file(path)?;
     }
     *UNLOCKED.lock().unwrap() = None;
-    for (name, bytes) in plaintexts {
-        fs::write(secret_path(config_dir, name), bytes)?;
-    }
     Ok(())
 }
 

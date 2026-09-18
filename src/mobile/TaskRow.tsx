@@ -6,8 +6,10 @@ import {
   cadenceColor,
   cadenceKeyOf,
   categoryChipColor,
+  daysBetweenISO,
   isListExact,
   nextWeekTarget,
+  priorityPatch,
   splitCategory,
   tintStyle,
   weekdayShort,
@@ -221,6 +223,18 @@ export default function TaskRow({
             label="Edit"
             onClick={() => {
               setOpen(false);
+              // Calendar and Review rows can sit outside the store's day
+              // window, and the editor resolves its task from the store:
+              // move the window there first, like a search hit does
+              const store = useAppStore.getState();
+              if (
+                task.scheduled_date &&
+                !store.tasks.some((t) => t.id === task.id)
+              ) {
+                store.setGridOffset(
+                  daysBetweenISO(store.today, task.scheduled_date),
+                );
+              }
               setEditing(task.id);
             }}
           />
@@ -248,14 +262,16 @@ export default function TaskRow({
           )}
           <Action
             label="Tomorrow"
-            onClick={() =>
-              act({
-                scheduled_date: addDaysISO(
-                  task.scheduled_date ?? useAppStore.getState().today,
-                  1,
-                ),
-              })
-            }
+            onClick={() => {
+              // a past-dated leftover goes to the real tomorrow, not to
+              // the day after its old date
+              const today = useAppStore.getState().today;
+              const from =
+                task.scheduled_date && task.scheduled_date > today
+                  ? task.scheduled_date
+                  : today;
+              act({ scheduled_date: addDaysISO(from, 1) });
+            }}
           />
           {/* Review leftovers get the desktop Review's own two ways out;
               generated tasks keep their rule's date and list by design */}
@@ -306,7 +322,15 @@ export default function TaskRow({
           )}
           <Action
             label={task.priority ? "Unstar" : "Star"}
-            onClick={() => act({ priority: !task.priority })}
+            onClick={() =>
+              act(
+                priorityPatch(
+                  task,
+                  !task.priority,
+                  useAppStore.getState().today,
+                ),
+              )
+            }
           />
           <Action
             label="Delete"
