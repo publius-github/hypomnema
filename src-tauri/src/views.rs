@@ -866,4 +866,127 @@ mod tests {
             .any(|e| e.kind == "birthday" && e.date == "2026-10-05"));
         let _ = fs::remove_dir_all(&dir);
     }
+
+    #[test]
+    fn upcoming_lists_pending_and_open_events_plus_dated_list_tasks() {
+        let dir = std::env::temp_dir().join("app-pkb-views-upcoming");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("scheduled.yml"),
+            "events:\n  - date: 2026-9-8\n    title: \"unpadded\"\n  - date: 2026-09-10\n    title: \"done already\"\n  - date: 2026-09-12\n    title: \"still open\"\n    time: \"14:00\"\n",
+        )
+        .unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::migrate(&conn).unwrap();
+        let key = |date: &str, title: &str| {
+            scheduled_rule_key(&crate::config_files::ScheduledEvent {
+                date: date.into(),
+                title: title.into(),
+                time: None,
+            })
+        };
+        let materialize = |date: &str, title: &str, status: &str| {
+            let rule = key(date, title);
+            conn.execute(
+                "INSERT INTO rule_runs (rule_key, period_key, generated_at) VALUES (?1, ?2, 'x')",
+                (&rule, date),
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO tasks (title, created_at, origin, rule_key, period_key,
+                                    scheduled_date, status)
+                 VALUES (?1, 'x', 'scheduled', ?2, ?3, ?3, ?4)",
+                (title, &rule, date, status),
+            )
+            .unwrap();
+        };
+        materialize("2026-09-10", "done already", "done");
+        materialize("2026-09-12", "still open", "todo");
+        // dated manual list tasks show too, unless the date is a priority pin
+        let list = crate::tasks::list_create(&conn, "Errands", None, false).unwrap();
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, list_id, scheduled_date, status, priority)
+             VALUES ('post office', 'x', 'manual', ?1, '2026-09-09', 'todo', 0),
+                    ('starred', 'x', 'manual', ?1, '2026-09-08', 'todo', 1),
+                    ('yesterday', 'x', 'manual', ?1, '2026-09-07', 'todo', 0)",
+            [list.id],
+        )
+        .unwrap();
+
+        let today = NaiveDate::from_ymd_opt(2026, 9, 8).unwrap();
+        let (events, errors) = upcoming_events(&conn, &dir, today).unwrap();
+        assert!(errors.is_empty());
+        let shown: Vec<(&str, &str)> = events
+            .iter()
+            .map(|e| (e.date.as_str(), e.title.as_str()))
+            .collect();
+        assert_eq!(
+            shown,
+            vec![
+                ("2026-09-08", "unpadded"),
+                ("2026-09-09", "post office"),
+                ("2026-09-12", "still open"),
+            ]
+        );
+        assert_eq!(events[1].source, "list \"Errands\"");
+        assert_eq!(events[2].time.as_deref(), Some("14:00"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn birthdays_roll_to_next_year_and_report_bad_dates() {
+        let dir = std::env::temp_dir().join("app-pkb-views-birthdays");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("birthdays.yml"),
+            "birthdays:\n  - name: \"Past\"\n    date: \"01-15\"\n    year: 1990\n  - name: \"Today\"\n    date: \"09-08\"\n  - name: \"Leap\"\n    date: \"02-29\"\n  - name: \"Broken\"\n    date: \"13-40\"\n",
+        )
+        .unwrap();
+        let today = NaiveDate::from_ymd_opt(2026, 9, 8).unwrap();
+        let result = birthdays_list(&dir, today);
+        let by_name = |name: &str| result.birthdays.iter().find(|b| b.name == name).unwrap();
+        // a date already passed this year is next year's occurrence
+        assert_eq!(by_name("Past").next_occurrence, "2027-01-15");
+        assert_eq!(by_name("Past").turns, Some(37));
+        // today counts as upcoming, with zero days to go
+        assert_eq!(by_name("Today").next_occurrence, "2026-09-08");
+        assert_eq!(by_name("Today").days_until, 0);
+        assert_eq!(by_name("Today").turns, None);
+        // 02-29 falls back to 02-28 in a non-leap year
+        assert_eq!(by_name("Leap").next_occurrence, "2027-02-28");
+        // sorted by next occurrence
+        let order: Vec<&str> = result.birthdays.iter().map(|b| b.name.as_str()).collect();
+        assert_eq!(order, vec!["Today", "Past", "Leap"]);
+        assert_eq!(result.errors.len(), 1);
+        assert!(result.errors[0].message.contains("Broken"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn recurring_list_keeps_broken_rules_and_names_their_error() {
+        let dir = std::env::temp_dir().join("app-pkb-views-recurring-list");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("recurring.yml"),
+            "tasks:\n  - schedule: \"0 9 * * 1\"\n    description: \"weekly\"\n    items: [\"review\"]\n  - schedule: \"not cron\"\n    description: \"broken\"\n    items: [\"x\"]\n",
+        )
+        .unwrap();
+        fs::create_dir_all(dir.join("packs")).unwrap();
+        fs::write(
+            dir.join("packs/home.yml"),
+            "tasks:\n  - schedule: \"0 8 * * *\"\n    items: [\"{Home} water\"]\n",
+        )
+        .unwrap();
+        let result = recurring_list(&dir);
+        assert_eq!(result.rules.len(), 3);
+        assert_eq!(result.rules[1].description, "broken");
+        assert_eq!(result.rules[2].source, "packs/home.yml");
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0].file, "recurring.yml");
+        assert!(result.errors[0].message.contains("rule 2 ('broken')"));
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

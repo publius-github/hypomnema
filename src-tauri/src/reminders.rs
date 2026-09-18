@@ -356,4 +356,77 @@ mod tests {
         assert_eq!(view.blocks[0].from, "09:00");
         let _ = fs::remove_dir_all(&dir);
     }
+
+    #[test]
+    fn overview_reports_today_and_keeps_going_past_a_broken_file() {
+        let (conn, dir) = setup("overview");
+        fs::write(
+            dir.join("weekly-focus.yml"),
+            "rotation: cycle\nphrases:\n  - \"Focus A\"\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("day-reminders.yml"),
+            "reminders:\n  - day_type: fri\n    text: \"Weekly review\"\n  - day_type: weekend\n    text: \"Rest\"\n",
+        )
+        .unwrap();
+        // a broken schedule file is an error entry, not a failed overview
+        fs::write(dir.join("day-schedule.yml"), "blocks: [\n").unwrap();
+
+        let friday = NaiveDate::from_ymd_opt(2026, 8, 28).unwrap();
+        let view = overview(&conn, &dir, friday).unwrap();
+        assert_eq!(view.focus.as_deref(), Some("Focus A"));
+        assert_eq!(view.rotation, "cycle");
+        assert_eq!(view.today, "2026-08-28");
+        assert_eq!(view.today_reminders, vec!["Weekly review"]);
+        assert_eq!(view.reminders.len(), 2);
+        assert!(view.blocks.is_empty());
+        assert_eq!(view.errors.len(), 1);
+        assert_eq!(view.errors[0].file, "day-schedule.yml");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn dashboard_context_flags_unknown_rotation_and_skips_bad_dates() {
+        let (conn, dir) = setup("rotation");
+        fs::write(
+            dir.join("weekly-focus.yml"),
+            "rotation: random\nphrases:\n  - \"A\"\n",
+        )
+        .unwrap();
+        let ctx = dashboard_context(
+            &conn,
+            &dir,
+            &["not-a-date".to_string(), "2026-08-24".to_string()],
+        )
+        .unwrap();
+        // the unparseable date is dropped, the rest of the window stands
+        assert_eq!(ctx.days.len(), 1);
+        assert_eq!(ctx.days[0].date, "2026-08-24");
+        assert!(ctx
+            .errors
+            .iter()
+            .any(|e| e.message.contains("unsupported rotation 'random'")));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_shrunk_phrase_list_still_resolves_a_pinned_week() {
+        let (conn, dir) = setup("shrunk");
+        fs::write(
+            dir.join("weekly-focus.yml"),
+            "phrases:\n  - \"A\"\n  - \"B\"\n  - \"C\"\n",
+        )
+        .unwrap();
+        // pin two weeks: A, then B
+        dashboard_context(&conn, &dir, &["2026-08-24".to_string()]).unwrap();
+        let ctx = dashboard_context(&conn, &dir, &["2026-08-31".to_string()]).unwrap();
+        assert_eq!(ctx.focus.as_deref(), Some("B"));
+        // the list loses its second entry: the pinned index wraps instead
+        // of indexing past the end
+        fs::write(dir.join("weekly-focus.yml"), "phrases:\n  - \"A\"\n").unwrap();
+        let ctx = dashboard_context(&conn, &dir, &["2026-08-31".to_string()]).unwrap();
+        assert_eq!(ctx.focus.as_deref(), Some("A"));
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
