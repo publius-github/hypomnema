@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { errorMessage, invoke } from "../lib/ipc";
+import { useEffect, useRef } from "react";
+import { useSearch } from "../hooks/useSearch";
 import { useAppStore } from "../store";
 import {
   daysBetweenISO,
@@ -8,7 +8,7 @@ import {
 import { useEditTask } from "./editing";
 import { useMobileNav } from "./nav";
 import { useBackStep } from "./back";
-import type { JournalSearchHit, KbSearchHit, Task } from "../types";
+import type { Task } from "../types";
 
 const STATUS_GLYPH: Record<string, string> = {
   todo: "○",
@@ -30,11 +30,7 @@ const STATUS_GLYPH: Record<string, string> = {
  * palette uses.
  */
 export default function MobileSearch({ onClose }: { onClose: () => void }) {
-  const [query, setQuery] = useState("");
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [notes, setNotes] = useState<KbSearchHit[]>([]);
-  const [journal, setJournal] = useState<JournalSearchHit[]>([]);
-  const [searched, setSearched] = useState(false);
+  const { query, setQuery, tasks, notes, journal, searched } = useSearch();
   const inputRef = useRef<HTMLInputElement>(null);
   const lists = useAppStore((s) => s.lists);
   const { setEditing } = useEditTask();
@@ -46,43 +42,6 @@ export default function MobileSearch({ onClose }: { onClose: () => void }) {
   // the hardware back button closes the overlay, same as the ‹ button
   useBackStep(true, onClose);
 
-  // responses can interleave even with the debounce: only the newest
-  // request may set the result lists
-  const searchSeq = useRef(0);
-  const runSearch = useCallback(async (q: string) => {
-    const seq = ++searchSeq.current;
-    if (!q) {
-      setTasks([]);
-      setNotes([]);
-      setJournal([]);
-      setSearched(false);
-      return;
-    }
-    // tasks failing is an error worth surfacing; notes and journal
-    // quietly return nothing when unavailable (KB not configured yet)
-    const [taskHits, noteHits, journalHits] = await Promise.all([
-      invoke("tasks_search", { query: q }).catch((e) => {
-        useAppStore.getState().setError(errorMessage(e));
-        return [] as Task[];
-      }),
-      invoke("kb_search", { query: q }).catch(
-        () => [] as KbSearchHit[],
-      ),
-      invoke("journal_search", { query: q }).catch(
-        () => [] as JournalSearchHit[],
-      ),
-    ]);
-    if (seq !== searchSeq.current) return;
-    setTasks(taskHits);
-    setNotes(noteHits);
-    setJournal(journalHits);
-    setSearched(true);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => void runSearch(query.trim()), 200);
-    return () => clearTimeout(timer);
-  }, [query, runSearch]);
 
   const listName = (id: number | null) =>
     id === null ? null : (lists.find((l) => l.id === id)?.name ?? null);

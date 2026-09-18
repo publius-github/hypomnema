@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
+import {
+  useNextByDay,
+  useReviewData,
+  useReviewStats,
+} from "../hooks/useReviewData";
 import {
   addDaysISO,
   mondayOf,
@@ -12,7 +17,7 @@ import {
   STATUS_GLYPH,
   STATUS_GLYPH_CLASS,
 } from "../lib/tasks";
-import type { OutlookEvent, Task } from "../types";
+import type { Task } from "../types";
 import TaskModal from "../components/TaskModal";
 
 const ORIGIN_LABELS: Record<string, string> = {
@@ -40,89 +45,25 @@ function StatTile({ value, label }: { value: string; label: string }) {
  */
 export default function Review() {
   const lists = useAppStore((s) => s.lists);
-  const storeTasks = useAppStore((s) => s.tasks);
   const openJournalDate = useAppStore((s) => s.openJournalDate);
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
   const today = todayISO();
   // 0 = the week containing today; negative = past weeks
   const [weekOffset, setWeekOffset] = useState(0);
-  const [weekTasks, setWeekTasks] = useState<Task[]>([]);
-  const [weekFocus, setWeekFocus] = useState<string | null>(null);
-  const [nextTasks, setNextTasks] = useState<Task[]>([]);
-  const [nextOutlook, setNextOutlook] = useState<OutlookEvent[]>([]);
-  const [nextFocus, setNextFocus] = useState<string | null>(null);
   const [openTask, setOpenTask] = useState<Task | null>(null);
 
   const weekStart = addDaysISO(mondayOf(today), weekOffset * 7);
-  const weekEnd = addDaysISO(weekStart, 6);
-  const nextStart = addDaysISO(weekStart, 7);
-  const nextEnd = addDaysISO(nextStart, 6);
-
-  useEffect(() => {
-    let cancelled = false;
-    const inRange = (t: Task, from: string, until: string) =>
-      t.parent_task_id === null &&
-      t.scheduled_date !== null &&
-      t.scheduled_date >= from &&
-      t.scheduled_date <= until;
-    void invoke("tasks_snapshot", {
-      startDate: weekStart,
-      endDate: addDaysISO(weekEnd, 1),
-    })
-      .then((tasks) => {
-        if (!cancelled)
-          setWeekTasks(tasks.filter((t) => inRange(t, weekStart, weekEnd)));
-      })
-      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
-    void invoke("tasks_snapshot", {
-      startDate: nextStart,
-      endDate: addDaysISO(nextEnd, 1),
-    })
-      .then((tasks) => {
-        if (!cancelled)
-          setNextTasks(tasks.filter((t) => inRange(t, nextStart, nextEnd)));
-      })
-      .catch((e) => {
-        useAppStore.getState().setError(errorMessage(e));
-        setNextTasks([]);
-      });
-    // `to` is inclusive here, unlike tasks_snapshot's exclusive endDate:
-    // one day further would hang the Monday after next week off the
-    // Next week panel as an eighth day
-    void invoke("calendar_outlook", {
-      from: nextStart,
-      to: nextEnd,
-    })
-      .then((events) => {
-        if (!cancelled) setNextOutlook(events);
-      })
-      .catch((e) => {
-        useAppStore.getState().setError(errorMessage(e));
-        setNextOutlook([]);
-      });
-    // the focus phrase is pinned per ISO week; asking for a week pins it,
-    // which is fine - the rotation is a deterministic cycle anyway
-    void invoke("dashboard_context", { dates: [weekStart] })
-      .then((ctx) => {
-        if (!cancelled) setWeekFocus(ctx.focus);
-      })
-      .catch((e) => {
-        useAppStore.getState().setError(errorMessage(e));
-        setWeekFocus(null);
-      });
-    void invoke("dashboard_context", { dates: [nextStart] })
-      .then((ctx) => {
-        if (!cancelled) setNextFocus(ctx.focus);
-      })
-      .catch((e) => {
-        useAppStore.getState().setError(errorMessage(e));
-        setNextFocus(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [weekStart, weekEnd, nextStart, nextEnd, storeTasks]);
+  const {
+    weekEnd,
+    nextStart,
+    nextEnd,
+    weekTasks,
+    weekFocus,
+    nextTasks,
+    nextOutlook,
+    nextFocus,
+  } = useReviewData(weekStart);
 
   // keep the opened task fresh after edits made in the dialog
   useEffect(() => {
@@ -135,52 +76,9 @@ export default function Review() {
   const listName = (id: number | null) =>
     id === null ? null : (lists.find((l) => l.id === id)?.name ?? null);
 
-  // completion rate counts only days that already happened: planned
-  // tasks later this week are not "missed" yet
-  const past = useMemo(
-    () => weekTasks.filter((t) => (t.scheduled_date as string) <= today),
-    [weekTasks, today],
-  );
-  const done = useMemo(() => past.filter((t) => t.status === "done"), [past]);
-  const rate =
-    past.length > 0 ? Math.round((done.length / past.length) * 100) : null;
-  // dropped is neither: not done, but off the plan on purpose
-  const dropped = useMemo(
-    () => past.filter((t) => t.status === "dropped"),
-    [past],
-  );
-  const stillOpen = useMemo(
-    () => past.filter((t) => !isClosed(t.status)),
-    [past],
-  );
-  const byOrigin = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const t of done) map.set(t.origin, (map.get(t.origin) ?? 0) + 1);
-    return map;
-  }, [done]);
-
-  const doneByDay = useMemo(() => {
-    const map = new Map<string, Task[]>();
-    for (const t of done) {
-      const date = t.scheduled_date as string;
-      map.set(date, [...(map.get(date) ?? []), t]);
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [done]);
-
-  const nextByDay = useMemo(() => {
-    const map = new Map<string, { tasks: Task[]; projected: OutlookEvent[] }>();
-    const entry = (date: string) => {
-      const existing = map.get(date);
-      if (existing) return existing;
-      const fresh = { tasks: [] as Task[], projected: [] as OutlookEvent[] };
-      map.set(date, fresh);
-      return fresh;
-    };
-    for (const t of nextTasks) entry(t.scheduled_date as string).tasks.push(t);
-    for (const e of nextOutlook) entry(e.date).projected.push(e);
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [nextTasks, nextOutlook]);
+  const { past, done, dropped, stillOpen, rate, byOrigin, doneByDay } =
+    useReviewStats(weekTasks, today);
+  const nextByDay = useNextByDay(nextTasks, nextOutlook);
 
   // clearing an open leftover is the review's job: push it a week out,
   // drop it back to its list's backlog, or close it right here (done,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "../store";
+import { useTaskTextDraft } from "../hooks/useTaskTextDraft";
 import { GrowingTextarea } from "./form";
 import {
   priorityPatch,
@@ -50,8 +51,16 @@ export default function TaskModal({
   const checklist =
     task.list_id !== null &&
     lists.find((l) => l.id === task.list_id)?.kind === "checklist";
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description_md);
+  const {
+    title,
+    setTitle,
+    description,
+    setDescription,
+    commitTitle,
+    commitDescription,
+    commit,
+    discard,
+  } = useTaskTextDraft(task, updateTask);
   const [preview, setPreview] = useState(
     generated || task.description_md.length > 0,
   );
@@ -86,29 +95,11 @@ export default function TaskModal({
     subtasksDoneLast,
   );
 
-  const commitTitle = () => {
-    if (generated) return;
-    const trimmed = title.trim();
-    if (trimmed && trimmed !== task.title) {
-      void updateTask(task.id, { title: trimmed });
-    }
-  };
-
-  const commitDescription = () => {
-    if (generated) return;
-    if (description !== task.description_md) {
-      void updateTask(task.id, { description_md: description });
-    }
-  };
-
   // Backdrop and Escape both close through here: the backdrop mousedown
   // fires before the input's blur handler, so closing without an
   // explicit commit would drop an edited title or description.
-  const closedRef = useRef(false);
   const commitAndClose = () => {
-    closedRef.current = true;
-    commitTitle();
-    commitDescription();
+    commit();
     onClose();
   };
 
@@ -122,39 +113,6 @@ export default function TaskModal({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, description]);
-
-  // The modal can also unmount without any close action - e.g. the task
-  // moves outside the snapshot window, or the parent tree goes away.
-  // Commit whatever is pending so typed text is never silently lost.
-  const pendingRef = useRef({
-    id: task.id,
-    title,
-    baseTitle: task.title,
-    description,
-    baseDescription: task.description_md,
-  });
-  pendingRef.current = {
-    id: task.id,
-    title,
-    baseTitle: task.title,
-    description,
-    baseDescription: task.description_md,
-  };
-  useEffect(() => {
-    if (generated) return;
-    return () => {
-      if (closedRef.current) return;
-      const p = pendingRef.current;
-      const trimmed = p.title.trim();
-      if (trimmed && trimmed !== p.baseTitle) {
-        void updateTask(p.id, { title: trimmed });
-      }
-      if (p.description !== p.baseDescription) {
-        void updateTask(p.id, { description_md: p.description });
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div
@@ -203,7 +161,7 @@ export default function TaskModal({
             <button
               className="font-medium underline"
               onClick={() => {
-                closedRef.current = true;
+                discard();
                 onClose();
                 useAppStore
                   .getState()
@@ -485,7 +443,7 @@ export default function TaskModal({
           <button
             className="text-sm text-danger hover:underline"
             onClick={() => {
-              closedRef.current = true;
+              discard();
               void deleteTask(task.id);
               onClose();
             }}

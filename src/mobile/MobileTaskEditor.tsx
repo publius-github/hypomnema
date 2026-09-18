@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "../store";
+import { useTaskTextDraft } from "../hooks/useTaskTextDraft";
 import { priorityPatch, sortSubtasks } from "../lib/tasks";
 import { useBackStep } from "./back";
 import { Toggle } from "./controls";
@@ -22,10 +23,10 @@ const STATUSES: { id: TaskStatus; label: string }[] = [
  * 6-inch display is a screen with a border drawn around it, and the
  * border costs the room the keyboard is about to take.
  *
- * Text commits on blur and on close rather than per keystroke - the
- * desktop learned that the hard way (a half-typed date committing as
- * null wiped the field mid-typing), and a phone keyboard makes the
- * problem worse, not better.
+ * Text commits on blur and on close rather than per keystroke
+ * (`useTaskTextDraft`, shared with the desktop dialog): a half-typed
+ * value committing as it goes wiped the field mid-typing there, and a
+ * phone keyboard makes the problem worse, not better.
  */
 export default function MobileTaskEditor({
   task,
@@ -48,8 +49,8 @@ export default function MobileTaskEditor({
   // editable here - same rule as the desktop's task dialog.
   const generated = task.origin !== "manual";
 
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description_md);
+  const { title, setTitle, description, setDescription, commit, discard } =
+    useTaskTextDraft(task, updateTask);
   const [date, setDate] = useState(task.scheduled_date ?? "");
   const [time, setTime] = useState(task.time ?? "");
   // Priority and Unstar change the date behind these fields
@@ -65,25 +66,6 @@ export default function MobileTaskEditor({
     tasks.filter((t) => t.parent_task_id === task.id),
     config?.subtasks_done_last ?? true,
   );
-
-  // Backgrounding the app is the normal way to leave a screen here, and
-  // it unmounts without any close action - so the last edit commits from
-  // the unmount path too, not only from the Back button.
-  const pending = useRef({ title, description });
-  pending.current = { title, description };
-  const commit = () => {
-    if (generated) return;
-    const trimmed = pending.current.title.trim();
-    if (trimmed && trimmed !== task.title) {
-      void updateTask(task.id, { title: trimmed });
-    }
-    if (pending.current.description !== task.description_md) {
-      void updateTask(task.id, { description_md: pending.current.description });
-    }
-  };
-  const commitRef = useRef(commit);
-  commitRef.current = commit;
-  useEffect(() => () => commitRef.current(), []);
 
   const close = () => {
     commit();
@@ -341,6 +323,7 @@ export default function MobileTaskEditor({
 
         <button
           onClick={() => {
+            discard();
             void deleteTask(task.id);
             onClose();
           }}

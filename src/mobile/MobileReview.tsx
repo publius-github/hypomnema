@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
-import { errorMessage, invoke } from "../lib/ipc";
+import { useMemo, useState } from "react";
 import { useAppStore } from "../store";
+import {
+  useNextByDay,
+  useReviewData,
+  useReviewStats,
+} from "../hooks/useReviewData";
 import {
   addDaysISO,
   compareTasks,
-  isClosed,
   mondayOf,
   todayISO,
   weekdayShort,
 } from "../lib/tasks";
 import { useMobileNav } from "./nav";
 import TaskRow from "./TaskRow";
-import type { OutlookEvent, Task } from "../types";
 
 const ORIGIN_LABELS: Record<string, string> = {
   manual: "manual",
@@ -32,123 +34,28 @@ const ORIGIN_LABELS: Record<string, string> = {
  */
 export default function MobileReview() {
   const [offset, setOffset] = useState(0);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [focus, setFocus] = useState<string | null>(null);
-  const [nextTasks, setNextTasks] = useState<Task[]>([]);
-  const [nextOutlook, setNextOutlook] = useState<OutlookEvent[]>([]);
-  const [nextFocus, setNextFocus] = useState<string | null>(null);
-  const setError = useAppStore((s) => s.setError);
-  const storeTasks = useAppStore((s) => s.tasks);
   const today = useAppStore((s) => s.today) || todayISO();
   const { setTab } = useMobileNav();
 
   const start = addDaysISO(mondayOf(today), offset * 7);
-  const end = addDaysISO(start, 6);
-  const nextStart = addDaysISO(start, 7);
-  const nextEnd = addDaysISO(nextStart, 6);
+  const {
+    weekEnd: end,
+    nextStart,
+    nextEnd,
+    weekTasks: tasks,
+    weekFocus: focus,
+    nextTasks,
+    nextOutlook,
+    nextFocus,
+  } = useReviewData(start);
 
-  useEffect(() => {
-    let cancelled = false;
-    const inRange = (t: Task, from: string, until: string) =>
-      t.parent_task_id === null &&
-      t.scheduled_date !== null &&
-      t.scheduled_date >= from &&
-      t.scheduled_date <= until;
-    void invoke("tasks_snapshot", {
-      startDate: start,
-      endDate: addDaysISO(end, 1),
-    })
-      .then((all) => {
-        if (!cancelled) setTasks(all.filter((t) => inRange(t, start, end)));
-      })
-      .catch((e) => setError(errorMessage(e)));
-    void invoke("tasks_snapshot", {
-      startDate: nextStart,
-      endDate: addDaysISO(nextEnd, 1),
-    })
-      .then((all) => {
-        if (!cancelled)
-          setNextTasks(all.filter((t) => inRange(t, nextStart, nextEnd)));
-      })
-      .catch((e) => {
-        setError(errorMessage(e));
-        setNextTasks([]);
-      });
-    // calendar_outlook's `to` is inclusive, unlike the exclusive
-    // endDate above: one day further hangs the Monday after next week
-    // off the panel as an eighth day
-    void invoke("calendar_outlook", {
-      from: nextStart,
-      to: nextEnd,
-    })
-      .then((events) => !cancelled && setNextOutlook(events))
-      .catch((e) => {
-        setError(errorMessage(e));
-        setNextOutlook([]);
-      });
-    // `dates`, plural: the command takes the whole day window a view
-    // shows, and pins the focus phrase for the first of them.
-    void invoke("dashboard_context", { dates: [start] })
-      .then((context) => !cancelled && setFocus(context.focus))
-      .catch((e) => {
-        setError(errorMessage(e));
-        setFocus(null);
-      });
-    void invoke("dashboard_context", { dates: [nextStart] })
-      .then((context) => !cancelled && setNextFocus(context.focus))
-      .catch((e) => {
-        setError(errorMessage(e));
-        setNextFocus(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // storeTasks: row actions mutate through the store and every
-    // refresh() replaces the array, so its change is the one refetch
-    // signal that keeps this local snapshot honest
-  }, [start, end, nextStart, nextEnd, setError, storeTasks]);
-
-  // completion rate counts only days that already happened: planned
-  // tasks later this week are not "missed" yet - same as the desktop
-  const past = useMemo(
-    () => tasks.filter((t) => (t.scheduled_date as string) <= today),
-    [tasks, today],
-  );
-  const done = useMemo(() => past.filter((t) => t.status === "done"), [past]);
-  // dropped is closed, not open: a task taken off the plan on purpose
-  // is not leftover work - same rule the desktop review follows
+  const { past, done, rate, byOrigin, doneByDay, stillOpen: openUnsorted } =
+    useReviewStats(tasks, today);
   const stillOpen = useMemo(
-    () => past.filter((t) => !isClosed(t.status)).sort(compareTasks),
-    [past],
+    () => [...openUnsorted].sort(compareTasks),
+    [openUnsorted],
   );
-  const rate =
-    past.length > 0 ? Math.round((done.length / past.length) * 100) : null;
-  const byOrigin = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const t of done) map.set(t.origin, (map.get(t.origin) ?? 0) + 1);
-    return map;
-  }, [done]);
-  const doneByDay = useMemo(() => {
-    const map = new Map<string, Task[]>();
-    for (const t of done) {
-      const date = t.scheduled_date as string;
-      map.set(date, [...(map.get(date) ?? []), t]);
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [done]);
-  const nextByDay = useMemo(() => {
-    const map = new Map<string, { tasks: Task[]; projected: OutlookEvent[] }>();
-    const entry = (date: string) => {
-      const existing = map.get(date);
-      if (existing) return existing;
-      const fresh = { tasks: [] as Task[], projected: [] as OutlookEvent[] };
-      map.set(date, fresh);
-      return fresh;
-    };
-    for (const t of nextTasks) entry(t.scheduled_date as string).tasks.push(t);
-    for (const e of nextOutlook) entry(e.date).projected.push(e);
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [nextTasks, nextOutlook]);
+  const nextByDay = useNextByDay(nextTasks, nextOutlook);
 
   return (
     <div className="flex h-full flex-col">

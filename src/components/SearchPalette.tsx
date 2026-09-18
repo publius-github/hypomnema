@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { errorMessage, invoke } from "../lib/ipc";
+import { useEffect, useRef, useState } from "react";
+import { invoke } from "../lib/ipc";
+import { useSearch } from "../hooks/useSearch";
 import { useAppStore } from "../store";
 import type { JournalSearchHit, KbSearchHit, Task } from "../types";
 import TaskModal from "./TaskModal";
@@ -22,11 +23,6 @@ type Row =
   | { kind: "journal"; hit: JournalSearchHit };
 
 export default function SearchPalette({ onClose }: { onClose: () => void }) {
-  const [query, setQuery] = useState("");
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [notes, setNotes] = useState<KbSearchHit[]>([]);
-  const [journal, setJournal] = useState<JournalSearchHit[]>([]);
-  const [searched, setSearched] = useState(false);
   const [selected, setSelected] = useState<Task | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const storeTasks = useAppStore((s) => s.tasks);
@@ -36,46 +32,9 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
     inputRef.current?.focus();
   }, []);
 
-  // responses can interleave even with the debounce: only the newest
-  // request may set the result lists
-  const searchSeq = useRef(0);
   const [highlighted, setHighlighted] = useState(0);
-
-  const runSearch = useCallback(async (q: string) => {
-    const seq = ++searchSeq.current;
-    if (!q) {
-      setTasks([]);
-      setNotes([]);
-      setJournal([]);
-      setSearched(false);
-      return;
-    }
-    // tasks failing is an error worth surfacing; notes and journal
-    // quietly return nothing when unavailable (KB not configured yet)
-    const [taskHits, noteHits, journalHits] = await Promise.all([
-      invoke("tasks_search", { query: q }).catch((e) => {
-        useAppStore.getState().setError(errorMessage(e));
-        return [] as Task[];
-      }),
-      invoke("kb_search", { query: q }).catch(
-        () => [] as KbSearchHit[],
-      ),
-      invoke("journal_search", { query: q }).catch(
-        () => [] as JournalSearchHit[],
-      ),
-    ]);
-    if (seq !== searchSeq.current) return;
-    setTasks(taskHits);
-    setNotes(noteHits);
-    setJournal(journalHits);
-    setSearched(true);
-    setHighlighted(0);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => void runSearch(query.trim()), 200);
-    return () => clearTimeout(timer);
-  }, [query, runSearch]);
+  const { query, setQuery, tasks, notes, journal, searched, rerun } =
+    useSearch(() => setHighlighted(0));
 
   // keep the opened task fresh after edits made in the modal: prefer
   // the live store copy (grid window), otherwise refetch by id
@@ -276,7 +235,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
           task={selected}
           onClose={() => {
             setSelected(null);
-            void runSearch(query.trim());
+            rerun();
           }}
         />
       )}
