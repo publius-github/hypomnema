@@ -2,7 +2,7 @@ import { useAppStore } from "../store";
 
 /**
  * The space between two category blocks in a list-style column, drawn
- * as a light cross-hatch so the break reads apart from the hairline
+ * as a light diagonal hatch so the break reads apart from the hairline
  * between two rows. Its look is shared by the Days and Lists list views
  * (Settings > Views > List view): `gap_hatch_color` (empty = the border
  * color), `gap_hatch_spacing` (px between two parallel lines) and
@@ -25,10 +25,10 @@ export default function GapHatch({ height }: { height: number }) {
         // paint only the content box: the padding stays empty
         backgroundClip: "content-box",
         backgroundOrigin: "content-box",
-        backgroundImage: [
-          `repeating-linear-gradient(45deg, currentColor 0 1px, transparent 1px ${spacing}px)`,
-          `repeating-linear-gradient(-45deg, currentColor 0 1px, transparent 1px ${spacing}px)`,
-        ].join(", "),
+        // one direction only: a cross-hatch's crossings land on a
+        // different spot for every gap height, a single diagonal reads
+        // the same in any gap
+        backgroundImage: `repeating-linear-gradient(45deg, currentColor 0 1px, transparent 1px ${spacing}px)`,
       }}
     />
   );

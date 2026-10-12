@@ -322,18 +322,6 @@ pub struct AppConfig {
     /// inside its list too; off = the list color rules there. Day
     /// columns always use the exact-date color.
     pub list_exact_stripe: bool,
-    /// Markdown editor color scheme: a named preset, or "custom" using
-    /// the md_color_* values below.
-    #[ts(type = "\"vscode\" | \"monokai\" | \"one-dark\" | \"github\" | \"custom\"")]
-    pub md_preset: String,
-    /// Custom markdown token colors (used when md_preset = custom).
-    pub md_color_heading: String,
-    pub md_color_bold: String,
-    pub md_color_italic: String,
-    pub md_color_code: String,
-    pub md_color_link: String,
-    pub md_color_quote: String,
-    pub md_color_marker: String,
     /// Name of the list quick-captured tasks land in. The list is
     /// created on first capture (manual + favorite); empty falls back
     /// to "Inbox".
@@ -350,8 +338,6 @@ pub struct AppConfig {
     /// without the tray icon - a hidden window must stay reachable.
     pub close_to_tray: bool,
 }
-
-pub const MD_PRESETS: &[&str] = &["vscode", "monokai", "one-dark", "github", "custom"];
 
 pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
 
@@ -432,14 +418,6 @@ pub const PROFILE_KEYS: &[&str] = &[
     "list_date_chip_color",
     "list_exact_stripe",
     // editor look
-    "md_preset",
-    "md_color_heading",
-    "md_color_bold",
-    "md_color_italic",
-    "md_color_code",
-    "md_color_link",
-    "md_color_quote",
-    "md_color_marker",
     "kb_line_numbers",
     // layout
     "grid_columns",
@@ -605,15 +583,6 @@ impl Default for AppConfig {
             done_plate_color: String::new(),
             waiting_plate_color: String::new(),
             list_exact_stripe: false,
-            md_preset: "vscode".into(),
-            // custom starts from the Dark+ values
-            md_color_heading: "#569cd6".into(),
-            md_color_bold: "#569cd6".into(),
-            md_color_italic: "#c586c0".into(),
-            md_color_code: "#ce9178".into(),
-            md_color_link: "#ce9178".into(),
-            md_color_quote: "#6a9955".into(),
-            md_color_marker: "#6796e6".into(),
             capture_list: "Inbox".into(),
             capture_shortcut: "Ctrl+Alt+Space".into(),
             tray_icon: true,
@@ -701,9 +670,6 @@ impl AppConfig {
         self.backup_keep = self.backup_keep.min(365);
         self.ui_font_size = self.ui_font_size.clamp(10, 28);
         self.editor_font_size = self.editor_font_size.clamp(10, 28);
-        if !MD_PRESETS.contains(&self.md_preset.as_str()) {
-            self.md_preset = "vscode".into();
-        }
         // bucket thresholds must stay strictly ordered or every rule
         // would land in one bucket
         self.cadence_monthly_min_per_year = self.cadence_monthly_min_per_year.clamp(1, 998);
@@ -772,13 +738,6 @@ impl AppConfig {
         self.habit_rate_threshold = self.habit_rate_threshold.min(100);
         self.habit_rate_window = self.habit_rate_window.min(3650);
         self.habit_rate_min_instances = self.habit_rate_min_instances.clamp(1, 365);
-        sanitize_color(&mut self.md_color_heading, defaults.md_color_heading);
-        sanitize_color(&mut self.md_color_bold, defaults.md_color_bold);
-        sanitize_color(&mut self.md_color_italic, defaults.md_color_italic);
-        sanitize_color(&mut self.md_color_code, defaults.md_color_code);
-        sanitize_color(&mut self.md_color_link, defaults.md_color_link);
-        sanitize_color(&mut self.md_color_quote, defaults.md_color_quote);
-        sanitize_color(&mut self.md_color_marker, defaults.md_color_marker);
         // text tone overrides: empty means "theme default", anything
         // else must be a well-formed hex color
         let sanitize_optional_color = |value: &mut String| {
@@ -1083,14 +1042,6 @@ impl AppConfig {
             ("done_plate_color", self.done_plate_color.clone()),
             ("waiting_plate_color", self.waiting_plate_color.clone()),
             ("list_exact_stripe", self.list_exact_stripe.to_string()),
-            ("md_preset", self.md_preset.clone()),
-            ("md_color_heading", self.md_color_heading.clone()),
-            ("md_color_bold", self.md_color_bold.clone()),
-            ("md_color_italic", self.md_color_italic.clone()),
-            ("md_color_code", self.md_color_code.clone()),
-            ("md_color_link", self.md_color_link.clone()),
-            ("md_color_quote", self.md_color_quote.clone()),
-            ("md_color_marker", self.md_color_marker.clone()),
             ("capture_list", self.capture_list.clone()),
             ("capture_shortcut", self.capture_shortcut.clone()),
             ("tray_icon", self.tray_icon.to_string()),

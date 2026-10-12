@@ -17,7 +17,6 @@ import type {
   TaskStatus,
 } from "./types";
 import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
-import { MD_TOKENS, resolveMdColors } from "./lib/mdPresets";
 import { warn } from "./lib/log";
 
 /// Settings the backend's habit rates are computed from.
@@ -218,13 +217,6 @@ function applyTheme(config: AppConfig | null) {
   if (config?.waiting_color) {
     root.style.setProperty("--color-waiting", config.waiting_color);
   } else root.style.removeProperty("--color-waiting");
-  // markdown color preset: named presets and custom colors override the
-  // per-theme stylesheet defaults ("vscode" preset = no overrides)
-  const md = config ? resolveMdColors(config) : null;
-  for (const { key } of MD_TOKENS) {
-    if (md) root.style.setProperty(`--md-${key}`, md[key]);
-    else root.style.removeProperty(`--md-${key}`);
-  }
 }
 
 let refreshSeq = 0;

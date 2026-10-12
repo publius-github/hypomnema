@@ -213,14 +213,6 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "day_header_color", label: "Day header color", group: "appearance.text", terms: "weekday date" },
   { key: "dow_label_color", label: "Weekday marker color", group: "appearance.text", terms: "sat#1 cron label" },
 
-  { key: "md_preset", label: "Markdown color scheme", group: "appearance.editor", terms: "monokai one dark github vscode syntax" },
-  { key: "md_color_heading", label: "Markdown heading color", group: "appearance.editor" },
-  { key: "md_color_bold", label: "Markdown bold color", group: "appearance.editor" },
-  { key: "md_color_italic", label: "Markdown italic color", group: "appearance.editor" },
-  { key: "md_color_code", label: "Markdown code color", group: "appearance.editor" },
-  { key: "md_color_link", label: "Markdown link color", group: "appearance.editor" },
-  { key: "md_color_quote", label: "Markdown quote color", group: "appearance.editor" },
-  { key: "md_color_marker", label: "Markdown marker color", group: "appearance.editor" },
   { key: "kb_line_numbers", label: "Line numbers in the Notes editor", group: "appearance.editor" },
 
   // --- Views ------------------------------------------------------

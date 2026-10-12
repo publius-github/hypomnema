@@ -6,8 +6,7 @@ import {
 } from "../../components/form";
 import { Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
-import { MD_PRESET_LABELS, MD_TOKENS } from "../../lib/mdPresets";
-import type { AppConfig, Theme } from "../../types";
+import type { Theme } from "../../types";
 import { useAppStore } from "../../store";
 
 // overridable text colors: [label, config key, dark default, light
@@ -166,46 +165,10 @@ export default function AppearanceTab() {
       </SettingsGroup>
 
       <SettingsGroup id="appearance.editor">
-        <section className="flex flex-col gap-2">
-          <select
-            className="input w-64"
-            value={config.md_preset}
-            onChange={(e) =>
-              void updateConfig({
-                md_preset: e.target.value as AppConfig["md_preset"],
-              })
-            }
-          >
-            {Object.entries(MD_PRESET_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          {config.md_preset === "custom" && (
-            <div className="flex flex-col gap-2 pl-6">
-              {MD_TOKENS.map(({ key, label }) => {
-                const field = `md_color_${key}` as const;
-                return (
-                  <div key={key} className="flex items-center gap-2">
-                    <span className="w-40 text-xs text-content-muted">
-                      {label}
-                    </span>
-                    <ColorPicker
-                      value={config[field]}
-                      onChange={(color) => void updateConfig({ [field]: color })}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <span className="text-xs text-content-muted">
-            Markdown token colors in the Journal/Notes editor. Custom keeps
-            its own seven colors and applies them on both themes. YAML files
-            always follow the VS Code Dark+/Light+ palette.
-          </span>
-        </section>
+        <span className="text-xs text-content-muted">
+          Markdown and YAML in the Journal/Notes editor follow the VS Code
+          Dark+/Light+ palette of the current theme.
+        </span>
 
         <Toggle
           checked={config.kb_line_numbers}

@@ -317,7 +317,7 @@ lists_page_align_rows: boolean,
 lists_list_style: boolean, 
 /**
  * In the Lists list view, the gap between two {Category} blocks is
- * cross-hatched so it reads as a break.
+ * hatched so it reads as a break.
  */
 lists_gap_hatch: boolean, 
 /**
@@ -453,15 +453,6 @@ cadence_color_general: string, postponed_plate_color: string, done_plate_color: 
  * columns always use the exact-date color.
  */
 list_exact_stripe: boolean, 
-/**
- * Markdown editor color scheme: a named preset, or "custom" using
- * the md_color_* values below.
- */
-md_preset: "vscode" | "monokai" | "one-dark" | "github" | "custom", 
-/**
- * Custom markdown token colors (used when md_preset = custom).
- */
-md_color_heading: string, md_color_bold: string, md_color_italic: string, md_color_code: string, md_color_link: string, md_color_quote: string, md_color_marker: string, 
 /**
  * Name of the list quick-captured tasks land in. The list is
  * created on first capture (manual + favorite); empty falls back

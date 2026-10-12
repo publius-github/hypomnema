@@ -97,7 +97,7 @@ export default function ViewsTab() {
           <Toggle
             checked={config.days_gap_hatch}
             label="Hatch the gaps between blocks and sections"
-            hint="Fills the space between two categories, and between two sections (Daily, Monthly, Done...), with a light cross-hatch, so a break stands out from an ordinary row line."
+            hint="Fills the space between two categories, and between two sections (Daily, Monthly, Done...), with a light diagonal hatch, so a break stands out from an ordinary row line."
             onChange={(v) => void updateConfig({ days_gap_hatch: v })}
           />
         )}
@@ -137,7 +137,7 @@ export default function ViewsTab() {
           <Toggle
             checked={config.lists_gap_hatch}
             label="Hatch the gaps between blocks and sections"
-            hint="Fills the space between two {Category} blocks, and between two sections (Priority, Postponed, Done...), with a light cross-hatch, so a break stands out from an ordinary row line."
+            hint="Fills the space between two {Category} blocks, and between two sections (Priority, Postponed, Done...), with a light diagonal hatch, so a break stands out from an ordinary row line."
             onChange={(v) => void updateConfig({ lists_gap_hatch: v })}
           />
         )}
