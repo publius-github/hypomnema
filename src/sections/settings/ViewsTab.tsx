@@ -95,10 +95,10 @@ export default function ViewsTab() {
         />
         {config.days_list_style && (
           <Toggle
-            checked={config.days_gap_hatch}
-            label="Hatch the gaps between blocks and sections"
-            hint="Fills the space between two categories, and between two sections (Daily, Monthly, Done...), with a light diagonal hatch, so a break stands out from an ordinary row line."
-            onChange={(v) => void updateConfig({ days_gap_hatch: v })}
+            checked={config.days_gap_fill}
+            label="Fill the gaps between blocks and sections"
+            hint="Fills the space between two categories, and between two sections (Daily, Monthly, Done...), with a soft band of color, so a break stands out from an ordinary row line."
+            onChange={(v) => void updateConfig({ days_gap_fill: v })}
           />
         )}
       </SettingsGroup>
@@ -135,10 +135,10 @@ export default function ViewsTab() {
         />
         {config.lists_list_style && (
           <Toggle
-            checked={config.lists_gap_hatch}
-            label="Hatch the gaps between blocks and sections"
-            hint="Fills the space between two {Category} blocks, and between two sections (Priority, Postponed, Done...), with a light diagonal hatch, so a break stands out from an ordinary row line."
-            onChange={(v) => void updateConfig({ lists_gap_hatch: v })}
+            checked={config.lists_gap_fill}
+            label="Fill the gaps between blocks and sections"
+            hint="Fills the space between two {Category} blocks, and between two sections (Priority, Postponed, Done...), with a soft band of color, so a break stands out from an ordinary row line."
+            onChange={(v) => void updateConfig({ lists_gap_fill: v })}
           />
         )}
 
@@ -186,18 +186,18 @@ export default function ViewsTab() {
           200 doubles both the plate and its label.
         </span>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Hatch color</span>
+          <span className="text-sm font-medium">Gap fill color</span>
           <ColorPicker
             value={
-              config.gap_hatch_color ||
+              config.gap_fill_color ||
               (config.theme === "light" ? "#e0e0e0" : "#3c3c3c")
             }
-            onChange={(color) => void updateConfig({ gap_hatch_color: color })}
+            onChange={(color) => void updateConfig({ gap_fill_color: color })}
           />
-          {config.gap_hatch_color ? (
+          {config.gap_fill_color ? (
             <button
               className="text-xs text-content-muted hover:text-content"
-              onClick={() => void updateConfig({ gap_hatch_color: "" })}
+              onClick={() => void updateConfig({ gap_fill_color: "" })}
             >
               reset to border color
             </button>
@@ -205,28 +205,28 @@ export default function ViewsTab() {
             <span className="text-xs text-content-muted">border color</span>
           )}
         </div>
-        <Field label="Hatch line spacing, px (smaller = denser)">
+        <Field label="Edge softness, % (0 = hard edges, 100 = fades from the middle line)">
           <NumberInput
-            value={config.gap_hatch_spacing}
-            min={4}
+            value={config.gap_fill_fade}
+            min={0}
             onCommit={(n) =>
-              void updateConfig({ gap_hatch_spacing: Math.min(64, n) })
+              void updateConfig({ gap_fill_fade: Math.min(100, n) })
             }
           />
         </Field>
-        <Field label="Hatch inset from the row lines, % of the gap height">
+        <Field label="Inset from the row lines, % of the gap height">
           <NumberInput
-            value={config.gap_hatch_inset}
+            value={config.gap_fill_inset}
             min={0}
             onCommit={(n) =>
-              void updateConfig({ gap_hatch_inset: Math.min(45, n) })
+              void updateConfig({ gap_fill_inset: Math.min(45, n) })
             }
           />
         </Field>
         <span className="-mt-1 text-xs text-content-muted">
-          Empty space the hatch leaves above and below itself, so it floats in
-          the gap instead of touching the lines of the rows around it. 0 = fills
-          the whole gap.
+          Empty space the band leaves above and below itself, so it floats in
+          the gap instead of touching the lines of the rows around it. 0 = the
+          band spans the whole gap.
         </span>
       </SettingsGroup>
 

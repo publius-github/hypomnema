@@ -231,19 +231,20 @@ pub struct AppConfig {
     /// instead of one boxed card per task (the dashboard keeps cards).
     pub lists_list_style: bool,
     /// In the Lists list view, the gap between two {Category} blocks is
-    /// cross-hatched so it reads as a break.
-    pub lists_gap_hatch: bool,
+    /// filled with a soft band of color so it reads as a break.
+    pub lists_gap_fill: bool,
     /// Section plate height in the Days/Lists list views, % of the
     /// plate's normal height (100..=400); the plate text scales with it.
     pub list_view_plate_scale: u32,
-    /// Hatched gaps in the Days/Lists list views: line color, hex
-    /// (empty = the border color), and the distance between two
-    /// parallel hatch lines, px (4..=64).
-    pub gap_hatch_color: String,
-    pub gap_hatch_spacing: u32,
-    /// Empty band the hatch leaves above and below itself, % of the
+    /// Filled gaps in the Days/Lists list views: the band's color, hex
+    /// (empty = the border color), and how soft its edges are - the
+    /// share of each half of the band that fades out to nothing, %
+    /// (0 = hard edges, 100 = solid only along its middle line).
+    pub gap_fill_color: String,
+    pub gap_fill_fade: u32,
+    /// Empty space the band leaves above and below itself, % of the
     /// gap's height (0..=45), so it does not touch the rows' hairlines.
-    pub gap_hatch_inset: u32,
+    pub gap_fill_inset: u32,
     /// How grouped lists show in the list panels: `folded` = one tile per
     /// group with its lists behind a drill-in, `flat` = every list as its
     /// own column wearing its group's name as a chip.
@@ -264,8 +265,8 @@ pub struct AppConfig {
     /// instead of one boxed card per task (toggled on the page header).
     pub days_list_style: bool,
     /// In the Days list view, the gap between two category blocks is
-    /// filled with a diagonal hatch so it reads as a break.
-    pub days_gap_hatch: bool,
+    /// filled with a soft band of color so it reads as a break.
+    pub days_gap_fill: bool,
     /// Postponed / Done, waiting / Done sections sort by category, then
     /// title, alphabetically; off = the same order as the open tasks.
     pub closed_sections_sort_alpha: bool,
@@ -425,15 +426,15 @@ pub const PROFILE_KEYS: &[&str] = &[
     "dashboard_split",
     "days_page_columns",
     "days_list_style",
-    "days_gap_hatch",
+    "days_gap_fill",
     "lists_page_columns",
     "lists_page_align_rows",
     "lists_list_style",
-    "lists_gap_hatch",
+    "lists_gap_fill",
     "list_view_plate_scale",
-    "gap_hatch_color",
-    "gap_hatch_spacing",
-    "gap_hatch_inset",
+    "gap_fill_color",
+    "gap_fill_fade",
+    "gap_fill_inset",
     "lists_group_display",
     "settings_width",
     "day_header_centered",
@@ -548,17 +549,17 @@ impl Default for AppConfig {
             lists_page_columns: 4,
             lists_page_align_rows: true,
             lists_list_style: false,
-            lists_gap_hatch: true,
+            lists_gap_fill: true,
             list_view_plate_scale: 200,
-            gap_hatch_color: String::new(),
-            gap_hatch_spacing: 12,
-            gap_hatch_inset: 25,
+            gap_fill_color: String::new(),
+            gap_fill_fade: 60,
+            gap_fill_inset: 25,
             lists_group_display: "folded".into(),
             settings_width: 1120,
             days_page_columns: 7,
             days_today_only: false,
             days_list_style: false,
-            days_gap_hatch: true,
+            days_gap_fill: true,
             closed_sections_sort_alpha: true,
             category_avoid_cadence_colors: true,
             list_tasks_sort_alpha: false,
@@ -657,8 +658,8 @@ impl AppConfig {
         }
         self.days_page_columns = self.days_page_columns.clamp(1, 14);
         self.list_view_plate_scale = self.list_view_plate_scale.clamp(100, 400);
-        self.gap_hatch_spacing = self.gap_hatch_spacing.clamp(4, 64);
-        self.gap_hatch_inset = self.gap_hatch_inset.min(45);
+        self.gap_fill_fade = self.gap_fill_fade.min(100);
+        self.gap_fill_inset = self.gap_fill_inset.min(45);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -765,7 +766,7 @@ impl AppConfig {
         sanitize_optional_color(&mut self.postponed_plate_color);
         sanitize_optional_color(&mut self.done_plate_color);
         sanitize_optional_color(&mut self.waiting_plate_color);
-        sanitize_optional_color(&mut self.gap_hatch_color);
+        sanitize_optional_color(&mut self.gap_fill_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -981,20 +982,20 @@ impl AppConfig {
                 self.lists_page_align_rows.to_string(),
             ),
             ("lists_list_style", self.lists_list_style.to_string()),
-            ("lists_gap_hatch", self.lists_gap_hatch.to_string()),
+            ("lists_gap_fill", self.lists_gap_fill.to_string()),
             (
                 "list_view_plate_scale",
                 self.list_view_plate_scale.to_string(),
             ),
-            ("gap_hatch_color", self.gap_hatch_color.clone()),
-            ("gap_hatch_spacing", self.gap_hatch_spacing.to_string()),
-            ("gap_hatch_inset", self.gap_hatch_inset.to_string()),
+            ("gap_fill_color", self.gap_fill_color.clone()),
+            ("gap_fill_fade", self.gap_fill_fade.to_string()),
+            ("gap_fill_inset", self.gap_fill_inset.to_string()),
             ("lists_group_display", self.lists_group_display.clone()),
             ("settings_width", self.settings_width.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),
             ("days_today_only", self.days_today_only.to_string()),
             ("days_list_style", self.days_list_style.to_string()),
-            ("days_gap_hatch", self.days_gap_hatch.to_string()),
+            ("days_gap_fill", self.days_gap_fill.to_string()),
             (
                 "closed_sections_sort_alpha",
                 self.closed_sections_sort_alpha.to_string(),

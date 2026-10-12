@@ -16,7 +16,7 @@ import {
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
-import GapHatch from "./GapHatch";
+import GapFill from "./GapFill";
 import type { Task } from "../types";
 
 function DayColumn({
@@ -109,8 +109,8 @@ function DayColumn({
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.category_block_gap ?? 12;
   // list view: the gaps between category blocks and between sections
-  // are hatched so a break reads apart from the hairline between rows
-  const hatchGaps = flat && (config?.days_gap_hatch ?? true);
+  // are filled so a break reads apart from the hairline between rows
+  const fillGaps = flat && (config?.days_gap_fill ?? true);
   // list view: section plates, label included, grow to
   // list_view_plate_scale % of their normal size
   const plateSize = listViewPlateStyle(config, flat);
@@ -127,9 +127,9 @@ function DayColumn({
     items.length > 0 && (
       <div
         className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: hatchGaps ? undefined : gap }}
+        style={{ rowGap: taskGap, marginTop: fillGaps ? undefined : gap }}
       >
-        {hatchGaps && <GapHatch height={gap} />}
+        {fillGaps && <GapFill height={gap} />}
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
             plateColor ? "" : "bg-line/40 text-content"
@@ -229,10 +229,10 @@ function DayColumn({
             // cadence blocks read as separate sections
             style={{
               rowGap: taskGap,
-              marginTop: i > 0 && !hatchGaps ? sectionGap : undefined,
+              marginTop: i > 0 && !fillGaps ? sectionGap : undefined,
             }}
           >
-            {i > 0 && hatchGaps && <GapHatch height={sectionGap} />}
+            {i > 0 && fillGaps && <GapFill height={sectionGap} />}
             <div
               className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                 groupColor(group.key) ? "" : "bg-line/40 text-content"
@@ -257,12 +257,12 @@ function DayColumn({
                 <div
                   key={task.id}
                   style={
-                    gapBefore && !hatchGaps
+                    gapBefore && !fillGaps
                       ? { marginTop: categoryGap }
                       : undefined
                   }
                 >
-                  {gapBefore && hatchGaps && <GapHatch height={categoryGap} />}
+                  {gapBefore && fillGaps && <GapFill height={categoryGap} />}
                   <TaskCard
                     task={task}
                     onOpen={onOpenTask}

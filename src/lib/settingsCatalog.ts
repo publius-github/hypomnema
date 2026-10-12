@@ -221,16 +221,16 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   { key: "days_page_columns", label: "Day columns on the Days page", group: "views.days" },
   { key: "days_list_style", label: "List view on the Days page", group: "views.days", terms: "cards rows lines flat" },
-  { key: "days_gap_hatch", label: "Hatch the gaps between blocks and sections", group: "views.days", terms: "stripes cross list view category" },
+  { key: "days_gap_fill", label: "Fill the gaps between blocks and sections", group: "views.days", terms: "hatch glow band list view category" },
 
   { key: "lists_page_columns", label: "Grid columns on the Lists page", group: "views.lists" },
   { key: "lists_page_align_rows", label: "Align list rows", group: "views.lists" },
   { key: "lists_list_style", label: "List view on the Lists page", group: "views.lists", terms: "cards rows lines flat" },
-  { key: "lists_gap_hatch", label: "Hatch the gaps between blocks and sections (Lists)", group: "views.lists", terms: "stripes cross list view category" },
+  { key: "lists_gap_fill", label: "Fill the gaps between blocks and sections (Lists)", group: "views.lists", terms: "hatch glow band list view category" },
   { key: "list_view_plate_scale", label: "Section plate height in list view", group: "views.listview", terms: "header daily monthly done percent font text size" },
-  { key: "gap_hatch_color", label: "Hatch color", group: "views.listview", terms: "stripes cross gap line" },
-  { key: "gap_hatch_spacing", label: "Hatch line spacing", group: "views.listview", terms: "stripes cross gap density frequency" },
-  { key: "gap_hatch_inset", label: "Hatch inset from the row lines", group: "views.listview", terms: "stripes cross gap margin padding" },
+  { key: "gap_fill_color", label: "Gap fill color", group: "views.listview", terms: "hatch glow band" },
+  { key: "gap_fill_fade", label: "Gap fill edge softness", group: "views.listview", terms: "hatch glow fade blur gradient" },
+  { key: "gap_fill_inset", label: "Gap fill inset from the row lines", group: "views.listview", terms: "hatch glow margin padding" },
   { key: "lists_group_display", label: "Grouped lists display", group: "views.lists", terms: "folded flat group tile" },
 
   { key: "settings_width", label: "Settings content width", group: "views.settings", terms: "tab strip wrap" },

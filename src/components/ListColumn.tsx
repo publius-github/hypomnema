@@ -19,7 +19,7 @@ import {
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
-import GapHatch from "./GapHatch";
+import GapFill from "./GapFill";
 import ListModal from "./ListModal";
 import { ConfirmModal } from "./dialogs";
 import type { List, ListGroup, Task } from "../types";
@@ -116,9 +116,9 @@ function ListColumn({
   const taskGap = flat ? 0 : (config?.task_gap ?? 6);
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.list_category_block_gap ?? 12;
-  // list view: category and section gaps are hatched instead of left
+  // list view: category and section gaps are filled instead of left
   // empty, so a break reads apart from the hairline between rows
-  const hatchGaps = flat && (config?.lists_gap_hatch ?? true);
+  const fillGaps = flat && (config?.lists_gap_fill ?? true);
   // list view: section plates, label included, grow to
   // list_view_plate_scale % of their normal size
   const plateSize = listViewPlateStyle(config, flat);
@@ -146,8 +146,8 @@ function ListColumn({
   const card = (task: Task, i: number, items: Task[], cadenceStripe = true) => {
     const gap = gapBefore(items, i);
     return (
-      <div key={task.id} style={{ marginTop: hatchGaps ? undefined : gap }}>
-        {hatchGaps && gap !== undefined && <GapHatch height={gap} />}
+      <div key={task.id} style={{ marginTop: fillGaps ? undefined : gap }}>
+        {fillGaps && gap !== undefined && <GapFill height={gap} />}
         <TaskCard
           task={task}
           onOpen={onOpenTask}
@@ -173,9 +173,9 @@ function ListColumn({
     items.length > 0 && (
       <div
         className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: hatchGaps ? undefined : gap }}
+        style={{ rowGap: taskGap, marginTop: fillGaps ? undefined : gap }}
       >
-        {hatchGaps && <GapHatch height={gap} />}
+        {fillGaps && <GapFill height={gap} />}
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
             plateColor ? "" : "bg-line/40 text-content"
@@ -348,11 +348,11 @@ function ListColumn({
             style={{
               rowGap: taskGap,
               marginTop:
-                prioritized.length > 0 && !hatchGaps ? sectionGap : undefined,
+                prioritized.length > 0 && !fillGaps ? sectionGap : undefined,
             }}
           >
-            {prioritized.length > 0 && hatchGaps && (
-              <GapHatch height={sectionGap} />
+            {prioritized.length > 0 && fillGaps && (
+              <GapFill height={sectionGap} />
             )}
             <SortableContext
               items={rest.map((t) => `task:${t.id}`)}
@@ -368,7 +368,7 @@ function ListColumn({
                   blockIndex={blockIndex.get(task.id)}
                   flat={flat}
                   first={i === 0}
-                  hatch={hatchGaps}
+                  fill={fillGaps}
                 />
               ))}
             </SortableContext>
@@ -414,7 +414,7 @@ function SortableCard({
   blockIndex,
   flat,
   first,
-  hatch,
+  fill,
 }: {
   task: Task;
   onOpenTask: (id: number) => void;
@@ -427,8 +427,8 @@ function SortableCard({
   flat: boolean;
   /** first row of the backlog block */
   first: boolean;
-  /** draw the category gap as a hatch instead of empty space */
-  hatch: boolean;
+  /** draw the category gap as a soft fill instead of empty space */
+  fill: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -441,13 +441,13 @@ function SortableCard({
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        marginTop: hatch ? undefined : gapBefore,
+        marginTop: fill ? undefined : gapBefore,
       }}
       className={isDragging ? "opacity-30" : ""}
       {...attributes}
       {...listeners}
     >
-      {hatch && gapBefore !== undefined && <GapHatch height={gapBefore} />}
+      {fill && gapBefore !== undefined && <GapFill height={gapBefore} />}
       <TaskCard
         task={task}
         onOpen={onOpenTask}

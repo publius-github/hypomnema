@@ -317,25 +317,26 @@ lists_page_align_rows: boolean,
 lists_list_style: boolean, 
 /**
  * In the Lists list view, the gap between two {Category} blocks is
- * hatched so it reads as a break.
+ * filled with a soft band of color so it reads as a break.
  */
-lists_gap_hatch: boolean, 
+lists_gap_fill: boolean, 
 /**
  * Section plate height in the Days/Lists list views, % of the
  * plate's normal height (100..=400); the plate text scales with it.
  */
 list_view_plate_scale: number, 
 /**
- * Hatched gaps in the Days/Lists list views: line color, hex
- * (empty = the border color), and the distance between two
- * parallel hatch lines, px (4..=64).
+ * Filled gaps in the Days/Lists list views: the band's color, hex
+ * (empty = the border color), and how soft its edges are - the
+ * share of each half of the band that fades out to nothing, %
+ * (0 = hard edges, 100 = solid only along its middle line).
  */
-gap_hatch_color: string, gap_hatch_spacing: number, 
+gap_fill_color: string, gap_fill_fade: number, 
 /**
- * Empty band the hatch leaves above and below itself, % of the
+ * Empty space the band leaves above and below itself, % of the
  * gap's height (0..=45), so it does not touch the rows' hairlines.
  */
-gap_hatch_inset: number, 
+gap_fill_inset: number, 
 /**
  * How grouped lists show in the list panels: `folded` = one tile per
  * group with its lists behind a drill-in, `flat` = every list as its
@@ -366,9 +367,9 @@ days_today_only: boolean,
 days_list_style: boolean, 
 /**
  * In the Days list view, the gap between two category blocks is
- * filled with a diagonal hatch so it reads as a break.
+ * filled with a soft band of color so it reads as a break.
  */
-days_gap_hatch: boolean, 
+days_gap_fill: boolean, 
 /**
  * Postponed / Done, waiting / Done sections sort by category, then
  * title, alphabetically; off = the same order as the open tasks.
