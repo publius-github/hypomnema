@@ -155,7 +155,15 @@ function DayColumn({
       ref={setNodeRef}
       className={`flex min-h-0 flex-col rounded-lg border ${
         isOver ? "border-accent" : "border-line"
-      } ${isToday ? "bg-accent/5" : "bg-surface-alt/50"}`}
+      } ${
+        // list view: the whole column takes the card fill, the surface
+        // the rows used to sit on as separate cards
+        flat
+          ? "bg-surface-alt"
+          : isToday
+            ? "bg-accent/5"
+            : "bg-surface-alt/50"
+      }`}
     >
       <div
         // one color for every header, Today included: it follows the

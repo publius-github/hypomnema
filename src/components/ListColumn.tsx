@@ -197,7 +197,7 @@ function ListColumn({
       ref={setNodeRef}
       className={`flex min-w-0 flex-col rounded-lg border ${
         isOver ? "border-accent" : "border-line"
-      } bg-surface-alt/50 ${fill ? "h-full" : ""} ${
+      } ${flat ? "bg-surface-alt" : "bg-surface-alt/50"} ${fill ? "h-full" : ""} ${
         highlight ? "ring-2 ring-accent" : ""
       } ${grip.isDragging ? "opacity-40" : ""}`}
       onDoubleClick={openOnFreeSpace}

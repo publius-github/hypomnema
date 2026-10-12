@@ -47,8 +47,9 @@ function TaskCard({
    */
   blockIndex?: number;
   /**
-   * A row of a plain list rather than a boxed card: same fill, but no
-   * frame, rounding or shadow, just a hairline under it (list view).
+   * A row of a plain list rather than a boxed card: no frame, fill or
+   * shadow, just a hairline under it (list view; the column carries
+   * the card fill instead).
    */
   flat?: boolean;
   /** a flat row that opens a block also gets the hairline above it */
@@ -184,9 +185,9 @@ function TaskCard({
       {...(passive ? {} : listeners)}
       className={`group text-sm ${
         flat
-          ? // the card's own surface fill stays (themes contrast it
-            // against the column), only frame, rounding and shadow go
-            `border-b border-line/60 bg-surface-alt ${flatTop ? "border-t" : ""}`
+          ? // transparent: the list-view column itself wears the
+            // card fill, so rows and gaps share one work surface
+            `border-b border-line/60 ${flatTop ? "border-t" : ""}`
           : "rounded-md border border-line bg-surface-alt shadow-sm"
       } ${
         isDragging ? "opacity-30" : ""
