@@ -99,6 +99,7 @@ export const defaultConfig: AppConfig = {
   settings_width: 1120,
   days_page_columns: 7,
   days_today_only: false,
+  days_list_style: false,
   list_tasks_sort_alpha: false,
   list_task_lines: 1,
   list_dialog_task_lines: 3,

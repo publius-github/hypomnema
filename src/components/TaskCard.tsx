@@ -28,6 +28,7 @@ function TaskCard({
   inert = false,
   titleLines = 1,
   blockIndex,
+  flat = false,
 }: {
   task: Task;
   overlay?: boolean;
@@ -44,6 +45,11 @@ function TaskCard({
    * chip palette uses it; a card outside a column leaves it unset.
    */
   blockIndex?: number;
+  /**
+   * A row of a plain list rather than a boxed card: no frame, fill or
+   * shadow, just a hairline under it (the Days page's list style).
+   */
+  flat?: boolean;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -173,7 +179,11 @@ function TaskCard({
       ref={passive ? undefined : setNodeRef}
       {...(passive ? {} : attributes)}
       {...(passive ? {} : listeners)}
-      className={`group rounded-md border border-line bg-surface-alt text-sm shadow-sm ${
+      className={`group text-sm ${
+        flat
+          ? "border-b border-line/60 hover:bg-line/20"
+          : "rounded-md border border-line bg-surface-alt shadow-sm"
+      } ${
         isDragging ? "opacity-30" : ""
       } ${overlay ? "shadow-lg" : ""}`}
     >

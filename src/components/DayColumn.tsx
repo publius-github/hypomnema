@@ -19,9 +19,12 @@ import type { Task } from "../types";
 function DayColumn({
   date,
   onOpenTask,
+  flat = false,
 }: {
   date: string;
   onOpenTask: (id: number) => void;
+  /** tasks as hairline-separated list rows instead of boxed cards */
+  flat?: boolean;
 }) {
   // individual selectors: a whole-store subscribe would re-render every
   // column on unrelated state changes (toasts, palette, banners)
@@ -90,7 +93,8 @@ function DayColumn({
   // configurable vertical rhythm: cards, sections, category blocks;
   // Postponed and Done each take their own (roomier) gap so they can
   // sit visibly below the active tasks
-  const taskGap = config?.task_gap ?? 6;
+  // list rows sit flush: the hairline under each one is the separator
+  const taskGap = flat ? 0 : (config?.task_gap ?? 6);
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.category_block_gap ?? 12;
 
@@ -117,6 +121,7 @@ function DayColumn({
             task={task}
             onOpen={onOpenTask}
             blockIndex={blockIndex.get(task.id)}
+            flat={flat}
           />
         ))}
       </div>
@@ -218,6 +223,7 @@ function DayColumn({
                     task={task}
                     onOpen={onOpenTask}
                     blockIndex={blockIndex.get(task.id)}
+                    flat={flat}
                   />
                 </div>
               );

@@ -334,6 +334,11 @@ days_page_columns: number,
  */
 days_today_only: boolean, 
 /**
+ * Days page renders its tasks as a plain list split by hairlines
+ * instead of one boxed card per task (toggled on the page header).
+ */
+days_list_style: boolean, 
+/**
  * Order the tasks inside a list column alphabetically (timed tasks
  * still pin to the top); off = manual drag order.
  */

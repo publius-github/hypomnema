@@ -242,6 +242,9 @@ pub struct AppConfig {
     /// Days page shows a single Today column (its own toggle, separate
     /// from dashboard_today_only).
     pub days_today_only: bool,
+    /// Days page renders its tasks as a plain list split by hairlines
+    /// instead of one boxed card per task (toggled on the page header).
+    pub days_list_style: bool,
     /// Order the tasks inside a list column alphabetically (timed tasks
     /// still pin to the top); off = manual drag order.
     pub list_tasks_sort_alpha: bool,
@@ -415,6 +418,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "list_columns",
     "dashboard_split",
     "days_page_columns",
+    "days_list_style",
     "lists_page_columns",
     "lists_page_align_rows",
     "lists_group_display",
@@ -532,6 +536,7 @@ impl Default for AppConfig {
             settings_width: 1120,
             days_page_columns: 7,
             days_today_only: false,
+            days_list_style: false,
             list_tasks_sort_alpha: false,
             list_task_lines: 1,
             list_dialog_task_lines: 3,
@@ -965,6 +970,7 @@ impl AppConfig {
             ("settings_width", self.settings_width.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),
             ("days_today_only", self.days_today_only.to_string()),
+            ("days_list_style", self.days_list_style.to_string()),
             (
                 "list_tasks_sort_alpha",
                 self.list_tasks_sort_alpha.to_string(),
