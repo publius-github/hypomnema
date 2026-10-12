@@ -461,6 +461,26 @@ export function tintStyle(color: string): {
   return { color, backgroundColor: `${color}26` };
 }
 
+/**
+ * Size of a section plate in the Days/Lists list views: the whole plate
+ * - its 11px label and the 2px padding either side - grows by
+ * `list_view_plate_scale` %, so the text stays in proportion to the
+ * plate instead of a small label floating in a tall bar. Undefined
+ * outside the list view (cards keep the plain plate).
+ */
+export function listViewPlateStyle(
+  config: AppConfig | null,
+  flat: boolean,
+): { fontSize: string; paddingTop: string; paddingBottom: string } | undefined {
+  if (!flat) return undefined;
+  const scale = (config?.list_view_plate_scale ?? 200) / 100;
+  return {
+    fontSize: `${11 * scale}px`,
+    paddingTop: `${2 * scale}px`,
+    paddingBottom: `${2 * scale}px`,
+  };
+}
+
 /** Monday of the ISO week holding the given date. */
 export function mondayOf(date: string): string {
   const d = new Date(`${date}T12:00:00`);

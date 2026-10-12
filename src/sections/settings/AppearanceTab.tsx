@@ -7,7 +7,6 @@ import {
 import { Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import { MD_PRESET_LABELS, MD_TOKENS } from "../../lib/mdPresets";
-import { THEME_PRESET_LABELS, resolveThemeColors } from "../../lib/themePresets";
 import type { AppConfig, Theme } from "../../types";
 import { useAppStore } from "../../store";
 
@@ -15,12 +14,12 @@ import { useAppStore } from "../../store";
 // default] - the defaults are the stylesheet values, shown in the
 // picker while no override is set
 const TEXT_COLOR_ROWS = [
-  ["Main text", "content_color", "#e6e9ee", "#171a1f"],
-  ["Secondary text", "content_muted_color", "#a8b0bc", "#58606c"],
-  ["Weekly focus", "weekly_focus_color", "#6091ff", "#2563eb"],
-  ["Day reminders", "reminder_color", "#a8b0bc", "#58606c"],
-  ["Day header (weekday, date)", "day_header_color", "#e6e9ee", "#171a1f"],
-  ["Weekday marker ([SAT#1])", "dow_label_color", "#a8b0bc", "#58606c"],
+  ["Main text", "content_color", "#d4d4d4", "#333333"],
+  ["Secondary text", "content_muted_color", "#8c8c8c", "#6f6f6f"],
+  ["Weekly focus", "weekly_focus_color", "#3794ff", "#005fb8"],
+  ["Day reminders", "reminder_color", "#8c8c8c", "#6f6f6f"],
+  ["Day header (weekday, date)", "day_header_color", "#d4d4d4", "#333333"],
+  ["Weekday marker ([SAT#1])", "dow_label_color", "#8c8c8c", "#6f6f6f"],
 ] as const;
 
 /**
@@ -50,24 +49,6 @@ export default function AppearanceTab() {
           </select>
         </Field>
 
-        <Field label="Theme palette (each has a dark and a light variant)">
-          <select
-            className="input"
-            value={config.theme_preset}
-            onChange={(e) =>
-              void updateConfig({
-                theme_preset: e.target.value as AppConfig["theme_preset"],
-              })
-            }
-          >
-            {Object.entries(THEME_PRESET_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
         <section className="flex flex-col gap-2">
           <span className="text-sm font-medium">Theme colors</span>
           {(
@@ -78,12 +59,22 @@ export default function AppearanceTab() {
               ["Borders", "line_color", "line"],
             ] as const
           ).map(([label, key, token]) => {
-            const presetColors = resolveThemeColors(config);
+            // the stylesheet palette (VS Code Light+ / Dark+)
             const stylesheet =
               config.theme === "light"
-                ? { accent: "#2563eb", surface: "#f4f6f8", surfaceAlt: "#ffffff", line: "#dadfe6" }
-                : { accent: "#6091ff", surface: "#121418", surfaceAlt: "#1c1f25", line: "#343942" };
-            const fallback = presetColors?.[token] ?? stylesheet[token];
+                ? {
+                    accent: "#005fb8",
+                    surface: "#ffffff",
+                    surfaceAlt: "#f3f3f3",
+                    line: "#e0e0e0",
+                  }
+                : {
+                    accent: "#3794ff",
+                    surface: "#1e1e1e",
+                    surfaceAlt: "#252526",
+                    line: "#3c3c3c",
+                  };
+            const fallback = stylesheet[token];
             return (
               <div key={key} className="flex items-center gap-2">
                 <span className="w-48 text-xs text-content-muted">{label}</span>
@@ -96,11 +87,11 @@ export default function AppearanceTab() {
                     className="text-xs text-content-muted hover:text-content"
                     onClick={() => void updateConfig({ [key]: "" })}
                   >
-                    reset to palette default
+                    reset to theme default
                   </button>
                 ) : (
                   <span className="text-xs text-content-muted">
-                    palette default
+                    theme default
                   </span>
                 )}
               </div>

@@ -9,15 +9,6 @@ import { NumberField, Toggle } from "./controls";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
 
-/** Matches THEME_PRESETS in src-tauri/src/config.rs. */
-const THEME_PRESETS = [
-  "default",
-  "black",
-  "vscode",
-  "nord",
-  "gruvbox",
-  "solarized",
-] as const;
 import type {
   AppConfig,
   BackupEntry,
@@ -96,7 +87,7 @@ export default function MobileSettings() {
       id: "appearance",
       label: "Appearance",
       hint: config
-        ? `${config.theme === "dark" ? "Dark" : "Light"} · ${config.theme_preset}`
+        ? `${config.theme === "dark" ? "Dark" : "Light"} · ${config.ui_font_size}px`
         : "Theme, text size",
     },
     {
@@ -473,24 +464,6 @@ function AppearancePanel({ config }: { config: AppConfig }) {
         >
           <option value="dark">Dark</option>
           <option value="light">Light</option>
-        </select>
-      </label>
-      <label className="flex items-center justify-between gap-3">
-        <span className="text-sm">Palette</span>
-        <select
-          value={config.theme_preset}
-          onChange={(e) =>
-            void updateConfig({
-              theme_preset: e.target.value as typeof config.theme_preset,
-            })
-          }
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-        >
-          {THEME_PRESETS.map((preset) => (
-            <option key={preset} value={preset}>
-              {preset.charAt(0).toUpperCase() + preset.slice(1)}
-            </option>
-          ))}
         </select>
       </label>
       <label className="flex items-center justify-between gap-3">

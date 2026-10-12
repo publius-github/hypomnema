@@ -1,4 +1,4 @@
-import { Field, NumberInput, Toggle } from "../../components/form";
+import { ColorPicker, Field, NumberInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import type { AppConfig } from "../../types";
 import { useAppStore } from "../../store";
@@ -164,6 +164,69 @@ export default function ViewsTab() {
           the same lists, spread out instead of filed away. Applies to the
           dashboard list zone and the Lists page alike, and the Lists page
           header carries the same switch.
+        </span>
+      </SettingsGroup>
+
+      <SettingsGroup id="views.listview">
+        <span className="text-xs text-content-muted">
+          The look of the List view, shared by the Days and Lists pages: one set
+          of numbers, so both pages read the same.
+        </span>
+        <Field label="Section plate height, % of normal (the plate text scales with it)">
+          <NumberInput
+            value={config.list_view_plate_scale}
+            min={100}
+            onCommit={(n) =>
+              void updateConfig({ list_view_plate_scale: Math.min(400, n) })
+            }
+          />
+        </Field>
+        <span className="-mt-1 text-xs text-content-muted">
+          The Daily/Monthly/Done... plates. 100 = the same plate as on cards;
+          200 doubles both the plate and its label.
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Hatch color</span>
+          <ColorPicker
+            value={
+              config.gap_hatch_color ||
+              (config.theme === "light" ? "#e0e0e0" : "#3c3c3c")
+            }
+            onChange={(color) => void updateConfig({ gap_hatch_color: color })}
+          />
+          {config.gap_hatch_color ? (
+            <button
+              className="text-xs text-content-muted hover:text-content"
+              onClick={() => void updateConfig({ gap_hatch_color: "" })}
+            >
+              reset to border color
+            </button>
+          ) : (
+            <span className="text-xs text-content-muted">border color</span>
+          )}
+        </div>
+        <Field label="Hatch line spacing, px (smaller = denser)">
+          <NumberInput
+            value={config.gap_hatch_spacing}
+            min={4}
+            onCommit={(n) =>
+              void updateConfig({ gap_hatch_spacing: Math.min(64, n) })
+            }
+          />
+        </Field>
+        <Field label="Hatch inset from the row lines, % of the gap height">
+          <NumberInput
+            value={config.gap_hatch_inset}
+            min={0}
+            onCommit={(n) =>
+              void updateConfig({ gap_hatch_inset: Math.min(45, n) })
+            }
+          />
+        </Field>
+        <span className="-mt-1 text-xs text-content-muted">
+          Empty space the hatch leaves above and below itself, so it floats in
+          the gap instead of touching the lines of the rows around it. 0 = fills
+          the whole gap.
         </span>
       </SettingsGroup>
 

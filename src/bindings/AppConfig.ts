@@ -2,13 +2,8 @@
 
 export type AppConfig = { theme: "dark" | "light", 
 /**
- * Named chrome palette applied on top of the dark/light theme
- * ("default" = the stylesheet colors); each preset carries both a
- * dark and a light variant.
- */
-theme_preset: "default" | "black" | "vscode" | "nord" | "gruvbox" | "solarized", 
-/**
- * Individual chrome color overrides, hex; empty = preset default.
+ * Individual chrome color overrides, hex; empty = the stylesheet's
+ * VS Code Dark+/Light+ palette.
  */
 accent_color: string, surface_color: string, surface_alt_color: string, line_color: string, grid_columns: number, done_display: "inline" | "separate", retention_days: number, catchup_days: number, 
 /**
@@ -93,6 +88,11 @@ day_header_centered: boolean,
  * task gets from a manual color; a manual color wins).
  */
 cadence_colors: boolean, 
+/**
+ * Per closed section: its cards keep the cadence stripe (off = the
+ * stripe drops there; manual and list colors still show).
+ */
+cadence_colors_postponed: boolean, cadence_colors_waiting: boolean, cadence_colors_done: boolean, 
 /**
  * Stripe colors per cadence, hex.
  */
@@ -322,9 +322,20 @@ lists_list_style: boolean,
 lists_gap_hatch: boolean, 
 /**
  * Section plate height in the Days/Lists list views, % of the
- * plate's normal height (100..=400).
+ * plate's normal height (100..=400); the plate text scales with it.
  */
 list_view_plate_scale: number, 
+/**
+ * Hatched gaps in the Days/Lists list views: line color, hex
+ * (empty = the border color), and the distance between two
+ * parallel hatch lines, px (4..=64).
+ */
+gap_hatch_color: string, gap_hatch_spacing: number, 
+/**
+ * Empty band the hatch leaves above and below itself, % of the
+ * gap's height (0..=45), so it does not touch the rows' hairlines.
+ */
+gap_hatch_inset: number, 
 /**
  * How grouped lists show in the list panels: `folded` = one tile per
  * group with its lists behind a drill-in, `flat` = every list as its

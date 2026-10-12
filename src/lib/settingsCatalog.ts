@@ -40,6 +40,7 @@ export type SettingsGroupId =
   | "views.dashboard"
   | "views.days"
   | "views.lists"
+  | "views.listview"
   | "views.settings"
   | "views.navigation"
   | "cards.colors"
@@ -87,6 +88,11 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
   "views.dashboard": { tab: "views", title: "Dashboard" },
   "views.days": { tab: "views", title: "Days page" },
   "views.lists": { tab: "views", title: "Lists page" },
+  "views.listview": {
+    tab: "views",
+    title: "List view (Days and Lists)",
+    knobs: true,
+  },
   "views.settings": { tab: "views", title: "Settings page" },
   "views.navigation": { tab: "views", title: "Navigation" },
 
@@ -189,8 +195,7 @@ export type CatalogEntry = {
 
 export const SETTINGS_CATALOG: CatalogEntry[] = [
   // --- Appearance -------------------------------------------------
-  { key: "theme", label: "Theme", group: "appearance.theme", terms: "dark light" },
-  { key: "theme_preset", label: "Theme palette", group: "appearance.theme", terms: "nord gruvbox solarized vscode black preset" },
+  { key: "theme", label: "Theme", group: "appearance.theme", terms: "dark light vscode palette" },
   { key: "accent_color", label: "Accent color", group: "appearance.theme" },
   { key: "surface_color", label: "Background color", group: "appearance.theme" },
   { key: "surface_alt_color", label: "Panel color", group: "appearance.theme" },
@@ -230,7 +235,10 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "lists_page_align_rows", label: "Align list rows", group: "views.lists" },
   { key: "lists_list_style", label: "List view on the Lists page", group: "views.lists", terms: "cards rows lines flat" },
   { key: "lists_gap_hatch", label: "Hatch the gaps between blocks and sections (Lists)", group: "views.lists", terms: "stripes cross list view category" },
-  { key: "list_view_plate_scale", label: "Section plate height in list view", group: "columns.shared", terms: "header daily monthly done percent" },
+  { key: "list_view_plate_scale", label: "Section plate height in list view", group: "views.listview", terms: "header daily monthly done percent font text size" },
+  { key: "gap_hatch_color", label: "Hatch color", group: "views.listview", terms: "stripes cross gap line" },
+  { key: "gap_hatch_spacing", label: "Hatch line spacing", group: "views.listview", terms: "stripes cross gap density frequency" },
+  { key: "gap_hatch_inset", label: "Hatch inset from the row lines", group: "views.listview", terms: "stripes cross gap margin padding" },
   { key: "lists_group_display", label: "Grouped lists display", group: "views.lists", terms: "folded flat group tile" },
 
   { key: "settings_width", label: "Settings content width", group: "views.settings", terms: "tab strip wrap" },
@@ -240,6 +248,9 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   // --- Task cards -------------------------------------------------
   { key: "cadence_colors", label: "Color tasks by cadence", group: "cards.colors", terms: "stripe" },
+  { key: "cadence_colors_postponed", label: "Cadence colors in Postponed", group: "cards.colors", terms: "stripe section closed" },
+  { key: "cadence_colors_waiting", label: "Cadence colors in Done, waiting", group: "cards.colors", terms: "stripe section closed" },
+  { key: "cadence_colors_done", label: "Cadence colors in Done", group: "cards.colors", terms: "stripe section closed" },
   { key: "cadence_color_general", label: "General cadence color", group: "cards.colors", terms: "stripe plate" },
   { key: "cadence_color_daily", label: "Daily cadence color", group: "cards.colors", terms: "stripe" },
   { key: "cadence_color_weekly", label: "Weekly cadence color", group: "cards.colors", terms: "stripe" },

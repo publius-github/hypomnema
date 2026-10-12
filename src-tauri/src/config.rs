@@ -12,12 +12,8 @@ use crate::error::Result;
 pub struct AppConfig {
     #[ts(type = "\"dark\" | \"light\"")]
     pub theme: String,
-    /// Named chrome palette applied on top of the dark/light theme
-    /// ("default" = the stylesheet colors); each preset carries both a
-    /// dark and a light variant.
-    #[ts(type = "\"default\" | \"black\" | \"vscode\" | \"nord\" | \"gruvbox\" | \"solarized\"")]
-    pub theme_preset: String,
-    /// Individual chrome color overrides, hex; empty = preset default.
+    /// Individual chrome color overrides, hex; empty = the stylesheet's
+    /// VS Code Dark+/Light+ palette.
     pub accent_color: String,
     pub surface_color: String,
     pub surface_alt_color: String,
@@ -80,6 +76,11 @@ pub struct AppConfig {
     /// Color task cards by their rule cadence (the same color stripe a
     /// task gets from a manual color; a manual color wins).
     pub cadence_colors: bool,
+    /// Per closed section: its cards keep the cadence stripe (off = the
+    /// stripe drops there; manual and list colors still show).
+    pub cadence_colors_postponed: bool,
+    pub cadence_colors_waiting: bool,
+    pub cadence_colors_done: bool,
     /// Stripe colors per cadence, hex.
     pub cadence_color_daily: String,
     pub cadence_color_weekly: String,
@@ -233,8 +234,16 @@ pub struct AppConfig {
     /// cross-hatched so it reads as a break.
     pub lists_gap_hatch: bool,
     /// Section plate height in the Days/Lists list views, % of the
-    /// plate's normal height (100..=400).
+    /// plate's normal height (100..=400); the plate text scales with it.
     pub list_view_plate_scale: u32,
+    /// Hatched gaps in the Days/Lists list views: line color, hex
+    /// (empty = the border color), and the distance between two
+    /// parallel hatch lines, px (4..=64).
+    pub gap_hatch_color: String,
+    pub gap_hatch_spacing: u32,
+    /// Empty band the hatch leaves above and below itself, % of the
+    /// gap's height (0..=45), so it does not touch the rows' hairlines.
+    pub gap_hatch_inset: u32,
     /// How grouped lists show in the list panels: `folded` = one tile per
     /// group with its lists behind a drill-in, `flat` = every list as its
     /// own column wearing its group's name as a chip.
@@ -346,8 +355,6 @@ pub const MD_PRESETS: &[&str] = &["vscode", "monokai", "one-dark", "github", "cu
 
 pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
 
-pub const THEME_PRESETS: &[&str] = &["default", "black", "vscode", "nord", "gruvbox", "solarized"];
-
 pub const SECTIONS: &[&str] = &[
     "dashboard",
     "lists",
@@ -381,7 +388,6 @@ pub const CADENCE_GROUPS: &[&str] = &["exact", "general", "daily", "weekly", "mo
 pub const PROFILE_KEYS: &[&str] = &[
     // theme and chrome
     "theme",
-    "theme_preset",
     "accent_color",
     "surface_color",
     "surface_alt_color",
@@ -400,6 +406,9 @@ pub const PROFILE_KEYS: &[&str] = &[
     "dow_label_color",
     // task colors
     "cadence_colors",
+    "cadence_colors_postponed",
+    "cadence_colors_waiting",
+    "cadence_colors_done",
     "cadence_color_daily",
     "cadence_color_weekly",
     "cadence_color_monthly",
@@ -444,6 +453,9 @@ pub const PROFILE_KEYS: &[&str] = &[
     "lists_list_style",
     "lists_gap_hatch",
     "list_view_plate_scale",
+    "gap_hatch_color",
+    "gap_hatch_spacing",
+    "gap_hatch_inset",
     "lists_group_display",
     "settings_width",
     "day_header_centered",
@@ -472,7 +484,6 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme: "dark".into(),
-            theme_preset: "default".into(),
             accent_color: String::new(),
             surface_color: String::new(),
             surface_alt_color: String::new(),
@@ -503,6 +514,9 @@ impl Default for AppConfig {
             undo_toast_seconds: 6,
             day_header_centered: false,
             cadence_colors: true,
+            cadence_colors_postponed: true,
+            cadence_colors_waiting: true,
+            cadence_colors_done: true,
             cadence_color_daily: "#9ca3af".into(),
             cadence_color_weekly: "#3b82f6".into(),
             cadence_color_monthly: "#a855f7".into(),
@@ -558,6 +572,9 @@ impl Default for AppConfig {
             lists_list_style: false,
             lists_gap_hatch: true,
             list_view_plate_scale: 200,
+            gap_hatch_color: String::new(),
+            gap_hatch_spacing: 12,
+            gap_hatch_inset: 25,
             lists_group_display: "folded".into(),
             settings_width: 1120,
             days_page_columns: 7,
@@ -652,9 +669,6 @@ impl AppConfig {
         if !["dark", "light"].contains(&self.theme.as_str()) {
             self.theme = "dark".into();
         }
-        if !THEME_PRESETS.contains(&self.theme_preset.as_str()) {
-            self.theme_preset = "default".into();
-        }
         if !["inline", "separate"].contains(&self.done_display.as_str()) {
             self.done_display = "inline".into();
         }
@@ -674,6 +688,8 @@ impl AppConfig {
         }
         self.days_page_columns = self.days_page_columns.clamp(1, 14);
         self.list_view_plate_scale = self.list_view_plate_scale.clamp(100, 400);
+        self.gap_hatch_spacing = self.gap_hatch_spacing.clamp(4, 64);
+        self.gap_hatch_inset = self.gap_hatch_inset.min(45);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -790,6 +806,7 @@ impl AppConfig {
         sanitize_optional_color(&mut self.postponed_plate_color);
         sanitize_optional_color(&mut self.done_plate_color);
         sanitize_optional_color(&mut self.waiting_plate_color);
+        sanitize_optional_color(&mut self.gap_hatch_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -857,7 +874,6 @@ impl AppConfig {
     pub fn settings_pairs(&self) -> Vec<(&'static str, String)> {
         vec![
             ("theme", self.theme.clone()),
-            ("theme_preset", self.theme_preset.clone()),
             ("accent_color", self.accent_color.clone()),
             ("surface_color", self.surface_color.clone()),
             ("surface_alt_color", self.surface_alt_color.clone()),
@@ -906,6 +922,15 @@ impl AppConfig {
             ("undo_toast_seconds", self.undo_toast_seconds.to_string()),
             ("day_header_centered", self.day_header_centered.to_string()),
             ("cadence_colors", self.cadence_colors.to_string()),
+            (
+                "cadence_colors_postponed",
+                self.cadence_colors_postponed.to_string(),
+            ),
+            (
+                "cadence_colors_waiting",
+                self.cadence_colors_waiting.to_string(),
+            ),
+            ("cadence_colors_done", self.cadence_colors_done.to_string()),
             ("cadence_color_daily", self.cadence_color_daily.clone()),
             ("cadence_color_weekly", self.cadence_color_weekly.clone()),
             ("cadence_color_monthly", self.cadence_color_monthly.clone()),
@@ -1002,6 +1027,9 @@ impl AppConfig {
                 "list_view_plate_scale",
                 self.list_view_plate_scale.to_string(),
             ),
+            ("gap_hatch_color", self.gap_hatch_color.clone()),
+            ("gap_hatch_spacing", self.gap_hatch_spacing.to_string()),
+            ("gap_hatch_inset", self.gap_hatch_inset.to_string()),
             ("lists_group_display", self.lists_group_display.clone()),
             ("settings_width", self.settings_width.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),

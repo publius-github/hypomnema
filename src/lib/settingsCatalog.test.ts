@@ -151,7 +151,6 @@ describe("profileCoverage", () => {
     expect(
       profileCoverage("appearance.theme", [
         "theme",
-        "theme_preset",
         "accent_color",
         "surface_color",
         "surface_alt_color",

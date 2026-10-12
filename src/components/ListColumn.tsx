@@ -14,6 +14,7 @@ import {
   compareTasks,
   sortClosedAlpha,
   splitDone,
+  listViewPlateStyle,
   tintStyle,
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
@@ -118,11 +119,9 @@ function ListColumn({
   // list view: category and section gaps are hatched instead of left
   // empty, so a break reads apart from the hairline between rows
   const hatchGaps = flat && (config?.lists_gap_hatch ?? true);
-  // list view: section plates grow to list_view_plate_scale % of
-  // their normal height (11px text, its line, 2px padding each side)
-  const plateHeight = flat
-    ? `calc(${(config?.list_view_plate_scale ?? 200) / 100} * (1.5em + 4px))`
-    : undefined;
+  // list view: section plates, label included, grow to
+  // list_view_plate_scale % of their normal size
+  const plateSize = listViewPlateStyle(config, flat);
 
   // extra air where one {Category} block ends and the next begins, the
   // same rule the day columns follow; inside a list every task shares
@@ -144,7 +143,7 @@ function ListColumn({
     (t: Task) => categoryOf(t.title),
   );
 
-  const card = (task: Task, i: number, items: Task[]) => {
+  const card = (task: Task, i: number, items: Task[], cadenceStripe = true) => {
     const gap = gapBefore(items, i);
     return (
       <div key={task.id} style={{ marginTop: hatchGaps ? undefined : gap }}>
@@ -158,12 +157,19 @@ function ListColumn({
           flat={flat}
           // a block's first row also gets the line above it
           flatTop={i === 0 || gap !== undefined}
+          cadenceStripe={cadenceStripe}
         />
       </div>
     );
   };
   // same plate style as the day-column section headers, optional color
-  const section = (label: string, items: Task[], plateColor: string, gap: number) =>
+  const section = (
+    label: string,
+    items: Task[],
+    plateColor: string,
+    gap: number,
+    cadenceStripe: boolean,
+  ) =>
     items.length > 0 && (
       <div
         className="flex flex-col"
@@ -176,13 +182,13 @@ function ListColumn({
           }`}
           style={{
             ...(plateColor ? tintStyle(plateColor) : {}),
-            minHeight: plateHeight,
+            ...plateSize,
           }}
         >
           <span>{label}</span>
           <span className="h-px flex-1 bg-current opacity-30" />
         </div>
-        {items.map(card)}
+        {items.map((task, i) => card(task, i, items, cadenceStripe))}
       </div>
     );
 
@@ -325,12 +331,12 @@ function ListColumn({
           <div className="flex flex-col" style={{ rowGap: taskGap }}>
             <div
               className="flex items-center gap-1.5 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warn"
-              style={{ minHeight: plateHeight }}
+              style={plateSize}
             >
               <span>Priority</span>
               <span className="h-px flex-1 bg-warn/30" />
             </div>
-            {prioritized.map(card)}
+            {prioritized.map((task, i) => card(task, i, prioritized))}
           </div>
         )}
         {rest.length > 0 && (
@@ -373,18 +379,21 @@ function ListColumn({
           postponed,
           config?.postponed_plate_color ?? "",
           config?.list_postponed_section_gap ?? 12,
+          config?.cadence_colors_postponed ?? true,
         )}
         {section(
           "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
           config?.list_waiting_section_gap ?? 12,
+          config?.cadence_colors_waiting ?? true,
         )}
         {section(
           "Done",
           done,
           config?.done_plate_color ?? "",
           config?.list_done_section_gap ?? 12,
+          config?.cadence_colors_done ?? true,
         )}
       </div>
     </div>

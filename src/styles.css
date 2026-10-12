@@ -5,14 +5,17 @@
 :root {
   /* native widgets (scrollbars, pickers) follow the app theme */
   color-scheme: light;
-  --color-surface: 244 246 248;
-  --color-surface-alt: 255 255 255;
-  --color-content: 23 26 31;
+  /* chrome palette: VS Code Light+ (editor background, side bar,
+     borders and the classic blue accent); Settings > Appearance
+     overrides any of the six individually */
+  --color-surface: 255 255 255;
+  --color-surface-alt: 243 243 243;
+  --color-content: 51 51 51;
   /* the single secondary text tone: readable, just quieter than
      --color-content; never dim it further with opacity modifiers */
-  --color-content-muted: 88 96 108;
-  --color-accent: 37 99 235;
-  --color-line: 218 223 230;
+  --color-content-muted: 111 111 111;
+  --color-accent: 0 95 184;
+  --color-line: 224 224 224;
   /* semantic roles: overdue/errors, postponed/warnings, exact-date/info */
   --color-danger: 220 38 38;
   --color-warn: 217 119 6;
@@ -45,12 +48,13 @@
 
 .dark {
   color-scheme: dark;
-  --color-surface: 18 20 24;
-  --color-surface-alt: 28 31 37;
-  --color-content: 230 233 238;
-  --color-content-muted: 168 176 188;
-  --color-accent: 96 145 255;
-  --color-line: 52 57 66;
+  /* VS Code Dark+ chrome */
+  --color-surface: 30 30 30;
+  --color-surface-alt: 37 37 38;
+  --color-content: 212 212 212;
+  --color-content-muted: 140 140 140;
+  --color-accent: 55 148 255;
+  --color-line: 60 60 60;
   --color-danger: 248 113 113;
   --color-warn: 251 191 36;
   --color-info: 56 189 248;

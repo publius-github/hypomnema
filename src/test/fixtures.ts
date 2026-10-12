@@ -5,7 +5,6 @@ import type { AppConfig, DashboardContext, EngineOutcome, Task } from "../types"
  *  grows, so a drifted default here fails loudly. */
 export const defaultConfig: AppConfig = {
   theme: "dark",
-  theme_preset: "default",
   accent_color: "",
   surface_color: "",
   surface_alt_color: "",
@@ -47,6 +46,9 @@ export const defaultConfig: AppConfig = {
   undo_toast_seconds: 6,
   day_header_centered: false,
   cadence_colors: true,
+  cadence_colors_postponed: true,
+  cadence_colors_waiting: true,
+  cadence_colors_done: true,
   cadence_color_daily: "#9ca3af",
   cadence_color_weekly: "#3b82f6",
   cadence_color_monthly: "#a855f7",
@@ -98,6 +100,9 @@ export const defaultConfig: AppConfig = {
   lists_list_style: false,
   lists_gap_hatch: true,
   list_view_plate_scale: 200,
+  gap_hatch_color: "",
+  gap_hatch_spacing: 12,
+  gap_hatch_inset: 25,
   lists_group_display: "folded",
   settings_width: 1120,
   days_page_columns: 7,
@@ -205,7 +210,6 @@ export function baseHandlers(overrides: CommandHandlers = {}): CommandHandlers {
     // scope is pinned on the Rust side and in settingsCatalog.test.ts
     profile_scope: () => [
       "theme",
-      "theme_preset",
       "accent_color",
       "surface_color",
       "surface_alt_color",

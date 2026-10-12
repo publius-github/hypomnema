@@ -47,7 +47,6 @@ function seed(patch: Partial<typeof defaultConfig> = {}) {
     defaults: defaultConfig,
     profileKeys: [
       "theme",
-      "theme_preset",
       "accent_color",
       "surface_color",
       "surface_alt_color",

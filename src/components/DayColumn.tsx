@@ -11,6 +11,7 @@ import {
   groupByCadence,
   sortClosedAlpha,
   splitDone,
+  listViewPlateStyle,
   tintStyle,
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
@@ -110,15 +111,19 @@ function DayColumn({
   // list view: the gaps between category blocks and between sections
   // are hatched so a break reads apart from the hairline between rows
   const hatchGaps = flat && (config?.days_gap_hatch ?? true);
-  // list view: section plates grow to list_view_plate_scale % of
-  // their normal height (11px text, its line, 2px padding each side)
-  const plateHeight = flat
-    ? `calc(${(config?.list_view_plate_scale ?? 200) / 100} * (1.5em + 4px))`
-    : undefined;
+  // list view: section plates, label included, grow to
+  // list_view_plate_scale % of their normal size
+  const plateSize = listViewPlateStyle(config, flat);
 
   // Postponed/Done headers use the same plate style as the cadence
   // group headers, each with an optional color and gap of its own
-  const section = (label: string, items: Task[], plateColor: string, gap: number) =>
+  const section = (
+    label: string,
+    items: Task[],
+    plateColor: string,
+    gap: number,
+    cadenceStripe: boolean,
+  ) =>
     items.length > 0 && (
       <div
         className="flex flex-col"
@@ -131,7 +136,7 @@ function DayColumn({
           }`}
           style={{
             ...(plateColor ? tintStyle(plateColor) : {}),
-            minHeight: plateHeight,
+            ...plateSize,
           }}
         >
           <span>{label}</span>
@@ -145,6 +150,7 @@ function DayColumn({
             blockIndex={blockIndex.get(task.id)}
             flat={flat}
             flatTop={j === 0}
+            cadenceStripe={cadenceStripe}
           />
         ))}
       </div>
@@ -235,7 +241,7 @@ function DayColumn({
                 ...(groupColor(group.key)
                   ? tintStyle(groupColor(group.key)!)
                   : {}),
-                minHeight: plateHeight,
+                ...plateSize,
               }}
             >
               <span>{group.label}</span>
@@ -276,18 +282,21 @@ function DayColumn({
           postponed,
           config?.postponed_plate_color ?? "",
           config?.postponed_section_gap ?? 12,
+          config?.cadence_colors_postponed ?? true,
         )}
         {section(
           "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
           config?.waiting_section_gap ?? 12,
+          config?.cadence_colors_waiting ?? true,
         )}
         {section(
           "Done",
           done,
           config?.done_plate_color ?? "",
           config?.done_section_gap ?? 12,
+          config?.cadence_colors_done ?? true,
         )}
         <QuickAdd target={{ scheduled_date: date }} />
       </div>

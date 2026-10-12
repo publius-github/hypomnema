@@ -69,6 +69,23 @@ export default function TaskCardsTab() {
                 </span>
               )}
             </div>
+            {/* the closed sections: a stripe there may be noise, since
+                the section itself already says what became of the task */}
+            {(
+              [
+                ["Postponed", "cadence_colors_postponed"],
+                ["Done, waiting", "cadence_colors_waiting"],
+                ["Done", "cadence_colors_done"],
+              ] as const
+            ).map(([label, key]) => (
+              <Toggle
+                key={key}
+                checked={config[key]}
+                label={`Keep the cadence stripe in ${label}`}
+                hint={`Cards in the ${label} section of a day or list column (Separate done display) keep their cadence color; off = the stripe drops there. A manual or list color still shows.`}
+                onChange={(v) => void updateConfig({ [key]: v })}
+              />
+            ))}
           </div>
         )}
 
