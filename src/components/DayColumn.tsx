@@ -115,13 +115,14 @@ function DayColumn({
           <span>{label}</span>
           <span className="h-px flex-1 bg-current opacity-30" />
         </div>
-        {items.map((task) => (
+        {items.map((task, j) => (
           <TaskCard
             key={task.id}
             task={task}
             onOpen={onOpenTask}
             blockIndex={blockIndex.get(task.id)}
             flat={flat}
+            flatTop={j === 0}
           />
         ))}
       </div>
@@ -224,6 +225,9 @@ function DayColumn({
                     onOpen={onOpenTask}
                     blockIndex={blockIndex.get(task.id)}
                     flat={flat}
+                    // every block is framed: its first row also gets
+                    // the line above, not only the one below
+                    flatTop={j === 0 || gapBefore}
                   />
                 </div>
               );

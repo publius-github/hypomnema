@@ -29,6 +29,7 @@ function TaskCard({
   titleLines = 1,
   blockIndex,
   flat = false,
+  flatTop = false,
 }: {
   task: Task;
   overlay?: boolean;
@@ -50,6 +51,8 @@ function TaskCard({
    * shadow, just a hairline under it (the Days page's list style).
    */
   flat?: boolean;
+  /** a flat row that opens a block also gets the hairline above it */
+  flatTop?: boolean;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -181,7 +184,7 @@ function TaskCard({
       {...(passive ? {} : listeners)}
       className={`group text-sm ${
         flat
-          ? "border-b border-line/60 hover:bg-line/20"
+          ? `border-b border-line/60 hover:bg-line/20 ${flatTop ? "border-t" : ""}`
           : "rounded-md border border-line bg-surface-alt shadow-sm"
       } ${
         isDragging ? "opacity-30" : ""
