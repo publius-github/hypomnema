@@ -311,6 +311,21 @@ lists_page_columns: number,
  */
 lists_page_align_rows: boolean, 
 /**
+ * Lists page renders its tasks as a plain list split by hairlines
+ * instead of one boxed card per task (the dashboard keeps cards).
+ */
+lists_list_style: boolean, 
+/**
+ * In the Lists list view, the gap between two {Category} blocks is
+ * cross-hatched so it reads as a break.
+ */
+lists_gap_hatch: boolean, 
+/**
+ * Section plate height in the Days/Lists list views, % of the
+ * plate's normal height (100..=400).
+ */
+list_view_plate_scale: number, 
+/**
  * How grouped lists show in the list panels: `folded` = one tile per
  * group with its lists behind a drill-in, `flat` = every list as its
  * own column wearing its group's name as a chip.

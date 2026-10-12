@@ -18,6 +18,7 @@ import {
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
+import GapHatch from "./GapHatch";
 import ListModal from "./ListModal";
 import { ConfirmModal } from "./dialogs";
 import type { List, ListGroup, Task } from "../types";
@@ -29,6 +30,7 @@ function ListColumn({
   onOpenGroup,
   fill = false,
   highlight = false,
+  flat = false,
 }: {
   list: List;
   /**
@@ -44,6 +46,8 @@ function ListColumn({
   fill?: boolean;
   /** flash ring after a jump from the All-lists index */
   highlight?: boolean;
+  /** tasks as hairline-separated list rows instead of boxed cards */
+  flat?: boolean;
 }) {
   const config = useAppStore((s) => s.config);
   const renameList = useAppStore((s) => s.renameList);
@@ -107,9 +111,18 @@ function ListColumn({
   // configurable vertical rhythm, same tokens the day columns use;
   // Postponed/Done and the {Category} blocks sit behind list-specific
   // gaps, separate from the day-grid ones
-  const taskGap = config?.task_gap ?? 6;
+  // list rows sit flush: the hairline under each one is the separator
+  const taskGap = flat ? 0 : (config?.task_gap ?? 6);
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.list_category_block_gap ?? 12;
+  // list view: category and section gaps are hatched instead of left
+  // empty, so a break reads apart from the hairline between rows
+  const hatchGaps = flat && (config?.lists_gap_hatch ?? true);
+  // list view: section plates grow to list_view_plate_scale % of
+  // their normal height (11px text, its line, 2px padding each side)
+  const plateHeight = flat
+    ? `calc(${(config?.list_view_plate_scale ?? 200) / 100} * (1.5em + 4px))`
+    : undefined;
 
   // extra air where one {Category} block ends and the next begins, the
   // same rule the day columns follow; inside a list every task shares
@@ -131,29 +144,40 @@ function ListColumn({
     (t: Task) => categoryOf(t.title),
   );
 
-  const card = (task: Task, i: number, items: Task[]) => (
-    <div key={task.id} style={{ marginTop: gapBefore(items, i) }}>
-      <TaskCard
-        task={task}
-        onOpen={onOpenTask}
-        showList={false}
-        titleLines={titleLines}
-        blockIndex={blockIndex.get(task.id)}
-      />
-    </div>
-  );
+  const card = (task: Task, i: number, items: Task[]) => {
+    const gap = gapBefore(items, i);
+    return (
+      <div key={task.id} style={{ marginTop: hatchGaps ? undefined : gap }}>
+        {hatchGaps && gap !== undefined && <GapHatch height={gap} />}
+        <TaskCard
+          task={task}
+          onOpen={onOpenTask}
+          showList={false}
+          titleLines={titleLines}
+          blockIndex={blockIndex.get(task.id)}
+          flat={flat}
+          // a block's first row also gets the line above it
+          flatTop={i === 0 || gap !== undefined}
+        />
+      </div>
+    );
+  };
   // same plate style as the day-column section headers, optional color
   const section = (label: string, items: Task[], plateColor: string, gap: number) =>
     items.length > 0 && (
       <div
         className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: gap }}
+        style={{ rowGap: taskGap, marginTop: hatchGaps ? undefined : gap }}
       >
+        {hatchGaps && <GapHatch height={gap} />}
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
             plateColor ? "" : "bg-line/40 text-content"
           }`}
-          style={plateColor ? tintStyle(plateColor) : undefined}
+          style={{
+            ...(plateColor ? tintStyle(plateColor) : {}),
+            minHeight: plateHeight,
+          }}
         >
           <span>{label}</span>
           <span className="h-px flex-1 bg-current opacity-30" />
@@ -299,7 +323,10 @@ function ListColumn({
         <QuickAdd target={{ list_id: list.id }} />
         {prioritized.length > 0 && (
           <div className="flex flex-col" style={{ rowGap: taskGap }}>
-            <div className="flex items-center gap-1.5 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warn">
+            <div
+              className="flex items-center gap-1.5 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warn"
+              style={{ minHeight: plateHeight }}
+            >
               <span>Priority</span>
               <span className="h-px flex-1 bg-warn/30" />
             </div>
@@ -314,9 +341,13 @@ function ListColumn({
             className="flex flex-col"
             style={{
               rowGap: taskGap,
-              marginTop: prioritized.length > 0 ? sectionGap : undefined,
+              marginTop:
+                prioritized.length > 0 && !hatchGaps ? sectionGap : undefined,
             }}
           >
+            {prioritized.length > 0 && hatchGaps && (
+              <GapHatch height={sectionGap} />
+            )}
             <SortableContext
               items={rest.map((t) => `task:${t.id}`)}
               strategy={verticalListSortingStrategy}
@@ -329,6 +360,9 @@ function ListColumn({
                   titleLines={titleLines}
                   gapBefore={gapBefore(rest, i)}
                   blockIndex={blockIndex.get(task.id)}
+                  flat={flat}
+                  first={i === 0}
+                  hatch={hatchGaps}
                 />
               ))}
             </SortableContext>
@@ -369,6 +403,9 @@ function SortableCard({
   titleLines,
   gapBefore,
   blockIndex,
+  flat,
+  first,
+  hatch,
 }: {
   task: Task;
   onOpenTask: (id: number) => void;
@@ -377,6 +414,12 @@ function SortableCard({
   gapBefore?: number;
   /** ordinal of the card's category block, for the alternating palette */
   blockIndex?: number;
+  /** list-row look, see TaskCard */
+  flat: boolean;
+  /** first row of the backlog block */
+  first: boolean;
+  /** draw the category gap as a hatch instead of empty space */
+  hatch: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -389,12 +432,13 @@ function SortableCard({
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        marginTop: gapBefore,
+        marginTop: hatch ? undefined : gapBefore,
       }}
       className={isDragging ? "opacity-30" : ""}
       {...attributes}
       {...listeners}
     >
+      {hatch && gapBefore !== undefined && <GapHatch height={gapBefore} />}
       <TaskCard
         task={task}
         onOpen={onOpenTask}
@@ -402,6 +446,8 @@ function SortableCard({
         inert
         titleLines={titleLines}
         blockIndex={blockIndex}
+        flat={flat}
+        flatTop={first || gapBefore !== undefined}
       />
     </div>
   );

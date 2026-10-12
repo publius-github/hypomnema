@@ -15,6 +15,7 @@ import {
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
+import GapHatch from "./GapHatch";
 import type { Task } from "../types";
 
 function DayColumn({
@@ -106,9 +107,14 @@ function DayColumn({
   const taskGap = flat ? 0 : (config?.task_gap ?? 6);
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.category_block_gap ?? 12;
-  // list view: the gap between category blocks is hatched so the
-  // break reads apart from the hairline between two rows
+  // list view: the gaps between category blocks and between sections
+  // are hatched so a break reads apart from the hairline between rows
   const hatchGaps = flat && (config?.days_gap_hatch ?? true);
+  // list view: section plates grow to list_view_plate_scale % of
+  // their normal height (11px text, its line, 2px padding each side)
+  const plateHeight = flat
+    ? `calc(${(config?.list_view_plate_scale ?? 200) / 100} * (1.5em + 4px))`
+    : undefined;
 
   // Postponed/Done headers use the same plate style as the cadence
   // group headers, each with an optional color and gap of its own
@@ -116,13 +122,17 @@ function DayColumn({
     items.length > 0 && (
       <div
         className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: gap }}
+        style={{ rowGap: taskGap, marginTop: hatchGaps ? undefined : gap }}
       >
+        {hatchGaps && <GapHatch height={gap} />}
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
             plateColor ? "" : "bg-line/40 text-content"
           }`}
-          style={plateColor ? tintStyle(plateColor) : undefined}
+          style={{
+            ...(plateColor ? tintStyle(plateColor) : {}),
+            minHeight: plateHeight,
+          }}
         >
           <span>{label}</span>
           <span className="h-px flex-1 bg-current opacity-30" />
@@ -205,18 +215,20 @@ function DayColumn({
             // cadence blocks read as separate sections
             style={{
               rowGap: taskGap,
-              marginTop: i > 0 ? sectionGap : undefined,
+              marginTop: i > 0 && !hatchGaps ? sectionGap : undefined,
             }}
           >
+            {i > 0 && hatchGaps && <GapHatch height={sectionGap} />}
             <div
               className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                 groupColor(group.key) ? "" : "bg-line/40 text-content"
               }`}
-              style={
-                groupColor(group.key)
+              style={{
+                ...(groupColor(group.key)
                   ? tintStyle(groupColor(group.key)!)
-                  : undefined
-              }
+                  : {}),
+                minHeight: plateHeight,
+              }}
             >
               <span>{group.label}</span>
               <span className="h-px flex-1 bg-current opacity-30" />
@@ -236,16 +248,7 @@ function DayColumn({
                       : undefined
                   }
                 >
-                  {gapBefore && hatchGaps && (
-                    <div
-                      className="text-line"
-                      style={{
-                        height: categoryGap,
-                        backgroundImage:
-                          "repeating-linear-gradient(-45deg, currentColor 0 1px, transparent 1px 6px)",
-                      }}
-                    />
-                  )}
+                  {gapBefore && hatchGaps && <GapHatch height={categoryGap} />}
                   <TaskCard
                     task={task}
                     onOpen={onOpenTask}

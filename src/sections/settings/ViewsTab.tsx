@@ -96,8 +96,8 @@ export default function ViewsTab() {
         {config.days_list_style && (
           <Toggle
             checked={config.days_gap_hatch}
-            label="Hatch the gaps between category blocks"
-            hint="Fills the space between two categories with diagonal stripes, so the break stands out from an ordinary row line."
+            label="Hatch the gaps between blocks and sections"
+            hint="Fills the space between two categories, and between two sections (Daily, Monthly, Done...), with a light cross-hatch, so a break stands out from an ordinary row line."
             onChange={(v) => void updateConfig({ days_gap_hatch: v })}
           />
         )}
@@ -126,6 +126,21 @@ export default function ViewsTab() {
           hint="Every list column stretches to its grid row's height, so the rows line up instead of forming a ragged mosaic. Off = each column takes its natural height."
           onChange={(v) => void updateConfig({ lists_page_align_rows: v })}
         />
+
+        <Toggle
+          checked={config.lists_list_style}
+          label="List view"
+          hint="Tasks on the Lists page as a plain list split by thin lines instead of one boxed card per task. The dashboard's list zone keeps its cards."
+          onChange={(v) => void updateConfig({ lists_list_style: v })}
+        />
+        {config.lists_list_style && (
+          <Toggle
+            checked={config.lists_gap_hatch}
+            label="Hatch the gaps between blocks and sections"
+            hint="Fills the space between two {Category} blocks, and between two sections (Priority, Postponed, Done...), with a light cross-hatch, so a break stands out from an ordinary row line."
+            onChange={(v) => void updateConfig({ lists_gap_hatch: v })}
+          />
+        )}
 
         <Field label="Grouped lists in the list panels">
           <select

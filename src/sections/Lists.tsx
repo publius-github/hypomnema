@@ -208,6 +208,7 @@ export default function Lists() {
                     onOpenGroup={setOpenGroupId}
                     fill={config.lists_page_align_rows}
                     highlight={highlightId === itemKey(item)}
+                    flat={config.lists_list_style}
                   />
                 ) : (
                   <GroupColumn

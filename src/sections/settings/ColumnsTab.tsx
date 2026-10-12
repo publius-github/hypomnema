@@ -70,6 +70,19 @@ export default function ColumnsTab() {
           Separate gives every column its Postponed, Done-waiting and Done
           blocks - the sections the gaps and plates below refer to.
         </span>
+        <Field label="Section plate height in list view, % of normal">
+          <NumberInput
+            value={config.list_view_plate_scale}
+            min={100}
+            onCommit={(n) =>
+              void updateConfig({ list_view_plate_scale: Math.min(400, n) })
+            }
+          />
+        </Field>
+        <span className="-mt-1 text-xs text-content-muted">
+          The Daily/Monthly/Done... plates on the Days and Lists pages
+          while their List view is on. 100 = the same height as on cards.
+        </span>
         {config.done_display === "separate" && (
           <Toggle
             checked={config.closed_sections_sort_alpha}

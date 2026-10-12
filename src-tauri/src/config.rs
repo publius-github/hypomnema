@@ -226,6 +226,15 @@ pub struct AppConfig {
     /// Lists page: stretch every list column to its grid row's height so
     /// the rows line up; off = each column takes its natural height.
     pub lists_page_align_rows: bool,
+    /// Lists page renders its tasks as a plain list split by hairlines
+    /// instead of one boxed card per task (the dashboard keeps cards).
+    pub lists_list_style: bool,
+    /// In the Lists list view, the gap between two {Category} blocks is
+    /// cross-hatched so it reads as a break.
+    pub lists_gap_hatch: bool,
+    /// Section plate height in the Days/Lists list views, % of the
+    /// plate's normal height (100..=400).
+    pub list_view_plate_scale: u32,
     /// How grouped lists show in the list panels: `folded` = one tile per
     /// group with its lists behind a drill-in, `flat` = every list as its
     /// own column wearing its group's name as a chip.
@@ -432,6 +441,9 @@ pub const PROFILE_KEYS: &[&str] = &[
     "days_gap_hatch",
     "lists_page_columns",
     "lists_page_align_rows",
+    "lists_list_style",
+    "lists_gap_hatch",
+    "list_view_plate_scale",
     "lists_group_display",
     "settings_width",
     "day_header_centered",
@@ -543,6 +555,9 @@ impl Default for AppConfig {
             lists_sort_alpha: false,
             lists_page_columns: 4,
             lists_page_align_rows: true,
+            lists_list_style: false,
+            lists_gap_hatch: true,
+            list_view_plate_scale: 200,
             lists_group_display: "folded".into(),
             settings_width: 1120,
             days_page_columns: 7,
@@ -658,6 +673,7 @@ impl AppConfig {
             self.days_page_columns = self.grid_columns;
         }
         self.days_page_columns = self.days_page_columns.clamp(1, 14);
+        self.list_view_plate_scale = self.list_view_plate_scale.clamp(100, 400);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -979,6 +995,12 @@ impl AppConfig {
             (
                 "lists_page_align_rows",
                 self.lists_page_align_rows.to_string(),
+            ),
+            ("lists_list_style", self.lists_list_style.to_string()),
+            ("lists_gap_hatch", self.lists_gap_hatch.to_string()),
+            (
+                "list_view_plate_scale",
+                self.list_view_plate_scale.to_string(),
             ),
             ("lists_group_display", self.lists_group_display.clone()),
             ("settings_width", self.settings_width.to_string()),

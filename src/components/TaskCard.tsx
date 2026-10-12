@@ -47,8 +47,8 @@ function TaskCard({
    */
   blockIndex?: number;
   /**
-   * A row of a plain list rather than a boxed card: no frame, fill or
-   * shadow, just a hairline under it (the Days page's list style).
+   * A row of a plain list rather than a boxed card: same fill, but no
+   * frame, rounding or shadow, just a hairline under it (list view).
    */
   flat?: boolean;
   /** a flat row that opens a block also gets the hairline above it */
@@ -184,7 +184,9 @@ function TaskCard({
       {...(passive ? {} : listeners)}
       className={`group text-sm ${
         flat
-          ? `border-b border-line/60 hover:bg-line/20 ${flatTop ? "border-t" : ""}`
+          ? // the card's own surface fill stays (themes contrast it
+            // against the column), only frame, rounding and shadow go
+            `border-b border-line/60 bg-surface-alt ${flatTop ? "border-t" : ""}`
           : "rounded-md border border-line bg-surface-alt shadow-sm"
       } ${
         isDragging ? "opacity-30" : ""
