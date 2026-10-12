@@ -223,10 +223,29 @@ export default function ViewsTab() {
             }
           />
         </Field>
+        <Field label="Opacity, % (100 = solid)">
+          <NumberInput
+            value={config.gap_fill_opacity}
+            min={0}
+            onCommit={(n) =>
+              void updateConfig({ gap_fill_opacity: Math.min(100, n) })
+            }
+          />
+        </Field>
+        <Field label="Maximum band thickness, px">
+          <NumberInput
+            value={config.gap_fill_max_thickness}
+            min={1}
+            onCommit={(n) =>
+              void updateConfig({ gap_fill_max_thickness: Math.min(64, n) })
+            }
+          />
+        </Field>
         <span className="-mt-1 text-xs text-content-muted">
           Empty space the band leaves above and below itself, so it floats in
           the gap instead of touching the lines of the rows around it. 0 = the
-          band spans the whole gap.
+          band spans the whole gap. In a tall gap the band stops at the
+          maximum thickness and stays centered.
         </span>
       </SettingsGroup>
 

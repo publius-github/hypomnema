@@ -245,6 +245,11 @@ pub struct AppConfig {
     /// Empty space the band leaves above and below itself, % of the
     /// gap's height (0..=45), so it does not touch the rows' hairlines.
     pub gap_fill_inset: u32,
+    /// Thickest the band gets, px (1..=64): a tall gap keeps a thin
+    /// line-like band centered in it instead of a wide smudge.
+    pub gap_fill_max_thickness: u32,
+    /// Opacity of the band, % (0..=100).
+    pub gap_fill_opacity: u32,
     /// How grouped lists show in the list panels: `folded` = one tile per
     /// group with its lists behind a drill-in, `flat` = every list as its
     /// own column wearing its group's name as a chip.
@@ -435,6 +440,8 @@ pub const PROFILE_KEYS: &[&str] = &[
     "gap_fill_color",
     "gap_fill_fade",
     "gap_fill_inset",
+    "gap_fill_max_thickness",
+    "gap_fill_opacity",
     "lists_group_display",
     "settings_width",
     "day_header_centered",
@@ -554,6 +561,8 @@ impl Default for AppConfig {
             gap_fill_color: String::new(),
             gap_fill_fade: 60,
             gap_fill_inset: 25,
+            gap_fill_max_thickness: 6,
+            gap_fill_opacity: 100,
             lists_group_display: "folded".into(),
             settings_width: 1120,
             days_page_columns: 7,
@@ -660,6 +669,8 @@ impl AppConfig {
         self.list_view_plate_scale = self.list_view_plate_scale.clamp(100, 400);
         self.gap_fill_fade = self.gap_fill_fade.min(100);
         self.gap_fill_inset = self.gap_fill_inset.min(45);
+        self.gap_fill_max_thickness = self.gap_fill_max_thickness.clamp(1, 64);
+        self.gap_fill_opacity = self.gap_fill_opacity.min(100);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -990,6 +1001,11 @@ impl AppConfig {
             ("gap_fill_color", self.gap_fill_color.clone()),
             ("gap_fill_fade", self.gap_fill_fade.to_string()),
             ("gap_fill_inset", self.gap_fill_inset.to_string()),
+            (
+                "gap_fill_max_thickness",
+                self.gap_fill_max_thickness.to_string(),
+            ),
+            ("gap_fill_opacity", self.gap_fill_opacity.to_string()),
             ("lists_group_display", self.lists_group_display.clone()),
             ("settings_width", self.settings_width.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),

@@ -338,6 +338,15 @@ gap_fill_color: string, gap_fill_fade: number,
  */
 gap_fill_inset: number, 
 /**
+ * Thickest the band gets, px (1..=64): a tall gap keeps a thin
+ * line-like band centered in it instead of a wide smudge.
+ */
+gap_fill_max_thickness: number, 
+/**
+ * Opacity of the band, % (0..=100).
+ */
+gap_fill_opacity: number, 
+/**
  * How grouped lists show in the list panels: `folded` = one tile per
  * group with its lists behind a drill-in, `flat` = every list as its
  * own column wearing its group's name as a chip.
