@@ -8,6 +8,7 @@ import {
   currentAndNextBlock,
   daysBetweenISO,
   groupByCadence,
+  sortClosedAlpha,
   splitDone,
   tintStyle,
 } from "../lib/tasks";
@@ -61,11 +62,12 @@ export default function MobileDay() {
   // the same Postponed/Done separation the desktop's day column makes
   // (done_display "separate"), with the same brief hold so a just-tapped
   // row does not fly away under the finger
-  const { active, postponed, waiting, done } = splitDone(
+  const split = splitDone(
     shown,
     config?.done_display ?? "inline",
     new Map(hold.map((h) => [h.id, h.status])),
   );
+  const { active } = split;
 
   // the day's ambient context, same sources as the desktop column:
   // weekly focus, this day's reminders, and (today only) the schedule
@@ -91,6 +93,14 @@ export default function MobileDay() {
       ? null
       : (lists.find((l) => l.id === task.list_id)?.name ?? null);
   };
+  // Postponed/Done read alphabetically by the same category rule
+  const closedOrder = (items: Task[]) =>
+    (config?.closed_sections_sort_alpha ?? true)
+      ? sortClosedAlpha(items, taskCategory)
+      : items;
+  const postponed = closedOrder(split.postponed);
+  const waiting = closedOrder(split.waiting);
+  const done = closedOrder(split.done);
   const groups = useMemo(
     () => groupByCadence(active, config?.cadence_group_order, taskCategory),
     // eslint-disable-next-line react-hooks/exhaustive-deps

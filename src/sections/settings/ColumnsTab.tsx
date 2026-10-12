@@ -70,6 +70,16 @@ export default function ColumnsTab() {
           Separate gives every column its Postponed, Done-waiting and Done
           blocks - the sections the gaps and plates below refer to.
         </span>
+        {config.done_display === "separate" && (
+          <Toggle
+            checked={config.closed_sections_sort_alpha}
+            label="Sort Postponed and Done alphabetically"
+            hint="The Postponed, Done-waiting and Done blocks order by category, then title. Off = the same order the open tasks use."
+            onChange={(v) =>
+              void updateConfig({ closed_sections_sort_alpha: v })
+            }
+          />
+        )}
 
         <SettingsSubGroup id="columns.shared.spacing">
           <div className="flex flex-wrap gap-4">

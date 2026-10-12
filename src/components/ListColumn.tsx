@@ -12,6 +12,7 @@ import {
   categoryBlockIndex,
   categoryOf,
   compareTasks,
+  sortClosedAlpha,
   splitDone,
   tintStyle,
 } from "../lib/tasks";
@@ -86,11 +87,19 @@ function ListColumn({
     }
     return compareTasks(a, b);
   });
-  const { active, postponed, waiting, done } = splitDone(
+  const split = splitDone(
     sorted,
     config?.done_display ?? "inline",
     new Map(hold.map((h) => [h.id, h.status])),
   );
+  const { active } = split;
+  const closedOrder = (items: Task[]) =>
+    (config?.closed_sections_sort_alpha ?? true)
+      ? sortClosedAlpha(items)
+      : items;
+  const postponed = closedOrder(split.postponed);
+  const waiting = closedOrder(split.waiting);
+  const done = closedOrder(split.done);
   // priority tasks jump the queue: their own group on top of the column
   const prioritized = active.filter((t) => t.priority);
   const rest = active.filter((t) => !t.priority);

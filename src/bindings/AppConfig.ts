@@ -339,6 +339,21 @@ days_today_only: boolean,
  */
 days_list_style: boolean, 
 /**
+ * In the Days list view, the gap between two category blocks is
+ * filled with a diagonal hatch so it reads as a break.
+ */
+days_gap_hatch: boolean, 
+/**
+ * Postponed / Done, waiting / Done sections sort by category, then
+ * title, alphabetically; off = the same order as the open tasks.
+ */
+closed_sections_sort_alpha: boolean, 
+/**
+ * "varied" category chips skip palette hues close to the cadence
+ * colors, so a chip never matches the section plate it sits under.
+ */
+category_avoid_cadence_colors: boolean, 
+/**
  * Order the tasks inside a list column alphabetically (timed tasks
  * still pin to the top); off = manual drag order.
  */

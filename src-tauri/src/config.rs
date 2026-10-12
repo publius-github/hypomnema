@@ -245,6 +245,15 @@ pub struct AppConfig {
     /// Days page renders its tasks as a plain list split by hairlines
     /// instead of one boxed card per task (toggled on the page header).
     pub days_list_style: bool,
+    /// In the Days list view, the gap between two category blocks is
+    /// filled with a diagonal hatch so it reads as a break.
+    pub days_gap_hatch: bool,
+    /// Postponed / Done, waiting / Done sections sort by category, then
+    /// title, alphabetically; off = the same order as the open tasks.
+    pub closed_sections_sort_alpha: bool,
+    /// "varied" category chips skip palette hues close to the cadence
+    /// colors, so a chip never matches the section plate it sits under.
+    pub category_avoid_cadence_colors: bool,
     /// Order the tasks inside a list column alphabetically (timed tasks
     /// still pin to the top); off = manual drag order.
     pub list_tasks_sort_alpha: bool,
@@ -392,6 +401,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     // category chips
     "category_color",
     "category_color_mode",
+    "category_avoid_cadence_colors",
     "category_color_a",
     "category_color_b",
     "chip_font_scale",
@@ -419,6 +429,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "dashboard_split",
     "days_page_columns",
     "days_list_style",
+    "days_gap_hatch",
     "lists_page_columns",
     "lists_page_align_rows",
     "lists_group_display",
@@ -537,6 +548,9 @@ impl Default for AppConfig {
             days_page_columns: 7,
             days_today_only: false,
             days_list_style: false,
+            days_gap_hatch: true,
+            closed_sections_sort_alpha: true,
+            category_avoid_cadence_colors: true,
             list_tasks_sort_alpha: false,
             list_task_lines: 1,
             list_dialog_task_lines: 3,
@@ -971,6 +985,15 @@ impl AppConfig {
             ("days_page_columns", self.days_page_columns.to_string()),
             ("days_today_only", self.days_today_only.to_string()),
             ("days_list_style", self.days_list_style.to_string()),
+            ("days_gap_hatch", self.days_gap_hatch.to_string()),
+            (
+                "closed_sections_sort_alpha",
+                self.closed_sections_sort_alpha.to_string(),
+            ),
+            (
+                "category_avoid_cadence_colors",
+                self.category_avoid_cadence_colors.to_string(),
+            ),
             (
                 "list_tasks_sort_alpha",
                 self.list_tasks_sort_alpha.to_string(),

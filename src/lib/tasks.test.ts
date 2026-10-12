@@ -14,6 +14,7 @@ import {
   indexRows,
   orderPanel,
   priorityPatch,
+  sortClosedAlpha,
   sortSubtasks,
   splitCategory,
   splitDone,
@@ -240,9 +241,9 @@ describe("cadence colors", () => {
     expect(cadenceColor(config, "exact")).toBe("#555555");
     expect(cadenceColor(config, "general")).toBe(null);
     expect(cadenceColor(null, "daily")).toBe(null);
-    expect(
-      cadenceColor({ ...config, cadence_colors: false }, "daily"),
-    ).toBe(null);
+    expect(cadenceColor({ ...config, cadence_colors: false }, "daily")).toBe(
+      null,
+    );
   });
 });
 
@@ -268,7 +269,10 @@ describe("currentAndNextBlock", () => {
   const at = (h: number, m: number) => new Date(2026, 7, 28, h, m);
 
   it("finds the covering block and the next one", () => {
-    const blocks = [block("09:00", "12:30", "Deep work"), block("14:00", "17:00", "Meetings")];
+    const blocks = [
+      block("09:00", "12:30", "Deep work"),
+      block("14:00", "17:00", "Meetings"),
+    ];
     const focus = currentAndNextBlock(blocks, at(10, 15));
     expect(focus?.current?.label).toBe("Deep work");
     expect(focus?.next?.label).toBe("Meetings");
@@ -282,9 +286,7 @@ describe("currentAndNextBlock", () => {
     expect(currentAndNextBlock(blocks, at(23, 30))?.current?.label).toBe(
       "Night",
     );
-    expect(currentAndNextBlock(blocks, at(5, 0))?.current?.label).toBe(
-      "Night",
-    );
+    expect(currentAndNextBlock(blocks, at(5, 0))?.current?.label).toBe("Night");
     // the current block is not also the next one
     expect(currentAndNextBlock(blocks, at(5, 0))?.next ?? null).toBeNull();
     expect(currentAndNextBlock(blocks, at(12, 0))?.current ?? null).toBeNull();
@@ -412,6 +414,71 @@ describe("categoryChipColor", () => {
       categoryChipColor("Work", [], c, 7),
     );
   });
+
+  it("keeps varied chips off the cadence hues", () => {
+    const cadence = {
+      cadence_colors: true,
+      cadence_color_general: "",
+      cadence_color_daily: "#9ca3af",
+      cadence_color_weekly: "#3b82f6",
+      cadence_color_monthly: "#a855f7",
+      cadence_color_yearly: "#f59e0b",
+      cadence_color_exact: "#0ea5e9",
+    };
+    const avoid = config({ ...cadence, category_avoid_cadence_colors: true });
+    const names = Array.from({ length: 60 }, (_, i) => `Category ${i}`);
+    const used = new Set(names.map((n) => categoryChipColor(n, [], avoid)));
+    // the plate colors and their near neighbors (violet, cyan, orange)
+    for (const near of [
+      "#3b82f6",
+      "#a855f7",
+      "#8b5cf6",
+      "#f59e0b",
+      "#f97316",
+      "#0ea5e9",
+      "#06b6d4",
+    ]) {
+      expect(used.has(near)).toBe(false);
+    }
+    const all = config({ ...cadence, category_avoid_cadence_colors: false });
+    expect(
+      new Set(names.map((n) => categoryChipColor(n, [], all))).size,
+    ).toBeGreaterThan(used.size);
+  });
+
+  it("keeps a list's own color even when it matches a cadence", () => {
+    const c = config({
+      cadence_colors: true,
+      cadence_color_monthly: "#a855f7",
+      category_avoid_cadence_colors: true,
+    });
+    const lists = [list({ name: "Health", color: "#a855f7" })];
+    expect(categoryChipColor("Health", lists, c)).toBe("#a855f7");
+  });
+});
+
+describe("sortClosedAlpha", () => {
+  it("orders by category, then title text, uncategorized first", () => {
+    const sorted = sortClosedAlpha([
+      task({ id: 1, title: "{Work} zebra" }),
+      task({ id: 2, title: "banana" }),
+      task({ id: 3, title: "{Home} item 10" }),
+      task({ id: 4, title: "{Work} Apple" }),
+      task({ id: 5, title: "{Home} item 9" }),
+    ]);
+    expect(sorted.map((t) => t.id)).toEqual([2, 5, 3, 4, 1]);
+  });
+
+  it("uses the given category rule and leaves the input alone", () => {
+    const input = [
+      task({ id: 1, title: "b", list_id: 2 }),
+      task({ id: 2, title: "a", list_id: 1 }),
+    ];
+    const names: Record<number, string> = { 1: "Zeta", 2: "Alpha" };
+    const sorted = sortClosedAlpha(input, (t) => names[t.list_id!]);
+    expect(sorted.map((t) => t.id)).toEqual([1, 2]);
+    expect(input.map((t) => t.id)).toEqual([1, 2]);
+  });
 });
 
 describe("nextWeekTarget", () => {
@@ -443,10 +510,9 @@ describe("orderPanel", () => {
 
   it("folds a group's lists behind its tile", () => {
     const panel = orderPanel(lists, groups, [], false);
-    expect(panel.map((i) => (i.type === "list" ? i.list.name : i.group.name))).toEqual([
-      "Inbox",
-      "Work",
-    ]);
+    expect(
+      panel.map((i) => (i.type === "list" ? i.list.name : i.group.name)),
+    ).toEqual(["Inbox", "Work"]);
   });
 
   it("gives every list its own slot and no group slot when flat", () => {
@@ -469,7 +535,9 @@ describe("indexRows", () => {
   ];
   const shape = (rows: ReturnType<typeof indexRows>) =>
     rows.map((r) =>
-      r.type === "group" ? `> ${r.group.name}` : (r.nested ? "  " : "") + r.list.name,
+      r.type === "group"
+        ? `> ${r.group.name}`
+        : (r.nested ? "  " : "") + r.list.name,
     );
 
   it("mirrors the folded panel when folded", () => {

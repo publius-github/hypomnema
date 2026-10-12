@@ -86,6 +86,21 @@ export default function ViewsTab() {
             ))}
           </select>
         </Field>
+
+        <Toggle
+          checked={config.days_list_style}
+          label="List view"
+          hint="Tasks as a plain list split by thin lines instead of one boxed card per task. The Dashboard keeps its cards."
+          onChange={(v) => void updateConfig({ days_list_style: v })}
+        />
+        {config.days_list_style && (
+          <Toggle
+            checked={config.days_gap_hatch}
+            label="Hatch the gaps between category blocks"
+            hint="Fills the space between two categories with diagonal stripes, so the break stands out from an ordinary row line."
+            onChange={(v) => void updateConfig({ days_gap_hatch: v })}
+          />
+        )}
       </SettingsGroup>
 
       <SettingsGroup id="views.lists">

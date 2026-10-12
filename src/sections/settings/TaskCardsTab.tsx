@@ -122,6 +122,16 @@ export default function TaskCardsTab() {
               ? "The two colors below take turns, one category block after the next, running down a whole column - the turn carries on across the Daily/Weekly/Monthly sections and into Postponed and Done instead of restarting."
               : "Every category label wears the single color above."}
         </span>
+        {config.category_color_mode === "varied" && (
+          <Toggle
+            checked={config.category_avoid_cadence_colors}
+            label="Avoid the cadence colors"
+            hint="A palette color close to one of the cadence colors (the Weekly/Monthly/... plates) is skipped, so a chip never blends into the section it sits under. A list's own hand-picked color is kept either way."
+            onChange={(v) =>
+              void updateConfig({ category_avoid_cadence_colors: v })
+            }
+          />
+        )}
         {config.category_color_mode === "alternate" && (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Alternating colors</span>

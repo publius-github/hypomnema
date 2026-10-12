@@ -223,6 +223,8 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "dashboard_split", label: "Dashboard split", group: "views.dashboard", terms: "day grid height divider" },
 
   { key: "days_page_columns", label: "Day columns on the Days page", group: "views.days" },
+  { key: "days_list_style", label: "List view on the Days page", group: "views.days", terms: "cards rows lines flat" },
+  { key: "days_gap_hatch", label: "Hatch the gaps between category blocks", group: "views.days", terms: "stripes list view" },
 
   { key: "lists_page_columns", label: "Grid columns on the Lists page", group: "views.lists" },
   { key: "lists_page_align_rows", label: "Align list rows", group: "views.lists" },
@@ -246,6 +248,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   { key: "category_color", label: "Category label color", group: "cards.chips" },
   { key: "category_color_mode", label: "Category chip coloring", group: "cards.chips", terms: "single varied alternate" },
+  { key: "category_avoid_cadence_colors", label: "Varied chips avoid the cadence colors", group: "cards.chips", terms: "palette weekly monthly plate" },
   { key: "category_color_a", label: "Alternating chip color A", group: "cards.chips" },
   { key: "category_color_b", label: "Alternating chip color B", group: "cards.chips" },
   { key: "chip_font_scale", label: "Chip text size", group: "cards.chips", terms: "category list date chip" },
@@ -265,6 +268,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   // --- Columns ----------------------------------------------------
   { key: "done_display", label: "Done tasks display", group: "columns.shared", terms: "inline separate block" },
+  { key: "closed_sections_sort_alpha", label: "Sort Postponed and Done alphabetically", group: "columns.shared", terms: "waiting order abc" },
   { key: "task_gap", label: "Gap between tasks", group: "columns.shared", sub: "columns.shared.spacing", terms: "spacing density" },
   { key: "section_gap", label: "Gap between sections", group: "columns.shared", sub: "columns.shared.spacing", terms: "spacing density" },
   { key: "postponed_plate_color", label: "Postponed plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
@@ -347,10 +351,6 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
   {
     key: "days_today_only",
     why: "the same toggle on the Days page header",
-  },
-  {
-    key: "days_list_style",
-    why: "the Cards/List switch on the Days page header, beside the view it restyles",
   },
   { key: "sync_auto", why: "mobile only - the desktop reaches its vault through the filesystem" },
   { key: "sync_interval_minutes", why: "mobile only" },

@@ -95,19 +95,6 @@ export default function Days() {
           >
             Today only
           </button>
-          <button
-            className={`px-2 py-0.5 text-xs rounded-md ${
-              config.days_list_style ? "bg-accent/15 text-accent" : "btn-ghost"
-            }`}
-            title="Show tasks as a plain list split by lines instead of boxed cards"
-            onClick={() =>
-              void useAppStore.getState().updateConfig({
-                days_list_style: !config.days_list_style,
-              })
-            }
-          >
-            List view
-          </button>
           <DateJump />
           {gridOffset !== 0 && (
             <button

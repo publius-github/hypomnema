@@ -9,6 +9,7 @@ import {
   currentAndNextBlock,
   dayLabel,
   groupByCadence,
+  sortClosedAlpha,
   splitDone,
   tintStyle,
 } from "../lib/tasks";
@@ -59,11 +60,6 @@ function DayColumn({
       ),
     ),
   );
-  const { active, postponed, waiting, done } = splitDone(
-    dayTasks,
-    config?.done_display ?? "inline",
-    new Map(hold.map((h) => [h.id, h.status])),
-  );
   // the "category" of a task: the {X} title prefix for manual tasks,
   // the list name for engine-generated ones (their {X} became a list)
   const taskCategory = (t: Task) =>
@@ -71,6 +67,19 @@ function DayColumn({
     (t.list_id !== null
       ? (lists.find((l) => l.id === t.list_id)?.name ?? null)
       : null);
+  const split = splitDone(
+    dayTasks,
+    config?.done_display ?? "inline",
+    new Map(hold.map((h) => [h.id, h.status])),
+  );
+  const { active } = split;
+  const closedOrder = (items: Task[]) =>
+    (config?.closed_sections_sort_alpha ?? true)
+      ? sortClosedAlpha(items, taskCategory)
+      : items;
+  const postponed = closedOrder(split.postponed);
+  const waiting = closedOrder(split.waiting);
+  const done = closedOrder(split.done);
   const groups = groupByCadence(
     active,
     config?.cadence_group_order,
@@ -97,6 +106,9 @@ function DayColumn({
   const taskGap = flat ? 0 : (config?.task_gap ?? 6);
   const sectionGap = config?.section_gap ?? 12;
   const categoryGap = config?.category_block_gap ?? 12;
+  // list view: the gap between category blocks is hatched so the
+  // break reads apart from the hairline between two rows
+  const hatchGaps = flat && (config?.days_gap_hatch ?? true);
 
   // Postponed/Done headers use the same plate style as the cadence
   // group headers, each with an optional color and gap of its own
@@ -218,8 +230,22 @@ function DayColumn({
               return (
                 <div
                   key={task.id}
-                  style={gapBefore ? { marginTop: categoryGap } : undefined}
+                  style={
+                    gapBefore && !hatchGaps
+                      ? { marginTop: categoryGap }
+                      : undefined
+                  }
                 >
+                  {gapBefore && hatchGaps && (
+                    <div
+                      className="text-line"
+                      style={{
+                        height: categoryGap,
+                        backgroundImage:
+                          "repeating-linear-gradient(-45deg, currentColor 0 1px, transparent 1px 6px)",
+                      }}
+                    />
+                  )}
                   <TaskCard
                     task={task}
                     onOpen={onOpenTask}

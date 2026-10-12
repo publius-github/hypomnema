@@ -364,7 +364,66 @@ export function categoryChipColor(
   if (mode !== "varied") return config?.category_color || "#3b82f6";
   const list = lists.find((l) => l.name === name && l.color);
   if (list?.color) return list.color;
-  return CATEGORY_PALETTE[hash32(name) % CATEGORY_PALETTE.length];
+  const palette =
+    (config?.category_avoid_cadence_colors ?? true)
+      ? chipPalette(config)
+      : CATEGORY_PALETTE;
+  return palette[hash32(name) % palette.length];
+}
+
+/** Hue (0..360) and saturation (0..1) of a #rrggbb color, or null. */
+function hueSat(hex: string): { hue: number; sat: number } | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(
+    (v) => v / 255,
+  );
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return { hue: 0, sat: 0 };
+  const hue =
+    max === r
+      ? ((g - b) / d + 6) % 6
+      : max === g
+        ? (b - r) / d + 2
+        : (r - g) / d + 4;
+  const l = (max + min) / 2;
+  return { hue: hue * 60, sat: d / (1 - Math.abs(2 * l - 1)) };
+}
+
+/** Palette hues closer than this to a cadence color count as "the same". */
+const CADENCE_HUE_MARGIN = 20;
+
+/**
+ * CATEGORY_PALETTE minus the hues the cadence sections already wear:
+ * with the defaults weekly is blue and monthly purple, and a chip of
+ * the same hue under that plate reads as noise rather than as a
+ * separate label. Greyish cadence colors (daily) claim no hue. Falls
+ * back to the whole palette should the cadence colors cover it all.
+ */
+function chipPalette(config: AppConfig | null): string[] {
+  if (!config?.cadence_colors) return CATEGORY_PALETTE;
+  const taken = [
+    config.cadence_color_general,
+    config.cadence_color_daily,
+    config.cadence_color_weekly,
+    config.cadence_color_monthly,
+    config.cadence_color_yearly,
+    config.cadence_color_exact,
+  ]
+    .map((c) => (c ? hueSat(c) : null))
+    .filter((hs): hs is { hue: number; sat: number } => !!hs && hs.sat > 0.25)
+    .map((hs) => hs.hue);
+  const free = CATEGORY_PALETTE.filter((color) => {
+    const hue = hueSat(color)!.hue;
+    return taken.every((t) => {
+      const diff = Math.abs(hue - t);
+      return Math.min(diff, 360 - diff) >= CADENCE_HUE_MARGIN;
+    });
+  });
+  return free.length > 0 ? free : CATEGORY_PALETTE;
 }
 
 /**
@@ -604,6 +663,33 @@ export function currentAndNextBlock(
   const next = sorted.find((b) => b !== current && b.from > hhmm) ?? null;
   if (!current && !next) return null;
   return { current, next };
+}
+
+/**
+ * Alphabetical order for the Postponed / Done, waiting / Done blocks
+ * (`closed_sections_sort_alpha`): by category the way the open
+ * sections group them (uncategorized first), then by the title text.
+ */
+export function sortClosedAlpha(
+  tasks: Task[],
+  labelOf: (task: Task) => string | null = (t) =>
+    splitCategory(t.title).category,
+): Task[] {
+  const opts = { sensitivity: "base", numeric: true } as const;
+  return [...tasks].sort((a, b) => {
+    const byCategory = (labelOf(a) ?? "").localeCompare(
+      labelOf(b) ?? "",
+      undefined,
+      opts,
+    );
+    if (byCategory !== 0) return byCategory;
+    const byTitle = splitCategory(a.title).text.localeCompare(
+      splitCategory(b.title).text,
+      undefined,
+      opts,
+    );
+    return byTitle !== 0 ? byTitle : compareTasks(a, b);
+  });
 }
 
 /**
