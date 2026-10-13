@@ -106,6 +106,8 @@ pub struct AppConfig {
     /// Done-but-waiting status marks: a muted blue, quieter than the
     /// info tone, so it reads as "done, not over yet".
     pub waiting_color: String,
+    /// "Not done, dropped" status marks.
+    pub dropped_color: String,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -177,6 +179,8 @@ pub struct AppConfig {
     /// Recurring task cards wear a `Rate: 82%` chip: the share of the
     /// rule item's settled instances that were done.
     pub habit_rate_chip: bool,
+    /// Show the rate chip only once it falls below its threshold.
+    pub habit_rate_alert_only: bool,
     /// Default alert threshold, percent: below it the rate chip turns
     /// loud. A rule's own `threshold:` in recurring.yml wins over it.
     pub habit_rate_threshold: u32,
@@ -218,6 +222,32 @@ pub struct AppConfig {
     /// is one stripe, a section break two, the Postponed / Done,
     /// waiting / Done breaks three.
     pub list_gap_stripe: u32,
+    /// Each column section is a framed panel with one continuous rail
+    /// in its plate color down the left edge; the breaks between
+    /// sections become plain space (`section_gap`) instead of stripes.
+    pub section_cards: bool,
+    /// Space between two section panels, px (0..=64).
+    pub section_gap: u32,
+    /// Category breaks inside a section draw the gap band; off = the
+    /// break is empty space of the same height.
+    pub category_gap_bands: bool,
+    /// Hairlines between the rows of a column.
+    pub row_hairlines: bool,
+    /// A category block names its category once, as a small header over
+    /// its rows, instead of a chip on every row.
+    pub category_headers: bool,
+    /// Section plates show how many tasks the section holds (done/total
+    /// when closed tasks stay inline).
+    pub section_plate_count: bool,
+    /// Section plates stick to the top of the column while its rows
+    /// scroll under them.
+    pub section_plate_sticky: bool,
+    /// Postponed / Done, waiting / Done sections start folded to their
+    /// plate; a click on the plate opens or folds them.
+    pub closed_sections_collapsed: bool,
+    /// Opacity of a closed (done, dropped) row's text and chips, %
+    /// (20..=100); the status box keeps full strength.
+    pub closed_row_opacity: u32,
     /// How grouped lists show in the list panels: `folded` = one tile per
     /// group with its lists behind a drill-in, `flat` = every list as its
     /// own column wearing its group's name as a chip.
@@ -277,6 +307,8 @@ pub struct AppConfig {
     /// The [SAT#1]-style weekday marker on task cards; empty =
     /// secondary tone.
     pub dow_label_color: String,
+    /// Opacity of the weekday marker, % (20..=100).
+    pub dow_label_opacity: u32,
     /// Date chip of a dated list task inside its LIST column; empty =
     /// the exact-date cadence color. Day columns always use that color.
     pub list_date_chip_color: String,
@@ -361,6 +393,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "reminder_color",
     "day_header_color",
     "dow_label_color",
+    "dow_label_opacity",
     // task colors
     "cadence_colors",
     "cadence_color_daily",
@@ -370,6 +403,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "cadence_color_exact",
     "done_color",
     "waiting_color",
+    "dropped_color",
     // category chips
     "category_color",
     "category_color_mode",
@@ -401,6 +435,15 @@ pub const PROFILE_KEYS: &[&str] = &[
     "gap_fill_max_thickness",
     "gap_fill_opacity",
     "list_gap_stripe",
+    "section_cards",
+    "section_gap",
+    "category_gap_bands",
+    "row_hairlines",
+    "category_headers",
+    "section_plate_count",
+    "section_plate_sticky",
+    "closed_sections_collapsed",
+    "closed_row_opacity",
     "lists_group_display",
     "settings_width",
     "day_header_centered",
@@ -412,6 +455,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "cron_weekday_labels",
     "cron_everyday_label",
     "habit_rate_chip",
+    "habit_rate_alert_only",
     "habit_rate_alert_color",
 ];
 
@@ -424,7 +468,7 @@ impl Default for AppConfig {
             surface_alt_color: String::new(),
             line_color: String::new(),
             grid_columns: 7,
-            done_display: "inline".into(),
+            done_display: "separate".into(),
             retention_days: 0,
             catchup_days: 14,
             cron_ignore_time: true,
@@ -461,6 +505,7 @@ impl Default for AppConfig {
             category_color_b: "#ea580c".into(),
             done_color: "#22c55e".into(),
             waiting_color: "#3b80c0".into(),
+            dropped_color: "#ef4444".into(),
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
@@ -484,6 +529,7 @@ impl Default for AppConfig {
             cron_weekday_labels: true,
             cron_everyday_label: true,
             habit_rate_chip: true,
+            habit_rate_alert_only: true,
             habit_rate_threshold: 80,
             habit_rate_window: 30,
             habit_rate_min_instances: 3,
@@ -498,6 +544,15 @@ impl Default for AppConfig {
             gap_fill_max_thickness: 20,
             gap_fill_opacity: 100,
             list_gap_stripe: 60,
+            section_cards: true,
+            section_gap: 16,
+            category_gap_bands: false,
+            row_hairlines: false,
+            category_headers: true,
+            section_plate_count: true,
+            section_plate_sticky: true,
+            closed_sections_collapsed: true,
+            closed_row_opacity: 50,
             lists_group_display: "folded".into(),
             settings_width: 1120,
             days_page_columns: 7,
@@ -520,6 +575,7 @@ impl Default for AppConfig {
             reminder_color: String::new(),
             day_header_color: String::new(),
             dow_label_color: String::new(),
+            dow_label_opacity: 60,
             list_date_chip_color: String::new(),
             cadence_color_general: String::new(),
             postponed_plate_color: "#f43f5e".into(),
@@ -605,6 +661,9 @@ impl AppConfig {
         self.gap_fill_max_thickness = self.gap_fill_max_thickness.clamp(1, 64);
         self.gap_fill_opacity = self.gap_fill_opacity.min(100);
         self.list_gap_stripe = self.list_gap_stripe.clamp(25, 150);
+        self.section_gap = self.section_gap.min(64);
+        self.closed_row_opacity = self.closed_row_opacity.clamp(20, 100);
+        self.dow_label_opacity = self.dow_label_opacity.clamp(20, 100);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
         self.calendar_weekly_weeks = self.calendar_weekly_weeks.min(52);
         self.calendar_monthly_months = self.calendar_monthly_months.min(24);
@@ -665,6 +724,7 @@ impl AppConfig {
         self.chip_font_scale = self.chip_font_scale.clamp(50, 200);
         sanitize_color(&mut self.done_color, defaults.done_color);
         sanitize_color(&mut self.waiting_color, defaults.waiting_color);
+        sanitize_color(&mut self.dropped_color, defaults.dropped_color);
         // an empty plate color is the old "neutral" value: it takes the
         // section's own default hue now
         sanitize_color(
@@ -832,6 +892,7 @@ impl AppConfig {
             ("category_color_b", self.category_color_b.clone()),
             ("done_color", self.done_color.clone()),
             ("waiting_color", self.waiting_color.clone()),
+            ("dropped_color", self.dropped_color.clone()),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
@@ -867,6 +928,10 @@ impl AppConfig {
             ("cron_everyday_label", self.cron_everyday_label.to_string()),
             ("habit_rate_chip", self.habit_rate_chip.to_string()),
             (
+                "habit_rate_alert_only",
+                self.habit_rate_alert_only.to_string(),
+            ),
+            (
                 "habit_rate_threshold",
                 self.habit_rate_threshold.to_string(),
             ),
@@ -898,6 +963,21 @@ impl AppConfig {
             ),
             ("gap_fill_opacity", self.gap_fill_opacity.to_string()),
             ("list_gap_stripe", self.list_gap_stripe.to_string()),
+            ("section_cards", self.section_cards.to_string()),
+            ("section_gap", self.section_gap.to_string()),
+            ("category_gap_bands", self.category_gap_bands.to_string()),
+            ("row_hairlines", self.row_hairlines.to_string()),
+            ("category_headers", self.category_headers.to_string()),
+            ("section_plate_count", self.section_plate_count.to_string()),
+            (
+                "section_plate_sticky",
+                self.section_plate_sticky.to_string(),
+            ),
+            (
+                "closed_sections_collapsed",
+                self.closed_sections_collapsed.to_string(),
+            ),
+            ("closed_row_opacity", self.closed_row_opacity.to_string()),
             ("lists_group_display", self.lists_group_display.clone()),
             ("settings_width", self.settings_width.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),
@@ -938,6 +1018,7 @@ impl AppConfig {
             ("reminder_color", self.reminder_color.clone()),
             ("day_header_color", self.day_header_color.clone()),
             ("dow_label_color", self.dow_label_color.clone()),
+            ("dow_label_opacity", self.dow_label_opacity.to_string()),
             ("list_task_lines", self.list_task_lines.to_string()),
             (
                 "list_dialog_task_lines",

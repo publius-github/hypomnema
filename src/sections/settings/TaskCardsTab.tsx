@@ -115,6 +115,13 @@ export default function TaskCardsTab() {
             onChange={(color) => void updateConfig({ waiting_color: color })}
           />
         </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Not done, dropped mark color</span>
+          <ColorPicker
+            value={config.dropped_color}
+            onChange={(color) => void updateConfig({ dropped_color: color })}
+          />
+        </div>
       </SettingsGroup>
 
       <SettingsGroup id="cards.chips">
@@ -200,13 +207,22 @@ export default function TaskCardsTab() {
         />
 
         {config.cron_weekday_labels && (
-          <div className="pl-6">
+          <div className="flex flex-col gap-3 pl-6">
             <Toggle
               checked={config.cron_everyday_label}
               label="[EVERYDAY] marker on daily rules"
               hint="Rules free on both day fields (e.g. 0 9 * * *) wear an [EVERYDAY] marker instead of going unlabeled."
               onChange={(v) => void updateConfig({ cron_everyday_label: v })}
             />
+            <Field label="Marker opacity, % (100 = as strong as its color)">
+              <NumberInput
+                value={config.dow_label_opacity}
+                min={20}
+                onCommit={(n) =>
+                  void updateConfig({ dow_label_opacity: Math.min(100, n) })
+                }
+              />
+            </Field>
           </div>
         )}
 
@@ -219,6 +235,12 @@ export default function TaskCardsTab() {
 
         {config.habit_rate_chip && (
           <div className="flex flex-col gap-3 pl-6">
+            <Toggle
+              checked={config.habit_rate_alert_only}
+              label="Only when below the threshold"
+              hint="A healthy rate is noise on every row; the chip appears once the rate drops under its alert threshold."
+              onChange={(v) => void updateConfig({ habit_rate_alert_only: v })}
+            />
             <Field label="Alert below, % (a rule's own threshold in recurring.yml wins)">
               <NumberInput
                 value={config.habit_rate_threshold}

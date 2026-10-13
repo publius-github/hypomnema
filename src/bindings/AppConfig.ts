@@ -130,6 +130,10 @@ done_color: string,
  */
 waiting_color: string, 
 /**
+ * "Not done, dropped" status marks.
+ */
+dropped_color: string, 
+/**
  * Order of the cadence sections inside a day column.
  */
 cadence_group_order: Array<string>, 
@@ -239,6 +243,10 @@ cron_everyday_label: boolean,
  */
 habit_rate_chip: boolean, 
 /**
+ * Show the rate chip only once it falls below its threshold.
+ */
+habit_rate_alert_only: boolean, 
+/**
  * Default alert threshold, percent: below it the rate chip turns
  * loud. A rule's own `threshold:` in recurring.yml wins over it.
  */
@@ -304,6 +312,50 @@ gap_fill_opacity: number,
  * waiting / Done breaks three.
  */
 list_gap_stripe: number, 
+/**
+ * Each column section is a framed panel with one continuous rail
+ * in its plate color down the left edge; the breaks between
+ * sections become plain space (`section_gap`) instead of stripes.
+ */
+section_cards: boolean, 
+/**
+ * Space between two section panels, px (0..=64).
+ */
+section_gap: number, 
+/**
+ * Category breaks inside a section draw the gap band; off = the
+ * break is empty space of the same height.
+ */
+category_gap_bands: boolean, 
+/**
+ * Hairlines between the rows of a column.
+ */
+row_hairlines: boolean, 
+/**
+ * A category block names its category once, as a small header over
+ * its rows, instead of a chip on every row.
+ */
+category_headers: boolean, 
+/**
+ * Section plates show how many tasks the section holds (done/total
+ * when closed tasks stay inline).
+ */
+section_plate_count: boolean, 
+/**
+ * Section plates stick to the top of the column while its rows
+ * scroll under them.
+ */
+section_plate_sticky: boolean, 
+/**
+ * Postponed / Done, waiting / Done sections start folded to their
+ * plate; a click on the plate opens or folds them.
+ */
+closed_sections_collapsed: boolean, 
+/**
+ * Opacity of a closed (done, dropped) row's text and chips, %
+ * (20..=100); the status box keeps full strength.
+ */
+closed_row_opacity: number, 
 /**
  * How grouped lists show in the list panels: `folded` = one tile per
  * group with its lists behind a drill-in, `flat` = every list as its
@@ -395,6 +447,10 @@ day_header_color: string,
  * secondary tone.
  */
 dow_label_color: string, 
+/**
+ * Opacity of the weekday marker, % (20..=100).
+ */
+dow_label_opacity: number, 
 /**
  * Date chip of a dated list task inside its LIST column; empty =
  * the exact-date cadence color. Day columns always use that color.

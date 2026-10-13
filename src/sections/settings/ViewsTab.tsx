@@ -142,6 +142,70 @@ export default function ViewsTab() {
           The look of the List view, shared by the Days and Lists pages: one set
           of numbers, so both pages read the same.
         </span>
+        <Toggle
+          checked={config.section_cards}
+          label="Sections as framed panels"
+          hint="Each section (Daily, Weekly, Done...) is a framed panel with one rail in its color down the left edge; the breaks between sections are plain space instead of stripes, and a row's stripe in the section's own color is left to the rail."
+          onChange={(v) => void updateConfig({ section_cards: v })}
+        />
+        {config.section_cards && (
+          <div className="flex flex-col gap-3 pl-6">
+            <Field label="Space between section panels, px">
+              <NumberInput
+                value={config.section_gap}
+                min={0}
+                onCommit={(n) =>
+                  void updateConfig({ section_gap: Math.min(64, n) })
+                }
+              />
+            </Field>
+            <Toggle
+              checked={config.category_gap_bands}
+              label="Bands in category breaks"
+              hint="Off = the break between two category blocks inside a section is empty space of the same height."
+              onChange={(v) => void updateConfig({ category_gap_bands: v })}
+            />
+          </div>
+        )}
+        <Toggle
+          checked={config.row_hairlines}
+          label="Hairlines between rows"
+          hint="A thin line under every row; off leaves the rows apart by spacing alone."
+          onChange={(v) => void updateConfig({ row_hairlines: v })}
+        />
+        <Toggle
+          checked={config.category_headers}
+          label="Category as a block header"
+          hint="A category block names its category once over its rows instead of a chip on every row."
+          onChange={(v) => void updateConfig({ category_headers: v })}
+        />
+        <Toggle
+          checked={config.section_plate_count}
+          label="Task count on section plates"
+          hint="DAILY · 6, or done/total when done tasks stay inline."
+          onChange={(v) => void updateConfig({ section_plate_count: v })}
+        />
+        <Toggle
+          checked={config.section_plate_sticky}
+          label="Sticky section plates"
+          hint="The plate stays at the top of the column while its rows scroll under it."
+          onChange={(v) => void updateConfig({ section_plate_sticky: v })}
+        />
+        <Toggle
+          checked={config.closed_sections_collapsed}
+          label="Fold Postponed / Done, waiting / Done by default"
+          hint="Closed sections show only their plate and count; a click on any plate folds or opens it."
+          onChange={(v) => void updateConfig({ closed_sections_collapsed: v })}
+        />
+        <Field label="Closed row opacity, % (the status box stays at full strength)">
+          <NumberInput
+            value={config.closed_row_opacity}
+            min={20}
+            onCommit={(n) =>
+              void updateConfig({ closed_row_opacity: Math.min(100, n) })
+            }
+          />
+        </Field>
         <Field label="Section plate height, % of normal (the plate text scales with it)">
           <NumberInput
             value={config.list_view_plate_scale}

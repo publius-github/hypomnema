@@ -7,12 +7,18 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { memo, useState } from "react";
 import { useAppStore } from "../store";
-import { LIST_GAP_STRIPES } from "../lib/tasks";
-import { useListSections, type ColumnRow } from "../hooks/useColumnSections";
+import {
+  useListSections,
+  type ColumnRow,
+  type ColumnSection,
+} from "../hooks/useColumnSections";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
-import GapFill from "./GapFill";
-import SectionPlate from "./SectionPlate";
+import SectionBlock, {
+  labelInHeader,
+  railColor,
+  RowLead,
+} from "./ColumnSection";
 import ListModal from "./ListModal";
 import { ConfirmModal } from "./dialogs";
 import type { List, ListGroup } from "../types";
@@ -62,9 +68,9 @@ function ListColumn({
   const sections = useListSections(list);
   const titleLines = config?.list_task_lines ?? 1;
 
-  const card = (row: ColumnRow) => (
+  const card = (section: ColumnSection, row: ColumnRow) => (
     <div key={row.task.id}>
-      {row.gapBefore && <GapFill stripes={LIST_GAP_STRIPES.category} />}
+      <RowLead row={row} />
       <TaskCard
         task={row.task}
         onOpen={onOpenTask}
@@ -72,6 +78,8 @@ function ListColumn({
         titleLines={titleLines}
         blockIndex={row.blockIndex}
         lineAbove={row.lineAbove}
+        labelInHeader={labelInHeader(config, row)}
+        sectionColor={railColor(config, section)}
       />
     </div>
   );
@@ -211,8 +219,7 @@ function ListColumn({
             tasks the bottom is a scroll away, the top never is */}
         <QuickAdd target={{ list_id: list.id }} />
         {sections.map((section) => (
-          <div key={section.key} className="flex flex-col">
-            <SectionPlate section={section} />
+          <SectionBlock key={section.key} section={section}>
             {section.key === "rest" ? (
               // the backlog is the one block a drag reorders
               <SortableContext
@@ -225,13 +232,15 @@ function ListColumn({
                     row={row}
                     onOpenTask={onOpenTask}
                     titleLines={titleLines}
+                    labelInHeader={labelInHeader(config, row)}
+                    sectionColor={railColor(config, section)}
                   />
                 ))}
               </SortableContext>
             ) : (
-              section.rows.map(card)
+              section.rows.map((row) => card(section, row))
             )}
-          </div>
+          </SectionBlock>
         ))}
       </div>
     </div>
@@ -245,14 +254,19 @@ function ListColumn({
  * Generated tasks stay non-draggable.
  */
 function SortableCard({
-  row: { task, gapBefore, blockIndex, lineAbove },
+  row,
   onOpenTask,
   titleLines,
+  labelInHeader,
+  sectionColor,
 }: {
   row: ColumnRow;
   onOpenTask: (id: number) => void;
   titleLines: number;
+  labelInHeader: boolean;
+  sectionColor: string | null;
 }) {
+  const { task, blockIndex, lineAbove } = row;
   const {
     attributes,
     listeners,
@@ -275,7 +289,7 @@ function SortableCard({
       {...attributes}
       {...listeners}
     >
-      {gapBefore && <GapFill stripes={LIST_GAP_STRIPES.category} />}
+      <RowLead row={row} />
       <TaskCard
         task={task}
         onOpen={onOpenTask}
@@ -284,6 +298,8 @@ function SortableCard({
         titleLines={titleLines}
         blockIndex={blockIndex}
         lineAbove={lineAbove}
+        labelInHeader={labelInHeader}
+        sectionColor={sectionColor}
       />
     </div>
   );

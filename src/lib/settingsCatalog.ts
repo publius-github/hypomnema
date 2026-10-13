@@ -179,6 +179,15 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "list_gap_stripe", label: "Separator stripe height, % of a row", group: "views.listview", terms: "gap spacing glow band stripe category section" },
   { key: "gap_fill_opacity", label: "Gap fill opacity", group: "views.listview", terms: "hatch glow band transparency alpha" },
   { key: "gap_fill_inset", label: "Gap fill inset from the row lines", group: "views.listview", terms: "hatch glow margin padding" },
+  { key: "section_cards", label: "Sections as framed panels", group: "views.listview", terms: "card rail frame border" },
+  { key: "section_gap", label: "Space between section panels", group: "views.listview", terms: "gap margin" },
+  { key: "category_gap_bands", label: "Bands in category breaks", group: "views.listview", terms: "stripe gap" },
+  { key: "row_hairlines", label: "Hairlines between rows", group: "views.listview", terms: "border line separator" },
+  { key: "category_headers", label: "Category as a block header", group: "views.listview", terms: "chip label group" },
+  { key: "section_plate_count", label: "Task count on section plates", group: "views.listview", terms: "counter number" },
+  { key: "section_plate_sticky", label: "Sticky section plates", group: "views.listview", terms: "header pin scroll" },
+  { key: "closed_sections_collapsed", label: "Fold closed sections by default", group: "views.listview", terms: "done postponed collapse hide" },
+  { key: "closed_row_opacity", label: "Closed row opacity", group: "views.listview", terms: "done dropped dim fade" },
   { key: "lists_group_display", label: "Grouped lists display", group: "views.lists", terms: "folded flat group tile" },
 
   { key: "settings_width", label: "Settings content width", group: "views.settings", terms: "tab strip wrap" },
@@ -199,6 +208,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "done_plate_color", label: "Done plate color", group: "cards.colors", terms: "section header closed" },
   { key: "done_color", label: "Done checkbox color", group: "cards.colors" },
   { key: "waiting_color", label: "Done, waiting mark color", group: "cards.colors" },
+  { key: "dropped_color", label: "Not done, dropped mark color", group: "cards.colors", terms: "checkbox red cancel" },
 
   { key: "category_color", label: "Category label color", group: "cards.chips" },
   { key: "category_color_mode", label: "Category chip coloring", group: "cards.chips", terms: "single varied alternate" },
@@ -209,7 +219,9 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   { key: "cron_weekday_labels", label: "Weekday marker from cron", group: "cards.markers", terms: "sat#1" },
   { key: "cron_everyday_label", label: "[EVERYDAY] marker", group: "cards.markers" },
+  { key: "dow_label_opacity", label: "Weekday marker opacity", group: "cards.markers", terms: "sat#1 cron label dim" },
   { key: "habit_rate_chip", label: "Completion rate chip", group: "cards.markers", terms: "habit rate percent" },
+  { key: "habit_rate_alert_only", label: "Rate chip only below the threshold", group: "cards.markers", terms: "habit rate percent alert" },
   { key: "habit_rate_threshold", label: "Rate alert threshold", group: "cards.markers", terms: "habit percent" },
   { key: "habit_rate_window", label: "Rate window", group: "cards.markers", terms: "habit last instances" },
   { key: "habit_rate_min_instances", label: "Rate minimum instances", group: "cards.markers", terms: "habit" },

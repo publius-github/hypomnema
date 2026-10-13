@@ -25,6 +25,8 @@
   --color-done: #22c55e;
   /* waiting (done, waiting) marks; config-driven via waiting_color */
   --color-waiting: #3b80c0;
+  /* not done, dropped marks; config-driven via dropped_color */
+  --color-dropped: #ef4444;
   /* markdown token colors per the VS Code Light+ spec (light_vs.json):
      heading #800000, bold #000080, italic #800080, inline raw #800000,
      link/checkbox text = string #a31515, quote/comment #008000,
@@ -165,4 +167,10 @@ button:focus-visible,
 a:focus-visible {
   outline: 2px solid rgb(var(--color-accent) / 0.7);
   outline-offset: 1px;
+}
+
+/* a closed task row fades everything but its status box (TaskCard,
+   closed_row_opacity) */
+.closed-dim > :not(.status-box) {
+  opacity: var(--closed-opacity, 1);
 }

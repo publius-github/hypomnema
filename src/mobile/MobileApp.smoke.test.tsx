@@ -80,7 +80,10 @@ describe("MobileApp smoke", () => {
 
     render(<MobileApp />);
 
+    // closed sections start folded to their plate; a click opens them
     expect(await screen.findByText("Postponed")).toBeTruthy();
+    expect(screen.queryByText("later one")).toBeNull();
+    fireEvent.click(screen.getByText("Postponed"));
     expect(screen.getByText("later one")).toBeTruthy();
     fireEvent.click(screen.getAllByLabelText("Task actions")[0]);
     fireEvent.click(screen.getByText("Drop"));

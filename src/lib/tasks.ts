@@ -62,7 +62,7 @@ export const STATUS_GLYPH_CLASS: Record<TaskStatus, string> = {
   done: "",
   postponed: "text-warn",
   waiting: "text-waiting",
-  dropped: "text-content-muted",
+  dropped: "text-dropped",
 };
 
 /**
@@ -463,7 +463,7 @@ export function tintStyle(color: string): {
 
 /**
  * Size of a section plate in the day and list columns: the whole plate
- * - its 11px label and the 2px padding either side - grows by
+ * - its 12px label and the 2px padding either side - grows by
  * `list_view_plate_scale` %, so the text stays in proportion to the
  * plate instead of a small label floating in a tall bar.
  */
@@ -474,7 +474,7 @@ export function listViewPlateStyle(config: AppConfig | null): {
 } {
   const scale = (config?.list_view_plate_scale ?? 100) / 100;
   return {
-    fontSize: `${11 * scale}px`,
+    fontSize: `${12 * scale}px`,
     paddingTop: `${2 * scale}px`,
     paddingBottom: `${2 * scale}px`,
   };

@@ -21,8 +21,17 @@ import { listGapStripe } from "../lib/tasks";
  * row-to-band and band-to-band distances are all the same, so a
  * multi-stripe gap reads as one rhythm instead of tight pairs where
  * two slots' paddings would have added up.
+ *
+ * `bands={false}` keeps the height and drops the bands: a break made of
+ * empty space alone (`category_gap_bands` off).
  */
-export default function GapFill({ stripes }: { stripes: number }) {
+export default function GapFill({
+  stripes,
+  bands = true,
+}: {
+  stripes: number;
+  bands?: boolean;
+}) {
   const height = useAppStore((s) => stripes * listGapStripe(s.config));
   const color = useAppStore((s) => s.config?.gap_fill_color ?? "");
   const fade = useAppStore((s) => s.config?.gap_fill_fade ?? 50);
@@ -38,6 +47,7 @@ export default function GapFill({ stripes }: { stripes: number }) {
     Math.max(0, slot - 2 * Math.round((slot * inset) / 100)),
   );
   const ramp = ((band / 2) * fade) / 100;
+  if (!bands) return <div style={{ height }} />;
   const edgeMask = `linear-gradient(to right, transparent 0, #000 ${ramp}px, #000 calc(100% - ${ramp}px), transparent 100%)`;
   return (
     <div

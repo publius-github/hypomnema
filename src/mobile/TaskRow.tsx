@@ -52,6 +52,8 @@ export default function TaskRow({
   reviewWeekStart,
   blockIndex,
   lineAbove = false,
+  labelInHeader = false,
+  sectionColor = null,
 }: {
   task: Task;
   /**
@@ -73,6 +75,10 @@ export default function TaskRow({
   blockIndex?: number;
   /** a row that opens a block also gets the hairline above it */
   lineAbove?: boolean;
+  /** the block header already names the row's category: no chip */
+  labelInHeader?: boolean;
+  /** rail color of the section panel: a same-color stripe is left out */
+  sectionColor?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -147,6 +153,9 @@ export default function TaskRow({
       : null,
   );
   const rateAlertColor = config?.habit_rate_alert_color || "#f97316";
+  const rateAlertOnly = config?.habit_rate_alert_only ?? true;
+  // a closed row fades everything but its status box
+  const dim = closed ? (config?.closed_row_opacity ?? 50) / 100 : 1;
 
   const dateChip = (date: string, color: string | null | undefined) => (
     <span
@@ -165,14 +174,24 @@ export default function TaskRow({
   };
 
   return (
-    <li className={`border-b border-line/60 ${lineAbove ? "border-t" : ""}`}>
+    <li
+      className={
+        (config?.row_hairlines ?? false)
+          ? `border-b border-line/60 ${lineAbove ? "border-t" : ""}`
+          : ""
+      }
+    >
       <div className="flex items-stretch">
         {/* The stripe is the signal that survives a sideways glance, so
             it runs the full height of the row rather than sitting in it. */}
         <span
           aria-hidden
           className="w-1 shrink-0"
-          style={{ background: stripe ?? "transparent" }}
+          style={{
+            background:
+              stripe && stripe !== sectionColor ? stripe : "transparent",
+            opacity: dim,
+          }}
         />
         <button
           onClick={() => {
@@ -196,12 +215,12 @@ export default function TaskRow({
           >
             <StatusIcon status={task.status} />
           </span>
-          <span className="min-w-0">
+          <span className="min-w-0" style={{ opacity: dim }}>
             <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
               {listExact &&
                 task.scheduled_date &&
                 dateChip(task.scheduled_date, dateChipColor)}
-              {showList && list && listHue && (
+              {showList && list && listHue && !(labelInHeader && !category) && (
                 // the list IS the category for engine-generated tasks,
                 // so it reads as loud as the {Category} chip
                 <span
@@ -211,7 +230,7 @@ export default function TaskRow({
                   {list.name}
                 </span>
               )}
-              {category && categoryHue && (
+              {category && categoryHue && !labelInHeader && (
                 <span
                   className="shrink-0 rounded px-1 font-semibold"
                   style={{ ...tintStyle(categoryHue), fontSize: chipSize }}
@@ -232,7 +251,10 @@ export default function TaskRow({
                   // muted text instead of keeping its own colour
                   <span
                     className="text-content-muted"
-                    style={dowColor && !closed ? { color: dowColor } : undefined}
+                    style={{
+                      ...(dowColor && !closed ? { color: dowColor } : {}),
+                      opacity: (config?.dow_label_opacity ?? 60) / 100,
+                    }}
                   >
                     [{dowLabel}]{" "}
                   </span>
@@ -261,7 +283,7 @@ export default function TaskRow({
                   overdue
                 </span>
               )}
-              {habitRate && (
+              {habitRate && (habitRate.alert || !rateAlertOnly) && (
                 <span
                   className={`whitespace-nowrap rounded px-1 ${
                     habitRate.alert ? "font-semibold" : "bg-line/40"

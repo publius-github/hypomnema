@@ -22,6 +22,17 @@ export interface ColumnRow {
   lineAbove: boolean;
   /** ordinal of its category block, for the alternating chip palette */
   blockIndex: number;
+  /**
+   * The category this row's block is named by, on the block's first
+   * row (`category_headers` draws it once over the block); null on the
+   * other rows, in sections without category blocks, and on rows with
+   * no category.
+   */
+  header: string | null;
+  /** the row's category label, whether or not its block shows a header */
+  label: string | null;
+  /** the section groups its rows into category blocks */
+  blocks: boolean;
 }
 
 /** One section of a column: a plate over its rows. */
@@ -62,13 +73,17 @@ function layout(
   return shown.map(({ tasks, gaps = true, ...section }) => ({
     ...section,
     rows: tasks.map((task, i) => {
-      const gapBefore =
-        gaps && i > 0 && labelOf(task) !== labelOf(tasks[i - 1]);
+      const label = labelOf(task);
+      const opens = i === 0 || label !== labelOf(tasks[i - 1]);
+      const gapBefore = gaps && i > 0 && opens;
       return {
         task,
         gapBefore,
         lineAbove: i === 0 || gapBefore,
         blockIndex: blockIndex.get(task.id) ?? 0,
+        header: gaps && opens ? label : null,
+        label,
+        blocks: gaps,
       };
     }),
   }));

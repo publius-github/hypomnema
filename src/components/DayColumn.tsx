@@ -1,12 +1,15 @@
 import { useDroppable } from "@dnd-kit/core";
 import { memo } from "react";
 import { useAppStore } from "../store";
-import { currentAndNextBlock, dayLabel, LIST_GAP_STRIPES } from "../lib/tasks";
+import { currentAndNextBlock, dayLabel } from "../lib/tasks";
 import { useDaySections } from "../hooks/useColumnSections";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
-import GapFill from "./GapFill";
-import SectionPlate from "./SectionPlate";
+import SectionBlock, {
+  labelInHeader,
+  railColor,
+  RowLead,
+} from "./ColumnSection";
 
 function DayColumn({
   date,
@@ -94,13 +97,10 @@ function DayColumn({
       )}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2">
         {sections.map((section) => (
-          <div key={section.key} className="flex flex-col">
-            <SectionPlate section={section} />
+          <SectionBlock key={section.key} section={section}>
             {section.rows.map((row) => (
               <div key={row.task.id}>
-                {row.gapBefore && (
-                  <GapFill stripes={LIST_GAP_STRIPES.category} />
-                )}
+                <RowLead row={row} />
                 <TaskCard
                   task={row.task}
                   onOpen={onOpenTask}
@@ -108,10 +108,12 @@ function DayColumn({
                   // every block is framed: its first row also gets
                   // the line above, not only the one below
                   lineAbove={row.lineAbove}
+                  labelInHeader={labelInHeader(config, row)}
+                  sectionColor={railColor(config, section)}
                 />
               </div>
             ))}
-          </div>
+          </SectionBlock>
         ))}
         <QuickAdd target={{ scheduled_date: date }} />
       </div>

@@ -111,7 +111,7 @@ describe("Settings smoke", () => {
   it("offers a reset only for a group that left its defaults", async () => {
     // a changed done display lives in the shared group; the day and
     // list groups are untouched
-    seed({ done_display: "separate" });
+    seed({ done_display: "inline" });
     render(<Settings />);
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
 

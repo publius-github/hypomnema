@@ -16,6 +16,7 @@ export default {
         info: "rgb(var(--color-info) / <alpha-value>)",
         // a plain hex var (configurable, like --color-done): no opacity modifiers
         waiting: "var(--color-waiting)",
+        dropped: "var(--color-dropped)",
       },
     },
   },

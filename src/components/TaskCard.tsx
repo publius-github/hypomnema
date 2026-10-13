@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import { memo, useState } from "react";
+import { memo, useState, type CSSProperties } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import {
@@ -29,6 +29,8 @@ function TaskCard({
   titleLines = 1,
   blockIndex,
   lineAbove = false,
+  labelInHeader = false,
+  sectionColor = null,
 }: {
   task: Task;
   overlay?: boolean;
@@ -47,6 +49,16 @@ function TaskCard({
   blockIndex?: number;
   /** a row that opens a block also gets the hairline above it */
   lineAbove?: boolean;
+  /**
+   * The block's category header already names this row's category
+   * (its {Category}, else its list), so the row drops that chip.
+   */
+  labelInHeader?: boolean;
+  /**
+   * Rail color of the section panel the row sits in: a stripe of the
+   * same color would only repeat it, so the row leaves it out.
+   */
+  sectionColor?: string | null;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -146,6 +158,19 @@ function TaskCard({
   const rateAlertColor = useAppStore(
     (s) => s.config?.habit_rate_alert_color || "#f97316",
   );
+  const rateAlertOnly = useAppStore(
+    (s) => s.config?.habit_rate_alert_only ?? true,
+  );
+  const dowOpacity = useAppStore((s) => (s.config?.dow_label_opacity ?? 60) / 100);
+  const hairlines = useAppStore((s) => s.config?.row_hairlines ?? false);
+  // a closed row fades everything but its status box, which keeps
+  // showing the status at full strength
+  const closedOpacity = useAppStore((s) =>
+    closed ? (s.config?.closed_row_opacity ?? 50) / 100 : 1,
+  );
+  const showStripe = stripe && stripe !== sectionColor;
+  const showListChip = showList && listName && !(labelInHeader && !category);
+  const showCategoryChip = category && !labelInHeader;
 
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
   const tooltip = [
@@ -183,25 +208,28 @@ function TaskCard({
             "rounded-md border border-line bg-surface-alt shadow-lg"
           : // a plain list row, transparent: the column itself wears
             // the card fill, so rows and gaps share one work surface
-            `border-b border-line/60 ${lineAbove ? "border-t" : ""}`
+            hairlines
+            ? `border-b border-line/60 ${lineAbove ? "border-t" : ""}`
+            : ""
       } ${isDragging ? "opacity-30" : ""}`}
     >
       {/* with a multi-line title everything else hugs the first line
           instead of centering against the whole block */}
       <div
-        className={`flex gap-2 px-2 py-1 ${
+        className={`closed-dim flex gap-2 px-2 py-1 ${
           multiline ? "items-start" : "items-center"
         }`}
+        style={{ "--closed-opacity": closedOpacity } as CSSProperties}
         title={tooltip}
       >
-        {stripe && (
+        {showStripe && (
           <span
             className={`h-4 w-1 shrink-0 rounded ${multiline ? "mt-0.5" : ""}`}
             style={{ backgroundColor: stripe }}
           />
         )}
         <button
-          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+          className={`status-box flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
             multiline ? "mt-0.5" : ""
           } ${statusBoxClass(task.status)}`}
           style={statusBoxStyle(task.status)}
@@ -229,7 +257,7 @@ function TaskCard({
             {weekdayShort(task.scheduled_date)} {task.scheduled_date}
           </span>
         )}
-        {showList && listName && (
+        {showListChip && (
           // the list IS the category for engine-generated tasks, so it
           // reads as loud as the {Category} chip
           <span
@@ -239,7 +267,7 @@ function TaskCard({
             {listName}
           </span>
         )}
-        {category && !multiline && (
+        {showCategoryChip && !multiline && (
           <span
             className="shrink-0 rounded px-1 font-semibold"
             style={{ ...tintStyle(categoryHue!), fontSize: chipSize }}
@@ -291,7 +319,7 @@ function TaskCard({
             </span>
           )}
           {listExact && task.scheduled_date && multiline && " "}
-          {category && multiline && (
+          {showCategoryChip && multiline && (
             <span
               className="inline-block rounded px-1 font-semibold"
               style={{ ...tintStyle(categoryHue!), fontSize: chipSize }}
@@ -300,13 +328,16 @@ function TaskCard({
               {category}
             </span>
           )}
-          {category && multiline && " "}
+          {showCategoryChip && multiline && " "}
           {dowLabel && (
             // on a closed card the marker joins the struck-through muted
             // text instead of keeping its own bright color
             <span
               className="text-content-muted"
-              style={dowColor && !closed ? { color: dowColor } : undefined}
+              style={{
+                ...(dowColor && !closed ? { color: dowColor } : {}),
+                opacity: dowOpacity,
+              }}
               title="Weekday pinned by the rule's cron"
             >
               [{dowLabel}]{" "}
@@ -371,7 +402,7 @@ function TaskCard({
               overdue
             </span>
           )}
-          {habitRate && (
+          {habitRate && (habitRate.alert || !rateAlertOnly) && (
             <span
               className={`whitespace-nowrap rounded px-1 ${
                 habitRate.alert ? "font-semibold" : "bg-line/40"

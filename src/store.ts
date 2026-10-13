@@ -109,6 +109,10 @@ interface AppState {
   /// section until the hold expires (done_hold_seconds)
   statusHold: { id: number; status: TaskStatus }[];
   holdStatus: (id: number, shownStatus: TaskStatus) => void;
+  /// section folds the user clicked this session, by section key
+  /// (shared by every column); absent = the configured default
+  sectionFolds: Record<string, boolean>;
+  setSectionFold: (key: string, folded: boolean) => void;
   /// last destructive action, offered back through the Undo toast until
   /// the hold (undo_toast_seconds) expires or another delete replaces it
   undoEntry:
@@ -217,6 +221,9 @@ function applyTheme(config: AppConfig | null) {
   if (config?.waiting_color) {
     root.style.setProperty("--color-waiting", config.waiting_color);
   } else root.style.removeProperty("--color-waiting");
+  if (config?.dropped_color) {
+    root.style.setProperty("--color-dropped", config.dropped_color);
+  } else root.style.removeProperty("--color-dropped");
 }
 
 let refreshSeq = 0;
@@ -801,6 +808,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   undoEntry: null,
   statusHold: [],
+  sectionFolds: {},
+  setSectionFold: (key, folded) =>
+    set((s) => ({ sectionFolds: { ...s.sectionFolds, [key]: folded } })),
   holdStatus: (id, shownStatus) => {
     const seconds = get().config?.done_hold_seconds ?? 0;
     if (seconds <= 0) return;
