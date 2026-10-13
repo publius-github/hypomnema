@@ -355,10 +355,10 @@ export function categoryChipColor(
   config: AppConfig | null,
   blockIndex?: number,
 ): string {
-  const mode = config?.category_color_mode ?? "varied";
+  const mode = config?.category_color_mode ?? "alternate";
   if (mode === "alternate") {
-    const a = config?.category_color_a || "#3b82f6";
-    const b = config?.category_color_b || "#a855f7";
+    const a = config?.category_color_a || "#0d9488";
+    const b = config?.category_color_b || "#ea580c";
     return (blockIndex ?? 0) % 2 === 0 ? a : b;
   }
   if (mode !== "varied") return config?.category_color || "#3b82f6";
@@ -472,7 +472,7 @@ export function listViewPlateStyle(config: AppConfig | null): {
   paddingTop: string;
   paddingBottom: string;
 } {
-  const scale = (config?.list_view_plate_scale ?? 200) / 100;
+  const scale = (config?.list_view_plate_scale ?? 100) / 100;
   return {
     fontSize: `${11 * scale}px`,
     paddingTop: `${2 * scale}px`,
