@@ -206,6 +206,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "postponed_plate_color", label: "Postponed plate color", group: "cards.colors", terms: "section header closed" },
   { key: "waiting_plate_color", label: "Done, waiting plate color", group: "cards.colors", terms: "section header closed" },
   { key: "done_plate_color", label: "Done plate color", group: "cards.colors", terms: "section header closed" },
+  { key: "dropped_plate_color", label: "Not done, dropped plate color", group: "cards.colors", terms: "section header closed" },
   { key: "done_color", label: "Done checkbox color", group: "cards.colors" },
   { key: "waiting_color", label: "Done, waiting mark color", group: "cards.colors" },
   { key: "dropped_color", label: "Not done, dropped mark color", group: "cards.colors", terms: "checkbox red cancel" },

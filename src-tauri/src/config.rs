@@ -242,7 +242,7 @@ pub struct AppConfig {
     /// Section plates stick to the top of the column while its rows
     /// scroll under them.
     pub section_plate_sticky: bool,
-    /// Postponed / Done, waiting / Done sections start folded to their
+    /// Postponed / Done, waiting / Done / Dropped sections start folded to their
     /// plate; a click on the plate opens or folds them.
     pub closed_sections_collapsed: bool,
     /// Opacity of a closed (done, dropped) row's text and chips, %
@@ -264,7 +264,7 @@ pub struct AppConfig {
     /// Days page shows a single Today column (its own toggle, separate
     /// from dashboard_today_only).
     pub days_today_only: bool,
-    /// Postponed / Done, waiting / Done sections sort by category, then
+    /// Postponed / Done, waiting / Done / Dropped sections sort by category, then
     /// title, alphabetically; off = the same order as the open tasks.
     pub closed_sections_sort_alpha: bool,
     /// "varied" category chips skip palette hues close to the cadence
@@ -315,12 +315,13 @@ pub struct AppConfig {
     /// Plate color of the General cadence group; empty = the neutral
     /// plate style.
     pub cadence_color_general: String,
-    /// Plate colors of the closed Postponed / Done, waiting / Done
-    /// blocks, hex - each its own hue, so they read apart from each
-    /// other and from the cadence plates above them.
+    /// Plate colors of the closed Postponed / Done, waiting / Done / Dropped /
+    /// Not done, dropped blocks, hex - each its own hue, so they read
+    /// apart from each other and from the cadence plates above them.
     pub postponed_plate_color: String,
     pub done_plate_color: String,
     pub waiting_plate_color: String,
+    pub dropped_plate_color: String,
     /// The card stripe of a dated list task keeps the exact-date color
     /// inside its list too; off = the list color rules there. Day
     /// columns always use the exact-date color.
@@ -416,6 +417,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "postponed_plate_color",
     "done_plate_color",
     "waiting_plate_color",
+    "dropped_plate_color",
     // dated list tasks
     "list_date_chip_color",
     "list_exact_stripe",
@@ -581,6 +583,7 @@ impl Default for AppConfig {
             postponed_plate_color: "#f43f5e".into(),
             done_plate_color: "#22c55e".into(),
             waiting_plate_color: "#14b8a6".into(),
+            dropped_plate_color: "#94a3b8".into(),
             list_exact_stripe: false,
             capture_list: "Inbox".into(),
             capture_shortcut: "Ctrl+Alt+Space".into(),
@@ -733,6 +736,7 @@ impl AppConfig {
         );
         sanitize_color(&mut self.done_plate_color, defaults.done_plate_color);
         sanitize_color(&mut self.waiting_plate_color, defaults.waiting_plate_color);
+        sanitize_color(&mut self.dropped_plate_color, defaults.dropped_plate_color);
         sanitize_color(
             &mut self.habit_rate_alert_color,
             defaults.habit_rate_alert_color,
@@ -1029,6 +1033,7 @@ impl AppConfig {
             ("postponed_plate_color", self.postponed_plate_color.clone()),
             ("done_plate_color", self.done_plate_color.clone()),
             ("waiting_plate_color", self.waiting_plate_color.clone()),
+            ("dropped_plate_color", self.dropped_plate_color.clone()),
             ("list_exact_stripe", self.list_exact_stripe.to_string()),
             ("capture_list", self.capture_list.clone()),
             ("capture_shortcut", self.capture_shortcut.clone()),

@@ -347,7 +347,7 @@ section_plate_count: boolean,
  */
 section_plate_sticky: boolean, 
 /**
- * Postponed / Done, waiting / Done sections start folded to their
+ * Postponed / Done, waiting / Done / Dropped sections start folded to their
  * plate; a click on the plate opens or folds them.
  */
 closed_sections_collapsed: boolean, 
@@ -380,7 +380,7 @@ days_page_columns: number,
  */
 days_today_only: boolean, 
 /**
- * Postponed / Done, waiting / Done sections sort by category, then
+ * Postponed / Done, waiting / Done / Dropped sections sort by category, then
  * title, alphabetically; off = the same order as the open tasks.
  */
 closed_sections_sort_alpha: boolean, 
@@ -462,11 +462,11 @@ list_date_chip_color: string,
  */
 cadence_color_general: string, 
 /**
- * Plate colors of the closed Postponed / Done, waiting / Done
- * blocks, hex - each its own hue, so they read apart from each
- * other and from the cadence plates above them.
+ * Plate colors of the closed Postponed / Done, waiting / Done / Dropped /
+ * Not done, dropped blocks, hex - each its own hue, so they read
+ * apart from each other and from the cadence plates above them.
  */
-postponed_plate_color: string, done_plate_color: string, waiting_plate_color: string, 
+postponed_plate_color: string, done_plate_color: string, waiting_plate_color: string, dropped_plate_color: string, 
 /**
  * The card stripe of a dated list task keeps the exact-date color
  * inside its list too; off = the list color rules there. Day

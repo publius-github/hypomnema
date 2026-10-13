@@ -128,6 +128,7 @@ export const defaultConfig: AppConfig = {
   cadence_color_general: "",
   postponed_plate_color: "#f43f5e",
   done_plate_color: "#22c55e",
+  dropped_plate_color: "#94a3b8",
   waiting_plate_color: "#14b8a6",
   list_exact_stripe: false,
   capture_list: "Inbox",

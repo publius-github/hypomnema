@@ -668,8 +668,9 @@ export interface DoneSplit {
   active: Task[];
   postponed: Task[];
   waiting: Task[];
-  /** done and dropped: the closed tasks share the bottom section */
   done: Task[];
+  /** not done, dropped: closed, but not a completion */
+  dropped: Task[];
 }
 
 export interface BlockFocus {
@@ -700,7 +701,7 @@ export function currentAndNextBlock(
 }
 
 /**
- * Alphabetical order for the Postponed / Done, waiting / Done blocks
+ * Alphabetical order for the Postponed / Done, waiting / Done / Dropped blocks
  * (`closed_sections_sort_alpha`): by category the way the open
  * sections group them (uncategorized first), then by the title text.
  */
@@ -729,8 +730,9 @@ export function sortClosedAlpha(
 /**
  * Done display mode (req. 15): inline keeps everything in place,
  * separate splits postponed, waiting and closed tasks into their own
- * bottom sections (Postponed, then Waiting, then Done - which also holds
- * the dropped tasks). Tasks in `hold` were just clicked: they stay
+ * bottom sections (Postponed, then Waiting, then Done, then Not done,
+ * dropped - a dropped task is closed but not done, so it does not sit
+ * among the completions). Tasks in `hold` were just clicked: they stay
  * in the active block for a few seconds so a misclick can be fixed
  * before the card flies away.
  */
@@ -740,7 +742,7 @@ export function splitDone(
   hold?: ReadonlyMap<number, TaskStatus>,
 ): DoneSplit {
   if (mode !== "separate") {
-    return { active: tasks, postponed: [], waiting: [], done: [] };
+    return { active: tasks, postponed: [], waiting: [], done: [], dropped: [] };
   }
   // a held task keeps the section it was displayed in when its checkbox
   // was clicked, wherever the status cycle has moved it since
@@ -749,6 +751,7 @@ export function splitDone(
     active: tasks.filter((t) => shown(t) === "todo"),
     postponed: tasks.filter((t) => shown(t) === "postponed"),
     waiting: tasks.filter((t) => shown(t) === "waiting"),
-    done: tasks.filter((t) => isClosed(shown(t))),
+    done: tasks.filter((t) => shown(t) === "done"),
+    dropped: tasks.filter((t) => shown(t) === "dropped"),
   };
 }

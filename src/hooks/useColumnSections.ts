@@ -37,7 +37,8 @@ export interface ColumnRow {
 
 /** One section of a column: a plate over its rows. */
 export interface ColumnSection {
-  /** cadence key, "priority", "rest", "postponed", "waiting", "done" */
+  /** cadence key, "priority", "rest", "postponed", "waiting", "done",
+   *  "dropped" */
   key: string;
   /** plate label; null = the section has no plate (a list's backlog) */
   label: string | null;
@@ -89,9 +90,9 @@ function layout(
   }));
 }
 
-/** Postponed / Done, waiting / Done under `done_display: separate`. */
+/** Postponed / Done, waiting / Done / Dropped under `done_display: separate`. */
 function closedSections(
-  split: { postponed: Task[]; waiting: Task[]; done: Task[] },
+  split: { postponed: Task[]; waiting: Task[]; done: Task[]; dropped: Task[] },
   config: AppConfig | null,
   labelOf: (task: Task) => string | null,
   gaps: boolean,
@@ -113,6 +114,7 @@ function closedSections(
     closed("postponed", "Postponed", split.postponed, config?.postponed_plate_color),
     closed("waiting", "Done, waiting", split.waiting, config?.waiting_plate_color),
     closed("done", "Done", split.done, config?.done_plate_color),
+    closed("dropped", "Not done, dropped", split.dropped, config?.dropped_plate_color),
   ];
 }
 
@@ -122,7 +124,7 @@ function closedSections(
  * top-level tasks (future days without the dailies under
  * `daily_tasks_today_only`), then the closed sections, with the List
  * view's stripes - none before the first section, two between
- * sections, three before Postponed / Done, waiting / Done.
+ * sections, three before Postponed / Done, waiting / Done / Dropped.
  *
  * A task's "category" is its {X} title prefix, else its list's name
  * (engine-generated tasks carry their category as a list).

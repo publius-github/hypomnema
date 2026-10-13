@@ -193,7 +193,7 @@ export default function ViewsTab() {
         />
         <Toggle
           checked={config.closed_sections_collapsed}
-          label="Fold Postponed / Done, waiting / Done by default"
+          label="Fold Postponed / Done, waiting / Done / Dropped by default"
           hint="Closed sections show only their plate and count; a click on any plate folds or opens it."
           onChange={(v) => void updateConfig({ closed_sections_collapsed: v })}
         />
@@ -230,7 +230,7 @@ export default function ViewsTab() {
         </Field>
         <span className="-mt-1 text-xs text-content-muted">
           Gaps between rows are whole stripes: 1 between category blocks, 2
-          between sections, 3 before Postponed / Done, waiting / Done.
+          between sections, 3 before Postponed / Done, waiting / Done / Dropped.
         </span>
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Gap fill color</span>

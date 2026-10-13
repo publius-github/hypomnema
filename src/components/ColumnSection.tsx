@@ -12,7 +12,7 @@ import type { AppConfig } from "../types";
 import GapFill from "./GapFill";
 
 /** The closed sections `closed_sections_collapsed` folds by default. */
-const CLOSED_KEYS = ["postponed", "waiting", "done"];
+const CLOSED_KEYS = ["postponed", "waiting", "done", "dropped"];
 
 /**
  * The color a section is marked with: its plate tint, the warn tone for

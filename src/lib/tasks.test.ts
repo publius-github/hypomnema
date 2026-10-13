@@ -315,8 +315,8 @@ describe("splitDone", () => {
     expect(done.map((t) => t.id)).toEqual([1]);
   });
 
-  it("gives waiting its own section and files dropped under Done", () => {
-    const { active, postponed, waiting, done } = splitDone(
+  it("gives waiting and dropped their own sections", () => {
+    const { active, postponed, waiting, done, dropped } = splitDone(
       [
         ...tasks,
         task({ id: 4, status: "waiting" }),
@@ -327,7 +327,8 @@ describe("splitDone", () => {
     expect(active.map((t) => t.id)).toEqual([2]);
     expect(postponed.map((t) => t.id)).toEqual([3]);
     expect(waiting.map((t) => t.id)).toEqual([4]);
-    expect(done.map((t) => t.id)).toEqual([1, 5]);
+    expect(done.map((t) => t.id)).toEqual([1]);
+    expect(dropped.map((t) => t.id)).toEqual([5]);
   });
 
   it("keeps just-clicked tasks in the section they were shown in", () => {

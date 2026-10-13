@@ -63,7 +63,7 @@ function ListColumn({
   // column and still here in its list - one row, so closing it anywhere
   // closes it everywhere. Generated tasks (auto lists) stay day-only.
   // Shallow-compared selection, like DayColumn.
-  // Priority, the backlog, Postponed / Done, waiting / Done with the
+  // Priority, the backlog, Postponed / Done, waiting / Done / Dropped with the
   // List view's stripes - the same layout the phone's list screen renders
   const sections = useListSections(list);
   const titleLines = config?.list_task_lines ?? 1;

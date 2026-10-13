@@ -77,8 +77,9 @@ export default function TaskCardsTab() {
         <section className="flex flex-col gap-2">
           <span className="text-sm font-medium">Closed section plates</span>
           <span className="-mt-1 text-xs text-content-muted">
-            The Postponed, Done-waiting and Done headers of a day or list
-            column (Separate done display), each in a color of its own.
+            The Postponed, Done-waiting, Done and Not-done-dropped headers of
+            a day or list column (Separate done display), each in a color of
+            its own.
           </span>
           <div className="flex flex-col gap-2 pl-6">
             {(
@@ -86,6 +87,7 @@ export default function TaskCardsTab() {
                 ["Postponed", "postponed_plate_color"],
                 ["Done, waiting", "waiting_plate_color"],
                 ["Done", "done_plate_color"],
+                ["Dropped", "dropped_plate_color"],
               ] as const
             ).map(([label, key]) => (
               <div key={key} className="flex items-center gap-2">

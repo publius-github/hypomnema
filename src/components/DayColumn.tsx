@@ -32,7 +32,7 @@ function DayColumn({
       ? currentAndNextBlock(dashboard.blocks, new Date())
       : null;
 
-  // cadence sections, then Postponed / Done, waiting / Done; tasks are
+  // cadence sections, then Postponed / Done, waiting / Done / Dropped; tasks are
   // hairline-separated rows sitting flush, the breaks between them are
   // whole separator stripes (GapFill) - the same layout the phone's day
   // screen renders
