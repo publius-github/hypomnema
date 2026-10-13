@@ -8,7 +8,7 @@ const base = {
   theme: "dark",
   accent_color: "",
   grid_columns: 7,
-  task_gap: 6,
+  list_task_lines: 6,
   cadence_group_order: ["exact", "general", "daily"],
 } as unknown as AppConfig;
 
@@ -60,9 +60,9 @@ describe("isGroupCustomized", () => {
 
 describe("customizedCount", () => {
   it("counts only the fields that left their default", () => {
-    const config = clone({ grid_columns: 5, task_gap: 10 });
+    const config = clone({ grid_columns: 5, list_task_lines: 10 });
     expect(
-      customizedCount(config, base, ["theme", "grid_columns", "task_gap"]),
+      customizedCount(config, base, ["theme", "grid_columns", "list_task_lines"]),
     ).toBe(2);
   });
 });

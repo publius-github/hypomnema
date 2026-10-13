@@ -136,9 +136,9 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
 
 /**
  * Micro-groups: the tail of fine-tuning inside a group that otherwise
- * holds real switches. Day columns is the shape - centering, daily
- * tasks and the section order are decisions, the four gaps below them
- * are pixel-pushing nobody asked for. A micro-group hides behind a
+ * holds real switches. The section plates are the shape - the column
+ * sections are decisions, recoloring their header plates is
+ * fine-tuning nobody asked for. A micro-group hides behind a
  * checkbox that is ticked exactly when one of its fields left its
  * default, and unticking it puts them all back.
  *
@@ -146,11 +146,7 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
  * of knobs takes `knobs: true` above instead, so the page never shows
  * two switches in a row for the same question.
  */
-export type SettingsSubId =
-  | "columns.shared.spacing"
-  | "columns.shared.plates"
-  | "columns.day.spacing"
-  | "columns.list.spacing";
+export type SettingsSubId = "columns.shared.plates";
 
 type SubDef = {
   group: SettingsGroupId;
@@ -160,26 +156,14 @@ type SubDef = {
 };
 
 export const SETTINGS_SUBGROUPS: Record<SettingsSubId, SubDef> = {
-  "columns.shared.spacing": {
-    group: "columns.shared",
-    title: "Custom spacing",
-    hint: "The vertical rhythm every column uses, px.",
-  },
+
   "columns.shared.plates": {
     group: "columns.shared",
     title: "Custom section plates",
     hint: "Colors of the section header plates inside a column. Off keeps the neutral plate style; the cadence sections take their color from the cadence palette (Task cards > Card colors).",
   },
-  "columns.day.spacing": {
-    group: "columns.day",
-    title: "Custom spacing",
-    hint: "Gaps inside a day column, px. Category blocks group tasks by their {X} prefix or list inside a section; the Postponed, Waiting and Done gaps let those blocks sit visibly below the active tasks.",
-  },
-  "columns.list.spacing": {
-    group: "columns.list",
-    title: "Custom spacing",
-    hint: "The same sections as a day column, with their own numbers: a backlog is usually denser than the grid. The category-block gap also applies inside the list dialog.",
-  },
+
+
 };
 
 export type CatalogEntry = {
@@ -220,13 +204,9 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "dashboard_split", label: "Dashboard split", group: "views.dashboard", terms: "day grid height divider" },
 
   { key: "days_page_columns", label: "Day columns on the Days page", group: "views.days" },
-  { key: "days_list_style", label: "List view on the Days page", group: "views.days", terms: "cards rows lines flat" },
-  { key: "days_gap_fill", label: "Fill the gaps between blocks and sections", group: "views.days", terms: "hatch glow band list view category" },
 
   { key: "lists_page_columns", label: "Grid columns on the Lists page", group: "views.lists" },
   { key: "lists_page_align_rows", label: "Align list rows", group: "views.lists" },
-  { key: "lists_list_style", label: "List view on the Lists page", group: "views.lists", terms: "cards rows lines flat" },
-  { key: "lists_gap_fill", label: "Fill the gaps between blocks and sections (Lists)", group: "views.lists", terms: "hatch glow band list view category" },
   { key: "list_view_plate_scale", label: "Section plate height in list view", group: "views.listview", terms: "header daily monthly done percent font text size" },
   { key: "gap_fill_color", label: "Gap fill color", group: "views.listview", terms: "hatch glow band" },
   { key: "gap_fill_fade", label: "Gap fill edge softness", group: "views.listview", terms: "hatch glow fade blur gradient" },
@@ -278,8 +258,6 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   // --- Columns ----------------------------------------------------
   { key: "done_display", label: "Done tasks display", group: "columns.shared", terms: "inline separate block" },
   { key: "closed_sections_sort_alpha", label: "Sort Postponed and Done alphabetically", group: "columns.shared", terms: "waiting order abc" },
-  { key: "task_gap", label: "Gap between tasks", group: "columns.shared", sub: "columns.shared.spacing", terms: "spacing density" },
-  { key: "section_gap", label: "Gap between sections", group: "columns.shared", sub: "columns.shared.spacing", terms: "spacing density" },
   { key: "postponed_plate_color", label: "Postponed plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
   { key: "waiting_plate_color", label: "Done, waiting plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
   { key: "done_plate_color", label: "Done plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
@@ -287,18 +265,10 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "day_header_centered", label: "Center day headers", group: "columns.day" },
   { key: "daily_tasks_today_only", label: "Daily tasks only on today", group: "columns.day" },
   { key: "cadence_group_order", label: "Day column section order", group: "columns.day", terms: "cadence groups" },
-  { key: "category_block_gap", label: "Gap between category blocks (days)", group: "columns.day", sub: "columns.day.spacing", terms: "spacing density" },
-  { key: "postponed_section_gap", label: "Gap before Postponed (days)", group: "columns.day", sub: "columns.day.spacing", terms: "spacing density" },
-  { key: "waiting_section_gap", label: "Gap before Done, waiting (days)", group: "columns.day", sub: "columns.day.spacing", terms: "spacing density" },
-  { key: "done_section_gap", label: "Gap before Done (days)", group: "columns.day", sub: "columns.day.spacing", terms: "spacing density" },
 
   { key: "lists_sort_alpha", label: "Sort lists alphabetically", group: "columns.list" },
   { key: "list_tasks_sort_alpha", label: "Sort tasks inside lists alphabetically", group: "columns.list" },
   { key: "clear_done_list_tasks", label: "Clear done list tasks at rollover", group: "columns.list" },
-  { key: "list_category_block_gap", label: "Gap between category blocks (lists)", group: "columns.list", sub: "columns.list.spacing", terms: "spacing density" },
-  { key: "list_postponed_section_gap", label: "Gap before Postponed (lists)", group: "columns.list", sub: "columns.list.spacing", terms: "spacing density" },
-  { key: "list_waiting_section_gap", label: "Gap before Done, waiting (lists)", group: "columns.list", sub: "columns.list.spacing", terms: "spacing density" },
-  { key: "list_done_section_gap", label: "Gap before Done (lists)", group: "columns.list", sub: "columns.list.spacing", terms: "spacing density" },
   { key: "list_task_lines", label: "Task title lines in a list column", group: "columns.list", terms: "truncate clamp" },
   { key: "list_dialog_task_lines", label: "Task title lines in the list dialog", group: "columns.list", terms: "truncate clamp" },
   { key: "list_exact_stripe", label: "Exact-date stripe inside the list", group: "columns.list", terms: "dated scheduled" },

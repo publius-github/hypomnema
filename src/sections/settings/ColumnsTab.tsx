@@ -3,33 +3,14 @@ import SettingsGroup, {
   SettingsSubGroup,
 } from "../../components/SettingsGroup";
 import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
-import type { AppConfig, DoneDisplay } from "../../types";
+import type { DoneDisplay } from "../../types";
 import { useAppStore } from "../../store";
-
-/** One vertical-rhythm knob, px. */
-function Gap({ label, field }: { label: string; field: keyof AppConfig }) {
-  const config = useAppStore((s) => s.config);
-  const updateConfig = useAppStore((s) => s.updateConfig);
-  const value = config?.[field];
-  if (typeof value !== "number") return null;
-  return (
-    <label className="flex w-40 flex-col gap-1">
-      <span className="text-xs text-content-muted">{label}</span>
-      <NumberInput
-        value={value}
-        min={0}
-        onCommit={(n) => void updateConfig({ [field]: Math.min(400, n) })}
-      />
-    </label>
-  );
-}
 
 /**
  * The two kinds of column tasks live in. Each kind owns its own
- * sections, gaps and habits, so "the Done block in my lists sits too
- * high" is answered in one group instead of being split between a
- * spacing table and a color tab; what both share sits above them,
- * named as shared.
+ * sections and habits, so a question about the Done block in my lists
+ * is answered in one group instead of being split between tabs; what
+ * both share sits above them, named as shared.
  */
 export default function ColumnsTab() {
   const config = useAppStore((s) => s.config);
@@ -68,7 +49,7 @@ export default function ColumnsTab() {
         </Field>
         <span className="-mt-1 text-xs text-content-muted">
           Separate gives every column its Postponed, Done-waiting and Done
-          blocks - the sections the gaps and plates below refer to.
+          blocks - the sections the plates below refer to.
         </span>
         {config.done_display === "separate" && (
           <Toggle
@@ -80,13 +61,6 @@ export default function ColumnsTab() {
             }
           />
         )}
-
-        <SettingsSubGroup id="columns.shared.spacing">
-          <div className="flex flex-wrap gap-4">
-            <Gap label="Between tasks" field="task_gap" />
-            <Gap label="Between sections" field="section_gap" />
-          </div>
-        </SettingsSubGroup>
 
         <SettingsSubGroup id="columns.shared.plates">
           {(
@@ -166,15 +140,6 @@ export default function ColumnsTab() {
             ))}
           </div>
         </section>
-
-        <SettingsSubGroup id="columns.day.spacing">
-          <div className="flex flex-wrap gap-4">
-            <Gap label="Category blocks" field="category_block_gap" />
-            <Gap label="Before Postponed" field="postponed_section_gap" />
-            <Gap label="Before Done, waiting" field="waiting_section_gap" />
-            <Gap label="Before Done" field="done_section_gap" />
-          </div>
-        </SettingsSubGroup>
       </SettingsGroup>
 
       <SettingsGroup id="columns.list">
@@ -198,18 +163,6 @@ export default function ColumnsTab() {
           hint="Tasks checked off in a list column are removed from the database once their completion day has passed - the list is a working queue, not history."
           onChange={(v) => void updateConfig({ clear_done_list_tasks: v })}
         />
-
-        <SettingsSubGroup id="columns.list.spacing">
-          <div className="flex flex-wrap gap-4">
-            <Gap label="Category blocks" field="list_category_block_gap" />
-            <Gap label="Before Postponed" field="list_postponed_section_gap" />
-            <Gap
-              label="Before Done, waiting"
-              field="list_waiting_section_gap"
-            />
-            <Gap label="Before Done" field="list_done_section_gap" />
-          </div>
-        </SettingsSubGroup>
 
         <Field label="Task title lines in a list column (1 = one truncated line)">
           <NumberInput

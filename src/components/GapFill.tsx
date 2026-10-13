@@ -1,8 +1,9 @@
 import { useAppStore } from "../store";
+import { listGapStripe } from "../lib/tasks";
 
 /**
- * The space between two category blocks (or two sections) in a
- * list-style column, filled with a soft band of color so the break
+ * The break between two category blocks (or two sections) in a day or
+ * list column: `stripes` stripes of `listGapStripe` px each, filled with a soft band of color so the break
  * reads apart from the hairline between two rows. The band floats
  * clear of the rows: `gap_fill_inset` % of the gap stays empty above
  * and below it, and it never grows thicker than
@@ -11,8 +12,8 @@ import { useAppStore } from "../store";
  * `gap_fill_fade` % of each half of the band being the ramp - the same
  * ramp length vertically and horizontally, so the corners soften
  * evenly. Color: `gap_fill_color`, empty = the border color, at
- * `gap_fill_opacity` %. One look for the Days and Lists list views
- * alike (Settings > Views > List view).
+ * `gap_fill_opacity` %. One look for every column (Settings > Views >
+ * List view).
  *
  * `stripes` draws that many bands (1 = category, 2 = section, 3 = the
  * closed sections - see `listGapStripe`), each sized as if it had its
@@ -21,17 +22,12 @@ import { useAppStore } from "../store";
  * multi-stripe gap reads as one rhythm instead of tight pairs where
  * two slots' paddings would have added up.
  */
-export default function GapFill({
-  height,
-  stripes = 1,
-}: {
-  height: number;
-  stripes?: number;
-}) {
+export default function GapFill({ stripes }: { stripes: number }) {
+  const height = useAppStore((s) => stripes * listGapStripe(s.config));
   const color = useAppStore((s) => s.config?.gap_fill_color ?? "");
-  const fade = useAppStore((s) => s.config?.gap_fill_fade ?? 60);
-  const inset = useAppStore((s) => s.config?.gap_fill_inset ?? 25);
-  const maxBand = useAppStore((s) => s.config?.gap_fill_max_thickness ?? 6);
+  const fade = useAppStore((s) => s.config?.gap_fill_fade ?? 50);
+  const inset = useAppStore((s) => s.config?.gap_fill_inset ?? 15);
+  const maxBand = useAppStore((s) => s.config?.gap_fill_max_thickness ?? 20);
   const opacity = useAppStore((s) => s.config?.gap_fill_opacity ?? 100);
   // the inset sets the band for a small slot; past maxBand the band
   // stops growing and the extra height goes to the empty space around

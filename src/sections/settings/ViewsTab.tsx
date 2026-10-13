@@ -86,21 +86,6 @@ export default function ViewsTab() {
             ))}
           </select>
         </Field>
-
-        <Toggle
-          checked={config.days_list_style}
-          label="List view"
-          hint="Tasks as a plain list split by thin lines instead of one boxed card per task. The Dashboard keeps its cards."
-          onChange={(v) => void updateConfig({ days_list_style: v })}
-        />
-        {config.days_list_style && (
-          <Toggle
-            checked={config.days_gap_fill}
-            label="Fill the gaps between blocks and sections"
-            hint="Fills the space between two categories, and between two sections (Daily, Monthly, Done...), with a soft band of color, so a break stands out from an ordinary row line."
-            onChange={(v) => void updateConfig({ days_gap_fill: v })}
-          />
-        )}
       </SettingsGroup>
 
       <SettingsGroup id="views.lists">
@@ -126,21 +111,6 @@ export default function ViewsTab() {
           hint="Every list column stretches to its grid row's height, so the rows line up instead of forming a ragged mosaic. Off = each column takes its natural height."
           onChange={(v) => void updateConfig({ lists_page_align_rows: v })}
         />
-
-        <Toggle
-          checked={config.lists_list_style}
-          label="List view"
-          hint="Tasks on the Lists page as a plain list split by thin lines instead of one boxed card per task. The dashboard's list zone keeps its cards."
-          onChange={(v) => void updateConfig({ lists_list_style: v })}
-        />
-        {config.lists_list_style && (
-          <Toggle
-            checked={config.lists_gap_fill}
-            label="Fill the gaps between blocks and sections"
-            hint="Fills the space between two {Category} blocks, and between two sections (Priority, Postponed, Done...), with a soft band of color, so a break stands out from an ordinary row line."
-            onChange={(v) => void updateConfig({ lists_gap_fill: v })}
-          />
-        )}
 
         <Field label="Grouped lists in the list panels">
           <select
@@ -195,9 +165,8 @@ export default function ViewsTab() {
           />
         </Field>
         <span className="-mt-1 text-xs text-content-muted">
-          Gaps in list view are whole stripes: 1 between category blocks, 2
-          between sections, 3 before Postponed / Done, waiting / Done. The
-          per-gap px settings in Columns apply to the card view only.
+          Gaps between rows are whole stripes: 1 between category blocks, 2
+          between sections, 3 before Postponed / Done, waiting / Done.
         </span>
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Gap fill color</span>
@@ -258,8 +227,8 @@ export default function ViewsTab() {
         <span className="-mt-1 text-xs text-content-muted">
           Empty space the band leaves above and below itself, so it floats in
           the gap instead of touching the lines of the rows around it. 0 = the
-          band spans the whole gap. In a tall gap the band stops at the
-          maximum thickness and stays centered.
+          band spans the whole gap. In a tall gap the band stops at the maximum
+          thickness and stays centered.
         </span>
       </SettingsGroup>
 
@@ -276,16 +245,16 @@ export default function ViewsTab() {
           />
         </Field>
         <span className="text-xs text-content-muted">
-          This page&apos;s own column. Too narrow and the tab strip above
-          wraps onto a second line; widen it until every tab fits.
+          This page&apos;s own column. Too narrow and the tab strip above wraps
+          onto a second line; widen it until every tab fits.
         </span>
       </SettingsGroup>
 
       <SettingsGroup id="views.navigation">
         <span className="text-xs text-content-muted">
-          Order of the sections in the left bar, and which of them it
-          shows at all - an app half of whose features you never open
-          should not spend a rail on them. Settings always stays.
+          Order of the sections in the left bar, and which of them it shows at
+          all - an app half of whose features you never open should not spend a
+          rail on them. Settings always stays.
         </span>
         <div className="flex flex-col gap-1">
           {config.section_order.map((id, i) => {

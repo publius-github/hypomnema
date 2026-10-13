@@ -111,32 +111,6 @@ pub struct AppConfig {
     /// Done-but-waiting status marks: a muted blue, quieter than the
     /// info tone, so it reads as "done, not over yet".
     pub waiting_color: String,
-    /// Vertical gap between task cards inside a column, px.
-    /// (New numeric keys replace the old cadence_group_gap/category_gap
-    /// booleans; stale keys in app.yml are ignored by serde.)
-    pub task_gap: u32,
-    /// Vertical gap before each section of a column (cadence groups,
-    /// Postponed, Done), px.
-    pub section_gap: u32,
-    /// Vertical gap between {Category} blocks inside a section of a
-    /// day column, px.
-    pub category_block_gap: u32,
-    /// The same gap inside a custom list column and the list dialog:
-    /// its own knob, because a backlog is usually denser than the day
-    /// grid.
-    pub list_category_block_gap: u32,
-    /// Vertical gaps before the Postponed and Done sections
-    /// (done_display = separate), px; each section and each column kind
-    /// (day grid vs custom lists) has its own knob, so they can sit
-    /// visibly below the active tasks independently.
-    pub postponed_section_gap: u32,
-    pub done_section_gap: u32,
-    pub list_postponed_section_gap: u32,
-    pub list_done_section_gap: u32,
-    /// The same gap before the Waiting section (done but waiting on
-    /// someone), which sits between Postponed and Done.
-    pub waiting_section_gap: u32,
-    pub list_waiting_section_gap: u32,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -227,16 +201,10 @@ pub struct AppConfig {
     /// Lists page: stretch every list column to its grid row's height so
     /// the rows line up; off = each column takes its natural height.
     pub lists_page_align_rows: bool,
-    /// Lists page renders its tasks as a plain list split by hairlines
-    /// instead of one boxed card per task (the dashboard keeps cards).
-    pub lists_list_style: bool,
-    /// In the Lists list view, the gap between two {Category} blocks is
-    /// filled with a soft band of color so it reads as a break.
-    pub lists_gap_fill: bool,
-    /// Section plate height in the Days/Lists list views, % of the
+    /// Section plate height in the day and list columns, % of the
     /// plate's normal height (100..=400); the plate text scales with it.
     pub list_view_plate_scale: u32,
-    /// Filled gaps in the Days/Lists list views: the band's color, hex
+    /// Separator stripes between list rows: the band's color, hex
     /// (empty = the border color), and how soft its edges are - the
     /// share of each half of the band that fades out to nothing, %
     /// (0 = hard edges, 100 = solid only along its middle line).
@@ -250,10 +218,10 @@ pub struct AppConfig {
     pub gap_fill_max_thickness: u32,
     /// Opacity of the band, % (0..=100).
     pub gap_fill_opacity: u32,
-    /// List-view separators come in fixed stripes: one stripe is this
-    /// % of a single-line row's height (25..=150). A category break is
-    /// one stripe, a section break two, the Postponed / Done, waiting /
-    /// Done breaks three; the per-gap px settings apply to cards only.
+    /// Breaks between list rows come in fixed stripes: one stripe is
+    /// this % of a single-line row's height (25..=150). A category break
+    /// is one stripe, a section break two, the Postponed / Done,
+    /// waiting / Done breaks three.
     pub list_gap_stripe: u32,
     /// How grouped lists show in the list panels: `folded` = one tile per
     /// group with its lists behind a drill-in, `flat` = every list as its
@@ -271,12 +239,6 @@ pub struct AppConfig {
     /// Days page shows a single Today column (its own toggle, separate
     /// from dashboard_today_only).
     pub days_today_only: bool,
-    /// Days page renders its tasks as a plain list split by hairlines
-    /// instead of one boxed card per task (toggled on the page header).
-    pub days_list_style: bool,
-    /// In the Days list view, the gap between two category blocks is
-    /// filled with a soft band of color so it reads as a break.
-    pub days_gap_fill: bool,
     /// Postponed / Done, waiting / Done sections sort by category, then
     /// title, alphabetically; off = the same order as the open tasks.
     pub closed_sections_sort_alpha: bool,
@@ -435,12 +397,8 @@ pub const PROFILE_KEYS: &[&str] = &[
     "list_columns",
     "dashboard_split",
     "days_page_columns",
-    "days_list_style",
-    "days_gap_fill",
     "lists_page_columns",
     "lists_page_align_rows",
-    "lists_list_style",
-    "lists_gap_fill",
     "list_view_plate_scale",
     "gap_fill_color",
     "gap_fill_fade",
@@ -453,16 +411,6 @@ pub const PROFILE_KEYS: &[&str] = &[
     "day_header_centered",
     "cadence_group_order",
     "done_display",
-    "task_gap",
-    "section_gap",
-    "category_block_gap",
-    "list_category_block_gap",
-    "postponed_section_gap",
-    "done_section_gap",
-    "list_postponed_section_gap",
-    "list_done_section_gap",
-    "waiting_section_gap",
-    "list_waiting_section_gap",
     "list_task_lines",
     "list_dialog_task_lines",
     // card markers
@@ -521,16 +469,6 @@ impl Default for AppConfig {
             category_color_b: "#a855f7".into(),
             done_color: "#22c55e".into(),
             waiting_color: "#3b80c0".into(),
-            task_gap: 6,
-            section_gap: 12,
-            category_block_gap: 12,
-            list_category_block_gap: 12,
-            postponed_section_gap: 12,
-            done_section_gap: 12,
-            list_postponed_section_gap: 12,
-            list_done_section_gap: 12,
-            waiting_section_gap: 12,
-            list_waiting_section_gap: 12,
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
@@ -561,21 +499,17 @@ impl Default for AppConfig {
             lists_sort_alpha: false,
             lists_page_columns: 4,
             lists_page_align_rows: true,
-            lists_list_style: false,
-            lists_gap_fill: true,
             list_view_plate_scale: 200,
             gap_fill_color: String::new(),
-            gap_fill_fade: 60,
-            gap_fill_inset: 25,
-            gap_fill_max_thickness: 6,
+            gap_fill_fade: 50,
+            gap_fill_inset: 15,
+            gap_fill_max_thickness: 20,
             gap_fill_opacity: 100,
             list_gap_stripe: 60,
             lists_group_display: "folded".into(),
             settings_width: 1120,
             days_page_columns: 7,
             days_today_only: false,
-            days_list_style: false,
-            days_gap_fill: true,
             closed_sections_sort_alpha: true,
             category_avoid_cadence_colors: true,
             list_tasks_sort_alpha: false,
@@ -702,18 +636,6 @@ impl AppConfig {
         // a card that grows without bound stops being a card
         self.list_task_lines = self.list_task_lines.clamp(1, 10);
         self.list_dialog_task_lines = self.list_dialog_task_lines.clamp(1, 10);
-        self.task_gap = self.task_gap.min(48);
-        self.section_gap = self.section_gap.min(48);
-        self.category_block_gap = self.category_block_gap.min(48);
-        self.list_category_block_gap = self.list_category_block_gap.min(48);
-        // deliberately roomier than the other gaps: their point is
-        // pushing Postponed/Done visibly below the active tasks
-        self.postponed_section_gap = self.postponed_section_gap.min(400);
-        self.done_section_gap = self.done_section_gap.min(400);
-        self.list_postponed_section_gap = self.list_postponed_section_gap.min(400);
-        self.list_done_section_gap = self.list_done_section_gap.min(400);
-        self.waiting_section_gap = self.waiting_section_gap.min(400);
-        self.list_waiting_section_gap = self.list_waiting_section_gap.min(400);
         self.ui_font = self.ui_font.trim().to_string();
         self.editor_font = self.editor_font.trim().to_string();
         // hex colors land in inline styles; anything malformed falls
@@ -922,31 +844,6 @@ impl AppConfig {
             ("category_color_b", self.category_color_b.clone()),
             ("done_color", self.done_color.clone()),
             ("waiting_color", self.waiting_color.clone()),
-            ("task_gap", self.task_gap.to_string()),
-            ("section_gap", self.section_gap.to_string()),
-            ("category_block_gap", self.category_block_gap.to_string()),
-            (
-                "list_category_block_gap",
-                self.list_category_block_gap.to_string(),
-            ),
-            (
-                "postponed_section_gap",
-                self.postponed_section_gap.to_string(),
-            ),
-            ("done_section_gap", self.done_section_gap.to_string()),
-            (
-                "list_postponed_section_gap",
-                self.list_postponed_section_gap.to_string(),
-            ),
-            (
-                "list_done_section_gap",
-                self.list_done_section_gap.to_string(),
-            ),
-            ("waiting_section_gap", self.waiting_section_gap.to_string()),
-            (
-                "list_waiting_section_gap",
-                self.list_waiting_section_gap.to_string(),
-            ),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
@@ -1000,8 +897,6 @@ impl AppConfig {
                 "lists_page_align_rows",
                 self.lists_page_align_rows.to_string(),
             ),
-            ("lists_list_style", self.lists_list_style.to_string()),
-            ("lists_gap_fill", self.lists_gap_fill.to_string()),
             (
                 "list_view_plate_scale",
                 self.list_view_plate_scale.to_string(),
@@ -1019,8 +914,6 @@ impl AppConfig {
             ("settings_width", self.settings_width.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),
             ("days_today_only", self.days_today_only.to_string()),
-            ("days_list_style", self.days_list_style.to_string()),
-            ("days_gap_fill", self.days_gap_fill.to_string()),
             (
                 "closed_sections_sort_alpha",
                 self.closed_sections_sort_alpha.to_string(),

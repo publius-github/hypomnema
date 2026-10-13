@@ -28,8 +28,7 @@ function TaskCard({
   inert = false,
   titleLines = 1,
   blockIndex,
-  flat = false,
-  flatTop = false,
+  lineAbove = false,
   cadenceStripe = true,
 }: {
   task: Task;
@@ -47,14 +46,8 @@ function TaskCard({
    * chip palette uses it; a card outside a column leaves it unset.
    */
   blockIndex?: number;
-  /**
-   * A row of a plain list rather than a boxed card: no frame, fill or
-   * shadow, just a hairline under it (list view; the column carries
-   * the card fill instead).
-   */
-  flat?: boolean;
-  /** a flat row that opens a block also gets the hairline above it */
-  flatTop?: boolean;
+  /** a row that opens a block also gets the hairline above it */
+  lineAbove?: boolean;
   /**
    * The cadence color may paint the stripe; off in a closed section
    * whose cadence_colors_<section> is off. Manual and list colors stay.
@@ -191,14 +184,14 @@ function TaskCard({
       {...(passive ? {} : attributes)}
       {...(passive ? {} : listeners)}
       className={`group text-sm ${
-        flat
-          ? // transparent: the list-view column itself wears the
-            // card fill, so rows and gaps share one work surface
-            `border-b border-line/60 ${flatTop ? "border-t" : ""}`
-          : "rounded-md border border-line bg-surface-alt shadow-sm"
-      } ${
-        isDragging ? "opacity-30" : ""
-      } ${overlay ? "shadow-lg" : ""}`}
+        overlay
+          ? // the drag overlay floats over the page, so it keeps a
+            // frame and fill of its own
+            "rounded-md border border-line bg-surface-alt shadow-lg"
+          : // a plain list row, transparent: the column itself wears
+            // the card fill, so rows and gaps share one work surface
+            `border-b border-line/60 ${lineAbove ? "border-t" : ""}`
+      } ${isDragging ? "opacity-30" : ""}`}
     >
       {/* with a multi-line title everything else hugs the first line
           instead of centering against the whole block */}

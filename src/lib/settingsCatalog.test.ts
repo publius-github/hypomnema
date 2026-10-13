@@ -101,8 +101,8 @@ describe("micro-groups", () => {
   });
 
   it("reports the micro-group a search hit sits in", () => {
-    const [hit] = searchSettings("done_section_gap");
-    expect(hit.sub).toBe("columns.day.spacing");
+    const [hit] = searchSettings("done_plate_color");
+    expect(hit.sub).toBe("columns.shared.plates");
     expect(searchSettings("done_display")[0].sub).toBeUndefined();
   });
 });
@@ -121,10 +121,10 @@ describe("searchSettings", () => {
   });
 
   it("requires every term to match, in any order", () => {
-    const hits = searchSettings("gap done").map((h) => h.key);
-    expect(hits).toContain("done_section_gap");
-    expect(hits).toContain("list_done_section_gap");
-    expect(hits).not.toContain("task_gap");
+    const hits = searchSettings("plate done").map((h) => h.key);
+    expect(hits).toContain("done_plate_color");
+    expect(hits).toContain("waiting_plate_color");
+    expect(hits).not.toContain("postponed_plate_color");
   });
 
   it("reports the tab and group a hit lives on", () => {
@@ -176,7 +176,7 @@ describe("profileCoverage", () => {
   it("folds the covered groups by tab, in page order", () => {
     const rows = profileGroupsByTab([
       ...keys,
-      "task_gap",
+      "closed_sections_sort_alpha",
       "lists_page_columns",
     ]);
     expect(rows.map((r) => r.tab)).toEqual([

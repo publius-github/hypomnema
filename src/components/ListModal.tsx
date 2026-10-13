@@ -9,9 +9,11 @@ import {
   priorityPatch,
   isClosed,
   STATUS_LABEL,
+  LIST_GAP_STRIPES,
 } from "../lib/tasks";
 import { ColorPicker } from "./form";
 import TaskModal from "./TaskModal";
+import GapFill from "./GapFill";
 import type { List, Task } from "../types";
 import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
 import { errorMessage } from "../lib/ipc";
@@ -261,18 +263,13 @@ export default function ListModal({
             />
           </form>
           {sorted.map((task, i) => (
-            <div
-              key={task.id}
-              // the column's {Category} rhythm, so the dialog shows the
-              // same blocks the list column does
-              style={{
-                marginTop:
-                  i > 0 &&
-                  categoryOf(task.title) !== categoryOf(sorted[i - 1].title)
-                    ? (config?.list_category_block_gap ?? 12)
-                    : undefined,
-              }}
-            >
+            <div key={task.id}>
+              {/* the column's {Category} stripe, so the dialog shows the
+                  same blocks the list column does */}
+              {i > 0 &&
+                categoryOf(task.title) !== categoryOf(sorted[i - 1].title) && (
+                  <GapFill stripes={LIST_GAP_STRIPES.category} />
+                )}
               <ListTaskRow
                 task={task}
                 checklist={list.kind === "checklist"}

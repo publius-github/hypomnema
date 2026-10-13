@@ -12,7 +12,6 @@ import {
   sortClosedAlpha,
   splitDone,
   listViewPlateStyle,
-  listGapStripe,
   LIST_GAP_STRIPES,
   tintStyle,
 } from "../lib/tasks";
@@ -24,12 +23,9 @@ import type { Task } from "../types";
 function DayColumn({
   date,
   onOpenTask,
-  flat = false,
 }: {
   date: string;
   onOpenTask: (id: number) => void;
-  /** tasks as hairline-separated list rows instead of boxed cards */
-  flat?: boolean;
 }) {
   // individual selectors: a whole-store subscribe would re-render every
   // column on unrelated state changes (toasts, palette, banners)
@@ -88,7 +84,6 @@ function DayColumn({
     config?.cadence_group_order,
     taskCategory,
   );
-  const isToday = date === today;
 
   // the alternating chip palette runs down the whole column: one
   // counter over every card in render order, cadence sections and the
@@ -102,45 +97,23 @@ function DayColumn({
   // the card stripes), framing the section like the priority label does
   const groupColor = (key: string): string | null => cadenceColor(config, key);
 
-  // configurable vertical rhythm: cards, sections, category blocks;
-  // Postponed and Done each take their own (roomier) gap so they can
-  // sit visibly below the active tasks
-  // list rows sit flush: the hairline under each one is the separator
-  const taskGap = flat ? 0 : (config?.task_gap ?? 6);
-  // list view: fixed stripes instead of the per-gap px settings - one
-  // between category blocks, two between sections, three before the
-  // Postponed/Waiting/Done blocks
-  const stripe = listGapStripe(config);
-  const sectionGap = flat
-    ? LIST_GAP_STRIPES.section * stripe
-    : (config?.section_gap ?? 12);
-  const categoryGap = flat
-    ? LIST_GAP_STRIPES.category * stripe
-    : (config?.category_block_gap ?? 12);
-  const closedGap = (px: number | undefined) =>
-    flat ? LIST_GAP_STRIPES.closed * stripe : (px ?? 12);
-  // list view: the gaps between category blocks and between sections
-  // are filled so a break reads apart from the hairline between rows
-  const fillGaps = flat && (config?.days_gap_fill ?? true);
-  // list view: section plates, label included, grow to
-  // list_view_plate_scale % of their normal size
-  const plateSize = listViewPlateStyle(config, flat);
+  // tasks are hairline-separated rows sitting flush; the breaks between
+  // them are whole separator stripes (GapFill): one between category
+  // blocks, two between sections, three before Postponed/Waiting/Done.
+  // Section plates, label included, grow to list_view_plate_scale %
+  const plateSize = listViewPlateStyle(config);
 
   // Postponed/Done headers use the same plate style as the cadence
-  // group headers, each with an optional color and gap of its own
+  // group headers, each with an optional color of its own
   const section = (
     label: string,
     items: Task[],
     plateColor: string,
-    gap: number,
     cadenceStripe: boolean,
   ) =>
     items.length > 0 && (
-      <div
-        className="flex flex-col"
-        style={{ rowGap: taskGap, marginTop: fillGaps ? undefined : gap }}
-      >
-        {fillGaps && <GapFill height={gap} stripes={LIST_GAP_STRIPES.closed} />}
+      <div className="flex flex-col">
+        <GapFill stripes={LIST_GAP_STRIPES.closed} />
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
             plateColor ? "" : "bg-line/40 text-content"
@@ -159,8 +132,7 @@ function DayColumn({
             task={task}
             onOpen={onOpenTask}
             blockIndex={blockIndex.get(task.id)}
-            flat={flat}
-            flatTop={j === 0}
+            lineAbove={j === 0}
             cadenceStripe={cadenceStripe}
           />
         ))}
@@ -173,9 +145,9 @@ function DayColumn({
       className={`flex min-h-0 flex-col rounded-lg border ${
         isOver ? "border-accent" : "border-line"
       } ${
-        // list view: the whole column takes the card fill, the surface
-        // the rows used to sit on as separate cards
-        flat ? "bg-surface-alt" : isToday ? "bg-accent/5" : "bg-surface-alt/50"
+        // the whole column takes the card fill: rows and gaps share one
+        // work surface the theme contrasts against the page
+        "bg-surface-alt"
       }`}
     >
       <div
@@ -224,24 +196,10 @@ function DayColumn({
           )}
         </div>
       )}
-      <div
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2"
-        style={{ rowGap: taskGap }}
-      >
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2">
         {groups.map((group, i) => (
-          <div
-            key={group.key}
-            className="flex flex-col"
-            // extra gap before every group after the first, so the
-            // cadence blocks read as separate sections
-            style={{
-              rowGap: taskGap,
-              marginTop: i > 0 && !fillGaps ? sectionGap : undefined,
-            }}
-          >
-            {i > 0 && fillGaps && (
-              <GapFill height={sectionGap} stripes={LIST_GAP_STRIPES.section} />
-            )}
+          <div key={group.key} className="flex flex-col">
+            {i > 0 && <GapFill stripes={LIST_GAP_STRIPES.section} />}
             <div
               className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                 groupColor(group.key) ? "" : "bg-line/40 text-content"
@@ -257,29 +215,21 @@ function DayColumn({
               <span className="h-px flex-1 bg-current opacity-30" />
             </div>
             {group.tasks.map((task, j) => {
-              // a wider gap where one category block ends and the next
+              // a stripe where one category block ends and the next
               // begins (tasks are pre-sorted by category)
               const gapBefore =
                 j > 0 &&
                 taskCategory(task) !== taskCategory(group.tasks[j - 1]);
               return (
-                <div
-                  key={task.id}
-                  style={
-                    gapBefore && !fillGaps
-                      ? { marginTop: categoryGap }
-                      : undefined
-                  }
-                >
-                  {gapBefore && fillGaps && <GapFill height={categoryGap} />}
+                <div key={task.id}>
+                  {gapBefore && <GapFill stripes={LIST_GAP_STRIPES.category} />}
                   <TaskCard
                     task={task}
                     onOpen={onOpenTask}
                     blockIndex={blockIndex.get(task.id)}
-                    flat={flat}
                     // every block is framed: its first row also gets
                     // the line above, not only the one below
-                    flatTop={j === 0 || gapBefore}
+                    lineAbove={j === 0 || gapBefore}
                   />
                 </div>
               );
@@ -290,21 +240,18 @@ function DayColumn({
           "Postponed",
           postponed,
           config?.postponed_plate_color ?? "",
-          closedGap(config?.postponed_section_gap),
           config?.cadence_colors_postponed ?? true,
         )}
         {section(
           "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
-          closedGap(config?.waiting_section_gap),
           config?.cadence_colors_waiting ?? true,
         )}
         {section(
           "Done",
           done,
           config?.done_plate_color ?? "",
-          closedGap(config?.done_section_gap),
           config?.cadence_colors_done ?? true,
         )}
         <QuickAdd target={{ scheduled_date: date }} />

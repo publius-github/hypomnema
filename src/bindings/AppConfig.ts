@@ -135,40 +135,6 @@ done_color: string,
  */
 waiting_color: string, 
 /**
- * Vertical gap between task cards inside a column, px.
- * (New numeric keys replace the old cadence_group_gap/category_gap
- * booleans; stale keys in app.yml are ignored by serde.)
- */
-task_gap: number, 
-/**
- * Vertical gap before each section of a column (cadence groups,
- * Postponed, Done), px.
- */
-section_gap: number, 
-/**
- * Vertical gap between {Category} blocks inside a section of a
- * day column, px.
- */
-category_block_gap: number, 
-/**
- * The same gap inside a custom list column and the list dialog:
- * its own knob, because a backlog is usually denser than the day
- * grid.
- */
-list_category_block_gap: number, 
-/**
- * Vertical gaps before the Postponed and Done sections
- * (done_display = separate), px; each section and each column kind
- * (day grid vs custom lists) has its own knob, so they can sit
- * visibly below the active tasks independently.
- */
-postponed_section_gap: number, done_section_gap: number, list_postponed_section_gap: number, list_done_section_gap: number, 
-/**
- * The same gap before the Waiting section (done but waiting on
- * someone), which sits between Postponed and Done.
- */
-waiting_section_gap: number, list_waiting_section_gap: number, 
-/**
  * Order of the cadence sections inside a day column.
  */
 cadence_group_order: Array<string>, 
@@ -311,22 +277,12 @@ lists_page_columns: number,
  */
 lists_page_align_rows: boolean, 
 /**
- * Lists page renders its tasks as a plain list split by hairlines
- * instead of one boxed card per task (the dashboard keeps cards).
- */
-lists_list_style: boolean, 
-/**
- * In the Lists list view, the gap between two {Category} blocks is
- * filled with a soft band of color so it reads as a break.
- */
-lists_gap_fill: boolean, 
-/**
- * Section plate height in the Days/Lists list views, % of the
+ * Section plate height in the day and list columns, % of the
  * plate's normal height (100..=400); the plate text scales with it.
  */
 list_view_plate_scale: number, 
 /**
- * Filled gaps in the Days/Lists list views: the band's color, hex
+ * Separator stripes between list rows: the band's color, hex
  * (empty = the border color), and how soft its edges are - the
  * share of each half of the band that fades out to nothing, %
  * (0 = hard edges, 100 = solid only along its middle line).
@@ -347,10 +303,10 @@ gap_fill_max_thickness: number,
  */
 gap_fill_opacity: number, 
 /**
- * List-view separators come in fixed stripes: one stripe is this
- * % of a single-line row's height (25..=150). A category break is
- * one stripe, a section break two, the Postponed / Done, waiting /
- * Done breaks three; the per-gap px settings apply to cards only.
+ * Breaks between list rows come in fixed stripes: one stripe is
+ * this % of a single-line row's height (25..=150). A category break
+ * is one stripe, a section break two, the Postponed / Done,
+ * waiting / Done breaks three.
  */
 list_gap_stripe: number, 
 /**
@@ -376,16 +332,6 @@ days_page_columns: number,
  * from dashboard_today_only).
  */
 days_today_only: boolean, 
-/**
- * Days page renders its tasks as a plain list split by hairlines
- * instead of one boxed card per task (toggled on the page header).
- */
-days_list_style: boolean, 
-/**
- * In the Days list view, the gap between two category blocks is
- * filled with a soft band of color so it reads as a break.
- */
-days_gap_fill: boolean, 
 /**
  * Postponed / Done, waiting / Done sections sort by category, then
  * title, alphabetically; off = the same order as the open tasks.

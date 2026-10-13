@@ -109,8 +109,9 @@ describe("Settings smoke", () => {
   });
 
   it("offers a reset only for a group that left its defaults", async () => {
-    // a changed gap lives in Day columns; the shared group is untouched
-    seed({ done_section_gap: 40 });
+    // a changed plate color lives in the shared group; the day and list
+    // groups are untouched
+    seed({ done_plate_color: "#ff0000" });
     render(<Settings />);
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
 
@@ -125,59 +126,54 @@ describe("Settings smoke", () => {
         "config_set",
         expect.objectContaining({
           config: expect.objectContaining({
-            done_section_gap: defaultConfig.done_section_gap,
+            done_plate_color: defaultConfig.done_plate_color,
           }),
         }),
       ),
     );
   });
 
-  it("hides the spacing knobs until they are asked for", () => {
-    // a changed day gap ticks that micro-group and opens its group; the
-    // shared and list groups stay folded, so their gaps are two clicks
-    // away rather than on screen
-    seed({ done_section_gap: 40 });
+  it("hides the plate colors until they are asked for", () => {
+    // everything at its default: the shared group opens with its plate
+    // micro-group folded
+    seed();
     render(<Settings />);
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
 
-    const day = screen.getByRole("checkbox", {
-      name: /Custom spacing/,
-    }) as HTMLInputElement;
-    expect(day.checked).toBe(true);
-    expect(screen.getByText("Before Done")).toBeTruthy();
-    expect(screen.getByText("1 changed")).toBeTruthy();
-
-    // open the untouched shared group: its spacing is there, unticked
     fireEvent.click(screen.getAllByRole("button", { name: "Customize" })[0]);
-    const shared = screen.getAllByRole("checkbox", {
-      name: /Custom spacing/,
-    })[0] as HTMLInputElement;
-    expect(shared.checked).toBe(false);
-    expect(screen.queryByText("Between tasks")).toBeNull();
+    const plates = screen.getByRole("checkbox", {
+      name: /Custom section plates/,
+    }) as HTMLInputElement;
+    expect(plates.checked).toBe(false);
+    expect(screen.queryByText("Done, waiting")).toBeNull();
 
     // ticking it only reveals the fields - no write, nothing changes
     invokeMock.mockClear();
-    fireEvent.click(shared);
-    expect(screen.getByText("Between tasks")).toBeTruthy();
+    fireEvent.click(plates);
+    expect(screen.getByText("Done, waiting")).toBeTruthy();
     expect(
       invokeMock.mock.calls.filter(([cmd]) => cmd === "config_set"),
     ).toEqual([]);
   });
 
   it("puts a micro-group back to its defaults when unticked", async () => {
-    seed({ done_section_gap: 40, category_block_gap: 12 });
+    seed({ done_plate_color: "#ff0000", postponed_plate_color: "#00ff00" });
     render(<Settings />);
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Custom spacing/ }));
+    const plates = screen.getByRole("checkbox", {
+      name: /Custom section plates/,
+    }) as HTMLInputElement;
+    expect(plates.checked).toBe(true);
+    fireEvent.click(plates);
 
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith(
         "config_set",
         expect.objectContaining({
           config: expect.objectContaining({
-            done_section_gap: defaultConfig.done_section_gap,
-            category_block_gap: defaultConfig.category_block_gap,
+            done_plate_color: defaultConfig.done_plate_color,
+            postponed_plate_color: defaultConfig.postponed_plate_color,
           }),
         }),
       ),
@@ -185,17 +181,17 @@ describe("Settings smoke", () => {
   });
 
   it("opens a micro-group the search sent it to", async () => {
-    // everything at its default, so the gaps are hidden on arrival
+    // everything at its default, so the plate colors are hidden on arrival
     seed();
     render(<Settings />);
 
     fireEvent.change(screen.getByPlaceholderText("Search settings..."), {
-      target: { value: "gap before done days" },
+      target: { value: "done plate color" },
     });
-    fireEvent.click(await screen.findByText("Gap before Done (days)"));
+    fireEvent.click(await screen.findByText("Done plate color"));
 
     // the hidden field is on screen, not behind an unticked checkbox
-    expect(screen.getByText("Before Done")).toBeTruthy();
+    expect(screen.getByText("Done, waiting")).toBeTruthy();
   });
 
   it("wears the same checkbox on a group that is only knobs", () => {

@@ -140,12 +140,7 @@ export default function Days() {
           }}
         >
           {dates.map((date) => (
-            <DayColumn
-              key={date}
-              date={date}
-              onOpenTask={setEditingTaskId}
-              flat={config.days_list_style}
-            />
+            <DayColumn key={date} date={date} onOpenTask={setEditingTaskId} />
           ))}
         </div>
       </div>

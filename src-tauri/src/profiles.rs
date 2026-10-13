@@ -147,7 +147,7 @@ mod tests {
             theme: "light".into(),
             accent_color: "#112233".into(),
             grid_columns: 5,
-            task_gap: 20,
+            list_gap_stripe: 80,
             cron_weekday_labels: false,
             // out of scope
             kb_path: "/notes".into(),
@@ -169,7 +169,7 @@ mod tests {
             theme: "dark".into(),
             accent_color: String::new(),
             grid_columns: 9,
-            task_gap: 2,
+            list_gap_stripe: 40,
             catchup_days: 60,
             ..original.clone()
         };
@@ -177,7 +177,7 @@ mod tests {
         assert_eq!(applied.theme, "light");
         assert_eq!(applied.accent_color, "#112233");
         assert_eq!(applied.grid_columns, 5);
-        assert_eq!(applied.task_gap, 20);
+        assert_eq!(applied.list_gap_stripe, 80);
         assert!(!applied.cron_weekday_labels);
         // non-scope fields keep the drifted (current) values
         assert_eq!(applied.catchup_days, 60);
