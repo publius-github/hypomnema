@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useAppStore } from "../store";
-import { compareTasks, orderLists } from "../lib/tasks";
-import TaskRow from "./TaskRow";
+import { orderLists } from "../lib/tasks";
+import { useListSections } from "../hooks/useColumnSections";
+import Sections from "./Sections";
 import { useBackStep } from "./back";
 import { Toggle } from "./controls";
 import type { List } from "../types";
@@ -59,15 +60,8 @@ export default function MobileLists() {
   });
   useBackStep(settingsOpen, () => setSettingsOpen(false));
   useBackStep(groupSettings, () => setGroupSettings(false));
-  const listTasks = useMemo(
-    () =>
-      current
-        ? tasks
-            .filter((t) => t.list_id === current.id && !t.parent_task_id)
-            .sort(compareTasks)
-        : [],
-    [tasks, current],
-  );
+  // the desktop list column's own layout: Priority, backlog, closed
+  const sections = useListSections(current);
 
   const listRow = (list: List) => {
     const open = tasks.filter(
@@ -555,27 +549,32 @@ export default function MobileLists() {
         </div>
       )}
 
-      {listTasks.length === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-content-muted">
+      {sections.length === 0 ? (
+        <p className="min-h-0 flex-1 px-4 py-8 text-center text-sm text-content-muted">
           This list is empty.
         </p>
       ) : (
-        <ul className="min-h-0 flex-1 overflow-auto">
-          {listTasks.map((task, index) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              showList={false}
-              neighbours={{
-                previous: index > 0 ? listTasks[index - 1].id : undefined,
-                next:
-                  index < listTasks.length - 1
-                    ? listTasks[index + 1].id
-                    : undefined,
-              }}
-            />
-          ))}
-        </ul>
+        <Sections
+          sections={sections}
+          extras={(section, index) => {
+            // Up/Down move within the backlog only - the one block the
+            // desktop column lets a drag reorder
+            const rows = section.rows;
+            return {
+              showList: false,
+              neighbours:
+                section.key === "rest"
+                  ? {
+                      previous: index > 0 ? rows[index - 1].task.id : undefined,
+                      next:
+                        index < rows.length - 1
+                          ? rows[index + 1].task.id
+                          : undefined,
+                    }
+                  : undefined,
+            };
+          }}
+        />
       )}
       <div className="flex gap-2 border-t border-line p-3">
         <input

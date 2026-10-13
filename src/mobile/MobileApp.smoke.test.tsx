@@ -54,6 +54,44 @@ describe("MobileApp smoke", () => {
     );
   });
 
+  it("lays the day out like the desktop column: closed sections, drop action", async () => {
+    const today = todayISO();
+    const open = makeTask({ id: 1, title: "open one", scheduled_date: today });
+    const later = makeTask({
+      id: 2,
+      title: "later one",
+      scheduled_date: today,
+      status: "postponed",
+    });
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        tasks_snapshot: () => [open, later],
+        task_update: () => ({ ...open, status: "dropped" }),
+      }),
+    );
+    useAppStore.setState({
+      config: { ...defaultConfig, done_display: "separate", sync_auto: false },
+      vaultPath: "/vault",
+      lists: [],
+      tasks: [open, later],
+      today,
+    });
+
+    render(<MobileApp />);
+
+    expect(await screen.findByText("Postponed")).toBeTruthy();
+    expect(screen.getByText("later one")).toBeTruthy();
+    fireEvent.click(screen.getAllByLabelText("Task actions")[0]);
+    fireEvent.click(screen.getByText("Drop"));
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("task_update", {
+        id: open.id,
+        patch: { status: "dropped" },
+      }),
+    );
+  });
+
   it("adds a task to the day being shown", async () => {
     const today = todayISO();
     dispatchCommands(

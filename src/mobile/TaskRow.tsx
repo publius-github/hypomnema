@@ -8,37 +8,50 @@ import {
   categoryChipColor,
   daysBetweenISO,
   isListExact,
+  nextStatus,
   nextWeekTarget,
   priorityPatch,
+  sortSubtasks,
   splitCategory,
+  STATUS_LABEL,
   tintStyle,
   weekdayShort,
   isClosed,
 } from "../lib/tasks";
+import {
+  StatusIcon,
+  statusBoxClass,
+  statusBoxStyle,
+} from "../components/StatusMark";
 import { useEditTask } from "./editing";
 import type { Task } from "../types";
 
 /**
  * One task, sized for a thumb and legible at a glance.
  *
- * The whole row toggles done, because that is what a task row is for
- * ninety percent of the time and aiming at a small checkbox on a moving
- * bus is not a design. Everything rarer hides behind the "..." button,
+ * The whole row steps the status the way the desktop card's checkbox
+ * does (todo, done, postponed, done-waiting; a checklist toggles todo
+ * and done), because that is what a task row is for ninety percent of
+ * the time and aiming at a small checkbox on a moving bus is not a
+ * design. Everything rarer hides behind the "..." button,
  * which opens actions inline rather than in a dialog - a modal over a
  * phone screen hides the very list the action refers to.
  *
- * It wears the desktop's signals rather than quieter ones of its own:
- * the colour stripe (a hand-picked colour, else the list's, else the
- * cadence palette), the `{Category}` chip, the list chip, the date chip
- * and the weekday marker. A phone shows fewer tasks at once than a
- * desktop, not less distinguishable ones - a wall of identical rows is
- * harder to read on a small screen, not easier.
+ * It wears the desktop card's signals, in the card's order and with
+ * the card's colour rules (`TaskCard` is the reference: a change there
+ * lands here too): the colour stripe, the date chips, the list and
+ * `{Category}` chips on the alternating palette, the weekday marker,
+ * the PRIORITY / OVERDUE / Rate badges and the subtask count that folds
+ * the subtasks open. A phone shows fewer tasks at once than a desktop,
+ * not less distinguishable ones - only the geometry is the phone's own.
  */
 export default function TaskRow({
   task,
   neighbours,
   showList = true,
   reviewWeekStart,
+  blockIndex,
+  lineAbove = false,
 }: {
   task: Task;
   /**
@@ -56,8 +69,13 @@ export default function TaskRow({
    * next week, drop back to the list backlog - to manual tasks.
    */
   reviewWeekStart?: string;
+  /** ordinal of the row's category block, for the alternating palette */
+  blockIndex?: number;
+  /** a row that opens a block also gets the hairline above it */
+  lineAbove?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
   const holdStatus = useAppStore((s) => s.holdStatus);
@@ -67,9 +85,11 @@ export default function TaskRow({
   const config = useAppStore((s) => s.config);
   const { setEditing } = useEditTask();
 
-  const done = task.status === "done";
   const closed = isClosed(task.status);
-  const subtasks = tasks.filter((t) => t.parent_task_id === task.id);
+  const subtasks = sortSubtasks(
+    tasks.filter((t) => t.parent_task_id === task.id),
+    config?.subtasks_done_last ?? true,
+  );
   const subtasksDone = subtasks.filter((t) => t.status === "done").length;
 
   // A {Category} prefix is a label, not part of the title.
@@ -78,33 +98,66 @@ export default function TaskRow({
     task.list_id === null
       ? null
       : (lists.find((l) => l.id === task.list_id) ?? null);
+  // checklist lists have no postponed state: plain todo <-> done
+  const checklist = list?.kind === "checklist";
 
-  // Same precedence the desktop card uses: a hand-picked colour wins,
-  // then the list's own, then the cadence palette.
+  // The card's stripe rule: a hand-picked colour wins, then the list's
+  // own (manual tasks), then the cadence palette; a dated list task is
+  // marked like the other Exact date tasks on a day, and inside its
+  // list only under list_exact_stripe.
   const cadence = cadenceColor(config, cadenceKeyOf(task));
   const listColor = task.origin === "manual" ? (list?.color ?? null) : null;
-  const stripe = task.color ?? listColor ?? cadence;
+  const listExact = isListExact(task);
+  const exactStripeHere =
+    listExact && (showList || (config?.list_exact_stripe ?? false));
+  const stripe =
+    task.color ??
+    (exactStripeHere
+      ? (cadence ?? listColor)
+      : (listColor ?? (listExact ? null : cadence)));
+  const dateChipColor =
+    listExact && !showList
+      ? config?.list_date_chip_color || cadence
+      : cadence;
 
   const categoryHue = category
-    ? categoryChipColor(category, lists, config)
+    ? categoryChipColor(category, lists, config, blockIndex)
     : null;
-  const listHue = list ? categoryChipColor(list.name, lists, config) : null;
+  const listHue = list
+    ? categoryChipColor(list.name, lists, config, blockIndex)
+    : null;
   const chipSize = `${config?.chip_font_scale ?? 100}%`;
 
-  // Scheduled events and birthdays carry the date they came from; a
-  // dated list task wears the same label wherever it is shown.
-  const dateLabel =
-    task.origin === "scheduled" || task.origin === "birthday"
-      ? task.origin_date
-      : isListExact(task)
-        ? task.scheduled_date
-        : null;
+  // Scheduled events and birthdays carry the date they came from.
+  const exactDate = task.origin === "scheduled" || task.origin === "birthday";
 
   const dowLabel =
     (config?.cron_weekday_labels ?? true) &&
     (task.dow_label !== "EVERYDAY" || (config?.cron_everyday_label ?? true))
       ? task.dow_label
       : null;
+  const dowColor = config?.dow_label_color || "";
+
+  // the habit-tracker rate of a recurring item, loud below its threshold
+  const habitRate = useAppStore((s) =>
+    (s.config?.habit_rate_chip ?? true) &&
+    task.origin === "recurring" &&
+    task.rule_key
+      ? (s.habitRates[task.rule_key] ?? null)
+      : null,
+  );
+  const rateAlertColor = config?.habit_rate_alert_color || "#f97316";
+
+  const dateChip = (date: string, color: string | null | undefined) => (
+    <span
+      className={`shrink-0 rounded px-1 font-medium ${
+        color ? "" : "bg-info/15 text-info"
+      }`}
+      style={{ ...(color ? tintStyle(color) : {}), fontSize: chipSize }}
+    >
+      {weekdayShort(date)} {date}
+    </span>
+  );
 
   const act = (patch: Parameters<typeof updateTask>[1]) => {
     setOpen(false);
@@ -112,7 +165,7 @@ export default function TaskRow({
   };
 
   return (
-    <li className="border-b border-line/60">
+    <li className={`border-b border-line/60 ${lineAbove ? "border-t" : ""}`}>
       <div className="flex items-stretch">
         {/* The stripe is the signal that survives a sideways glance, so
             it runs the full height of the row rather than sitting in it. */}
@@ -127,50 +180,35 @@ export default function TaskRow({
             // seconds (done_display "separate"), so a mistap can be
             // fixed before the row flies away
             holdStatus(task.id, task.status);
-            void updateTask(task.id, { status: closed ? "todo" : "done" });
+            void updateTask(task.id, {
+              status: nextStatus(task.status, checklist),
+            });
           }}
+          aria-label={`Status: ${STATUS_LABEL[task.status]}`}
           className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 pr-1 text-left"
         >
           <span
             aria-hidden
-            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
-              done
-                ? "border-accent bg-accent text-white"
-                : task.status === "dropped"
-                  ? "border-content-muted bg-content-muted text-surface"
-                  : "border-line text-transparent"
-            }`}
+            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${statusBoxClass(
+              task.status,
+            )}`}
+            style={statusBoxStyle(task.status)}
           >
-            {task.status === "dropped" ? "✕" : "✓"}
+            <StatusIcon status={task.status} />
           </span>
           <span className="min-w-0">
-            <span
-              className={`flex flex-wrap items-baseline gap-x-1.5 gap-y-1 ${
-                closed ? "text-content-muted line-through" : ""
-              }`}
-            >
-              {dowLabel && (
+            <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+              {listExact &&
+                task.scheduled_date &&
+                dateChip(task.scheduled_date, dateChipColor)}
+              {showList && list && listHue && (
+                // the list IS the category for engine-generated tasks,
+                // so it reads as loud as the {Category} chip
                 <span
-                  className="shrink-0 font-medium"
-                  style={{
-                    color: config?.dow_label_color || undefined,
-                    fontSize: chipSize,
-                  }}
+                  className="shrink-0 rounded px-1 font-semibold"
+                  style={{ ...tintStyle(listHue), fontSize: chipSize }}
                 >
-                  [{dowLabel}]
-                </span>
-              )}
-              {dateLabel && (
-                <span
-                  className={`shrink-0 rounded px-1 font-medium ${
-                    cadence ? "" : "bg-info/15 text-info"
-                  }`}
-                  style={{
-                    ...(cadence ? tintStyle(cadence) : {}),
-                    fontSize: chipSize,
-                  }}
-                >
-                  {weekdayShort(dateLabel)} {dateLabel}
+                  {list.name}
                 </span>
               )}
               {category && categoryHue && (
@@ -181,34 +219,72 @@ export default function TaskRow({
                   {category}
                 </span>
               )}
-              {showList && list && listHue && (
-                <span
-                  className="shrink-0 rounded px-1 font-semibold"
-                  style={{ ...tintStyle(listHue), fontSize: chipSize }}
-                >
-                  {list.name}
-                </span>
-              )}
-              <span className="min-w-0 break-words">{text}</span>
+              {exactDate &&
+                task.origin_date &&
+                dateChip(task.origin_date, cadence)}
+              <span
+                className={`min-w-0 break-words ${
+                  closed ? "text-content-muted line-through" : ""
+                }`}
+              >
+                {dowLabel && (
+                  // on a closed row the marker joins the struck-through
+                  // muted text instead of keeping its own colour
+                  <span
+                    className="text-content-muted"
+                    style={dowColor && !closed ? { color: dowColor } : undefined}
+                  >
+                    [{dowLabel}]{" "}
+                  </span>
+                )}
+                {text}
+              </span>
             </span>
-            <span className="mt-0.5 flex flex-wrap gap-2 text-xs text-content-muted">
+            <span
+              className="mt-1 flex flex-wrap items-center gap-1.5 text-content-muted empty:hidden"
+              style={{ fontSize: chipSize }}
+            >
+              {task.priority && (
+                // the day view's loud label; inside a list the Priority
+                // plate already says it, so a star is enough
+                showList ? (
+                  <span className="rounded bg-warn/15 px-1 font-semibold uppercase text-warn">
+                    priority
+                  </span>
+                ) : (
+                  <span className="text-warn">★</span>
+                )
+              )}
               {task.time && <span>{task.time}</span>}
-              {subtasks.length > 0 && (
-                <span>
-                  {subtasksDone}/{subtasks.length}
+              {task.overdue && !closed && (
+                <span className="rounded bg-danger/15 px-1 font-semibold uppercase text-danger">
+                  overdue
                 </span>
               )}
-              {task.overdue && !closed && (
-                <span className="text-warn">overdue</span>
-              )}
-              {task.priority && <span className="text-accent">★</span>}
-              {task.status === "postponed" && <span>postponed</span>}
-              {task.status === "waiting" && (
-                <span className="text-waiting">done, waiting</span>
+              {habitRate && (
+                <span
+                  className={`whitespace-nowrap rounded px-1 ${
+                    habitRate.alert ? "font-semibold" : "bg-line/40"
+                  }`}
+                  style={
+                    habitRate.alert ? tintStyle(rateAlertColor) : undefined
+                  }
+                >
+                  Rate: {habitRate.rate}%
+                </span>
               )}
             </span>
           </span>
         </button>
+        {subtasks.length > 0 && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? "Hide subtasks" : "Show subtasks"}
+            className="shrink-0 px-2 text-sm text-content-muted"
+          >
+            {expanded ? "▾" : "▸"} {subtasksDone}/{subtasks.length}
+          </button>
+        )}
         <button
           onClick={() => setOpen((v) => !v)}
           aria-label="Task actions"
@@ -217,6 +293,61 @@ export default function TaskRow({
           ⋯
         </button>
       </div>
+      {expanded && subtasks.length > 0 && (
+        <ul className="flex flex-col border-t border-line/60 py-1 pl-10 pr-2">
+          {subtasks.map((sub) => (
+            <li key={sub.id} className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  void updateTask(sub.id, {
+                    status: sub.status === "done" ? "todo" : "done",
+                  })
+                }
+                className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left text-sm"
+              >
+                <span
+                  aria-hidden
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${statusBoxClass(
+                    sub.status,
+                  )}`}
+                  style={statusBoxStyle(sub.status)}
+                >
+                  <StatusIcon status={sub.status} />
+                </span>
+                <span
+                  className={`min-w-0 break-words ${
+                    isClosed(sub.status)
+                      ? "text-content-muted line-through"
+                      : sub.status === "postponed"
+                        ? "text-warn"
+                        : sub.status === "waiting"
+                          ? "text-waiting"
+                          : ""
+                  }`}
+                >
+                  {sub.title}
+                </span>
+              </button>
+              {/* subtasks postpone too, like the card's arrow */}
+              <button
+                onClick={() =>
+                  void updateTask(sub.id, {
+                    status: sub.status === "postponed" ? "todo" : "postponed",
+                  })
+                }
+                aria-label={
+                  sub.status === "postponed" ? "Back to To Do" : "Postpone"
+                }
+                className={`shrink-0 px-2 py-2 ${
+                  sub.status === "postponed" ? "text-warn" : "text-content-muted"
+                }`}
+              >
+                →
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {open && (
         <div className="flex flex-wrap gap-2 px-4 pb-3">
           <Action
@@ -314,10 +445,21 @@ export default function TaskRow({
             </>
           )}
           {/* checklist items have no postponed state */}
-          {list?.kind !== "checklist" && (
+          {!checklist && (
             <Action
               label="Postpone"
               onClick={() => act({ status: "postponed" })}
+            />
+          )}
+          {/* "not done, dropped": off the plan without pretending it was
+              done - the card's ⊘; the hold keeps the row in place */}
+          {!closed && !checklist && (
+            <Action
+              label="Drop"
+              onClick={() => {
+                holdStatus(task.id, task.status);
+                act({ status: "dropped" });
+              }}
             />
           )}
           <Action

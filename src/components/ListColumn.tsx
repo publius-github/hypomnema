@@ -6,24 +6,16 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { memo, useState } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import {
-  categoryBlockIndex,
-  categoryOf,
-  compareTasks,
-  sortClosedAlpha,
-  splitDone,
-  listViewPlateStyle,
-  LIST_GAP_STRIPES,
-  tintStyle,
-} from "../lib/tasks";
+import { LIST_GAP_STRIPES } from "../lib/tasks";
+import { useListSections, type ColumnRow } from "../hooks/useColumnSections";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import GapFill from "./GapFill";
+import SectionPlate from "./SectionPlate";
 import ListModal from "./ListModal";
 import { ConfirmModal } from "./dialogs";
-import type { List, ListGroup, Task } from "../types";
+import type { List, ListGroup } from "../types";
 
 function ListColumn({
   list,
@@ -51,7 +43,6 @@ function ListColumn({
   const config = useAppStore((s) => s.config);
   const renameList = useAppStore((s) => s.renameList);
   const archiveList = useAppStore((s) => s.archiveList);
-  const hold = useAppStore(useShallow((s) => s.statusHold));
   const { setNodeRef, isOver } = useDroppable({ id: `list:${list.id}` });
   // the header's grip drags the whole list, not a task: dropping it on a
   // group tile (or on the group view's back bar) changes its membership.
@@ -66,113 +57,25 @@ function ListColumn({
   // column and still here in its list - one row, so closing it anywhere
   // closes it everywhere. Generated tasks (auto lists) stay day-only.
   // Shallow-compared selection, like DayColumn.
-  const listTasks = useAppStore(
-    useShallow((s) =>
-      s.tasks.filter(
-        (t) =>
-          t.list_id === list.id &&
-          (t.scheduled_date === null || t.priority || t.origin === "manual") &&
-          t.parent_task_id === null,
-      ),
-    ),
-  );
-  // optional alphabetical order for the backlog (timed tasks still pin
-  // to the top via compareTasks); manual drag order otherwise
-  const alpha = config?.list_tasks_sort_alpha ?? false;
-  const sorted = [...listTasks].sort((a, b) => {
-    if (alpha) {
-      if ((a.time === null) !== (b.time === null))
-        return a.time === null ? 1 : -1;
-      const byTitle = a.title.localeCompare(b.title, undefined, {
-        sensitivity: "base",
-        numeric: true,
-      });
-      if (byTitle !== 0) return byTitle;
-    }
-    return compareTasks(a, b);
-  });
-  const split = splitDone(
-    sorted,
-    config?.done_display ?? "inline",
-    new Map(hold.map((h) => [h.id, h.status])),
-  );
-  const { active } = split;
-  const closedOrder = (items: Task[]) =>
-    (config?.closed_sections_sort_alpha ?? true)
-      ? sortClosedAlpha(items)
-      : items;
-  const postponed = closedOrder(split.postponed);
-  const waiting = closedOrder(split.waiting);
-  const done = closedOrder(split.done);
-  // priority tasks jump the queue: their own group on top of the column
-  const prioritized = active.filter((t) => t.priority);
-  const rest = active.filter((t) => !t.priority);
-
-  // tasks are hairline-separated rows sitting flush; the breaks between
-  // them are whole separator stripes (GapFill), the same rhythm the day
-  // columns follow: one between {Category} blocks, two between the
-  // priority block and the backlog, three before Postponed/Waiting/Done.
-  // Section plates, label included, grow to list_view_plate_scale %
-  const plateSize = listViewPlateStyle(config);
-
-  // a stripe where one {Category} block ends and the next begins; inside
-  // a list every task shares the list, so only the {X} title prefix
-  // separates the blocks
-  const gapBefore = (items: Task[], i: number) =>
-    i > 0 && categoryOf(items[i].title) !== categoryOf(items[i - 1].title);
-
-  // multi-line task titles in list columns (list_task_lines); the day
-  // grid keeps its single truncated line
+  // Priority, the backlog, Postponed / Done, waiting / Done with the
+  // List view's stripes - the same layout the phone's list screen renders
+  const sections = useListSections(list);
   const titleLines = config?.list_task_lines ?? 1;
 
-  // one running counter for the alternating chip palette, over every
-  // card of the column in render order (priority block, backlog,
-  // Postponed, Waiting, Done) - inside a list only the {X} prefix is a category
-  const blockIndex = categoryBlockIndex(
-    [...prioritized, ...rest, ...postponed, ...waiting, ...done],
-    (t: Task) => categoryOf(t.title),
+  const card = (row: ColumnRow) => (
+    <div key={row.task.id}>
+      {row.gapBefore && <GapFill stripes={LIST_GAP_STRIPES.category} />}
+      <TaskCard
+        task={row.task}
+        onOpen={onOpenTask}
+        showList={false}
+        titleLines={titleLines}
+        blockIndex={row.blockIndex}
+        lineAbove={row.lineAbove}
+      />
+    </div>
   );
 
-  const card = (task: Task, i: number, items: Task[]) => {
-    const gap = gapBefore(items, i);
-    return (
-      <div key={task.id}>
-        {gap && <GapFill stripes={LIST_GAP_STRIPES.category} />}
-        <TaskCard
-          task={task}
-          onOpen={onOpenTask}
-          showList={false}
-          titleLines={titleLines}
-          blockIndex={blockIndex.get(task.id)}
-          // a block's first row also gets the line above it
-          lineAbove={i === 0 || gap}
-        />
-      </div>
-    );
-  };
-  // same plate style as the day-column section headers, optional color
-  const section = (label: string, items: Task[], plateColor: string) =>
-    items.length > 0 && (
-      <div className="flex flex-col">
-        <GapFill stripes={LIST_GAP_STRIPES.closed} />
-        <div
-          className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
-            plateColor ? "" : "bg-line/40 text-content"
-          }`}
-          style={{
-            ...(plateColor ? tintStyle(plateColor) : {}),
-            ...plateSize,
-          }}
-        >
-          <span>{label}</span>
-          <span className="h-px flex-1 bg-current opacity-30" />
-        </div>
-        {items.map((task, i) => card(task, i, items))}
-      </div>
-    );
-
-  // double-click on free space (not on a card, button or input) opens
-  // the list dialog, same as the ⋯ button
   const openOnFreeSpace = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) setDetailsOpen(true);
   };
@@ -307,59 +210,29 @@ function ListColumn({
         {/* the add field leads the column: with a long list of checked
             tasks the bottom is a scroll away, the top never is */}
         <QuickAdd target={{ list_id: list.id }} />
-        {prioritized.length > 0 && (
-          <div className="flex flex-col">
-            <div
-              className="flex items-center gap-1.5 rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warn"
-              style={plateSize}
-            >
-              <span>Priority</span>
-              <span className="h-px flex-1 bg-warn/30" />
-            </div>
-            {prioritized.map((task, i) => card(task, i, prioritized))}
-          </div>
-        )}
-        {rest.length > 0 && (
-          // section stripes after the priority block, so the starred
-          // tasks read as their own section; the plain backlog block is
-          // drag-sortable (times still pin tasks to the top)
-          <div className="flex flex-col">
-            {prioritized.length > 0 && (
-              <GapFill stripes={LIST_GAP_STRIPES.section} />
+        {sections.map((section) => (
+          <div key={section.key} className="flex flex-col">
+            <SectionPlate section={section} />
+            {section.key === "rest" ? (
+              // the backlog is the one block a drag reorders
+              <SortableContext
+                items={section.rows.map((r) => `task:${r.task.id}`)}
+                strategy={verticalListSortingStrategy}
+              >
+                {section.rows.map((row) => (
+                  <SortableCard
+                    key={row.task.id}
+                    row={row}
+                    onOpenTask={onOpenTask}
+                    titleLines={titleLines}
+                  />
+                ))}
+              </SortableContext>
+            ) : (
+              section.rows.map(card)
             )}
-            <SortableContext
-              items={rest.map((t) => `task:${t.id}`)}
-              strategy={verticalListSortingStrategy}
-            >
-              {rest.map((task, i) => (
-                <SortableCard
-                  key={task.id}
-                  task={task}
-                  onOpenTask={onOpenTask}
-                  titleLines={titleLines}
-                  gapBefore={gapBefore(rest, i)}
-                  blockIndex={blockIndex.get(task.id)}
-                  first={i === 0}
-                />
-              ))}
-            </SortableContext>
           </div>
-        )}
-        {section(
-          "Postponed",
-          postponed,
-          config?.postponed_plate_color ?? "",
-        )}
-        {section(
-          "Done, waiting",
-          waiting,
-          config?.waiting_plate_color ?? "",
-        )}
-        {section(
-          "Done",
-          done,
-          config?.done_plate_color ?? "",
-        )}
+        ))}
       </div>
     </div>
   );
@@ -372,22 +245,13 @@ function ListColumn({
  * Generated tasks stay non-draggable.
  */
 function SortableCard({
-  task,
+  row: { task, gapBefore, blockIndex, lineAbove },
   onOpenTask,
   titleLines,
-  gapBefore,
-  blockIndex,
-  first,
 }: {
-  task: Task;
+  row: ColumnRow;
   onOpenTask: (id: number) => void;
   titleLines: number;
-  /** a separator stripe before a new {Category} block */
-  gapBefore: boolean;
-  /** ordinal of the card's category block, for the alternating palette */
-  blockIndex?: number;
-  /** first row of the backlog block */
-  first: boolean;
 }) {
   const {
     attributes,
@@ -419,7 +283,7 @@ function SortableCard({
         inert
         titleLines={titleLines}
         blockIndex={blockIndex}
-        lineAbove={first || gapBefore}
+        lineAbove={lineAbove}
       />
     </div>
   );

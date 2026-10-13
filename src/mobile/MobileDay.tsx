@@ -1,21 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useAppStore } from "../store";
-import {
-  addDaysISO,
-  cadenceColor,
-  categoryOf,
-  compareTasks,
-  currentAndNextBlock,
-  daysBetweenISO,
-  groupByCadence,
-  sortClosedAlpha,
-  splitDone,
-  tintStyle,
-} from "../lib/tasks";
-import { useShallow } from "zustand/react/shallow";
+import { addDaysISO, currentAndNextBlock, daysBetweenISO } from "../lib/tasks";
+import { useDaySections } from "../hooks/useColumnSections";
 import { useMobileNav } from "./nav";
-import TaskRow from "./TaskRow";
-import type { Task } from "../types";
+import Sections from "./Sections";
 
 function dayLabel(date: string, today: string): string {
   if (date === today) return "Today";
@@ -33,41 +21,23 @@ function dayLabel(date: string, today: string): string {
  * grid offset - the same mechanism the desktop's date jump uses - so the
  * snapshot window follows wherever the day goes, past days included.
  *
- * Overdue tasks ride along with today, since a task that slipped is
- * about today whatever its date says.
+ * The task list is the desktop day column's own layout
+ * (`useDaySections`): the same cadence sections, plates, separator
+ * stripes and Postponed / Done blocks, so a day reads the same on both.
  */
 export default function MobileDay() {
   const [title, setTitle] = useState("");
   const today = useAppStore((s) => s.today);
-  const tasks = useAppStore((s) => s.tasks);
   const createTask = useAppStore((s) => s.createTask);
   const offset = useAppStore((s) => s.gridOffset);
   const setGridOffset = useAppStore((s) => s.setGridOffset);
   const dashboard = useAppStore((s) => s.dashboard);
-  const hold = useAppStore(useShallow((s) => s.statusHold));
   const { openSearch } = useMobileNav();
 
   const config = useAppStore((s) => s.config);
-  const lists = useAppStore((s) => s.lists);
 
   const date = addDaysISO(today, offset);
-  const shown = useMemo(
-    () =>
-      tasks
-        .filter((task) => task.scheduled_date === date && !task.parent_task_id)
-        .sort(compareTasks),
-    [tasks, date],
-  );
-
-  // the same Postponed/Done separation the desktop's day column makes
-  // (done_display "separate"), with the same brief hold so a just-tapped
-  // row does not fly away under the finger
-  const split = splitDone(
-    shown,
-    config?.done_display ?? "inline",
-    new Map(hold.map((h) => [h.id, h.status])),
-  );
-  const { active } = split;
+  const sections = useDaySections(date);
 
   // the day's ambient context, same sources as the desktop column:
   // weekly focus, this day's reminders, and (today only) the schedule
@@ -79,59 +49,12 @@ export default function MobileDay() {
       : null;
   const focus = dashboard?.focus ?? null;
 
-  // The same cadence sections the desktop's day column uses, in the same
-  // configured order. Without them a day is one undifferentiated column
-  // of rows, which is the thing a phone can least afford: less room to
-  // scan means the structure has to do more of the work, not less.
-  //
-  // Generated tasks carry their category as a list, so the grouping
-  // label falls back to the list name - same rule as the day column.
-  const taskCategory = (task: Task) => {
-    const category = categoryOf(task.title);
-    if (category) return category;
-    return task.list_id === null
-      ? null
-      : (lists.find((l) => l.id === task.list_id)?.name ?? null);
-  };
-  // Postponed/Done read alphabetically by the same category rule
-  const closedOrder = (items: Task[]) =>
-    (config?.closed_sections_sort_alpha ?? true)
-      ? sortClosedAlpha(items, taskCategory)
-      : items;
-  const postponed = closedOrder(split.postponed);
-  const waiting = closedOrder(split.waiting);
-  const done = closedOrder(split.done);
-  const groups = useMemo(
-    () => groupByCadence(active, config?.cadence_group_order, taskCategory),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [active, config?.cadence_group_order, lists],
-  );
-
   const submit = () => {
     const trimmed = title.trim();
     if (!trimmed) return;
     void createTask({ title: trimmed, scheduled_date: date });
     setTitle("");
   };
-
-  const section = (label: string, items: Task[], plate: string | null) =>
-    items.length > 0 && (
-      <section>
-        <h2
-          className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wide ${
-            plate ? "" : "bg-surface-alt text-content-muted"
-          }`}
-          style={plate ? tintStyle(plate) : undefined}
-        >
-          {label}
-        </h2>
-        <ul>
-          {items.map((task) => (
-            <TaskRow key={task.id} task={task} />
-          ))}
-        </ul>
-      </section>
-    );
 
   return (
     <div className="flex h-full flex-col">
@@ -219,7 +142,7 @@ export default function MobileDay() {
         </div>
       )}
 
-      {shown.length === 0 ? (
+      {sections.length === 0 ? (
         // flex-1 keeps the add row pinned to the bottom, where it sits
         // whenever the day has tasks - an input that jumps to mid-screen
         // on an empty day moves the one control this screen always has
@@ -227,35 +150,7 @@ export default function MobileDay() {
           Nothing scheduled.
         </p>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
-          {groups.map((group) => {
-            const plate = cadenceColor(config, group.key);
-            return (
-              <section key={group.key}>
-                <h2
-                  className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wide ${
-                    plate ? "" : "bg-surface-alt text-content-muted"
-                  }`}
-                  style={plate ? tintStyle(plate) : undefined}
-                >
-                  {group.label}
-                </h2>
-                <ul>
-                  {group.tasks.map((task) => (
-                    <TaskRow key={task.id} task={task} />
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
-          {section(
-            "Postponed",
-            postponed,
-            config?.postponed_plate_color || null,
-          )}
-          {section("Done, waiting", waiting, config?.waiting_plate_color || null)}
-          {section("Done", done, config?.done_plate_color || null)}
-        </div>
+        <Sections sections={sections} />
       )}
 
       {/* the same quiet input row the Lists screen ends with - a
