@@ -216,7 +216,7 @@ export default function TaskCardsTab() {
               hint="Rules free on both day fields (e.g. 0 9 * * *) wear an [EVERYDAY] marker instead of going unlabeled."
               onChange={(v) => void updateConfig({ cron_everyday_label: v })}
             />
-            <Field label="Marker opacity, % (100 = as strong as its color)">
+            <Field label="Marker opacity, % (default color only; a picked color shows as picked)">
               <NumberInput
                 value={config.dow_label_opacity}
                 min={20}

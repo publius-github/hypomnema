@@ -337,6 +337,11 @@ row_hairlines: boolean,
  */
 category_headers: boolean, 
 /**
+ * The category block header is bold, so it reads apart from the
+ * task titles under it.
+ */
+category_header_bold: boolean, 
+/**
  * Section plates show how many tasks the section holds (done/total
  * when closed tasks stay inline).
  */
@@ -347,10 +352,10 @@ section_plate_count: boolean,
  */
 section_plate_sticky: boolean, 
 /**
- * Postponed / Done, waiting / Done / Dropped sections start folded to their
- * plate; a click on the plate opens or folds them.
+ * Which closed sections start folded to their plate, one switch
+ * each; a click on any plate opens or folds it.
  */
-closed_sections_collapsed: boolean, 
+fold_postponed: boolean, fold_waiting: boolean, fold_done: boolean, fold_dropped: boolean, 
 /**
  * Opacity of a closed (done, dropped) row's text and chips, %
  * (20..=100); the status box keeps full strength.
@@ -448,7 +453,8 @@ day_header_color: string,
  */
 dow_label_color: string, 
 /**
- * Opacity of the weekday marker, % (20..=100).
+ * Opacity of the weekday marker in its default muted tone, % (20..=100);
+ * a picked `dow_label_color` shows at full strength.
  */
 dow_label_opacity: number, 
 /**

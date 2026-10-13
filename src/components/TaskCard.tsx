@@ -334,10 +334,13 @@ function TaskCard({
             // text instead of keeping its own bright color
             <span
               className="text-content-muted"
-              style={{
-                ...(dowColor && !closed ? { color: dowColor } : {}),
-                opacity: dowOpacity,
-              }}
+              // a picked color shows as picked; only the default muted
+              // tone fades to dow_label_opacity
+              style={
+                dowColor && !closed
+                  ? { color: dowColor }
+                  : { opacity: dowOpacity }
+              }
               title="Weekday pinned by the rule's cron"
             >
               [{dowLabel}]{" "}

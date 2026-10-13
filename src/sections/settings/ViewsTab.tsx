@@ -179,6 +179,16 @@ export default function ViewsTab() {
           hint="A category block names its category once over its rows instead of a chip on every row."
           onChange={(v) => void updateConfig({ category_headers: v })}
         />
+        {config.category_headers && (
+          <div className="pl-6">
+            <Toggle
+              checked={config.category_header_bold}
+              label="Bold category header"
+              hint="The header reads in bold at the task text size, apart from the titles under it; off = a small medium-weight label."
+              onChange={(v) => void updateConfig({ category_header_bold: v })}
+            />
+          </div>
+        )}
         <Toggle
           checked={config.section_plate_count}
           label="Task count on section plates"
@@ -191,12 +201,30 @@ export default function ViewsTab() {
           hint="The plate stays at the top of the column while its rows scroll under it."
           onChange={(v) => void updateConfig({ section_plate_sticky: v })}
         />
-        <Toggle
-          checked={config.closed_sections_collapsed}
-          label="Fold Postponed / Done, waiting / Done / Dropped by default"
-          hint="Closed sections show only their plate and count; a click on any plate folds or opens it."
-          onChange={(v) => void updateConfig({ closed_sections_collapsed: v })}
-        />
+        <span className="text-sm font-medium">Folded by default</span>
+        <span className="-mt-2 text-xs text-content-muted">
+          A folded section shows only its plate and count; a click on any
+          plate folds or opens it.
+        </span>
+        <div className="flex flex-col gap-2 pl-6">
+          {(
+            [
+              ["Postponed", "fold_postponed"],
+              ["Done, waiting", "fold_waiting"],
+              ["Done", "fold_done"],
+              ["Not done, dropped", "fold_dropped"],
+            ] as const
+          ).map(([label, key]) => (
+            <label key={key} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={config[key]}
+                onChange={(e) => void updateConfig({ [key]: e.target.checked })}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
         <Field label="Closed row opacity, % (the status box stays at full strength)">
           <NumberInput
             value={config.closed_row_opacity}

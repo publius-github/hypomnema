@@ -11,8 +11,13 @@ import type { ColumnRow, ColumnSection } from "../hooks/useColumnSections";
 import type { AppConfig } from "../types";
 import GapFill from "./GapFill";
 
-/** The closed sections `closed_sections_collapsed` folds by default. */
-const CLOSED_KEYS = ["postponed", "waiting", "done", "dropped"];
+/** The closed sections, each with its own fold-by-default switch. */
+const CLOSED_FOLD: Record<string, keyof AppConfig> = {
+  postponed: "fold_postponed",
+  waiting: "fold_waiting",
+  done: "fold_done",
+  dropped: "fold_dropped",
+};
 
 /**
  * The color a section is marked with: its plate tint, the warn tone for
@@ -36,8 +41,8 @@ export function sectionColor(section: Pick<ColumnSection, "color" | "tone">) {
  * (`section_gap`) instead of separator stripes. The plate can carry the
  * section's count (`section_plate_count`) and stick to the top of the
  * scrolling column (`section_plate_sticky`); a click on it folds the
- * section to the plate - closed sections start folded under
- * `closed_sections_collapsed`.
+ * section to the plate - each closed section starts folded under its
+ * own `fold_*` switch.
  */
 export default function SectionBlock({
   section,
@@ -51,14 +56,13 @@ export default function SectionBlock({
   const setSectionFold = useAppStore((s) => s.setSectionFold);
   const { label, color, tone, stripes, rows } = section;
   const cards = config?.section_cards ?? true;
+  const foldKey = CLOSED_FOLD[section.key] ?? null;
   const folded =
     label !== null &&
-    (fold ??
-      ((config?.closed_sections_collapsed ?? true) &&
-        CLOSED_KEYS.includes(section.key)));
+    (fold ?? (foldKey !== null && config?.[foldKey] === true));
   const closedCount = rows.filter((r) => isClosed(r.task.status)).length;
   const count =
-    closedCount > 0 && !CLOSED_KEYS.includes(section.key)
+    closedCount > 0 && foldKey === null
       ? `${closedCount}/${rows.length}`
       : `${rows.length}`;
 
@@ -139,6 +143,7 @@ export function RowLead({ row }: { row: ColumnRow }) {
   const cards = config?.section_cards ?? true;
   const bands = !cards || (config?.category_gap_bands ?? false);
   const headers = config?.category_headers ?? true;
+  const bold = config?.category_header_bold ?? true;
   return (
     <>
       {row.gapBefore && (
@@ -146,7 +151,9 @@ export function RowLead({ row }: { row: ColumnRow }) {
       )}
       {headers && row.header && hue && (
         <div
-          className="truncate px-2 pt-1 text-xs font-semibold"
+          className={`truncate px-2 pt-1 ${
+            bold ? "text-sm font-bold" : "text-xs font-medium"
+          }`}
           style={{ color: hue }}
         >
           {row.header}

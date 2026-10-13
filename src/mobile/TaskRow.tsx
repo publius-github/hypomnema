@@ -251,10 +251,11 @@ export default function TaskRow({
                   // muted text instead of keeping its own colour
                   <span
                     className="text-content-muted"
-                    style={{
-                      ...(dowColor && !closed ? { color: dowColor } : {}),
-                      opacity: (config?.dow_label_opacity ?? 60) / 100,
-                    }}
+                    style={
+                      dowColor && !closed
+                        ? { color: dowColor }
+                        : { opacity: (config?.dow_label_opacity ?? 60) / 100 }
+                    }
                   >
                     [{dowLabel}]{" "}
                   </span>
