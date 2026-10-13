@@ -41,18 +41,17 @@ export default function Settings() {
   const width = useAppStore((s) => s.config?.settings_width ?? 1120);
   const hits = searchSettings(query);
 
-  // a hit names the field, so the jump opens the group and, when the
-  // field sits behind a customization checkbox, that micro-group too
+  // a hit names the field, so the jump opens the group holding it
   const jump = (hit: SearchHit) => {
     setTab(hit.tab);
-    setFocus({ group: hit.group, sub: hit.sub ?? null });
+    setFocus({ group: hit.group });
     setQuery("");
   };
 
   // the Profiles tab points at whole groups, never at one field
   const jumpToGroup = (target: SettingsTab, group: SettingsGroupId) => {
     setTab(target);
-    setFocus({ group, sub: null });
+    setFocus({ group });
   };
 
   return (

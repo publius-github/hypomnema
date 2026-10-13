@@ -105,12 +105,7 @@ function DayColumn({
 
   // Postponed/Done headers use the same plate style as the cadence
   // group headers, each with an optional color of its own
-  const section = (
-    label: string,
-    items: Task[],
-    plateColor: string,
-    cadenceStripe: boolean,
-  ) =>
+  const section = (label: string, items: Task[], plateColor: string) =>
     items.length > 0 && (
       <div className="flex flex-col">
         <GapFill stripes={LIST_GAP_STRIPES.closed} />
@@ -133,7 +128,6 @@ function DayColumn({
             onOpen={onOpenTask}
             blockIndex={blockIndex.get(task.id)}
             lineAbove={j === 0}
-            cadenceStripe={cadenceStripe}
           />
         ))}
       </div>
@@ -240,19 +234,16 @@ function DayColumn({
           "Postponed",
           postponed,
           config?.postponed_plate_color ?? "",
-          config?.cadence_colors_postponed ?? true,
         )}
         {section(
           "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
-          config?.cadence_colors_waiting ?? true,
         )}
         {section(
           "Done",
           done,
           config?.done_plate_color ?? "",
-          config?.cadence_colors_done ?? true,
         )}
         <QuickAdd target={{ scheduled_date: date }} />
       </div>

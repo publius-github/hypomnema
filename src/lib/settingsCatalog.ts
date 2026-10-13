@@ -73,8 +73,7 @@ type GroupDef = {
    * The whole group is fine-tuning - no switch inside it changes what
    * the app does, only how loud or how far it does it. Such a group
    * wears the customization checkbox on its own header instead of a
-   * collapse link: a micro-group nested inside would be a second
-   * switch for the same question.
+   * collapse link.
    */
   knobs?: boolean;
 };
@@ -134,45 +133,11 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
   },
 };
 
-/**
- * Micro-groups: the tail of fine-tuning inside a group that otherwise
- * holds real switches. The section plates are the shape - the column
- * sections are decisions, recoloring their header plates is
- * fine-tuning nobody asked for. A micro-group hides behind a
- * checkbox that is ticked exactly when one of its fields left its
- * default, and unticking it puts them all back.
- *
- * Only a genuinely optional knob belongs here. A group made entirely
- * of knobs takes `knobs: true` above instead, so the page never shows
- * two switches in a row for the same question.
- */
-export type SettingsSubId = "columns.shared.plates";
-
-type SubDef = {
-  group: SettingsGroupId;
-  /** Reads as the checkbox label: what turning it on lets you do. */
-  title: string;
-  hint?: string;
-};
-
-export const SETTINGS_SUBGROUPS: Record<SettingsSubId, SubDef> = {
-
-  "columns.shared.plates": {
-    group: "columns.shared",
-    title: "Custom section plates",
-    hint: "Colors of the section header plates inside a column. Off keeps the neutral plate style; the cadence sections take their color from the cadence palette (Task cards > Card colors).",
-  },
-
-
-};
-
 export type CatalogEntry = {
   key: keyof AppConfig;
   /** Short searchable name; the control keeps its own fuller label. */
   label: string;
   group: SettingsGroupId;
-  /** The micro-group inside that group, when the field sits in one. */
-  sub?: SettingsSubId;
   /** Extra words a user might search by instead of the label. */
   terms?: string;
 };
@@ -223,15 +188,15 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   // --- Task cards -------------------------------------------------
   { key: "cadence_colors", label: "Color tasks by cadence", group: "cards.colors", terms: "stripe" },
-  { key: "cadence_colors_postponed", label: "Cadence colors in Postponed", group: "cards.colors", terms: "stripe section closed" },
-  { key: "cadence_colors_waiting", label: "Cadence colors in Done, waiting", group: "cards.colors", terms: "stripe section closed" },
-  { key: "cadence_colors_done", label: "Cadence colors in Done", group: "cards.colors", terms: "stripe section closed" },
   { key: "cadence_color_general", label: "General cadence color", group: "cards.colors", terms: "stripe plate" },
   { key: "cadence_color_daily", label: "Daily cadence color", group: "cards.colors", terms: "stripe" },
   { key: "cadence_color_weekly", label: "Weekly cadence color", group: "cards.colors", terms: "stripe" },
   { key: "cadence_color_monthly", label: "Monthly cadence color", group: "cards.colors", terms: "stripe" },
   { key: "cadence_color_yearly", label: "Yearly cadence color", group: "cards.colors", terms: "stripe" },
   { key: "cadence_color_exact", label: "Exact-date cadence color", group: "cards.colors", terms: "stripe scheduled birthday" },
+  { key: "postponed_plate_color", label: "Postponed plate color", group: "cards.colors", terms: "section header closed" },
+  { key: "waiting_plate_color", label: "Done, waiting plate color", group: "cards.colors", terms: "section header closed" },
+  { key: "done_plate_color", label: "Done plate color", group: "cards.colors", terms: "section header closed" },
   { key: "done_color", label: "Done checkbox color", group: "cards.colors" },
   { key: "waiting_color", label: "Done, waiting mark color", group: "cards.colors" },
 
@@ -258,9 +223,6 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   // --- Columns ----------------------------------------------------
   { key: "done_display", label: "Done tasks display", group: "columns.shared", terms: "inline separate block" },
   { key: "closed_sections_sort_alpha", label: "Sort Postponed and Done alphabetically", group: "columns.shared", terms: "waiting order abc" },
-  { key: "postponed_plate_color", label: "Postponed plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
-  { key: "waiting_plate_color", label: "Done, waiting plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
-  { key: "done_plate_color", label: "Done plate color", group: "columns.shared", sub: "columns.shared.plates", terms: "section header" },
 
   { key: "day_header_centered", label: "Center day headers", group: "columns.day" },
   { key: "daily_tasks_today_only", label: "Daily tasks only on today", group: "columns.day" },
@@ -348,18 +310,6 @@ const BY_GROUP = SETTINGS_CATALOG.reduce<
 /** The fields a group holds, in catalog order. */
 export function groupKeys(id: SettingsGroupId): (keyof AppConfig)[] {
   return BY_GROUP[id] ?? [];
-}
-
-const BY_SUB = SETTINGS_CATALOG.reduce<
-  Partial<Record<SettingsSubId, (keyof AppConfig)[]>>
->((acc, entry) => {
-  if (entry.sub) (acc[entry.sub] ??= []).push(entry.key);
-  return acc;
-}, {});
-
-/** The fields a micro-group holds, in catalog order. */
-export function subKeys(id: SettingsSubId): (keyof AppConfig)[] {
-  return BY_SUB[id] ?? [];
 }
 
 export type SearchHit = CatalogEntry & {

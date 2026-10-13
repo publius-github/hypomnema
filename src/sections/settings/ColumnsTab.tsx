@@ -1,7 +1,5 @@
 import { ColorPicker, Field, NumberInput, Toggle } from "../../components/form";
-import SettingsGroup, {
-  SettingsSubGroup,
-} from "../../components/SettingsGroup";
+import SettingsGroup from "../../components/SettingsGroup";
 import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
 import type { DoneDisplay } from "../../types";
 import { useAppStore } from "../../store";
@@ -49,7 +47,7 @@ export default function ColumnsTab() {
         </Field>
         <span className="-mt-1 text-xs text-content-muted">
           Separate gives every column its Postponed, Done-waiting and Done
-          blocks - the sections the plates below refer to.
+          blocks; their plate colors are under Task cards &gt; Card colors.
         </span>
         {config.done_display === "separate" && (
           <Toggle
@@ -62,33 +60,6 @@ export default function ColumnsTab() {
           />
         )}
 
-        <SettingsSubGroup id="columns.shared.plates">
-          {(
-            [
-              ["Postponed", "postponed_plate_color"],
-              ["Done, waiting", "waiting_plate_color"],
-              ["Done", "done_plate_color"],
-            ] as const
-          ).map(([label, key]) => (
-            <div key={key} className="flex items-center gap-2">
-              <span className="w-24 text-xs text-content-muted">{label}</span>
-              <ColorPicker
-                value={config[key] || "#6b7280"}
-                onChange={(color) => void updateConfig({ [key]: color })}
-              />
-              {config[key] ? (
-                <button
-                  className="text-xs text-content-muted hover:text-content"
-                  onClick={() => void updateConfig({ [key]: "" })}
-                >
-                  reset to neutral
-                </button>
-              ) : (
-                <span className="text-xs text-content-muted">neutral</span>
-              )}
-            </div>
-          ))}
-        </SettingsSubGroup>
       </SettingsGroup>
 
       <SettingsGroup id="columns.day">

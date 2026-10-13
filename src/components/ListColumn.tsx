@@ -133,7 +133,7 @@ function ListColumn({
     (t: Task) => categoryOf(t.title),
   );
 
-  const card = (task: Task, i: number, items: Task[], cadenceStripe = true) => {
+  const card = (task: Task, i: number, items: Task[]) => {
     const gap = gapBefore(items, i);
     return (
       <div key={task.id}>
@@ -146,18 +146,12 @@ function ListColumn({
           blockIndex={blockIndex.get(task.id)}
           // a block's first row also gets the line above it
           lineAbove={i === 0 || gap}
-          cadenceStripe={cadenceStripe}
         />
       </div>
     );
   };
   // same plate style as the day-column section headers, optional color
-  const section = (
-    label: string,
-    items: Task[],
-    plateColor: string,
-    cadenceStripe: boolean,
-  ) =>
+  const section = (label: string, items: Task[], plateColor: string) =>
     items.length > 0 && (
       <div className="flex flex-col">
         <GapFill stripes={LIST_GAP_STRIPES.closed} />
@@ -173,7 +167,7 @@ function ListColumn({
           <span>{label}</span>
           <span className="h-px flex-1 bg-current opacity-30" />
         </div>
-        {items.map((task, i) => card(task, i, items, cadenceStripe))}
+        {items.map((task, i) => card(task, i, items))}
       </div>
     );
 
@@ -355,19 +349,16 @@ function ListColumn({
           "Postponed",
           postponed,
           config?.postponed_plate_color ?? "",
-          config?.cadence_colors_postponed ?? true,
         )}
         {section(
           "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
-          config?.cadence_colors_waiting ?? true,
         )}
         {section(
           "Done",
           done,
           config?.done_plate_color ?? "",
-          config?.cadence_colors_done ?? true,
         )}
       </div>
     </div>

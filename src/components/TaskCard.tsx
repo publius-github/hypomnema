@@ -29,7 +29,6 @@ function TaskCard({
   titleLines = 1,
   blockIndex,
   lineAbove = false,
-  cadenceStripe = true,
 }: {
   task: Task;
   overlay?: boolean;
@@ -48,11 +47,6 @@ function TaskCard({
   blockIndex?: number;
   /** a row that opens a block also gets the hairline above it */
   lineAbove?: boolean;
-  /**
-   * The cadence color may paint the stripe; off in a closed section
-   * whose cadence_colors_<section> is off. Manual and list colors stay.
-   */
-  cadenceStripe?: boolean;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -112,12 +106,11 @@ function TaskCard({
     (s) => s.config?.list_date_chip_color || "",
   );
   const exactStripeHere = listExact && (showList || listExactStripe);
-  const stripeCadence = cadenceStripe ? cadColor : null;
   const stripe =
     task.color ??
     (exactStripeHere
-      ? (stripeCadence ?? listColor)
-      : (listColor ?? (listExact ? null : stripeCadence)));
+      ? (cadColor ?? listColor)
+      : (listColor ?? (listExact ? null : cadColor)));
   const dateChipColor =
     listExact && !showList ? listChipColor || cadColor : cadColor;
   // one hue per category (a list keeps the color of its own column)

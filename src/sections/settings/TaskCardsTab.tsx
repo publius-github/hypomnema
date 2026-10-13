@@ -69,25 +69,37 @@ export default function TaskCardsTab() {
                 </span>
               )}
             </div>
-            {/* the closed sections: a stripe there may be noise, since
-                the section itself already says what became of the task */}
-            {(
-              [
-                ["Postponed", "cadence_colors_postponed"],
-                ["Done, waiting", "cadence_colors_waiting"],
-                ["Done", "cadence_colors_done"],
-              ] as const
-            ).map(([label, key]) => (
-              <Toggle
-                key={key}
-                checked={config[key]}
-                label={`Keep the cadence stripe in ${label}`}
-                hint={`Cards in the ${label} section of a day or list column (Separate done display) keep their cadence color; off = the stripe drops there. A manual or list color still shows.`}
-                onChange={(v) => void updateConfig({ [key]: v })}
-              />
-            ))}
           </div>
         )}
+
+        {/* the closed sections are not a cadence, so their plates keep
+            their own colors whether cadence coloring is on or not */}
+        <section className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Closed section plates</span>
+          <span className="-mt-1 text-xs text-content-muted">
+            The Postponed, Done-waiting and Done headers of a day or list
+            column (Separate done display), each in a color of its own.
+          </span>
+          <div className="flex flex-col gap-2 pl-6">
+            {(
+              [
+                ["Postponed", "postponed_plate_color"],
+                ["Done, waiting", "waiting_plate_color"],
+                ["Done", "done_plate_color"],
+              ] as const
+            ).map(([label, key]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-24 text-xs text-content-muted">
+                  {label}
+                </span>
+                <ColorPicker
+                  value={config[key]}
+                  onChange={(color) => void updateConfig({ [key]: color })}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
 
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Done checkbox color</span>

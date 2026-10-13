@@ -89,11 +89,6 @@ day_header_centered: boolean,
  */
 cadence_colors: boolean, 
 /**
- * Per closed section: its cards keep the cadence stripe (off = the
- * stripe drops there; manual and list colors still show).
- */
-cadence_colors_postponed: boolean, cadence_colors_waiting: boolean, cadence_colors_done: boolean, 
-/**
  * Stripe colors per cadence, hex.
  */
 cadence_color_daily: string, cadence_color_weekly: string, cadence_color_monthly: string, cadence_color_yearly: string, 
@@ -406,10 +401,16 @@ dow_label_color: string,
  */
 list_date_chip_color: string, 
 /**
- * Section plate colors: the General cadence group and the Postponed
- * and Done blocks; empty = the neutral plate style.
+ * Plate color of the General cadence group; empty = the neutral
+ * plate style.
  */
-cadence_color_general: string, postponed_plate_color: string, done_plate_color: string, waiting_plate_color: string, 
+cadence_color_general: string, 
+/**
+ * Plate colors of the closed Postponed / Done, waiting / Done
+ * blocks, hex - each its own hue, so they read apart from each
+ * other and from the cadence plates above them.
+ */
+postponed_plate_color: string, done_plate_color: string, waiting_plate_color: string, 
 /**
  * The card stripe of a dated list task keeps the exact-date color
  * inside its list too; off = the list color rules there. Day

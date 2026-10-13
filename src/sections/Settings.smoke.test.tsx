@@ -109,9 +109,9 @@ describe("Settings smoke", () => {
   });
 
   it("offers a reset only for a group that left its defaults", async () => {
-    // a changed plate color lives in the shared group; the day and list
-    // groups are untouched
-    seed({ done_plate_color: "#ff0000" });
+    // a changed done display lives in the shared group; the day and
+    // list groups are untouched
+    seed({ done_display: "separate" });
     render(<Settings />);
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
 
@@ -126,72 +126,11 @@ describe("Settings smoke", () => {
         "config_set",
         expect.objectContaining({
           config: expect.objectContaining({
-            done_plate_color: defaultConfig.done_plate_color,
+            done_display: defaultConfig.done_display,
           }),
         }),
       ),
     );
-  });
-
-  it("hides the plate colors until they are asked for", () => {
-    // everything at its default: the shared group opens with its plate
-    // micro-group folded
-    seed();
-    render(<Settings />);
-    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Customize" })[0]);
-    const plates = screen.getByRole("checkbox", {
-      name: /Custom section plates/,
-    }) as HTMLInputElement;
-    expect(plates.checked).toBe(false);
-    expect(screen.queryByText("Done, waiting")).toBeNull();
-
-    // ticking it only reveals the fields - no write, nothing changes
-    invokeMock.mockClear();
-    fireEvent.click(plates);
-    expect(screen.getByText("Done, waiting")).toBeTruthy();
-    expect(
-      invokeMock.mock.calls.filter(([cmd]) => cmd === "config_set"),
-    ).toEqual([]);
-  });
-
-  it("puts a micro-group back to its defaults when unticked", async () => {
-    seed({ done_plate_color: "#ff0000", postponed_plate_color: "#00ff00" });
-    render(<Settings />);
-    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
-
-    const plates = screen.getByRole("checkbox", {
-      name: /Custom section plates/,
-    }) as HTMLInputElement;
-    expect(plates.checked).toBe(true);
-    fireEvent.click(plates);
-
-    await waitFor(() =>
-      expect(invokeMock).toHaveBeenCalledWith(
-        "config_set",
-        expect.objectContaining({
-          config: expect.objectContaining({
-            done_plate_color: defaultConfig.done_plate_color,
-            postponed_plate_color: defaultConfig.postponed_plate_color,
-          }),
-        }),
-      ),
-    );
-  });
-
-  it("opens a micro-group the search sent it to", async () => {
-    // everything at its default, so the plate colors are hidden on arrival
-    seed();
-    render(<Settings />);
-
-    fireEvent.change(screen.getByPlaceholderText("Search settings..."), {
-      target: { value: "done plate color" },
-    });
-    fireEvent.click(await screen.findByText("Done plate color"));
-
-    // the hidden field is on screen, not behind an unticked checkbox
-    expect(screen.getByText("Done, waiting")).toBeTruthy();
   });
 
   it("wears the same checkbox on a group that is only knobs", () => {

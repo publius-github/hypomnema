@@ -10,25 +10,21 @@ import { useAppStore } from "../store";
 import { customizedCount, isGroupCustomized } from "../lib/settingsGroups";
 import {
   SETTINGS_GROUPS,
-  SETTINGS_SUBGROUPS,
   groupKeys,
   profileCoverage,
-  subKeys,
   type SettingsGroupId,
-  type SettingsSubId,
 } from "../lib/settingsCatalog";
 import type { AppConfig } from "../types";
 
 /**
  * Where the search box sent the user: the group opens whatever its
  * collapsed state, scrolls into view and wears a ring until the next
- * search, and a hit on a field inside a micro-group opens that too -
- * hiding a field must never cost the search's ability to reach it. A
- * context rather than a prop so the tabs stay plain lists of groups.
+ * search - hiding a field must never cost the search's ability to
+ * reach it. A context rather than a prop so the tabs stay plain lists
+ * of groups.
  */
 export type SettingsFocus = {
   group: SettingsGroupId;
-  sub: SettingsSubId | null;
 };
 
 export const SettingsFocusContext = createContext<SettingsFocus | null>(null);
@@ -67,8 +63,8 @@ function useCustomization(keys: (keyof AppConfig)[]) {
 }
 
 /**
- * The customization switch, worn by a micro-group and by a group that
- * is nothing but knobs. Ticked = the fields are on screen; it ticks
+ * The customization switch, worn by a group that is nothing but
+ * knobs. Ticked = the fields are on screen; it ticks
  * itself when one of them differs from its default, so the checkbox
  * never contradicts the values under it. Unticking is therefore the
  * reset - leaving it unticked over changed values would be a lie - and
@@ -146,7 +142,7 @@ function ProfileNote({ id }: { id: SettingsGroupId }) {
  *
  * A group flagged `knobs` in the catalog holds nothing but fine-tuning,
  * so instead of the collapse link its header wears the same
- * customization checkbox a micro-group uses, and unchecking resets it.
+ * customization checkbox, and unchecking resets it.
  *
  * Title and field list come from `settingsCatalog` by group id, so the
  * page's map lives in one file and a tab never repeats a key list.
@@ -171,13 +167,13 @@ export default function SettingsGroup({
     if (focused) ref.current?.scrollIntoView({ block: "start" });
   }, [focused]);
 
-  // a knobs group is its own micro-group: one switch, no collapse link
+  // a knobs group: one switch, no collapse link
   if (knobs && ready) {
     return (
       <section
         ref={ref}
         className={`mt-2 flex scroll-mt-4 flex-col gap-3 ${
-          focused && focus?.sub === null ? "rounded-md ring-2 ring-accent" : ""
+          focused ? "rounded-md ring-2 ring-accent" : ""
         }`}
       >
         <CustomizeSwitch
@@ -199,7 +195,7 @@ export default function SettingsGroup({
     <section
       ref={ref}
       className={`flex scroll-mt-4 flex-col gap-3 ${
-        focused && focus?.sub === null ? "rounded-md ring-2 ring-accent" : ""
+        focused ? "rounded-md ring-2 ring-accent" : ""
       }`}
     >
       <div className="mt-2 flex items-baseline justify-between gap-2 border-b border-line pb-1">
@@ -232,55 +228,6 @@ export default function SettingsGroup({
         </span>
       </div>
       {open && children}
-    </section>
-  );
-}
-
-/**
- * A micro-group inside a group: the tail of fine-tuning that is hidden
- * until asked for. Same rule as a group, one level down and with a
- * checkbox instead of a link, because here the switch is the answer to
- * "do I want to hand-tune this at all?" rather than "is this section
- * folded?". It ticks itself while any of its fields differs from the
- * default, and unticking resets them.
- */
-export function SettingsSubGroup({
-  id,
-  children,
-}: {
-  id: SettingsSubId;
-  children: ReactNode;
-}) {
-  const { title, hint } = SETTINGS_SUBGROUPS[id];
-  const keys = subKeys(id);
-  const focused = useContext(SettingsFocusContext)?.sub === id;
-  const ref = useRef<HTMLElement | null>(null);
-  const [manual, setManual] = useState<boolean | null>(null);
-  const { ready, count, customized, reset } = useCustomization(keys);
-  const open = !ready || focused || (manual ?? customized);
-
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: "start" });
-  }, [focused]);
-
-  return (
-    <section
-      ref={ref}
-      className={`flex scroll-mt-4 flex-col gap-2 ${
-        focused ? "rounded-md ring-2 ring-accent" : ""
-      }`}
-    >
-      <CustomizeSwitch
-        label={title}
-        hint={open ? hint : undefined}
-        on={open}
-        count={count}
-        onChange={(next) => {
-          setManual(next);
-          if (!next) reset();
-        }}
-      />
-      {open && <div className="flex flex-col gap-2 pl-6">{children}</div>}
     </section>
   );
 }

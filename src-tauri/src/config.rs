@@ -76,11 +76,6 @@ pub struct AppConfig {
     /// Color task cards by their rule cadence (the same color stripe a
     /// task gets from a manual color; a manual color wins).
     pub cadence_colors: bool,
-    /// Per closed section: its cards keep the cadence stripe (off = the
-    /// stripe drops there; manual and list colors still show).
-    pub cadence_colors_postponed: bool,
-    pub cadence_colors_waiting: bool,
-    pub cadence_colors_done: bool,
     /// Stripe colors per cadence, hex.
     pub cadence_color_daily: String,
     pub cadence_color_weekly: String,
@@ -285,9 +280,12 @@ pub struct AppConfig {
     /// Date chip of a dated list task inside its LIST column; empty =
     /// the exact-date cadence color. Day columns always use that color.
     pub list_date_chip_color: String,
-    /// Section plate colors: the General cadence group and the Postponed
-    /// and Done blocks; empty = the neutral plate style.
+    /// Plate color of the General cadence group; empty = the neutral
+    /// plate style.
     pub cadence_color_general: String,
+    /// Plate colors of the closed Postponed / Done, waiting / Done
+    /// blocks, hex - each its own hue, so they read apart from each
+    /// other and from the cadence plates above them.
     pub postponed_plate_color: String,
     pub done_plate_color: String,
     pub waiting_plate_color: String,
@@ -365,9 +363,6 @@ pub const PROFILE_KEYS: &[&str] = &[
     "dow_label_color",
     // task colors
     "cadence_colors",
-    "cadence_colors_postponed",
-    "cadence_colors_waiting",
-    "cadence_colors_done",
     "cadence_color_daily",
     "cadence_color_weekly",
     "cadence_color_monthly",
@@ -454,9 +449,6 @@ impl Default for AppConfig {
             undo_toast_seconds: 6,
             day_header_centered: false,
             cadence_colors: true,
-            cadence_colors_postponed: true,
-            cadence_colors_waiting: true,
-            cadence_colors_done: true,
             cadence_color_daily: "#9ca3af".into(),
             cadence_color_weekly: "#3b82f6".into(),
             cadence_color_monthly: "#a855f7".into(),
@@ -530,9 +522,9 @@ impl Default for AppConfig {
             dow_label_color: String::new(),
             list_date_chip_color: String::new(),
             cadence_color_general: String::new(),
-            postponed_plate_color: String::new(),
-            done_plate_color: String::new(),
-            waiting_plate_color: String::new(),
+            postponed_plate_color: "#f43f5e".into(),
+            done_plate_color: "#22c55e".into(),
+            waiting_plate_color: "#14b8a6".into(),
             list_exact_stripe: false,
             capture_list: "Inbox".into(),
             capture_shortcut: "Ctrl+Alt+Space".into(),
@@ -673,6 +665,14 @@ impl AppConfig {
         self.chip_font_scale = self.chip_font_scale.clamp(50, 200);
         sanitize_color(&mut self.done_color, defaults.done_color);
         sanitize_color(&mut self.waiting_color, defaults.waiting_color);
+        // an empty plate color is the old "neutral" value: it takes the
+        // section's own default hue now
+        sanitize_color(
+            &mut self.postponed_plate_color,
+            defaults.postponed_plate_color,
+        );
+        sanitize_color(&mut self.done_plate_color, defaults.done_plate_color);
+        sanitize_color(&mut self.waiting_plate_color, defaults.waiting_plate_color);
         sanitize_color(
             &mut self.habit_rate_alert_color,
             defaults.habit_rate_alert_color,
@@ -704,9 +704,6 @@ impl AppConfig {
         sanitize_optional_color(&mut self.dow_label_color);
         sanitize_optional_color(&mut self.list_date_chip_color);
         sanitize_optional_color(&mut self.cadence_color_general);
-        sanitize_optional_color(&mut self.postponed_plate_color);
-        sanitize_optional_color(&mut self.done_plate_color);
-        sanitize_optional_color(&mut self.waiting_plate_color);
         sanitize_optional_color(&mut self.gap_fill_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
@@ -823,15 +820,6 @@ impl AppConfig {
             ("undo_toast_seconds", self.undo_toast_seconds.to_string()),
             ("day_header_centered", self.day_header_centered.to_string()),
             ("cadence_colors", self.cadence_colors.to_string()),
-            (
-                "cadence_colors_postponed",
-                self.cadence_colors_postponed.to_string(),
-            ),
-            (
-                "cadence_colors_waiting",
-                self.cadence_colors_waiting.to_string(),
-            ),
-            ("cadence_colors_done", self.cadence_colors_done.to_string()),
             ("cadence_color_daily", self.cadence_color_daily.clone()),
             ("cadence_color_weekly", self.cadence_color_weekly.clone()),
             ("cadence_color_monthly", self.cadence_color_monthly.clone()),
