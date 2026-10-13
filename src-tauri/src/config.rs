@@ -140,6 +140,11 @@ pub struct AppConfig {
     /// so without it the last thing done before locking the screen sits
     /// on the device until the app is opened again.
     pub sync_on_leave: bool,
+    /// Stop a pass in which more than this share (percent) of the files
+    /// this device had synced is gone from the remote at once, instead of
+    /// deleting them here too: a wiped remote or a different account
+    /// looks exactly like that (sync_cycle.rs). 100 turns the guard off.
+    pub sync_mass_delete_guard_percent: u32,
     /// Minimum gap, in pixels, between the top of the phone layout and
     /// the top of the screen - a floor under `env(safe-area-inset-top)`.
     /// Android draws the app under the status bar (API 35+), and the
@@ -528,6 +533,7 @@ impl Default for AppConfig {
             sync_auto: true,
             sync_interval_minutes: 15,
             sync_on_leave: true,
+            sync_mass_delete_guard_percent: 30,
             // Trust the WebView first; a floor is for the device where
             // it reports nothing, and guessing one by default would put
             // dead space on every device where it works.
@@ -648,6 +654,8 @@ impl AppConfig {
         // A pass under a minute apart would spend the battery on
         // listings; a day apart is not a sync, it is a weekly backup.
         self.sync_interval_minutes = self.sync_interval_minutes.clamp(1, 720);
+        // Under 5% a routine cleanup of old notes would trip it.
+        self.sync_mass_delete_guard_percent = self.sync_mass_delete_guard_percent.clamp(5, 100);
         // A status bar is ~24-48dp and a navigation bar about the same;
         // past 200 the padding is no longer describing a system bar.
         self.mobile_safe_area_top = self.mobile_safe_area_top.min(200);
@@ -927,6 +935,10 @@ impl AppConfig {
                 self.sync_interval_minutes.to_string(),
             ),
             ("sync_on_leave", self.sync_on_leave.to_string()),
+            (
+                "sync_mass_delete_guard_percent",
+                self.sync_mass_delete_guard_percent.to_string(),
+            ),
             (
                 "mobile_safe_area_top",
                 self.mobile_safe_area_top.to_string(),

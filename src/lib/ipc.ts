@@ -176,6 +176,7 @@ export interface Commands {
   storage_access_request: { args: void; result: void };
   sync_conflicts_clear: { args: void; result: void };
   sync_conflicts_list: { args: void; result: ConflictEntry[] };
+  sync_reset_space: { args: void; result: void };
   sync_standing: { args: void; result: SyncStanding };
   task_create: { args: { new: NewTask }; result: Task };
   task_delete: { args: { id: number }; result: DeletedTasks };
@@ -224,7 +225,14 @@ export function invoke<K extends CommandName>(
 /// this object (src-tauri/src/error.rs), so the UI can branch on `kind`
 /// instead of matching English text.
 export interface IpcError {
-  kind: "io" | "db" | "config" | "state" | "no_vault" | "sync_conflict";
+  kind:
+    | "io"
+    | "db"
+    | "config"
+    | "state"
+    | "no_vault"
+    | "sync_conflict"
+    | "remote_wiped";
   message: string;
   path?: string;
 }

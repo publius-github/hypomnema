@@ -271,6 +271,7 @@ pub fn run() {
             cmd_sync::dropbox_pull_vault,
             cmd_sync::dropbox_push_vault,
             cmd_sync::dropbox_sync,
+            cmd_sync::sync_reset_space,
             cmd_sync::sync_conflicts_list,
             cmd_sync::sync_conflicts_clear,
             cmd_sync::sync_standing,

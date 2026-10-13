@@ -142,7 +142,81 @@ pub struct PullReport {
 /// entries in the working directory as device-local, so the bookkeeping
 /// cannot end up uploaded into the vault it describes. At the vault root
 /// it would have looked like user content and been pushed.
-const MANIFEST_FILE: &str = ".hypomnema/sync/pull-manifest.json";
+const MANIFEST_FILE: &str = "pull-manifest.json";
+
+/// The device-local sync bookkeeping directory.
+const SYNC_DIR: &str = ".hypomnema/sync";
+
+/// Names the active sync space, one line. A manifest and a merge base
+/// describe what *one* remote last agreed on with this device, so they
+/// are kept per remote: linking a different provider or a different
+/// account starts from a clean space and the first pass joins instead of
+/// reading another remote's revisions as its own. With no pointer the
+/// space is `SYNC_DIR` itself - where the Dropbox link always kept them.
+const SPACE_FILE: &str = ".hypomnema/sync/space";
+
+/// Where the active space's manifest and merge base live.
+pub fn space_dir(local_root: &Path) -> PathBuf {
+    let sync_dir = local_root.join(SYNC_DIR);
+    match fs::read_to_string(local_root.join(SPACE_FILE)) {
+        Ok(name) if is_space_name(name.trim()) => sync_dir.join("spaces").join(name.trim()),
+        _ => sync_dir,
+    }
+}
+
+/// A space name becomes a directory name: keep it to characters that
+/// cannot climb out of `spaces/`.
+fn is_space_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 128
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// Switches the active space; `None` returns to the default one.
+pub fn set_space(local_root: &Path, name: Option<&str>) -> Result<()> {
+    let path = local_root.join(SPACE_FILE);
+    match name {
+        Some(name) if is_space_name(name) => {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, name)?;
+        }
+        Some(name) => {
+            return Err(Error::State(format!(
+                "not a usable sync space name: {name}"
+            )))
+        }
+        None => match fs::remove_file(path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+            _ => {}
+        },
+    }
+    Ok(())
+}
+
+/// Forgets what the active space agreed on with its remote - the manifest
+/// and the merge base - so the next pass joins from scratch: identical
+/// files are adopted, files only here go up, files only there come down.
+/// The way back from a remote that was wiped, and nothing else on disk is
+/// touched.
+pub fn reset_space(local_root: &Path) -> Result<()> {
+    let dir = space_dir(local_root);
+    for leftover in [dir.join(MANIFEST_FILE), dir.join("base")] {
+        let removed = if leftover.is_dir() {
+            fs::remove_dir_all(&leftover)
+        } else {
+            fs::remove_file(&leftover)
+        };
+        match removed {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+            _ => {}
+        }
+    }
+    Ok(())
+}
 
 /// Rewrite the manifest at most this often; every file would be hundreds
 /// of writes for no added safety, since a lost tail just re-downloads.
@@ -163,7 +237,7 @@ pub struct FileState {
 }
 
 fn manifest_path(local_root: &Path) -> PathBuf {
-    local_root.join(MANIFEST_FILE)
+    space_dir(local_root).join(MANIFEST_FILE)
 }
 
 pub fn load_manifest(local_root: &Path) -> BTreeMap<String, FileState> {
@@ -516,6 +590,78 @@ mod tests {
         pull_vault(&provider, &local, |done, total| seen.push((done, total))).unwrap();
 
         assert_eq!(seen, vec![(1, 2), (2, 2)]);
+    }
+
+    #[test]
+    fn without_a_pointer_the_space_is_where_the_dropbox_link_kept_it() {
+        let local = temp_dir("space-default");
+        assert_eq!(space_dir(&local), local.join(".hypomnema/sync"));
+        assert_eq!(
+            manifest_path(&local),
+            local.join(".hypomnema/sync/pull-manifest.json")
+        );
+    }
+
+    #[test]
+    fn a_new_space_starts_with_an_empty_manifest_and_the_old_one_survives() {
+        let local = temp_dir("space-switch");
+        let mut manifest = BTreeMap::new();
+        manifest.insert(
+            "journal/a.md".to_string(),
+            FileState {
+                rev: "dropbox-rev".into(),
+                hash: Some("h".into()),
+            },
+        );
+        save_manifest(&local, &manifest).unwrap();
+
+        set_space(&local, Some("gdrive-123")).unwrap();
+        assert_eq!(
+            space_dir(&local),
+            local.join(".hypomnema/sync/spaces/gdrive-123")
+        );
+        assert!(load_manifest(&local).is_empty());
+
+        set_space(&local, None).unwrap();
+        assert_eq!(load_manifest(&local), manifest);
+    }
+
+    #[test]
+    fn a_space_name_cannot_climb_out_of_the_sync_dir() {
+        let local = temp_dir("space-escape");
+        assert!(set_space(&local, Some("../../journal")).is_err());
+        fs::create_dir_all(local.join(".hypomnema/sync")).unwrap();
+        fs::write(local.join(SPACE_FILE), "../escape").unwrap();
+        assert_eq!(space_dir(&local), local.join(".hypomnema/sync"));
+    }
+
+    #[test]
+    fn resetting_a_space_forgets_its_manifest_and_base_only() {
+        let local = temp_dir("space-reset");
+        set_space(&local, Some("gdrive-1")).unwrap();
+        let mut manifest = BTreeMap::new();
+        manifest.insert(
+            "journal/a.md".to_string(),
+            FileState {
+                rev: "r".into(),
+                hash: None,
+            },
+        );
+        save_manifest(&local, &manifest).unwrap();
+        crate::sync_cycle::write_base(&local, ".hypomnema/state/tasks.jsonl", b"rows").unwrap();
+        fs::create_dir_all(local.join("journal")).unwrap();
+        fs::write(local.join("journal/a.md"), "kept").unwrap();
+
+        reset_space(&local).unwrap();
+
+        assert!(load_manifest(&local).is_empty());
+        assert!(!space_dir(&local).join("base").exists());
+        assert_eq!(
+            fs::read_to_string(local.join("journal/a.md")).unwrap(),
+            "kept"
+        );
+        // Resetting what is already clean is not an error.
+        reset_space(&local).unwrap();
     }
 
     #[test]

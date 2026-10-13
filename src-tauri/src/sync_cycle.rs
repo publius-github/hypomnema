@@ -10,9 +10,10 @@
 //! exist: the manifest's **revision** (what this device last saw on the
 //! server), the manifest's **hash** (what this device last saw on disk),
 //! and - for the JSONL state snapshot only - a **base copy** kept under
-//! `.hypomnema/sync/base/`. Together they answer "did I change it?" and
-//! "did they change it?" separately, which is what makes a real merge
-//! possible instead of a guess.
+//! `base/` in the active sync space (`sync_bootstrap::space_dir`).
+//! Together they answer "did I change it?" and "did they change it?"
+//! separately, which is what makes a real merge possible instead of a
+//! guess.
 //!
 //! | changed here | changed there | what happens |
 //! | --- | --- | --- |
@@ -45,7 +46,9 @@ use crate::sync_state;
 /// snapshot needs one - it is the only content this app merges record by
 /// record, and keeping a shadow copy of every note would double the
 /// vault on disk for no gain.
-const BASE_DIR: &str = ".hypomnema/sync/base";
+/// Under the active sync space (`sync_bootstrap::space_dir`), so a base
+/// agreed with one remote is never read as another's.
+const BASE_DIR: &str = "base";
 
 /// What a sync pass did, in the terms the screen that triggered it shows.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -149,7 +152,9 @@ pub fn standing(local_root: &Path, root: &VaultRoot) -> Result<SyncStanding> {
 }
 
 fn base_path(local_root: &Path, relative: &str) -> PathBuf {
-    local_root.join(BASE_DIR).join(relative)
+    crate::sync_bootstrap::space_dir(local_root)
+        .join(BASE_DIR)
+        .join(relative)
 }
 
 fn read_base(local_root: &Path, relative: &str) -> Option<String> {
@@ -167,6 +172,36 @@ pub(crate) fn write_base(local_root: &Path, relative: &str, bytes: &[u8]) -> Res
 
 fn forget_base(local_root: &Path, relative: &str) {
     let _ = fs::remove_file(base_path(local_root, relative));
+}
+
+/// Below this many synced files a large share vanishing is ordinary
+/// housekeeping (three of five notes deleted), not a sign of a wipe.
+const GUARD_MIN_FILES: usize = 10;
+
+/// Refuses a pass in which most of what this device had synced is gone
+/// from the remote at once. A remote whose data was wiped (the app's
+/// hidden Drive folder cleared from the account settings) or a different
+/// account behind the link looks, file by file, exactly like the other
+/// device deleting everything - and applying it would delete the vault
+/// here too. `percent` of the known files is the line (100 turns the
+/// guard off). Nothing has been touched when this returns `Err`.
+fn guard_mass_deletion(
+    manifest: &BTreeMap<String, FileState>,
+    remote_live: &BTreeMap<String, String>,
+    percent: u32,
+) -> Result<()> {
+    let known = manifest.len();
+    if known < GUARD_MIN_FILES {
+        return Ok(());
+    }
+    let gone = manifest
+        .keys()
+        .filter(|path| !remote_live.contains_key(*path))
+        .count();
+    if gone * 100 > known * percent.min(100) as usize {
+        return Err(Error::RemoteWiped { known, gone });
+    }
+    Ok(())
 }
 
 /// `journal/2026-09-08.md` -> `journal/2026-09-08 (conflicted copy phone
@@ -337,6 +372,7 @@ pub fn sync_vault<P: SyncProvider>(
     root: &VaultRoot,
     device: &str,
     now: &str,
+    guard_percent: u32,
     mut on_progress: impl FnMut(usize, usize),
 ) -> Result<SyncReport> {
     let ctx = Context {
@@ -365,6 +401,8 @@ pub fn sync_vault<P: SyncProvider>(
             remote_live.insert(path, rev);
         }
     }
+
+    guard_mass_deletion(&manifest, &remote_live, guard_percent)?;
 
     // --- Incoming ------------------------------------------------------
     let total = remote_live.len();
@@ -617,7 +655,7 @@ mod tests {
     }
 
     fn sync(provider: &MockProvider, local: &Path) -> SyncReport {
-        sync_vault(provider, local, &root(), "phone", NOW, |_, _| {}).unwrap()
+        sync_vault(provider, local, &root(), "phone", NOW, 30, |_, _| {}).unwrap()
     }
 
     #[test]
@@ -903,5 +941,69 @@ mod tests {
             conflicted_copy_path(".hypomnemaignore", "phone", "2026-09-08"),
             ".hypomnemaignore (conflicted copy phone 2026-09-08)"
         );
+    }
+
+    #[test]
+    fn a_wiped_remote_stops_the_pass_before_anything_is_deleted_here() {
+        let local = temp_dir("guard-wiped");
+        let provider = MockProvider::new();
+        for i in 0..12 {
+            in_sync(&provider, &local, &format!("journal/{i}.md"), "text");
+        }
+        for i in 0..12 {
+            let path = format!("vault/journal/{i}.md");
+            let (_, marker) = provider.read_file(&path).unwrap();
+            provider.delete_file(&path, Some(&marker)).unwrap();
+        }
+
+        let err = sync_vault(&provider, &local, &root(), "phone", NOW, 30, |_, _| {}).unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::RemoteWiped {
+                known: 12,
+                gone: 12
+            }
+        ));
+        for i in 0..12 {
+            assert!(local.join(format!("journal/{i}.md")).exists());
+        }
+        assert_eq!(load_manifest(&local).len(), 12);
+    }
+
+    #[test]
+    fn deleting_a_few_files_out_of_many_passes_the_guard() {
+        let local = temp_dir("guard-few");
+        let provider = MockProvider::new();
+        for i in 0..12 {
+            in_sync(&provider, &local, &format!("journal/{i}.md"), "text");
+        }
+        for i in 0..3 {
+            let path = format!("vault/journal/{i}.md");
+            let (_, marker) = provider.read_file(&path).unwrap();
+            provider.delete_file(&path, Some(&marker)).unwrap();
+        }
+
+        let report = sync(&provider, &local);
+
+        assert_eq!(report.removed_locally, 3);
+    }
+
+    #[test]
+    fn a_guard_of_100_percent_lets_even_a_full_wipe_through() {
+        let local = temp_dir("guard-off");
+        let provider = MockProvider::new();
+        for i in 0..12 {
+            in_sync(&provider, &local, &format!("journal/{i}.md"), "text");
+        }
+        for i in 0..12 {
+            let path = format!("vault/journal/{i}.md");
+            let (_, marker) = provider.read_file(&path).unwrap();
+            provider.delete_file(&path, Some(&marker)).unwrap();
+        }
+
+        let report = sync_vault(&provider, &local, &root(), "phone", NOW, 100, |_, _| {}).unwrap();
+
+        assert_eq!(report.removed_locally, 12);
     }
 }

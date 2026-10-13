@@ -313,6 +313,10 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
   { key: "sync_auto", why: "mobile only - the desktop reaches its vault through the filesystem" },
   { key: "sync_interval_minutes", why: "mobile only" },
   { key: "sync_on_leave", why: "mobile only" },
+  {
+    key: "sync_mass_delete_guard_percent",
+    why: "mobile only until the desktop gets its own sync",
+  },
   { key: "mobile_safe_area_top", why: "mobile only - status bar inset floor" },
   { key: "mobile_safe_area_bottom", why: "mobile only - gesture bar inset floor" },
 ];

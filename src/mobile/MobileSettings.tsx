@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { errorMessage, invoke } from "../lib/ipc";
+import { errorKind, errorMessage, invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { LockSettings } from "./MobileLock";
@@ -194,6 +194,10 @@ function SyncPanel({
   const [showConflicts, setShowConflicts] = useState(false);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set when a pass stopped on the mass-deletion guard: the remote lost
+  // most of what this device had synced, and only the user can say
+  // whether that is a wipe to repair or deletions to accept.
+  const [wiped, setWiped] = useState(false);
 
   useEffect(() => {
     const unlisten = Promise.all([
@@ -211,7 +215,9 @@ function SyncPanel({
     setBusy(true);
     try {
       await action();
+      setWiped(false);
     } catch (e) {
+      if (errorKind(e) === "remote_wiped") setWiped(true);
       setError(errorMessage(e));
     } finally {
       setBusy(false);
@@ -275,6 +281,29 @@ function SyncPanel({
             {progress[0]} / {progress[1]} files
           </p>
         )}
+        {wiped && (
+          <div className="flex flex-col gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm">
+            <p>
+              Most of what this phone had synced is gone from the remote at
+              once, so nothing was deleted here. If the remote was wiped,
+              upload this vault again; if the deletions were intended, raise
+              the limit below and sync.
+            </p>
+            <button
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await invoke("sync_reset_space");
+                  setSync(await invoke("dropbox_sync"));
+                  await useAppStore.getState().refresh();
+                })
+              }
+              className="rounded-lg border border-line px-4 py-2 disabled:opacity-50"
+            >
+              Upload this vault again
+            </button>
+          </div>
+        )}
         {sync && (
           <p className="text-sm">
             {sync.downloaded} in, {sync.uploaded} out
@@ -336,6 +365,23 @@ function SyncPanel({
                 </div>
               </>
             )}
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0 text-sm">
+                Stop if this % vanishes at once
+                <span className="block text-xs text-content-muted">
+                  A wiped remote or another account looks like everything
+                  being deleted. 100 turns the check off.
+                </span>
+              </span>
+              <NumberField
+                value={config.sync_mass_delete_guard_percent}
+                min={5}
+                max={100}
+                onCommit={(next) =>
+                  void updateConfig({ sync_mass_delete_guard_percent: next })
+                }
+              />
+            </div>
           </>
         )}
         <details className="text-sm">

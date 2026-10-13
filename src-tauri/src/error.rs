@@ -22,6 +22,16 @@ pub enum Error {
     // the frontend - that lands with the vault-sync wiring above these.
     #[error("write rejected, remote changed: {path}")]
     SyncConflict { path: String },
+    /// A pass found most of what this device had synced gone from the
+    /// remote at once - the remote's data wiped, or a different account
+    /// behind the same link. Applying that as deletions would empty the
+    /// vault here too, so the pass stops before touching anything and
+    /// the user decides (sync_cycle.rs, the mass-deletion guard).
+    #[error(
+        "{gone} of the {known} synced files are gone from the remote at once; \
+         nothing was deleted here. Upload this vault again, or unlink"
+    )]
+    RemoteWiped { known: usize, gone: usize },
 }
 
 impl Error {
@@ -36,6 +46,7 @@ impl Error {
             Error::State(_) => "state",
             Error::NoVault => "no_vault",
             Error::SyncConflict { .. } => "sync_conflict",
+            Error::RemoteWiped { .. } => "remote_wiped",
         }
     }
 }

@@ -4,6 +4,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::error::{Error, Result};
 use crate::state::*;
+use crate::sync_provider::SyncProvider;
 use crate::watchers::*;
 use crate::{
     device, dropbox_link, secret_store, state_export, sync_bootstrap, sync_conflicts, sync_cycle,
@@ -203,20 +204,6 @@ pub(crate) async fn dropbox_sync(
     state: State<'_, AppState>,
 ) -> Result<dropbox_link::DropboxSync> {
     let dir = app_config_dir(&app)?;
-    // Held for the whole pass. The merge rewrites the JSONL snapshot the
-    // export worker and the watchers also write, and `rebuild_cache`
-    // drops app.db underneath them; commands keep working meanwhile
-    // (they take only the vault lock), their exports queue up behind.
-    let engine_lock = state.engine_lock.clone();
-    let _pass = engine_lock.lock_or_recover();
-    let local_root = {
-        let guard = state.vault.lock_or_recover();
-        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-        // The snapshot is what travels, so anything still only in app.db
-        // would be left behind by a pass that started without this.
-        state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
-        vault.root.clone()
-    };
     let token = dropbox_link::valid_access_token(
         &dir,
         &sync_dropbox_oauth::HttpOauthTransport::new(),
@@ -225,14 +212,54 @@ pub(crate) async fn dropbox_sync(
     let provider =
         sync_dropbox::DropboxApiSyncProvider::new(sync_dropbox::HttpDropboxTransport::new(token));
     let root = dropbox_link::load_vault_root(&dir)?;
+    let report = run_pass(&app, &state, &provider, &root)?;
+    Ok(dropbox_link::DropboxSync {
+        downloaded: report.downloaded,
+        merged: report.merged,
+        uploaded: report.uploaded,
+        removed_locally: report.removed_locally,
+        removed_remotely: report.removed_remotely,
+        conflicts: report.conflicts,
+        conflicted_copies: report.conflicted_copies,
+        failed: report.failed,
+    })
+}
+
+/// One sync pass over whichever remote `provider` talks to - the part of
+/// a sync command that does not care which backend moves the bytes.
+fn run_pass<P: SyncProvider>(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    provider: &P,
+    root: &sync_bootstrap::VaultRoot,
+) -> Result<sync_cycle::SyncReport> {
+    let dir = app_config_dir(app)?;
+    // Held for the whole pass. The merge rewrites the JSONL snapshot the
+    // export worker and the watchers also write, and `rebuild_cache`
+    // drops app.db underneath them; commands keep working meanwhile
+    // (they take only the vault lock), their exports queue up behind.
+    let engine_lock = state.engine_lock.clone();
+    let _pass = engine_lock.lock_or_recover();
+    let (local_root, guard_percent) = {
+        let guard = state.vault.lock_or_recover();
+        let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
+        // The snapshot is what travels, so anything still only in app.db
+        // would be left behind by a pass that started without this.
+        state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
+        (
+            vault.root.clone(),
+            vault.config.sync_mass_delete_guard_percent,
+        )
+    };
     let device = device::ensure(&dir)?;
     let now = chrono::Utc::now().to_rfc3339();
     let report = match sync_cycle::sync_vault(
-        &provider,
+        provider,
         &local_root,
-        &root,
+        root,
         &device,
         &now,
+        guard_percent,
         |done, total| {
             let _ = app.emit("dropbox-sync-progress", (done, total));
         },
@@ -255,19 +282,25 @@ pub(crate) async fn dropbox_sync(
         // the existing restore path over the merged files - the same
         // disposable-cache route `state_export.rs` documents, rather than
         // a second way to write rows into SQLite.
-        rebuild_cache(&app, &state, &local_root)?;
+        rebuild_cache(app, state, &local_root)?;
     }
     let _ = app.emit("vault-updated", Vec::<String>::new());
-    Ok(dropbox_link::DropboxSync {
-        downloaded: report.downloaded,
-        merged: report.merged,
-        uploaded: report.uploaded,
-        removed_locally: report.removed_locally,
-        removed_remotely: report.removed_remotely,
-        conflicts: report.conflicts,
-        conflicted_copies: report.conflicted_copies,
-        failed: report.failed,
-    })
+    Ok(report)
+}
+
+/// Forgets what this device last agreed on with the remote, so the next
+/// pass joins from scratch: identical files adopted, files only here
+/// uploaded, files only there downloaded. The answer to the mass-deletion
+/// guard when the remote really was wiped - nothing local is deleted.
+#[tauri::command]
+pub(crate) async fn sync_reset_space(state: State<'_, AppState>) -> Result<()> {
+    let engine_lock = state.engine_lock.clone();
+    let _pass = engine_lock.lock_or_recover();
+    let local_root = {
+        let guard = state.vault.lock_or_recover();
+        guard.as_ref().ok_or_else(|| Error::NoVault)?.root.clone()
+    };
+    sync_bootstrap::reset_space(&local_root)
 }
 
 /// Is a passphrase set on this device, and are its secrets readable?

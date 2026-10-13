@@ -184,6 +184,13 @@ sync_interval_minutes: number,
  */
 sync_on_leave: boolean, 
 /**
+ * Stop a pass in which more than this share (percent) of the files
+ * this device had synced is gone from the remote at once, instead of
+ * deleting them here too: a wiped remote or a different account
+ * looks exactly like that (sync_cycle.rs). 100 turns the guard off.
+ */
+sync_mass_delete_guard_percent: number, 
+/**
  * Minimum gap, in pixels, between the top of the phone layout and
  * the top of the screen - a floor under `env(safe-area-inset-top)`.
  * Android draws the app under the status bar (API 35+), and the
