@@ -231,6 +231,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "gap_fill_color", label: "Gap fill color", group: "views.listview", terms: "hatch glow band" },
   { key: "gap_fill_fade", label: "Gap fill edge softness", group: "views.listview", terms: "hatch glow fade blur gradient" },
   { key: "gap_fill_max_thickness", label: "Gap fill maximum thickness", group: "views.listview", terms: "hatch glow band height tall" },
+  { key: "list_gap_stripe", label: "Separator stripe height, % of a row", group: "views.listview", terms: "gap spacing glow band stripe category section" },
   { key: "gap_fill_opacity", label: "Gap fill opacity", group: "views.listview", terms: "hatch glow band transparency alpha" },
   { key: "gap_fill_inset", label: "Gap fill inset from the row lines", group: "views.listview", terms: "hatch glow margin padding" },
   { key: "lists_group_display", label: "Grouped lists display", group: "views.lists", terms: "folded flat group tile" },

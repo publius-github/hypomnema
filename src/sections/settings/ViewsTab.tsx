@@ -185,6 +185,20 @@ export default function ViewsTab() {
           The Daily/Monthly/Done... plates. 100 = the same plate as on cards;
           200 doubles both the plate and its label.
         </span>
+        <Field label="Separator stripe height, % of a row">
+          <NumberInput
+            value={config.list_gap_stripe}
+            min={25}
+            onCommit={(n) =>
+              void updateConfig({ list_gap_stripe: Math.min(150, n) })
+            }
+          />
+        </Field>
+        <span className="-mt-1 text-xs text-content-muted">
+          Gaps in list view are whole stripes: 1 between category blocks, 2
+          between sections, 3 before Postponed / Done, waiting / Done. The
+          per-gap px settings in Columns apply to the card view only.
+        </span>
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Gap fill color</span>
           <ColorPicker

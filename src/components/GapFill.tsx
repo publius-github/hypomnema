@@ -12,9 +12,27 @@ import { useAppStore } from "../store";
  * ramp length vertically and horizontally, so the corners soften
  * evenly. Color: `gap_fill_color`, empty = the border color, at
  * `gap_fill_opacity` %. One look for the Days and Lists list views alike (Settings >
- * Views > List view).
+ * Views > List view). `stripes` splits the gap into that many equal
+ * slots, each with its own band (1 = category, 2 = section, 3 = the
+ * closed sections - see `listGapStripe`).
  */
-export default function GapFill({ height }: { height: number }) {
+export default function GapFill({
+  height,
+  stripes = 1,
+}: {
+  height: number;
+  stripes?: number;
+}) {
+  return (
+    <div className="flex flex-col">
+      {Array.from({ length: stripes }, (_, i) => (
+        <Band key={i} height={height / stripes} />
+      ))}
+    </div>
+  );
+}
+
+function Band({ height }: { height: number }) {
   const color = useAppStore((s) => s.config?.gap_fill_color ?? "");
   const fade = useAppStore((s) => s.config?.gap_fill_fade ?? 60);
   const inset = useAppStore((s) => s.config?.gap_fill_inset ?? 25);

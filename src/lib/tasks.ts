@@ -481,6 +481,21 @@ export function listViewPlateStyle(
   };
 }
 
+/**
+ * List view: height of one separator stripe, px - `list_gap_stripe` %
+ * of a single-line row (text-sm line + py-1 padding, 1.75rem, plus its
+ * 1px hairline), so the stripes follow `ui_font_size` like the rows do.
+ * Category breaks take one stripe, sections two, Postponed / Done,
+ * waiting / Done three (`LIST_GAP_STRIPES`).
+ */
+export function listGapStripe(config: AppConfig | null): number {
+  const row = (config?.ui_font_size ?? 16) * 1.75 + 1;
+  return Math.round((row * (config?.list_gap_stripe ?? 60)) / 100);
+}
+
+/** Stripes per kind of list-view break, see `listGapStripe`. */
+export const LIST_GAP_STRIPES = { category: 1, section: 2, closed: 3 } as const;
+
 /** Monday of the ISO week holding the given date. */
 export function mondayOf(date: string): string {
   const d = new Date(`${date}T12:00:00`);

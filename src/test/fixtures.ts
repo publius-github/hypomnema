@@ -105,6 +105,7 @@ export const defaultConfig: AppConfig = {
   gap_fill_inset: 25,
   gap_fill_max_thickness: 6,
   gap_fill_opacity: 100,
+  list_gap_stripe: 60,
   lists_group_display: "folded",
   settings_width: 1120,
   days_page_columns: 7,

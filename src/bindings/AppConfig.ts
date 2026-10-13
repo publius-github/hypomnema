@@ -347,6 +347,13 @@ gap_fill_max_thickness: number,
  */
 gap_fill_opacity: number, 
 /**
+ * List-view separators come in fixed stripes: one stripe is this
+ * % of a single-line row's height (25..=150). A category break is
+ * one stripe, a section break two, the Postponed / Done, waiting /
+ * Done breaks three; the per-gap px settings apply to cards only.
+ */
+list_gap_stripe: number, 
+/**
  * How grouped lists show in the list panels: `folded` = one tile per
  * group with its lists behind a drill-in, `flat` = every list as its
  * own column wearing its group's name as a chip.

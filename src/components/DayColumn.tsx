@@ -12,6 +12,8 @@ import {
   sortClosedAlpha,
   splitDone,
   listViewPlateStyle,
+  listGapStripe,
+  LIST_GAP_STRIPES,
   tintStyle,
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
@@ -47,8 +49,7 @@ function DayColumn({
 
   // dailies repeat every day anyway; with the setting on, future
   // columns skip them so the look-ahead shows only the special stuff
-  const hideDailies =
-    (config?.daily_tasks_today_only ?? false) && date > today;
+  const hideDailies = (config?.daily_tasks_today_only ?? false) && date > today;
   // shallow-compared filtered selection: targeted store merges keep
   // unchanged task identities, so a change in another day column does
   // not re-render this one
@@ -106,8 +107,18 @@ function DayColumn({
   // sit visibly below the active tasks
   // list rows sit flush: the hairline under each one is the separator
   const taskGap = flat ? 0 : (config?.task_gap ?? 6);
-  const sectionGap = config?.section_gap ?? 12;
-  const categoryGap = config?.category_block_gap ?? 12;
+  // list view: fixed stripes instead of the per-gap px settings - one
+  // between category blocks, two between sections, three before the
+  // Postponed/Waiting/Done blocks
+  const stripe = listGapStripe(config);
+  const sectionGap = flat
+    ? LIST_GAP_STRIPES.section * stripe
+    : (config?.section_gap ?? 12);
+  const categoryGap = flat
+    ? LIST_GAP_STRIPES.category * stripe
+    : (config?.category_block_gap ?? 12);
+  const closedGap = (px: number | undefined) =>
+    flat ? LIST_GAP_STRIPES.closed * stripe : (px ?? 12);
   // list view: the gaps between category blocks and between sections
   // are filled so a break reads apart from the hairline between rows
   const fillGaps = flat && (config?.days_gap_fill ?? true);
@@ -129,7 +140,7 @@ function DayColumn({
         className="flex flex-col"
         style={{ rowGap: taskGap, marginTop: fillGaps ? undefined : gap }}
       >
-        {fillGaps && <GapFill height={gap} />}
+        {fillGaps && <GapFill height={gap} stripes={LIST_GAP_STRIPES.closed} />}
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
             plateColor ? "" : "bg-line/40 text-content"
@@ -164,11 +175,7 @@ function DayColumn({
       } ${
         // list view: the whole column takes the card fill, the surface
         // the rows used to sit on as separate cards
-        flat
-          ? "bg-surface-alt"
-          : isToday
-            ? "bg-accent/5"
-            : "bg-surface-alt/50"
+        flat ? "bg-surface-alt" : isToday ? "bg-accent/5" : "bg-surface-alt/50"
       }`}
     >
       <div
@@ -232,7 +239,9 @@ function DayColumn({
               marginTop: i > 0 && !fillGaps ? sectionGap : undefined,
             }}
           >
-            {i > 0 && fillGaps && <GapFill height={sectionGap} />}
+            {i > 0 && fillGaps && (
+              <GapFill height={sectionGap} stripes={LIST_GAP_STRIPES.section} />
+            )}
             <div
               className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                 groupColor(group.key) ? "" : "bg-line/40 text-content"
@@ -281,21 +290,21 @@ function DayColumn({
           "Postponed",
           postponed,
           config?.postponed_plate_color ?? "",
-          config?.postponed_section_gap ?? 12,
+          closedGap(config?.postponed_section_gap),
           config?.cadence_colors_postponed ?? true,
         )}
         {section(
           "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
-          config?.waiting_section_gap ?? 12,
+          closedGap(config?.waiting_section_gap),
           config?.cadence_colors_waiting ?? true,
         )}
         {section(
           "Done",
           done,
           config?.done_plate_color ?? "",
-          config?.done_section_gap ?? 12,
+          closedGap(config?.done_section_gap),
           config?.cadence_colors_done ?? true,
         )}
         <QuickAdd target={{ scheduled_date: date }} />

@@ -15,6 +15,8 @@ import {
   sortClosedAlpha,
   splitDone,
   listViewPlateStyle,
+  listGapStripe,
+  LIST_GAP_STRIPES,
   tintStyle,
 } from "../lib/tasks";
 import TaskCard from "./TaskCard";
@@ -83,7 +85,8 @@ function ListColumn({
   const alpha = config?.list_tasks_sort_alpha ?? false;
   const sorted = [...listTasks].sort((a, b) => {
     if (alpha) {
-      if ((a.time === null) !== (b.time === null)) return a.time === null ? 1 : -1;
+      if ((a.time === null) !== (b.time === null))
+        return a.time === null ? 1 : -1;
       const byTitle = a.title.localeCompare(b.title, undefined, {
         sensitivity: "base",
         numeric: true,
@@ -114,8 +117,18 @@ function ListColumn({
   // gaps, separate from the day-grid ones
   // list rows sit flush: the hairline under each one is the separator
   const taskGap = flat ? 0 : (config?.task_gap ?? 6);
-  const sectionGap = config?.section_gap ?? 12;
-  const categoryGap = config?.list_category_block_gap ?? 12;
+  // list view: fixed stripes instead of the per-gap px settings - one
+  // between category blocks, two between sections, three before the
+  // Postponed/Waiting/Done blocks
+  const stripe = listGapStripe(config);
+  const sectionGap = flat
+    ? LIST_GAP_STRIPES.section * stripe
+    : (config?.section_gap ?? 12);
+  const categoryGap = flat
+    ? LIST_GAP_STRIPES.category * stripe
+    : (config?.list_category_block_gap ?? 12);
+  const closedGap = (px: number | undefined) =>
+    flat ? LIST_GAP_STRIPES.closed * stripe : (px ?? 12);
   // list view: category and section gaps are filled instead of left
   // empty, so a break reads apart from the hairline between rows
   const fillGaps = flat && (config?.lists_gap_fill ?? true);
@@ -175,7 +188,7 @@ function ListColumn({
         className="flex flex-col"
         style={{ rowGap: taskGap, marginTop: fillGaps ? undefined : gap }}
       >
-        {fillGaps && <GapFill height={gap} />}
+        {fillGaps && <GapFill height={gap} stripes={LIST_GAP_STRIPES.closed} />}
         <div
           className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
             plateColor ? "" : "bg-line/40 text-content"
@@ -291,7 +304,9 @@ function ListColumn({
               ? "Remove from favorites"
               : "Favorite: pin ahead of the other lists"
           }
-          onClick={() => void useAppStore.getState().toggleListFavorite(list.id)}
+          onClick={() =>
+            void useAppStore.getState().toggleListFavorite(list.id)
+          }
         >
           {list.favorite ? "★" : "☆"}
         </button>
@@ -352,7 +367,7 @@ function ListColumn({
             }}
           >
             {prioritized.length > 0 && fillGaps && (
-              <GapFill height={sectionGap} />
+              <GapFill height={sectionGap} stripes={LIST_GAP_STRIPES.section} />
             )}
             <SortableContext
               items={rest.map((t) => `task:${t.id}`)}
@@ -378,21 +393,21 @@ function ListColumn({
           "Postponed",
           postponed,
           config?.postponed_plate_color ?? "",
-          config?.list_postponed_section_gap ?? 12,
+          closedGap(config?.list_postponed_section_gap),
           config?.cadence_colors_postponed ?? true,
         )}
         {section(
           "Done, waiting",
           waiting,
           config?.waiting_plate_color ?? "",
-          config?.list_waiting_section_gap ?? 12,
+          closedGap(config?.list_waiting_section_gap),
           config?.cadence_colors_waiting ?? true,
         )}
         {section(
           "Done",
           done,
           config?.done_plate_color ?? "",
-          config?.list_done_section_gap ?? 12,
+          closedGap(config?.list_done_section_gap),
           config?.cadence_colors_done ?? true,
         )}
       </div>
@@ -430,11 +445,17 @@ function SortableCard({
   /** draw the category gap as a soft fill instead of empty space */
   fill: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: `task:${task.id}`,
-      disabled: task.origin !== "manual",
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: `task:${task.id}`,
+    disabled: task.origin !== "manual",
+  });
   return (
     <div
       ref={setNodeRef}
