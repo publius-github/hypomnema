@@ -41,6 +41,7 @@ use crate::sync_paths;
 use crate::sync_provider::{ChangeMarker, SyncCursor, SyncProvider};
 use crate::sync_push::{self, content_hash};
 use crate::sync_state;
+use crate::vault;
 
 /// Where the last agreed copy of a mergeable file is kept. Only the JSONL
 /// snapshot needs one - it is the only content this app merges record by
@@ -306,7 +307,10 @@ fn apply_incoming(
         return Ok(Incoming::Unchanged);
     }
 
-    if !changed_here {
+    // A config file this device only ever held as the seeded sample - a
+    // vault started here before it first synced - carries nothing to
+    // keep: the other device's real rules simply replace it.
+    if !changed_here || vault::is_untouched_sample(relative, &local_bytes) {
         // Only they moved: take theirs, and it becomes the agreed base.
         write_local(&target, remote_bytes)?;
         if sync_state::state_file_of(relative).is_some() {
@@ -841,6 +845,28 @@ mod tests {
             b"my afternoon"
         );
         assert_eq!(sync_conflicts::load(&local).len(), 1);
+    }
+
+    #[test]
+    fn a_seeded_sample_config_gives_way_to_the_other_devices_rules() {
+        let local = temp_dir("sample-config");
+        let provider = MockProvider::new();
+        let path = ".hypomnema/config/birthdays.yml";
+        let (_, sample) = vault::CONFIG_SAMPLES
+            .iter()
+            .find(|(name, _)| *name == "birthdays.yml")
+            .unwrap();
+        write(&local, path, sample);
+        let real = "birthdays:\n  - name: Ann\n    date: \"03-14\"\n";
+        provider
+            .write_file(&root().absolute(path), real.as_bytes(), None)
+            .unwrap();
+
+        let report = sync(&provider, &local);
+
+        assert_eq!(read(&local, path), real);
+        assert!(report.conflicted_copies.is_empty());
+        assert!(sync_conflicts::load(&local).is_empty());
     }
 
     #[test]
