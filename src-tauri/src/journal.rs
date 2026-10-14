@@ -48,7 +48,7 @@ fn normalize_date(date: &str) -> Result<String> {
     Ok(validate_date(date)?.format("%Y-%m-%d").to_string())
 }
 
-fn entry_path(vault: &Path, date: &str) -> Result<PathBuf> {
+pub(crate) fn entry_path(vault: &Path, date: &str) -> Result<PathBuf> {
     let parsed = validate_date(date)?;
     Ok(vault
         .join("journal")
@@ -114,15 +114,34 @@ pub fn open_entry(vault: &Path, date: &str) -> Result<JournalEntry> {
     Ok(JournalEntry { date, content })
 }
 
+#[cfg(test)]
 pub fn save_entry(vault: &Path, date: &str, content: &str) -> Result<()> {
+    save_entry_from(vault, date, content, None).map(|_| ())
+}
+
+/// `save_entry` for an editor whose text started out as `base`: what
+/// changed on disk since then is merged in, not overwritten
+/// (`text_merge::reconcile_save`). The result's `text` is what is now
+/// on disk.
+pub fn save_entry_from(
+    vault: &Path,
+    date: &str,
+    content: &str,
+    base: Option<&str>,
+) -> Result<crate::text_merge::Reconciled> {
     let path = entry_path(vault, date)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
+    let on_disk = fs::read_to_string(&path).ok();
+    let day = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let saved = crate::text_merge::reconcile_save(&path, on_disk.as_deref(), base, content, &day)?;
     // Journal text is primary user data: a crash mid-autosave must not
     // truncate the entry, same guarantee the YAML configs already have.
-    crate::vault::write_atomic(&path, content)?;
-    Ok(())
+    if on_disk.as_deref() != Some(saved.text.as_str()) {
+        crate::vault::write_atomic(&path, &saved.text)?;
+    }
+    Ok(saved)
 }
 
 /// All existing entry dates, newest first.

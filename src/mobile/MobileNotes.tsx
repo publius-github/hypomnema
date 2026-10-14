@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
-import { CONFIG_FILES, basenameOf, parentDirOf } from "../sections/kb/util";
+import {
+  CONFIG_FILES,
+  basenameOf,
+  parentDirOf,
+  settleSave,
+} from "../sections/kb/util";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
@@ -363,6 +368,14 @@ function NoteEditor({
   useBackStep(action !== null, () => setAction(null));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<string | null>(null);
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
+  // the on-disk text the shown note derives from: each save sends it, so
+  // a sync pass that merged the desktop's edit in under the editor is
+  // merged with the typing instead of overwritten
+  const baseRef = useRef(note.content);
 
   // Same contract as the journal's: the tail of what was typed must
   // survive backgrounding, which is how a phone screen is usually left.
@@ -385,8 +398,15 @@ function NoteEditor({
         setConfigErrors(errors);
         if (errors.length === 0) setSaved(true);
       } else {
-        await invoke("kb_write", { path: note.path, content: outstanding });
+        const written = await invoke("kb_write", {
+          path: note.path,
+          content: outstanding,
+          base: baseRef.current,
+        });
         setSaved(true);
+        const settled = settleSave(outstanding, written, contentRef.current);
+        baseRef.current = settled.base;
+        if (settled.content !== contentRef.current) setContent(settled.content);
       }
     } catch (e) {
       setError(errorMessage(e));
@@ -395,6 +415,25 @@ function NoteEditor({
   const flushRef = useRef(flush);
   flushRef.current = flush;
   useEffect(() => () => void flushRef.current(), []);
+
+  // A sync pass changed the vault: a note with no unsaved typing shows
+  // what is on disk now; typing is kept, and its save merges the two.
+  const vaultVersion = useAppStore((s) => s.vaultVersion);
+  const seenVersion = useRef(vaultVersion);
+  useEffect(() => {
+    if (vaultVersion === seenVersion.current) return;
+    seenVersion.current = vaultVersion;
+    if (note.kind !== "note" || !savedRef.current) return;
+    void invoke("kb_read", { path: note.path })
+      .then((text) => {
+        if (!savedRef.current || text === contentRef.current) return;
+        baseRef.current = text;
+        setContent(text);
+      })
+      .catch(() => {
+        // deleted elsewhere or the vault is mid-reopen: keep what is shown
+      });
+  }, [vaultVersion, note.kind, note.path]);
 
   const edit = (text: string) => {
     setContent(text);

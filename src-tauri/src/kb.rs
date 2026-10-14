@@ -16,6 +16,25 @@ pub struct KbNode {
     pub children: Vec<KbNode>,
 }
 
+/// Where `delete` puts things, at the KB root.
+const TRASH_DIR: &str = crate::sync_paths::TRASH_DIR;
+
+/// Refuses to delete, move or rename the app's working folder or what it
+/// owns inside it: with the Notes tree rooted at the vault, one stray
+/// Delete would otherwise send the open database to the trash. The
+/// user-authored `config/` stays fully editable.
+fn guard_work_dir(rel: &str) -> Result<()> {
+    let parts: Vec<&str> = rel.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
+    if let Some(i) = parts.iter().position(|p| *p == crate::vault::WORK_DIR) {
+        if parts.get(i + 1) != Some(&"config") || parts.len() == i + 2 {
+            return Err(Error::State(format!(
+                "{rel} belongs to the app and cannot be moved or deleted here"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Rejects absolute paths and traversal; the app must never touch
 /// anything outside the user-chosen KB folder.
 fn resolve(root: &Path, rel: &str) -> Result<PathBuf> {
@@ -37,7 +56,13 @@ pub const IGNORE_FILE: &str = ".hypomnemaignore";
 /// Loads the ignore patterns: one per line, `#` comments and blank
 /// lines skipped.
 fn load_ignore(root: &Path) -> Vec<String> {
-    fs::read_to_string(root.join(IGNORE_FILE))
+    load_patterns(&root.join(IGNORE_FILE))
+}
+
+/// Reads a gitignore-like pattern file (`.hypomnemaignore`,
+/// `.hypomnemasyncignore`); a missing file is no patterns.
+pub(crate) fn load_patterns(path: &Path) -> Vec<String> {
+    fs::read_to_string(path)
         .map(|content| {
             content
                 .lines()
@@ -82,7 +107,7 @@ fn glob_match(pattern: &str, text: &str) -> bool {
 /// Gitignore-flavored subset: a pattern with `/` matches the path
 /// relative to the KB root, one without matches the file or folder
 /// name anywhere; a trailing `/` restricts the rule to folders.
-fn is_ignored(patterns: &[String], name: &str, rel: &str, is_dir: bool) -> bool {
+pub(crate) fn is_ignored(patterns: &[String], name: &str, rel: &str, is_dir: bool) -> bool {
     patterns.iter().any(|raw| {
         let (pattern, dir_only) = match raw.strip_suffix('/') {
             Some(p) => (p, true),
@@ -114,7 +139,7 @@ fn build_tree(root: &Path, dir: &Path, ignore: &[String]) -> Result<Vec<KbNode>>
         // hiding is the user's call via .hypomnemaignore. Only our own
         // write_atomic staging files stay out - they exist for
         // milliseconds and would make the tree flicker.
-        if name.starts_with('.') && name.ends_with(".tmp") {
+        if crate::vault::is_staging_file(&name) {
             continue;
         }
         let path = entry.path();
@@ -336,18 +361,36 @@ pub fn read(root: &Path, rel: &str) -> Result<String> {
 /// Created / Last edited header is put on first. Returns the text that
 /// is now on disk, so the editor can take the header over; a save that
 /// changes nothing is not rewritten.
+#[cfg(test)]
 pub fn write(root: &Path, rel: &str, content: &str, stamp: bool) -> Result<String> {
+    write_from(root, rel, content, None, stamp).map(|(text, _)| text)
+}
+
+/// `write` for an editor whose text started out as `base`: what changed
+/// on disk since then is merged in rather than overwritten
+/// (`text_merge::reconcile_save`); the second half is where the disk's
+/// version went when it could not be merged.
+pub fn write_from(
+    root: &Path,
+    rel: &str,
+    content: &str,
+    base: Option<&str>,
+    stamp: bool,
+) -> Result<(String, Option<PathBuf>)> {
     let path = resolve(root, rel)?;
     let on_disk = fs::read_to_string(&path).ok();
+    let day = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let saved = crate::text_merge::reconcile_save(&path, on_disk.as_deref(), base, content, &day)?;
+    let kept_aside = saved.kept_aside;
     let content = if stamp {
         let now = chrono::Local::now().format(STAMP_FORMAT).to_string();
         let (created, modified) = file_times(&path).unwrap_or_else(|| (now.clone(), now.clone()));
-        stamp_note(content, on_disk.as_deref(), &created, &modified, &now)
+        stamp_note(&saved.text, on_disk.as_deref(), &created, &modified, &now)
     } else {
-        content.to_string()
+        saved.text
     };
     if on_disk.as_deref() == Some(content.as_str()) {
-        return Ok(content);
+        return Ok((content, kept_aside));
     }
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -355,7 +398,7 @@ pub fn write(root: &Path, rel: &str, content: &str, stamp: bool) -> Result<Strin
     // Notes are primary user data: a crash mid-autosave must not
     // truncate the file, same guarantee the YAML configs already have.
     crate::vault::write_atomic(&path, &content)?;
-    Ok(content)
+    Ok((content, kept_aside))
 }
 
 /// The two ownership lines the app keeps at the top of a Markdown note:
@@ -579,7 +622,10 @@ pub fn abs_path(root: &Path, rel: &str) -> Result<PathBuf> {
 /// A target without an extension inherits the source's extension, so
 /// renaming never silently changes a file's type.
 pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {
-    let to = if Path::new(to).extension().is_some() {
+    guard_work_dir(from)?;
+    guard_work_dir(to)?;
+    // a folder has no type to keep: "proj.old" -> "proj" is just "proj"
+    let to = if Path::new(to).extension().is_some() || resolve(root, from)?.is_dir() {
         to.to_string()
     } else {
         match Path::new(from).extension() {
@@ -633,7 +679,21 @@ pub fn copy_into(root: &Path, from: &str, to_dir: &str) -> Result<String> {
         .ok_or_else(|| Error::State(format!("invalid KB path: {from}")))?
         .to_string_lossy()
         .into_owned();
-    let dir_abs = resolve(root, to_dir)?;
+    // a folder pasted into itself (or below itself) would copy its own
+    // growing copy forever
+    if source.is_dir() {
+        let inside = to_dir
+            .strip_prefix(from)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'));
+        if inside {
+            return Err(Error::State(format!("cannot copy \"{from}\" into itself")));
+        }
+    }
+    let dir_abs = if to_dir.is_empty() {
+        root.to_path_buf()
+    } else {
+        resolve(root, to_dir)?
+    };
     fs::create_dir_all(&dir_abs)?;
     let (stem, ext) = match name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() && !source.is_dir() => (s.to_string(), format!(".{e}")),
@@ -659,15 +719,17 @@ pub fn copy_into(root: &Path, from: &str, to_dir: &str) -> Result<String> {
 }
 
 /// Deleting moves the file or folder into .trash/ inside the KB root
-/// (dot-prefixed, so the tree hides it): notes are primary user data
+/// (shown in the tree like any folder unless .hypomnemaignore hides
+/// it, never synced): notes are primary user data
 /// and a mistaken delete must be recoverable in the file manager.
 /// Trash entries older than 30 days are pruned on the next delete.
 pub fn delete(root: &Path, rel: &str) -> Result<()> {
+    guard_work_dir(rel)?;
     let path = resolve(root, rel)?;
     if !path.exists() {
         return Err(Error::State(format!("no such file: {rel}")));
     }
-    let trash = root.join(".trash");
+    let trash = root.join(TRASH_DIR);
     fs::create_dir_all(&trash)?;
     let flat = rel.replace(['/', '\\'], "__");
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
@@ -1009,6 +1071,49 @@ mod tests {
         assert_eq!(write(&root, "n.md", &first, true).unwrap(), first);
         // without the stamp flag the text goes to disk as given
         assert_eq!(write(&root, "n.md", "plain", false).unwrap(), "plain");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_folder_is_never_copied_into_itself() {
+        let root = root("copy-into-self");
+        create_dir(&root, "a/b").unwrap();
+        assert!(copy_into(&root, "a", "a").is_err());
+        assert!(copy_into(&root, "a", "a/b").is_err());
+        // a sibling that merely shares the prefix is fine
+        create_dir(&root, "ab").unwrap();
+        assert_eq!(copy_into(&root, "a", "ab").unwrap(), "ab/a");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_work_dir_cannot_be_deleted_or_moved_but_config_can() {
+        let root = root("work-dir-guard");
+        create_dir(&root, ".hypomnema/config").unwrap();
+        fs::write(root.join(".hypomnema/app.db"), "db").unwrap();
+        fs::write(root.join(".hypomnema/config/recurring.yml"), "x").unwrap();
+        assert!(delete(&root, ".hypomnema").is_err());
+        assert!(delete(&root, ".hypomnema/app.db").is_err());
+        assert!(delete(&root, ".hypomnema/config").is_err());
+        assert!(rename(&root, ".hypomnema", "elsewhere").is_err());
+        assert!(rename(&root, ".hypomnema/app.db", "app.db").is_err());
+        assert!(root.join(".hypomnema/app.db").exists());
+        rename(
+            &root,
+            ".hypomnema/config/recurring.yml",
+            ".hypomnema/config/old.yml",
+        )
+        .unwrap();
+        delete(&root, ".hypomnema/config/old.yml").unwrap();
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn renaming_a_dotted_folder_does_not_keep_its_suffix() {
+        let root = root("rename-dotted-dir");
+        create_dir(&root, "proj.old").unwrap();
+        rename(&root, "proj.old", "proj").unwrap();
+        assert!(root.join("proj").is_dir());
         let _ = fs::remove_dir_all(&root);
     }
 }

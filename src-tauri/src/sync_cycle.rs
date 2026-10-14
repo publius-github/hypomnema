@@ -165,6 +165,7 @@ fn base_path(local_root: &Path, relative: &str) -> PathBuf {
 fn is_mergeable_text(relative: &str) -> bool {
     let name = relative.rsplit('/').next().unwrap_or(relative);
     name == ".hypomnemaignore"
+        || name == sync_paths::SYNC_IGNORE_FILE
         || name.rsplit_once('.').is_some_and(|(_, ext)| {
             matches!(
                 ext.to_ascii_lowercase().as_str(),
@@ -197,12 +198,7 @@ fn read_base(local_root: &Path, relative: &str) -> Option<String> {
 }
 
 pub(crate) fn write_base(local_root: &Path, relative: &str, bytes: &[u8]) -> Result<()> {
-    let path = base_path(local_root, relative);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, bytes)?;
-    Ok(())
+    write_local(&base_path(local_root, relative), bytes)
 }
 
 fn forget_base(local_root: &Path, relative: &str) {
@@ -363,7 +359,7 @@ fn apply_incoming(
         let remote_text = String::from_utf8_lossy(remote_bytes).into_owned();
         let merged =
             sync_state::merge_state_file(kind, base.as_deref(), &local_text, &remote_text)?;
-        fs::write(&target, merged.text.as_bytes())?;
+        write_local(&target, merged.text.as_bytes())?;
         // The base for the *next* merge is what the other side had: the
         // merged content has not been agreed on until it is uploaded, and
         // the upload records it (see `adopt_pushed_base`).
@@ -385,8 +381,8 @@ fn apply_incoming(
             std::str::from_utf8(&local_bytes),
             std::str::from_utf8(remote_bytes),
         ) {
-            if let Ok(merged) = diffy::merge(&base, local_text, remote_text) {
-                fs::write(&target, merged.as_bytes())?;
+            if let Some(merged) = crate::text_merge::merge3(&base, local_text, remote_text) {
+                write_local(&target, merged.as_bytes())?;
                 write_base(ctx.local_root, relative, remote_bytes)?;
                 return Ok(Incoming::Merged);
             }
@@ -446,7 +442,7 @@ fn apply_duplicate(
         let local_text = String::from_utf8_lossy(&local_bytes).into_owned();
         let other_text = String::from_utf8_lossy(bytes).into_owned();
         let merged = sync_state::merge_state_file(kind, None, &local_text, &other_text)?;
-        fs::write(&target, merged.text.as_bytes())?;
+        write_local(&target, merged.text.as_bytes())?;
         out.extend(sync_conflicts::entries_from(
             relative,
             ctx.now,
@@ -476,12 +472,14 @@ fn apply_duplicate(
     Ok(Some(true))
 }
 
+/// Atomic, like every other write of user content: a pass cut short
+/// mid-write (a crash, a phone's battery) must not leave a note
+/// truncated.
 fn write_local(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, bytes)?;
-    Ok(())
+    vault::write_atomic_bytes(path, bytes)
 }
 
 /// The device running a pass: its id stamps the conflict log, its label
@@ -513,6 +511,7 @@ pub fn sync_vault<P: SyncProvider>(
         device_label,
         now,
     };
+    sync_paths::load_user_ignore(local_root);
     let mut report = SyncReport::default();
     let mut manifest = load_manifest(local_root);
     let mut conflicts: Vec<ConflictEntry> = Vec::new();

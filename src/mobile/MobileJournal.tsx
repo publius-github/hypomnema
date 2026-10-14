@@ -3,6 +3,7 @@ import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { addDaysISO } from "../lib/tasks";
 import { useBackStep } from "./back";
+import { settleSave } from "../sections/kb/util";
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -24,6 +25,14 @@ export default function MobileJournal() {
   const [entries, setEntries] = useState<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<{ date: string; content: string } | null>(null);
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
+  // the on-disk text the shown entry derives from: each save sends it,
+  // so a sync pass that merged the desktop's edit in under the textarea
+  // is merged with the typing instead of overwritten
+  const baseRef = useRef<{ date: string; content: string } | null>(null);
   // hardware back leaves the entry browser before leaving the tab
   useBackStep(browsing, () => setBrowsing(false));
 
@@ -39,8 +48,18 @@ export default function MobileJournal() {
   const persist = useCallback(
     async (entryDate: string, text: string) => {
       try {
-        await invoke("journal_save", { date: entryDate, content: text });
+        const base = baseRef.current;
+        const written = await invoke("journal_save", {
+          date: entryDate,
+          content: text,
+          base: base?.date === entryDate ? base.content : null,
+        });
         setSaved(true);
+        if (loadedDate.current === entryDate) {
+          const settled = settleSave(text, written, contentRef.current);
+          baseRef.current = { date: entryDate, content: settled.base };
+          if (settled.content !== contentRef.current) setContent(settled.content);
+        }
       } catch (e) {
         setError(errorMessage(e));
       }
@@ -75,6 +94,7 @@ export default function MobileJournal() {
         );
         if (cancelled) return;
         loadedDate.current = entry.date;
+        baseRef.current = { date: entry.date, content: entry.content };
         setContent(entry.content);
         setSaved(true);
       } catch (e) {
@@ -87,6 +107,25 @@ export default function MobileJournal() {
     // flush is stable enough; re-running on date is the point
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
+
+  // A sync pass changed the vault: an entry with no unsaved typing shows
+  // what is on disk now; typing is kept, and its save merges the two.
+  const vaultVersion = useAppStore((s) => s.vaultVersion);
+  useEffect(() => {
+    const shown = loadedDate.current;
+    if (!shown || !savedRef.current || vaultVersion === 0) return;
+    void (async () => {
+      try {
+        const entry = await invoke("journal_open", { date: shown });
+        if (!savedRef.current || loadedDate.current !== entry.date) return;
+        if (entry.content === contentRef.current) return;
+        baseRef.current = { date: entry.date, content: entry.content };
+        setContent(entry.content);
+      } catch {
+        // the vault is mid-reopen; the next update tries again
+      }
+    })();
+  }, [vaultVersion]);
 
   // Leaving the tab or backgrounding the app must not lose the tail of
   // what was typed - on a phone that is the common way to leave.

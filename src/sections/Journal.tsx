@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
+import { settleSave } from "./kb/util";
 import { lazy, Suspense } from "react";
 
 // CodeMirror and its language packs are the biggest thing in the bundle
@@ -23,6 +24,14 @@ export default function Journal() {
   const [saved, setSaved] = useState(true);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<OpenDoc | null>(null);
+  const docRef = useRef<OpenDoc | null>(null);
+  docRef.current = doc;
+  const savedRef = useRef(true);
+  savedRef.current = saved;
+  // the on-disk text the open entry's editor text derives from: each
+  // save sends it, so a sync pass that merged the phone's edit in under
+  // the editor gets merged with the typing instead of overwritten
+  const baseRef = useRef<OpenDoc | null>(null);
 
   const loadDates = useCallback(async () => {
     try {
@@ -35,8 +44,23 @@ export default function Journal() {
   const persist = useCallback(
     async (date: string, content: string) => {
       try {
-        await invoke("journal_save", { date, content });
+        const base = baseRef.current;
+        const written = await invoke("journal_save", {
+          date,
+          content,
+          base: base?.date === date ? base.content : null,
+        });
         setSaved(true);
+        const cur = docRef.current;
+        if (cur?.date === date) {
+          const settled = settleSave(content, written, cur.content);
+          baseRef.current = { date, content: settled.base };
+          if (settled.content !== cur.content) {
+            setDoc((prev) =>
+              prev?.date === date ? { ...prev, content: settled.content } : prev,
+            );
+          }
+        }
       } catch (e) {
         setError(e);
       }
@@ -72,6 +96,7 @@ export default function Journal() {
           { date },
         );
         if (seq !== openSeq.current) return;
+        baseRef.current = { date: entry.date, content: entry.content };
         setDoc({ date: entry.date, content: entry.content });
         setSaved(true);
         await loadDates();
@@ -87,6 +112,26 @@ export default function Journal() {
     if (!useAppStore.getState().journalOpenDate) void openEntry(todayISO());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // a sync pass (or anything else) changed the vault: an entry with no
+  // unsaved typing shows what is on disk now; one with typing keeps it,
+  // and its next save merges the two
+  const vaultVersion = useAppStore((s) => s.vaultVersion);
+  useEffect(() => {
+    const open = docRef.current;
+    if (!open || !savedRef.current || vaultVersion === 0) return;
+    void (async () => {
+      try {
+        const entry = await invoke("journal_open", { date: open.date });
+        if (!savedRef.current || docRef.current?.date !== entry.date) return;
+        if (entry.content === docRef.current.content) return;
+        baseRef.current = { date: entry.date, content: entry.content };
+        setDoc({ date: entry.date, content: entry.content });
+      } catch {
+        // the vault is mid-reopen; the next update tries again
+      }
+    })();
+  }, [vaultVersion]);
 
   // navigation requests from the search palette
   const journalOpenDate = useAppStore((s) => s.journalOpenDate);

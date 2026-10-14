@@ -14,12 +14,54 @@
 //! `SyncProvider` deals in - not native paths.
 #![allow(dead_code)]
 
-use crate::vault::WORK_DIR;
+use std::path::Path;
+use std::sync::RwLock;
+
+use crate::vault::{self, WORK_DIR};
+
+/// The user's own exclusions, at the vault root, in `.hypomnemaignore`'s
+/// syntax. It is itself synced, so both devices agree on what stays
+/// home - an exclusion only one side knew of would let the other keep
+/// sending the files.
+pub const SYNC_IGNORE_FILE: &str = ".hypomnemasyncignore";
+
+/// The Notes tree's recycle bin (`kb::delete`). Deleted notes are a
+/// local safety net, not shared content: shipping them would put one
+/// device's deletions in the other's trash.
+pub const TRASH_DIR: &str = ".trash";
+
+/// Patterns of `SYNC_IGNORE_FILE`, loaded at the start of every pass
+/// (`load_user_ignore`) so `is_synced` keeps its one-argument shape at
+/// the many call sites that walk paths.
+static USER_IGNORE: RwLock<Vec<String>> = RwLock::new(Vec::new());
+
+/// Rereads the vault's `SYNC_IGNORE_FILE`; called by each pass before it
+/// lists anything.
+pub fn load_user_ignore(local_root: &Path) {
+    let patterns = crate::kb::load_patterns(&local_root.join(SYNC_IGNORE_FILE));
+    *USER_IGNORE.write().unwrap_or_else(|e| e.into_inner()) = patterns;
+}
 
 /// Is this vault-relative path part of the shared vault?
 pub fn is_synced(path: &str) -> bool {
+    let patterns = USER_IGNORE.read().unwrap_or_else(|e| e.into_inner());
+    is_synced_with(path, &patterns)
+}
+
+/// `is_synced` against an explicit set of user patterns.
+pub fn is_synced_with(path: &str, user_ignore: &[String]) -> bool {
     let path = path.trim_start_matches('/');
     if path.is_empty() {
+        return false;
+    }
+    let parts: Vec<&str> = path.split('/').collect();
+    let name = parts.last().copied().unwrap_or("");
+    // a crashed write_atomic's leftover, and the trash at any depth (the
+    // Notes root can be a subfolder of the vault)
+    if vault::is_staging_file(name) || parts.contains(&TRASH_DIR) {
+        return false;
+    }
+    if is_user_ignored(&parts, user_ignore) {
         return false;
     }
     // Anything outside the app's working directory is user content -
@@ -60,9 +102,45 @@ pub fn is_synced(path: &str) -> bool {
     }
 }
 
+/// The user's patterns, with a folder rule (`drafts/`) also covering
+/// everything below it - the walk lists files only, never folders.
+fn is_user_ignored(parts: &[&str], patterns: &[String]) -> bool {
+    if patterns.is_empty() {
+        return false;
+    }
+    (1..=parts.len()).any(|n| {
+        let is_dir = n < parts.len();
+        crate::kb::is_ignored(patterns, parts[n - 1], &parts[..n].join("/"), is_dir)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn patterns(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn the_trash_and_staging_files_stay_local() {
+        assert!(!is_synced_with(".trash/20261015-101010-note.md", &[]));
+        assert!(!is_synced_with("notes/.trash/x.md", &[]));
+        assert!(!is_synced_with("journal/.2026-10-15.md.1234-0.tmp", &[]));
+        assert!(is_synced_with("journal/2026-10-15.md", &[]));
+    }
+
+    #[test]
+    fn user_patterns_exclude_files_and_whole_folders() {
+        let p = patterns(&[".git/", "*.pdf", "drafts/private.md"]);
+        assert!(!is_synced_with(".git/objects/ab/cd", &p));
+        assert!(!is_synced_with("papers/big.pdf", &p));
+        assert!(!is_synced_with("drafts/private.md", &p));
+        assert!(is_synced_with("drafts/public.md", &p));
+        assert!(is_synced_with(SYNC_IGNORE_FILE, &p));
+        // a folder rule never matches a file of that name
+        assert!(is_synced_with("notes/.git", &p));
+    }
 
     #[test]
     fn the_database_and_its_siblings_never_travel() {

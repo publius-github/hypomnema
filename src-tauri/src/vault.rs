@@ -231,6 +231,20 @@ impl Vault {
 /// watcher never reads a half-written state. std::fs::rename replaces
 /// an existing target on Windows too (MOVEFILE_REPLACE_EXISTING).
 pub fn write_atomic(path: &Path, content: &str) -> Result<()> {
+    write_atomic_bytes(path, content.as_bytes())
+}
+
+/// Name prefix/suffix of `write_atomic`'s staging files: `.<name>.<pid>-<seq>.tmp`.
+/// The Notes tree hides them and sync never ships one - a crash can
+/// leave one behind, and it is nobody's content.
+pub fn is_staging_file(name: &str) -> bool {
+    name.starts_with('.') && name.ends_with(".tmp")
+}
+
+/// `write_atomic` for raw bytes. The staging file is flushed to disk
+/// before the rename, or a power cut right after it can leave the
+/// target renamed into place but empty.
+pub fn write_atomic_bytes(path: &Path, content: &[u8]) -> Result<()> {
     let dir = path
         .parent()
         .ok_or_else(|| Error::State(format!("no parent dir for {}", path.display())))?;
@@ -241,7 +255,13 @@ pub fn write_atomic(path: &Path, content: &str) -> Result<()> {
     static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let tmp = dir.join(format!(".{name}.{}-{seq}.tmp", std::process::id()));
-    if let Err(e) = fs::write(&tmp, content) {
+    let staged = (|| -> std::io::Result<()> {
+        use std::io::Write;
+        let mut file = fs::File::create(&tmp)?;
+        file.write_all(content)?;
+        file.sync_all()
+    })();
+    if let Err(e) = staged {
         let _ = fs::remove_file(&tmp);
         return Err(e.into());
     }

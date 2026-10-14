@@ -29,6 +29,7 @@ mod sync_scheduler;
 mod sync_state;
 mod tasks;
 mod tasks_mirror;
+mod text_merge;
 mod vault;
 mod vault_places;
 mod views;

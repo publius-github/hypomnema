@@ -84,9 +84,10 @@ pub(crate) async fn kb_write(
     state: State<'_, AppState>,
     path: String,
     content: String,
+    base: Option<String>,
 ) -> Result<String> {
     let root = kb_root(&state)?;
-    let stamp = {
+    let (stamp, vault_root) = {
         let guard = state.vault.lock_or_recover();
         let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         // Markdown notes only, and never a journal entry reached through
@@ -95,9 +96,16 @@ pub(crate) async fn kb_write(
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
         let journal = root == vault.root && path.starts_with("journal/");
-        vault.config.notes_timestamps && markdown && !journal
+        (
+            vault.config.notes_timestamps && markdown && !journal,
+            vault.root.clone(),
+        )
     };
-    kb::write(&root, &path, &content, stamp)
+    let (text, kept_aside) = kb::write_from(&root, &path, &content, base.as_deref(), stamp)?;
+    if let Some(copy) = kept_aside {
+        crate::sync_conflicts::log_kept_aside(&vault_root, &root.join(&path), &copy);
+    }
+    Ok(text)
 }
 
 #[tauri::command]

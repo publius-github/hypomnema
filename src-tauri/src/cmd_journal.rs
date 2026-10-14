@@ -19,10 +19,18 @@ pub(crate) async fn journal_save(
     state: State<'_, AppState>,
     date: String,
     content: String,
-) -> Result<()> {
-    with_vault_root(&state, |root| journal::save_entry(root, &date, &content))?;
+    base: Option<String>,
+) -> Result<String> {
+    let text = with_vault_root(&state, |root| {
+        let saved = journal::save_entry_from(root, &date, &content, base.as_deref())?;
+        if let Some(copy) = &saved.kept_aside {
+            let file = journal::entry_path(root, &date)?;
+            crate::sync_conflicts::log_kept_aside(root, &file, copy);
+        }
+        Ok(saved.text)
+    })?;
     crate::sync_scheduler::poke();
-    Ok(())
+    Ok(text)
 }
 
 #[tauri::command]

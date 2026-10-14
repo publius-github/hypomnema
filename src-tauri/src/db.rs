@@ -298,6 +298,64 @@ const MIGRATIONS: &[&str] = &[
             updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
         WHERE id = NEW.id;
     END;",
+    // 020: millisecond merge stamps. Whole seconds made two devices'
+    // edits of one row within the same second a tie, and the merge could
+    // only pick a side arbitrarily. Rows keep their old second stamps;
+    // sync_merge compares the two forms as instants, not as strings.
+    "DROP TRIGGER tasks_stamp_insert;
+    CREATE TRIGGER tasks_stamp_insert AFTER INSERT ON tasks
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+        UPDATE tasks SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    DROP TRIGGER tasks_stamp_update;
+    CREATE TRIGGER tasks_stamp_update AFTER UPDATE ON tasks
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+        UPDATE tasks SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    DROP TRIGGER lists_stamp_insert;
+    CREATE TRIGGER lists_stamp_insert AFTER INSERT ON lists
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+        UPDATE lists SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    DROP TRIGGER lists_stamp_update;
+    CREATE TRIGGER lists_stamp_update AFTER UPDATE ON lists
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+        UPDATE lists SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    DROP TRIGGER list_groups_stamp_insert;
+    CREATE TRIGGER list_groups_stamp_insert AFTER INSERT ON list_groups
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+        UPDATE list_groups SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;
+    DROP TRIGGER list_groups_stamp_update;
+    CREATE TRIGGER list_groups_stamp_update AFTER UPDATE ON list_groups
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+        UPDATE list_groups SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE id = NEW.id;
+    END;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

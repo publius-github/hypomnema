@@ -125,6 +125,40 @@ pub fn with_copy(mut entries: Vec<ConflictEntry>, copy: &str) -> Vec<ConflictEnt
     entries
 }
 
+/// Logs a save from an editor that could not merge with what had changed
+/// on disk under it (`text_merge::reconcile_save`), so the copy it kept
+/// aside shows up under "to review" like a sync conflict's. Best effort:
+/// the save itself already happened, and a file outside the vault (a
+/// Notes folder elsewhere) has no vault-relative path to log.
+pub fn log_kept_aside(vault_root: &Path, file: &Path, copy: &Path) {
+    let relative = |p: &Path| {
+        p.strip_prefix(vault_root)
+            .ok()
+            .map(|r| r.to_string_lossy().replace('\\', "/"))
+    };
+    let (Some(path), Some(copy)) = (relative(file), relative(copy)) else {
+        return;
+    };
+    let at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let entries = with_copy(
+        entries_from(
+            &path,
+            &at,
+            [FieldConflict {
+                field: "<file>".into(),
+                kept: serde_json::Value::String(format!("the editor's text, now at {path}")),
+                kept_updated_by: String::new(),
+                discarded: serde_json::Value::String(format!(
+                    "the version changed under the editor, kept as {copy}"
+                )),
+                discarded_updated_by: String::new(),
+            }],
+        ),
+        &copy,
+    );
+    let _ = append(vault_root, entries);
+}
+
 /// Who a stamp names, in words: device ids mean nothing to a person, and
 /// with one phone and one computer "this device" / "the other device" is
 /// the whole story. The engine's untouched stamp is nobody.

@@ -96,7 +96,10 @@ export interface Commands {
   inbox_list: { args: void; result: List };
   journal_list: { args: void; result: string[] };
   journal_open: { args: { date: string }; result: JournalEntry };
-  journal_save: { args: { date: string; content: string }; result: void };
+  journal_save: {
+    args: { date: string; content: string; base: string | null };
+    result: string;
+  };
   journal_search: { args: { query: string }; result: JournalSearchHit[] };
   kb_abs_path: { args: { path: string }; result: string };
   kb_backlinks: { args: { path: string }; result: BacklinksResult };
@@ -110,7 +113,10 @@ export interface Commands {
   kb_search: { args: { query: string }; result: KbSearchHit[] };
   kb_status: { args: void; result: KbStatus };
   kb_tree: { args: void; result: KbNode[] };
-  kb_write: { args: { path: string; content: string }; result: string };
+  kb_write: {
+    args: { path: string; content: string; base: string | null };
+    result: string;
+  };
   list_archive: { args: { id: number }; result: void };
   list_create: { args: { name: string; color: string | null }; result: List };
   list_group_create: { args: { name: string }; result: ListGroup };

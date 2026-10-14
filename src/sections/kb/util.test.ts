@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noteBodyOffset, rebaseStamp } from "./util";
+import { noteBodyOffset, rebaseStamp, settleSave } from "./util";
 
 const header = (created: string, edited: string) =>
   `Created: ${created}\nLast edited: ${edited}\n\n`;
@@ -37,5 +37,32 @@ describe("noteBodyOffset", () => {
     const stamp = header("2026-09-12 10:00", "2026-09-12 10:00");
     expect(noteBodyOffset(stamp + "body")).toBe(stamp.length);
     expect(noteBodyOffset("no header")).toBe(0);
+  });
+});
+
+describe("settleSave", () => {
+  it("keeps the shown text when the save wrote it as sent", () => {
+    expect(settleSave("a", "a", "ab")).toEqual({ content: "ab", base: "a" });
+  });
+
+  it("takes a merged result when nothing was typed meanwhile", () => {
+    expect(settleSave("a\nb\n", "a\nX\nb\n", "a\nb\n")).toEqual({
+      content: "a\nX\nb\n",
+      base: "a\nX\nb\n",
+    });
+  });
+
+  it("carries typing at the end over a change merged in above it", () => {
+    expect(settleSave("a\nb", "X\na\nb", "a\nb!")).toEqual({
+      content: "X\na\nb!",
+      base: "X\na\nb",
+    });
+  });
+
+  it("keeps typing it cannot rebase, measured against what was sent", () => {
+    expect(settleSave("a\nb", "a\nX", "A\nb")).toEqual({
+      content: "A\nb",
+      base: "a\nb",
+    });
   });
 });

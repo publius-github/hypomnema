@@ -163,14 +163,21 @@ fn merge_both_present(
     }
 }
 
-/// A tied timestamp keeps `a` - arbitrary but deterministic. Callers
-/// should stamp `updated_at` with enough precision that a real tie
-/// between two different devices is rare.
+/// Compares the stamps as instants: rows stamped before migration 020
+/// carry whole seconds (`...:05Z`), newer ones milliseconds
+/// (`...:05.120Z`), and as strings `.` sorts before `Z`. A true tie is
+/// broken by the device id, so both devices pick the same side and
+/// converge - "keep mine" would have each keep its own.
 fn record_is_newer(a: &Record, b: &Record) -> bool {
-    matches!(
-        a.updated_at.cmp(&b.updated_at),
-        Ordering::Greater | Ordering::Equal
-    )
+    let instant = |s: &str| chrono::DateTime::parse_from_rfc3339(s).ok();
+    let by_time = match (instant(&a.updated_at), instant(&b.updated_at)) {
+        (Some(x), Some(y)) => x.cmp(&y),
+        _ => a.updated_at.cmp(&b.updated_at),
+    };
+    match by_time.then_with(|| a.updated_by.cmp(&b.updated_by)) {
+        Ordering::Greater | Ordering::Equal => true,
+        Ordering::Less => false,
+    }
 }
 
 /// `rule_runs`' dedup ledger merges as a plain set union of
@@ -326,5 +333,21 @@ mod tests {
         assert_eq!(merged.len(), 3);
         assert!(merged.contains(&("daily-standup".to_string(), "2026-09-09".to_string())));
         assert!(merged.contains(&("weekly-review".to_string(), "2026-W36".to_string())));
+    }
+
+    #[test]
+    fn second_and_millisecond_stamps_compare_as_instants() {
+        let a = record("2026-10-15T10:00:05.120Z", "a", Map::new());
+        let b = record("2026-10-15T10:00:05Z", "b", Map::new());
+        assert!(record_is_newer(&a, &b));
+        assert!(!record_is_newer(&b, &a));
+    }
+
+    #[test]
+    fn a_tie_picks_the_same_side_on_both_devices() {
+        let a = record("2026-10-15T10:00:05Z", "device-a", Map::new());
+        let b = record("2026-10-15T10:00:05Z", "device-b", Map::new());
+        assert!(record_is_newer(&b, &a));
+        assert!(!record_is_newer(&a, &b));
     }
 }

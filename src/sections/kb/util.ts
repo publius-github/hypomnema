@@ -65,3 +65,25 @@ export function rebaseStamp(
   if (!current.startsWith(sentHead)) return null;
   return written.slice(0, written.length - tail) + current.slice(sentHead.length);
 }
+
+/**
+ * Where an editor stands after a save of `sent` came back as `written`
+ * (the text now on disk: stamped, or merged with a change that landed
+ * under the editor) while it shows `current`. `content` is what to show
+ * now; `base` is the text the next save is measured against - what the
+ * shown text derives from, so the backend's three-way merge keeps both
+ * the typing and whatever came in from elsewhere.
+ */
+export function settleSave(
+  sent: string,
+  written: string,
+  current: string,
+): { content: string; base: string } {
+  if (written === sent) return { content: current, base: sent };
+  if (current === sent) return { content: written, base: written };
+  const rebased = rebaseStamp(sent, written, current);
+  if (rebased !== null) return { content: rebased, base: written };
+  // typed into the part that changed: keep the typing; the next save
+  // merges `written`'s changes back in against `sent`
+  return { content: current, base: sent };
+}

@@ -284,6 +284,7 @@ pub fn pull_vault<P: SyncProvider>(
     local_root: &Path,
     mut on_progress: impl FnMut(usize, usize),
 ) -> Result<PullReport> {
+    crate::sync_paths::load_user_ignore(local_root);
     // list_changes rather than a plain listing: it carries each file's
     // revision, which is what makes "already have this one" answerable.
     let (changes, _cursor) = provider.list_changes(&SyncCursor::default())?;
@@ -376,7 +377,7 @@ fn fetch_one<P: SyncProvider>(
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&target, &bytes)?;
+    crate::vault::write_atomic_bytes(&target, &bytes)?;
     // The first sync pass after a pull merges the snapshot three-way; with
     // no base every row the other device deleted since would come back.
     if crate::sync_cycle::keeps_base(relative) {

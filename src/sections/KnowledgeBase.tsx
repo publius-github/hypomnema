@@ -16,10 +16,21 @@ import {
   flattenAll,
   flattenFiles,
   parentDirOf,
-  rebaseStamp,
+  settleSave,
 } from "./kb/util";
 
 import type { KbNode, KbSearchHit } from "../types";
+
+/**
+ * Where `kb_rename` puts `node` given `to`: a file whose new name has no
+ * extension keeps its old one (the backend's rule), a folder takes the
+ * name as typed.
+ */
+function renamedPath(node: KbNode, to: string): string {
+  if (node.is_dir || /\.[^/.]+$/.test(basenameOf(to))) return to;
+  const ext = /\.[^/.]+$/.exec(basenameOf(node.path));
+  return ext ? to + ext[0] : to;
+}
 
 export default function KnowledgeBase() {
   const config = useAppStore((s) => s.config);
@@ -58,6 +69,10 @@ export default function KnowledgeBase() {
   currentRef.current = current;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<OpenDoc | null>(null);
+  // the on-disk text the open note's editor text derives from: each save
+  // sends it, so a change that landed under the editor (a sync merging
+  // the other device's edit) is merged in rather than overwritten
+  const baseRef = useRef<{ path: string; text: string } | null>(null);
 
   const kbPath = config?.kb_path?.trim() ?? "";
 
@@ -84,6 +99,9 @@ export default function KnowledgeBase() {
       if (doc && doc.kind === "note" && savedRef.current) {
         try {
           const content = await invoke("kb_read", { path: doc.path });
+          // typed meanwhile: the next save merges against the old base
+          if (!savedRef.current) return;
+          baseRef.current = { path: doc.path, text: content };
           setCurrent((prev) =>
             prev && prev.path === doc.path ? { ...prev, content } : prev,
           );
@@ -138,6 +156,7 @@ export default function KnowledgeBase() {
     try {
       const content = await invoke("kb_read", { path });
       if (seq !== openSeq.current) return;
+      baseRef.current = { path, text: content };
       setCurrent({ kind: "note", path, content });
       useAppStore.getState().setKbCurrent({ kind: "note", path });
       setConfigErrors([]);
@@ -184,19 +203,27 @@ export default function KnowledgeBase() {
         setConfigErrors(errors);
         if (errors.length === 0) setSaved(true);
       } else {
+        const base = baseRef.current;
         const written = await invoke("kb_write", {
           path: doc.path,
           content: doc.content,
+          base: base?.path === doc.path ? base.text : null,
         });
         setSaved(true);
-        // the save stamped the note's Created / Last edited header: the
-        // editor takes it over without losing what was typed meanwhile
-        if (written !== doc.content) {
-          setCurrent((cur) => {
-            if (!cur || cur.kind !== "note" || cur.path !== doc.path) return cur;
-            const next = rebaseStamp(doc.content, written, cur.content);
-            return next === null ? cur : { ...cur, content: next };
-          });
+        // the save stamped the note's Created / Last edited header, or
+        // merged in a change made elsewhere: the editor takes it over
+        // without losing what was typed meanwhile
+        const cur = currentRef.current;
+        if (cur && cur.kind === "note" && cur.path === doc.path) {
+          const settled = settleSave(doc.content, written, cur.content);
+          baseRef.current = { path: doc.path, text: settled.base };
+          if (settled.content !== cur.content) {
+            setCurrent((prev) =>
+              prev && prev.path === doc.path
+                ? { ...prev, content: settled.content }
+                : prev,
+            );
+          }
         }
       }
     } catch (e) {
@@ -313,10 +340,16 @@ export default function KnowledgeBase() {
         continue;
       }
       try {
-        dropPendingFor(from);
+        // the edit still in the debounce lands before the move, not
+        // after it under the old path
+        await flushPending();
         await invoke("kb_rename", { from, to: target });
-        if (current?.kind === "note" && current.path === from) {
+        const open = currentRef.current;
+        if (open?.kind === "note" && open.path === from) {
           reopen = target;
+        } else if (open?.kind === "note" && open.path.startsWith(`${from}/`)) {
+          // the moved folder holds the open note
+          reopen = target + open.path.slice(from.length);
         }
       } catch (e) {
         setError(e);
@@ -445,13 +478,20 @@ export default function KnowledgeBase() {
 
   const renameFile = async (node: KbNode, to: string) => {
     setDialog(null);
-    dropPendingFor(node.path);
+    // the edit still in the debounce lands under the old name first; a
+    // write after the rename would recreate the old path
+    await flushPending();
     try {
       await invoke("kb_rename", { from: node.path, to });
       await loadTree();
-      if (current?.path === node.path) {
-        setCurrent(null);
-        useAppStore.getState().setKbCurrent(null);
+      // the open note (or the folder holding it) moved: follow it
+      const open = currentRef.current;
+      if (open?.kind === "note") {
+        const target = renamedPath(node, to);
+        if (open.path === node.path) await openFile(target);
+        else if (open.path.startsWith(`${node.path}/`)) {
+          await openFile(target + open.path.slice(node.path.length));
+        }
       }
     } catch (e) {
       setError(e);
