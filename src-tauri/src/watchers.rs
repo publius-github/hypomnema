@@ -102,6 +102,7 @@ pub(crate) fn start_export_worker(app: AppHandle) {
                     true,
                     &state.mirror_written,
                 );
+                crate::sync_scheduler::poke();
             }
         }
     });
@@ -452,6 +453,7 @@ pub(crate) fn ensure_kb_watcher(
         while rx.recv().is_ok() {
             std::thread::sleep(Duration::from_millis(400));
             while rx.try_recv().is_ok() {}
+            crate::sync_scheduler::poke();
             let _ = app.emit("kb-updated", ());
         }
     });

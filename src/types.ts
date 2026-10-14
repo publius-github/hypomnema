@@ -23,6 +23,8 @@ export type { DropboxStatus } from "./bindings/DropboxStatus";
 export type { DropboxSync } from "./bindings/DropboxSync";
 export type { ConflictEntry } from "./bindings/ConflictEntry";
 export type { SyncStanding } from "./bindings/SyncStanding";
+export type { GoogleStatus } from "./bindings/GoogleStatus";
+export type { SyncActivity } from "./bindings/SyncActivity";
 export type { LockState } from "./bindings/LockState";
 export type { VaultPlace } from "./bindings/VaultPlace";
 export type { DirListing } from "./bindings/DirListing";

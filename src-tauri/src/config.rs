@@ -126,20 +126,26 @@ pub struct AppConfig {
     /// <vault>/.hypomnema/state/ (tasks, lists, engine ledgers), so a
     /// vault synced without its .db rebuilds the database on open.
     pub state_snapshot: bool,
-    /// Run a Dropbox sync pass on its own, without the user pressing
-    /// Sync now. Mobile only - the desktop reaches its vault through the
-    /// filesystem and has nothing to sync (docs/android/ROADMAP.md
-    /// Phase 3). Off leaves sync entirely manual.
+    /// Run sync passes on their own, without the user pressing Sync now
+    /// (the phone's Dropbox link; the desktop's Google sign-in, through
+    /// `sync_scheduler.rs`). Off leaves sync entirely manual.
     pub sync_auto: bool,
-    /// Minutes between automatic passes while the app is open and in
-    /// front. A phone on mobile data pays for every pass, and a vault
-    /// that changes a few times an hour does not need one a minute.
+    /// Minutes between automatic passes while the app is open. A phone
+    /// on mobile data pays for every pass, and a vault that changes a few
+    /// times an hour does not need one a minute.
     pub sync_interval_minutes: u32,
-    /// Also sync when the app goes to the background. This is the pass
-    /// that matters most on a phone: Android freezes a backgrounded app,
-    /// so without it the last thing done before locking the screen sits
-    /// on the device until the app is opened again.
+    /// Also sync when the app goes to the background (phone) or quits
+    /// (desktop). On a phone this is the pass that matters most: Android
+    /// freezes a backgrounded app, so without it the last thing done
+    /// before locking the screen sits on the device until the app is
+    /// opened again.
     pub sync_on_leave: bool,
+    /// Desktop: seconds after the last local edit before a pass sends
+    /// it, so a burst of edits goes up once.
+    pub sync_debounce_seconds: u32,
+    /// Desktop: sync when the main window comes to the front (at most
+    /// once a minute), to bring down what the other device did meanwhile.
+    pub sync_on_focus: bool,
     /// Stop a pass in which more than this share (percent) of the files
     /// this device had synced is gone from the remote at once, instead of
     /// deleting them here too: a wiped remote or a different account
@@ -533,6 +539,8 @@ impl Default for AppConfig {
             sync_auto: true,
             sync_interval_minutes: 15,
             sync_on_leave: true,
+            sync_debounce_seconds: 60,
+            sync_on_focus: true,
             sync_mass_delete_guard_percent: 30,
             // Trust the WebView first; a floor is for the device where
             // it reports nothing, and guessing one by default would put
@@ -654,6 +662,7 @@ impl AppConfig {
         // A pass under a minute apart would spend the battery on
         // listings; a day apart is not a sync, it is a weekly backup.
         self.sync_interval_minutes = self.sync_interval_minutes.clamp(1, 720);
+        self.sync_debounce_seconds = self.sync_debounce_seconds.clamp(10, 3600);
         // Under 5% a routine cleanup of old notes would trip it.
         self.sync_mass_delete_guard_percent = self.sync_mass_delete_guard_percent.clamp(5, 100);
         // A status bar is ~24-48dp and a navigation bar about the same;
@@ -935,6 +944,11 @@ impl AppConfig {
                 self.sync_interval_minutes.to_string(),
             ),
             ("sync_on_leave", self.sync_on_leave.to_string()),
+            (
+                "sync_debounce_seconds",
+                self.sync_debounce_seconds.to_string(),
+            ),
+            ("sync_on_focus", self.sync_on_focus.to_string()),
             (
                 "sync_mass_delete_guard_percent",
                 self.sync_mass_delete_guard_percent.to_string(),

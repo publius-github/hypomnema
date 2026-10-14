@@ -164,25 +164,35 @@ notify_snooze_minutes: number,
  */
 state_snapshot: boolean, 
 /**
- * Run a Dropbox sync pass on its own, without the user pressing
- * Sync now. Mobile only - the desktop reaches its vault through the
- * filesystem and has nothing to sync (docs/android/ROADMAP.md
- * Phase 3). Off leaves sync entirely manual.
+ * Run sync passes on their own, without the user pressing Sync now
+ * (the phone's Dropbox link; the desktop's Google sign-in, through
+ * `sync_scheduler.rs`). Off leaves sync entirely manual.
  */
 sync_auto: boolean, 
 /**
- * Minutes between automatic passes while the app is open and in
- * front. A phone on mobile data pays for every pass, and a vault
- * that changes a few times an hour does not need one a minute.
+ * Minutes between automatic passes while the app is open. A phone
+ * on mobile data pays for every pass, and a vault that changes a few
+ * times an hour does not need one a minute.
  */
 sync_interval_minutes: number, 
 /**
- * Also sync when the app goes to the background. This is the pass
- * that matters most on a phone: Android freezes a backgrounded app,
- * so without it the last thing done before locking the screen sits
- * on the device until the app is opened again.
+ * Also sync when the app goes to the background (phone) or quits
+ * (desktop). On a phone this is the pass that matters most: Android
+ * freezes a backgrounded app, so without it the last thing done
+ * before locking the screen sits on the device until the app is
+ * opened again.
  */
 sync_on_leave: boolean, 
+/**
+ * Desktop: seconds after the last local edit before a pass sends
+ * it, so a burst of edits goes up once.
+ */
+sync_debounce_seconds: number, 
+/**
+ * Desktop: sync when the main window comes to the front (at most
+ * once a minute), to bring down what the other device did meanwhile.
+ */
+sync_on_focus: boolean, 
 /**
  * Stop a pass in which more than this share (percent) of the files
  * this device had synced is gone from the remote at once, instead of

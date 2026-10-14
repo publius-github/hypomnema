@@ -25,6 +25,7 @@ import type {
   DropboxPush,
   DropboxStatus,
   DropboxSync,
+  GoogleStatus,
   EngineOutcome,
   HabitRate,
   JournalEntry,
@@ -93,6 +94,10 @@ export interface Commands {
   dropbox_sync: { args: void; result: DropboxSync };
   dropbox_write_marker: { args: void; result: string };
   engine_run: { args: void; result: EngineOutcome };
+  google_sign_in: { args: void; result: GoogleStatus };
+  google_sign_in_cancel: { args: void; result: void };
+  google_sign_out: { args: void; result: GoogleStatus };
+  google_status: { args: void; result: GoogleStatus };
   focus_phrase_add: { args: { phrase: string }; result: void };
   focus_phrase_edit: {
     args: { index: number; replacement: string | null };
@@ -177,6 +182,7 @@ export interface Commands {
   sync_conflicts_clear: { args: void; result: void };
   sync_conflicts_list: { args: void; result: ConflictEntry[] };
   sync_reset_space: { args: void; result: void };
+  sync_now: { args: void; result: DropboxSync };
   sync_standing: { args: void; result: SyncStanding };
   task_create: { args: { new: NewTask }; result: Task };
   task_delete: { args: { id: number }; result: DeletedTasks };

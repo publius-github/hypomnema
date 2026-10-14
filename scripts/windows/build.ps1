@@ -85,6 +85,26 @@ function Install-FrontendDependencies {
   npm ci
 }
 
+# The Google desktop client secret is compiled in (google_auth.rs). A
+# shell started before the variable was set - or from WSL - lacks it in
+# its process environment, so fall back to the user-level value. Without
+# it the build still succeeds, with Google sign-in disabled.
+function Import-GoogleClientSecret {
+  $name = 'HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET'
+  if (-not [Environment]::GetEnvironmentVariable($name, 'Process')) {
+    $userValue = [Environment]::GetEnvironmentVariable($name, 'User')
+    if ($userValue) {
+      [Environment]::SetEnvironmentVariable($name, $userValue, 'Process')
+    }
+  }
+  if ([Environment]::GetEnvironmentVariable($name, 'Process')) {
+    Write-Info "Google client secret found; Google sign-in enabled"
+  }
+  else {
+    Write-WarnLog "$name is not set; this build cannot sign in to Google"
+  }
+}
+
 function Invoke-TauriBuild {
   param([string]$RepoRoot)
 
@@ -171,6 +191,7 @@ function Main {
     Assert-RustToolchain -RepoRoot $repoRoot
     Assert-WindowsHost
     Install-FrontendDependencies
+    Import-GoogleClientSecret
     Invoke-TauriBuild -RepoRoot $repoRoot
     Publish-ReleaseArtifact -RepoRoot $repoRoot
     Write-Info "Build finished"

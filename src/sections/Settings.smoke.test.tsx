@@ -76,6 +76,51 @@ describe("Settings smoke", () => {
     expect(screen.getByText("List columns")).toBeTruthy();
   });
 
+  it("offers Google sign-in on the Sync tab and signs in", async () => {
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        config_set: () => undefined,
+        google_status: () => ({
+          available: true,
+          signed_in: false,
+          email: null,
+          name: null,
+        }),
+        google_sign_in: () => ({
+          available: true,
+          signed_in: true,
+          email: "me@example.com",
+          name: "Me",
+        }),
+        sync_standing: () => ({
+          pending: 0,
+          last_pass_at: null,
+          last_error: null,
+        }),
+        sync_conflicts_list: () => [],
+      }),
+    );
+    useAppStore.setState({
+      vaultPath: "C:\\Users\\me\\Dropbox\\vault",
+      config: defaultConfig,
+      defaults: defaultConfig,
+      profileKeys: [],
+      profiles: [],
+    });
+    render(<Settings />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sync" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sign in with Google" }),
+    );
+
+    expect(await screen.findByText("me@example.com")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sync now" })).toBeTruthy();
+    // a vault inside a Dropbox folder would be synced twice
+    expect(screen.getByText(/sits inside a Dropbox folder/)).toBeTruthy();
+  });
+
   it("finds a setting on another tab and jumps to its group", async () => {
     seed();
     render(<Settings />);

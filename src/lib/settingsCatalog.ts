@@ -28,6 +28,7 @@ export const SETTINGS_TABS = [
   { id: "recurring", label: "Recurring & calendar" },
   { id: "capture", label: "Capture & alerts" },
   { id: "data", label: "Data" },
+  { id: "sync", label: "Sync" },
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];
@@ -60,7 +61,9 @@ export type SettingsGroupId =
   | "data.notes"
   | "data.mirror"
   | "data.backups"
-  | "data.cleanup";
+  | "data.cleanup"
+  | "sync.account"
+  | "sync.schedule";
 
 type GroupDef = {
   tab: SettingsTab;
@@ -131,6 +134,14 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
     always: true,
     noReset: true,
   },
+
+  "sync.account": {
+    tab: "sync",
+    title: "Google account",
+    always: true,
+    noReset: true,
+  },
+  "sync.schedule": { tab: "sync", title: "When to sync" },
 };
 
 export type CatalogEntry = {
@@ -291,6 +302,14 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "tasks_mirror_today_days", label: "Days covered by today.md", group: "data.mirror" },
 
   { key: "backup_keep", label: "Backups to keep", group: "data.backups", terms: "snapshots restore" },
+
+  // --- Sync -------------------------------------------------------
+  { key: "sync_auto", label: "Sync automatically", group: "sync.schedule", terms: "google drive auto" },
+  { key: "sync_interval_minutes", label: "Minutes between passes", group: "sync.schedule", terms: "interval period" },
+  { key: "sync_debounce_seconds", label: "Seconds after an edit", group: "sync.schedule", terms: "debounce delay" },
+  { key: "sync_on_focus", label: "Sync when the window comes to the front", group: "sync.schedule", terms: "focus" },
+  { key: "sync_on_leave", label: "Sync on quit", group: "sync.schedule", terms: "exit close background" },
+  { key: "sync_mass_delete_guard_percent", label: "Mass-deletion guard", group: "sync.schedule", terms: "wiped remote safety percent" },
 ];
 
 /**
@@ -309,13 +328,6 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
   {
     key: "days_today_only",
     why: "the same toggle on the Days page header",
-  },
-  { key: "sync_auto", why: "mobile only - the desktop reaches its vault through the filesystem" },
-  { key: "sync_interval_minutes", why: "mobile only" },
-  { key: "sync_on_leave", why: "mobile only" },
-  {
-    key: "sync_mass_delete_guard_percent",
-    why: "mobile only until the desktop gets its own sync",
   },
   { key: "mobile_safe_area_top", why: "mobile only - status bar inset floor" },
   { key: "mobile_safe_area_bottom", why: "mobile only - gesture bar inset floor" },

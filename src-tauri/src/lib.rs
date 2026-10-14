@@ -8,6 +8,8 @@ mod device;
 mod dropbox_link;
 mod engine;
 mod error;
+mod google_auth;
+mod google_link;
 mod journal;
 mod kb;
 mod profiles;
@@ -24,6 +26,7 @@ mod sync_merge;
 mod sync_paths;
 mod sync_provider;
 mod sync_push;
+mod sync_scheduler;
 mod sync_state;
 mod tasks;
 mod tasks_mirror;
@@ -105,6 +108,8 @@ pub fn run() {
                 install_panic_logger(dir.join("hypomnema.log"));
             }
             start_export_worker(app.handle().clone());
+            #[cfg(desktop)]
+            sync_scheduler::start(app.handle().clone());
             // the quick-capture window is pre-created hidden: a WebView
             // spun up on demand takes long enough to defeat "quick".
             // Desktop-only - mobile's quick-add is in-app (§6), not a
@@ -157,6 +162,10 @@ pub fn run() {
             // closing the main window hides it to the tray so the
             // capture shortcut and due-task notifications stay alive
             if window.label() == "main" {
+                #[cfg(desktop)]
+                if let tauri::WindowEvent::Focused(true) = event {
+                    sync_scheduler::focused();
+                }
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     let state = window.state::<AppState>();
                     let hide = {
@@ -275,6 +284,11 @@ pub fn run() {
             cmd_sync::dropbox_push_vault,
             cmd_sync::dropbox_sync,
             cmd_sync::sync_reset_space,
+            cmd_sync::sync_now,
+            cmd_sync::google_status,
+            cmd_sync::google_sign_in,
+            cmd_sync::google_sign_in_cancel,
+            cmd_sync::google_sign_out,
             cmd_sync::sync_conflicts_list,
             cmd_sync::sync_conflicts_clear,
             cmd_sync::sync_standing,
@@ -284,6 +298,13 @@ pub fn run() {
             cmd_sync::app_lock_now,
             cmd_sync::app_unlock
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running hypomnema");
+        .build(tauri::generate_context!())
+        .expect("error while building hypomnema")
+        .run(|_app, _event| {
+            // quitting sends what is still waiting to go up (best effort)
+            #[cfg(desktop)]
+            if let tauri::RunEvent::Exit = _event {
+                sync_scheduler::on_exit(_app);
+            }
+        });
 }

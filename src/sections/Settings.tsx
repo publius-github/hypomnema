@@ -19,6 +19,7 @@ import ColumnsTab from "./settings/ColumnsTab";
 import RecurringTab from "./settings/RecurringTab";
 import CaptureTab from "./settings/CaptureTab";
 import DataTab from "./settings/DataTab";
+import SyncTab from "./settings/SyncTab";
 
 /**
  * One tab per thing being configured rather than per kind of setting:
@@ -129,6 +130,7 @@ export default function Settings() {
           {tab === "recurring" && <RecurringTab />}
           {tab === "capture" && <CaptureTab />}
           {tab === "data" && <DataTab />}
+          {tab === "sync" && <SyncTab />}
         </div>
       </SettingsFocusContext.Provider>
     </div>

@@ -453,6 +453,45 @@ impl<T: GdriveTransport> SyncProvider for GdriveApiSyncProvider<T> {
     }
 }
 
+/// The signed-in Google account, as Drive reports it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DriveUser {
+    pub email: String,
+    pub name: String,
+    /// Stable per account; names this device's sync space for it.
+    pub permission_id: String,
+}
+
+/// Who the token belongs to (`about.get`; `drive.appdata` is enough).
+pub fn fetch_user<T: GdriveTransport>(transport: &T) -> Result<DriveUser> {
+    let reply = transport.send(&Request::get(format!(
+        "{API}/about?fields=user(displayName,emailAddress,permissionId)"
+    )))?;
+    if !(200..300).contains(&reply.status) {
+        return Err(error_from(&reply));
+    }
+    let about: Value = serde_json::from_slice(&reply.body)
+        .map_err(|e| Error::State(format!("bad Google Drive JSON response: {e}")))?;
+    let field = |key: &str| {
+        about
+            .pointer(&format!("/user/{key}"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let user = DriveUser {
+        email: field("emailAddress"),
+        name: field("displayName"),
+        permission_id: field("permissionId"),
+    };
+    if user.permission_id.is_empty() {
+        return Err(Error::State(format!(
+            "Google Drive did not say which account this is: {about}"
+        )));
+    }
+    Ok(user)
+}
+
 /// One file as `files.list` reports it.
 #[derive(Debug, Clone)]
 struct Listed {
@@ -529,7 +568,7 @@ fn escape_query(value: &str) -> String {
 }
 
 /// RFC 3986 percent-encoding for a query parameter value.
-fn percent_encode(value: &str) -> String {
+pub(crate) fn percent_encode(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for byte in value.bytes() {
         match byte {
@@ -1013,6 +1052,21 @@ mod tests {
             body: b"{}".to_vec(),
         });
         assert!(err.to_string().contains("sign in again"));
+    }
+
+    #[test]
+    fn the_account_is_read_from_about() {
+        let transport = MockTransport::default();
+        transport.reply(
+            200,
+            json!({ "user": { "displayName": "A", "emailAddress": "a@x.com", "permissionId": "0712" } }),
+        );
+
+        let user = fetch_user(&transport).unwrap();
+
+        assert_eq!(user.email, "a@x.com");
+        assert_eq!(user.permission_id, "0712");
+        assert!(transport.requests()[0].url.contains("/about?fields=user("));
     }
 
     #[test]

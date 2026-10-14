@@ -20,7 +20,9 @@ pub(crate) async fn journal_save(
     date: String,
     content: String,
 ) -> Result<()> {
-    with_vault_root(&state, |root| journal::save_entry(root, &date, &content))
+    with_vault_root(&state, |root| journal::save_entry(root, &date, &content))?;
+    crate::sync_scheduler::poke();
+    Ok(())
 }
 
 #[tauri::command]
