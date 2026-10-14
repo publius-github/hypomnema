@@ -26,6 +26,10 @@ import {
 import { useEditTask } from "./editing";
 import type { Task } from "../types";
 
+/** A status badge on the title line: small enough not to outweigh it. */
+const BADGE =
+  "whitespace-nowrap rounded px-1 text-[10px] font-semibold uppercase leading-4 tracking-wide";
+
 /**
  * One task, sized for a thumb and legible at a glance.
  *
@@ -204,11 +208,11 @@ export default function TaskRow({
             });
           }}
           aria-label={`Status: ${STATUS_LABEL[task.status]}`}
-          className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-3 pr-1 text-left"
+          className="flex min-w-0 flex-1 items-start gap-2.5 py-2 pl-2.5 pr-1 text-left"
         >
           <span
             aria-hidden
-            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${statusBoxClass(
+            className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded border ${statusBoxClass(
               task.status,
             )}`}
             style={statusBoxStyle(task.status)}
@@ -262,38 +266,38 @@ export default function TaskRow({
                 )}
                 {text}
               </span>
-            </span>
-            <span
-              className="mt-1 flex flex-wrap items-center gap-1.5 text-content-muted empty:hidden"
-              style={{ fontSize: chipSize }}
-            >
+              {/* the badges ride the title's own line and wrap after it,
+                  rather than taking a line of their own under every row */}
               {task.priority && (
                 // the day view's loud label; inside a list the Priority
                 // plate already says it, so a star is enough
                 showList ? (
-                  <span className="rounded bg-warn/15 px-1 font-semibold uppercase text-warn">
+                  <span className={`${BADGE} bg-warn/15 text-warn`}>
                     priority
                   </span>
                 ) : (
                   <span className="text-warn">★</span>
                 )
               )}
-              {task.time && <span>{task.time}</span>}
+              {task.time && (
+                <span className="text-xs text-content-muted">{task.time}</span>
+              )}
               {task.overdue && !closed && (
-                <span className="rounded bg-danger/15 px-1 font-semibold uppercase text-danger">
+                <span className={`${BADGE} bg-danger/15 text-danger`}>
                   overdue
                 </span>
               )}
               {habitRate && (habitRate.alert || !rateAlertOnly) && (
                 <span
-                  className={`whitespace-nowrap rounded px-1 ${
-                    habitRate.alert ? "font-semibold" : "bg-line/40"
+                  title="Completion rate"
+                  className={`${BADGE} ${
+                    habitRate.alert ? "" : "bg-line/40 text-content-muted"
                   }`}
                   style={
                     habitRate.alert ? tintStyle(rateAlertColor) : undefined
                   }
                 >
-                  Rate: {habitRate.rate}%
+                  rate {habitRate.rate}%
                 </span>
               )}
             </span>
@@ -311,7 +315,7 @@ export default function TaskRow({
         <button
           onClick={() => setOpen((v) => !v)}
           aria-label="Task actions"
-          className="px-4 text-content-muted"
+          className="px-3 text-content-muted"
         >
           ⋯
         </button>
