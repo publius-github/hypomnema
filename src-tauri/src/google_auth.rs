@@ -176,7 +176,9 @@ impl OauthTransport for GoogleOauthTransport {
 /// revoked (from the Google account page) or expired.
 fn oauth_error(code: u16, body: &str) -> Error {
     if body.contains("invalid_grant") {
-        return Error::State("Google access was revoked or has expired - sign in again".into());
+        return Error::SignInExpired(
+            "Google access was revoked or has expired - sign in again".into(),
+        );
     }
     Error::State(format!("Google OAuth error ({code}): {body}"))
 }

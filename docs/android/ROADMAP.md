@@ -609,6 +609,14 @@ extension, REQUIREMENTS.md §5-A) would need its own spike from scratch.
     *result* (`startActivityForResult` - so a SAF folder picker) or a
     component the OS instantiates on its own (a WorkManager worker, an
     intent filter). Those three, and nothing else.
+  - **Decided (2026-10-14): a Tauri plugin with its own source set.**
+    Google sign-in needed an activity result (Play services' consent
+    screen), so `src-tauri/plugins/google-auth/` now exists: a crate whose
+    `android/` Gradle module is tracked here and which Tauri's build
+    scripts wire into `gen/android` on every build. Background sync and
+    share-sheet capture take the same road when they are built - a
+    worker or an intent filter in a plugin's own `AndroidManifest.xml`
+    merges into the app's, so `gen/android` can stay untracked.
 
 ## Suggested sequencing note
 

@@ -1,30 +1,63 @@
 import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
-import DropboxLink from "../components/DropboxLink";
+import { warn } from "../lib/log";
 import MobileVaultFolder from "./MobileVaultFolder";
 
 /**
  * First run on a phone.
  *
  * A local vault is the default and the whole app works without ever
- * touching Dropbox - it is a local-first app, and the phone is just
- * another device that has one. Dropbox is a way to *sync* a vault
- * between devices, and treating it as the only way to *have* one on a
- * phone (which this screen used to) confused a sync backend with the
- * storage model.
+ * signing in - it is a local-first app, and the phone is just another
+ * device that has one. Google is a way to *sync* a vault between
+ * devices, not the way to *have* one.
+ *
+ * Signing in here pulls the vault the other device already keeps in
+ * Drive; with nothing there yet, a fresh local vault starts and its
+ * first pass uploads it.
  */
 export default function MobileVaultSetup() {
-  const [screen, setScreen] = useState<"start" | "folder" | "dropbox">("start");
+  const [screen, setScreen] = useState<"start" | "folder">("start");
   const [path, setPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const [progress, setProgress] = useState<[number, number] | null>(null);
   const setError = useAppStore((s) => s.setError);
 
   useEffect(() => {
     void invoke("vault_local_path")
       .then(setPath)
       .catch((e) => setError(errorMessage(e)));
+    const unlisten = listen<[number, number]>("sync-progress", (e) =>
+      setProgress(e.payload),
+    );
+    return () => void unlisten.then((fn) => fn());
   }, [setError]);
+
+  const signIn = async () => {
+    setSigningIn(true);
+    try {
+      const status = await invoke("google_sign_in");
+      if (!status.signed_in) return;
+      const pulled = await invoke("google_pull_vault");
+      if (!pulled) await invoke("vault_use_local");
+      await useAppStore.getState().init();
+      // nothing in Drive yet: this vault becomes the one there
+      if (!pulled) {
+        void invoke("sync_now").catch((e) => warn("first upload", e));
+      } else if (pulled.failed.length > 0) {
+        setError(
+          `${pulled.failed.length} file(s) could not be fetched; the next sync tries again.`,
+        );
+      }
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSigningIn(false);
+      setProgress(null);
+    }
+  };
 
   if (screen === "folder") {
     return (
@@ -32,22 +65,6 @@ export default function MobileVaultSetup() {
         onChosen={() => setScreen("start")}
         onCancel={() => setScreen("start")}
       />
-    );
-  }
-
-  if (screen === "dropbox") {
-    return (
-      <div className="safe-area flex h-full flex-col">
-        <button
-          onClick={() => setScreen("start")}
-          className="self-start px-4 py-3 text-content-muted"
-        >
-          ‹ Back
-        </button>
-        <div className="min-h-0 flex-1 overflow-auto px-4 pb-6">
-          <DropboxLink />
-        </div>
-      </div>
     );
   }
 
@@ -61,7 +78,7 @@ export default function MobileVaultSetup() {
           account or a network.
         </p>
         <button
-          disabled={busy}
+          disabled={busy || signingIn}
           onClick={() => {
             setBusy(true);
             void invoke("vault_use_local")
@@ -79,19 +96,27 @@ export default function MobileVaultSetup() {
           </p>
         )}
         <button
+          disabled={busy || signingIn}
           onClick={() => setScreen("folder")}
-          className="rounded-lg border border-line px-5 py-3"
+          className="rounded-lg border border-line px-5 py-3 disabled:opacity-50"
         >
           Choose a folder…
         </button>
         <button
-          onClick={() => setScreen("dropbox")}
-          className="rounded-lg border border-line px-5 py-3"
+          disabled={busy || signingIn}
+          onClick={() => void signIn()}
+          className="rounded-lg border border-line px-5 py-3 disabled:opacity-50"
         >
-          Sync with Dropbox instead
+          {signingIn ? "Signing in..." : "Sign in with Google"}
         </button>
+        {progress && (
+          <p className="text-sm text-content-muted">
+            Bringing the vault down: {progress[0]} / {progress[1]} files
+          </p>
+        )}
         <p className="text-xs text-content-muted">
-          Dropbox keeps a vault in step across devices. It can also be turned on
+          Signing in keeps a vault in step with your other devices through a
+          hidden app folder in your Google Drive. It can also be turned on
           later, from Settings.
         </p>
       </div>

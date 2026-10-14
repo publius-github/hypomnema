@@ -1,7 +1,8 @@
 //! This device's Google sign-in: which account, and a usable access token.
 //!
 //! Two files in the app's private config dir (never the vault, never
-//! anything synced):
+//! anything synced; on Android only the first, since Play services keeps
+//! the grant there):
 //! - `google-account.json` - email, name and Drive permission id. Plain:
 //!   it is what the screen shows, and it must be readable on a locked
 //!   device to say who is signed in.
@@ -108,6 +109,12 @@ pub fn store(
         expires_at_unix: now_unix + tokens.expires_in_secs,
     };
     save_tokens(config_dir, &stored)?;
+    store_account(config_dir, user)
+}
+
+/// Records who is signed in. On its own on Android, where Play services
+/// keeps the grant and this app stores no tokens at all.
+pub fn store_account(config_dir: &Path, user: &DriveUser) -> Result<Account> {
     let account = Account {
         email: user.email.clone(),
         name: user.name.clone(),

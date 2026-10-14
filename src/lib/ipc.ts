@@ -25,6 +25,7 @@ import type {
   DropboxPush,
   DropboxStatus,
   DropboxSync,
+  GooglePull,
   GoogleStatus,
   EngineOutcome,
   HabitRate,
@@ -94,6 +95,7 @@ export interface Commands {
   dropbox_sync: { args: void; result: DropboxSync };
   dropbox_write_marker: { args: void; result: string };
   engine_run: { args: void; result: EngineOutcome };
+  google_pull_vault: { args: void; result: GooglePull | null };
   google_sign_in: { args: void; result: GoogleStatus };
   google_sign_in_cancel: { args: void; result: void };
   google_sign_out: { args: void; result: GoogleStatus };
@@ -238,7 +240,8 @@ export interface IpcError {
     | "state"
     | "no_vault"
     | "sync_conflict"
-    | "remote_wiped";
+    | "remote_wiped"
+    | "sign_in_expired";
   message: string;
   path?: string;
 }

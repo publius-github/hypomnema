@@ -7,7 +7,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::{Error, Result};
 use crate::state::*;
-use crate::sync_provider::SyncProvider;
+use crate::sync_provider::{SyncCursor, SyncProvider};
 use crate::watchers::*;
 use crate::{
     device, dropbox_link, google_auth, google_link, secret_store, state_export, sync_bootstrap,
@@ -297,24 +297,72 @@ pub(crate) fn google_pass(app: &AppHandle) -> Result<sync_cycle::SyncReport> {
 
 fn google_pass_inner(app: &AppHandle) -> Result<sync_cycle::SyncReport> {
     let dir = app_config_dir(app)?;
-    let account = google_link::account(&dir)
-        .ok_or_else(|| Error::State("this device is not signed in to Google".into()))?;
+    let account = signed_in_account(&dir)?;
     let state = app.state::<AppState>();
     let local_root = open_vault_root(&state).ok_or(Error::NoVault)?;
-    let token = google_link::valid_access_token(
-        &dir,
-        &google_auth::GoogleOauthTransport::new(),
-        now_unix(),
-    )?;
+    let token = drive_token(app, &dir, &account)?;
     sync_bootstrap::set_space(&local_root, Some(&google_link::space_name(&account)))?;
-    let provider =
-        sync_gdrive::GdriveApiSyncProvider::new(sync_gdrive::HttpGdriveTransport::new(token));
-    run_pass(
+    let provider = sync_gdrive::GdriveApiSyncProvider::new(sync_gdrive::HttpGdriveTransport::new(
+        token.clone(),
+    ));
+    let result = run_pass(
         app,
         &state,
         &provider,
         &sync_bootstrap::VaultRoot(String::new()),
-    )
+    );
+    forget_refused_token(app, &token, &result);
+    result
+}
+
+fn signed_in_account(dir: &std::path::Path) -> Result<google_link::Account> {
+    google_link::account(dir)
+        .ok_or_else(|| Error::State("this device is not signed in to Google".into()))
+}
+
+/// An access token for the signed-in account's Drive folder. The desktop
+/// refreshes its own (`google_link.rs`); on Android Play services holds
+/// the grant and hands one over without UI, or says the user has to
+/// sign in again.
+#[cfg(desktop)]
+fn drive_token(
+    _app: &AppHandle,
+    dir: &std::path::Path,
+    _account: &google_link::Account,
+) -> Result<String> {
+    google_link::valid_access_token(dir, &google_auth::GoogleOauthTransport::new(), now_unix())
+}
+
+#[cfg(target_os = "android")]
+fn drive_token(
+    app: &AppHandle,
+    _dir: &std::path::Path,
+    account: &google_link::Account,
+) -> Result<String> {
+    use tauri_plugin_google_auth::GoogleAuthExt;
+    app.google_auth()
+        .authorize(false, Some(&account.email))
+        .map_err(plugin_error)
+}
+
+#[cfg(target_os = "android")]
+fn plugin_error(e: tauri_plugin_google_auth::Error) -> Error {
+    if e.code.as_deref() == Some(tauri_plugin_google_auth::CONSENT_REQUIRED) {
+        Error::SignInExpired(e.message)
+    } else {
+        Error::State(e.message)
+    }
+}
+
+/// Play services hands back a cached token until told otherwise, so one
+/// Drive refused (revoked from the account page) would come back on
+/// every pass. Dropping it makes the next pass ask Google afresh.
+fn forget_refused_token<T>(_app: &AppHandle, _token: &str, _result: &Result<T>) {
+    #[cfg(target_os = "android")]
+    if matches!(_result, Err(Error::SignInExpired(_))) {
+        use tauri_plugin_google_auth::GoogleAuthExt;
+        let _ = _app.google_auth().clear_token(_token);
+    }
 }
 
 /// The everyday Sync now: Google when this device is signed in, else the
@@ -334,8 +382,10 @@ pub(crate) async fn sync_now(
     dropbox_sync(app, state).await
 }
 
+/// Whether this build can sign in at all: the desktop needs its client
+/// secret compiled in, Android goes through Play services.
 fn google_available() -> bool {
-    cfg!(desktop) && google_auth::client_secret().is_some()
+    cfg!(target_os = "android") || (cfg!(desktop) && google_auth::client_secret().is_some())
 }
 
 #[tauri::command]
@@ -346,10 +396,9 @@ pub(crate) async fn google_status(app: AppHandle) -> Result<google_link::GoogleS
     ))
 }
 
-/// Opens Google's consent page in the browser and waits (up to
+/// Desktop: opens Google's consent page in the browser and waits (up to
 /// `google_auth::SIGN_IN_TIMEOUT`) for it to come back to the loopback
-/// port. Desktop only; the phone signs in through Android's own account
-/// picker (a later phase).
+/// port. Android: Play services' own account picker and consent screen.
 #[tauri::command]
 pub(crate) async fn google_sign_in(app: AppHandle) -> Result<google_link::GoogleStatus> {
     let handle = app.clone();
@@ -395,11 +444,21 @@ fn sign_in_blocking(app: &AppHandle) -> Result<google_link::GoogleStatus> {
     Ok(google_link::status(&dir, google_available()))
 }
 
-#[cfg(mobile)]
-fn sign_in_blocking(_app: &AppHandle) -> Result<google_link::GoogleStatus> {
-    Err(Error::State(
-        "Google sign-in on the phone is not built yet".into(),
-    ))
+#[cfg(target_os = "android")]
+fn sign_in_blocking(app: &AppHandle) -> Result<google_link::GoogleStatus> {
+    use tauri_plugin_google_auth::GoogleAuthExt;
+
+    let token = app
+        .google_auth()
+        .authorize(true, None)
+        .map_err(plugin_error)?;
+    let user = sync_gdrive::fetch_user(&sync_gdrive::HttpGdriveTransport::new(token))?;
+    let dir = app_config_dir(app)?;
+    let account = google_link::store_account(&dir, &user)?;
+    if let Some(root) = open_vault_root(&app.state::<AppState>()) {
+        sync_bootstrap::set_space(&root, Some(&google_link::space_name(&account)))?;
+    }
+    Ok(google_link::status(&dir, google_available()))
 }
 
 /// Stops waiting for the browser.
@@ -419,8 +478,87 @@ pub(crate) async fn google_sign_out(app: AppHandle) -> Result<google_link::Googl
     if let Some(token) = google_link::refresh_token(&dir) {
         let _ = google_auth::revoke(&google_auth::GoogleOauthTransport::new(), &token);
     }
+    #[cfg(target_os = "android")]
+    if let Some(account) = google_link::account(&dir) {
+        use tauri_plugin_google_auth::GoogleAuthExt;
+        let handle = app.clone();
+        // blocks on Play services; off the async worker
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            handle.google_auth().revoke(&account.email)
+        })
+        .await;
+    }
     google_link::clear(&dir)?;
     Ok(google_link::status(&dir, google_available()))
+}
+
+/// What a first pull from Google Drive brought down.
+#[derive(Debug, Clone, serde::Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct GooglePull {
+    pub files: usize,
+    pub failed: Vec<String>,
+}
+
+/// First run on a device that signs in before it has a vault: brings the
+/// vault down from the account's Drive folder into this device's local
+/// vault directory and opens it there. `None` when Drive holds no vault
+/// yet - the caller starts a local vault instead, and its first pass
+/// uploads it.
+///
+/// A pull rather than a pass because a fresh vault is not empty: it has
+/// default config files, and joining those against the real ones would
+/// keep both as conflicted copies of every file.
+#[tauri::command]
+pub(crate) async fn google_pull_vault(app: AppHandle) -> Result<Option<GooglePull>> {
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || google_pull_blocking(&handle))
+        .await
+        .map_err(|e| Error::State(format!("pull failed to run: {e}")))?
+}
+
+fn google_pull_blocking(app: &AppHandle) -> Result<Option<GooglePull>> {
+    let dir = app_config_dir(app)?;
+    let account = signed_in_account(&dir)?;
+    let state = app.state::<AppState>();
+    // the files being written are what the export worker writes too
+    let engine_lock = state.engine_lock.clone();
+    let _pass = engine_lock.lock_or_recover();
+    let token = drive_token(app, &dir, &account)?;
+    let provider = sync_gdrive::GdriveApiSyncProvider::new(sync_gdrive::HttpGdriveTransport::new(
+        token.clone(),
+    ));
+    let listing = provider.list_changes(&SyncCursor::default());
+    forget_refused_token(app, &token, &listing);
+    let paths: Vec<String> = listing?
+        .0
+        .into_iter()
+        .filter(|change| !change.deleted)
+        .map(|change| change.path)
+        .collect();
+    if sync_bootstrap::detect_vault_root(&paths).is_err() {
+        return Ok(None);
+    }
+    let local_root = crate::cmd_vault::local_vault_dir(app)?;
+    std::fs::create_dir_all(&local_root)?;
+    sync_bootstrap::set_space(&local_root, Some(&google_link::space_name(&account)))?;
+    let report = sync_bootstrap::pull_vault(&provider, &local_root, |done, total| {
+        let _ = app.emit("sync-progress", (done, total));
+    })?;
+    // an app.db left from an earlier vault here would be re-exported over
+    // the files just pulled
+    if report.state_files > 0 && vault::db_path(&local_root).exists() {
+        remove_db_files(&local_root);
+    }
+    open_vault(app, &state, &local_root)?;
+    vault::write_vault_path(&dir, &local_root)?;
+    // opening re-exports the snapshot; without this every file would
+    // look changed here and the first pass would send it all back
+    sync_push::adopt_local_baseline(&local_root, &sync_bootstrap::VaultRoot(String::new()))?;
+    Ok(Some(GooglePull {
+        files: report.files + report.skipped,
+        failed: report.failed,
+    }))
 }
 
 /// One sync pass over whichever remote `provider` talks to - the part of
@@ -459,7 +597,7 @@ fn run_pass<P: SyncProvider>(
         &now,
         guard_percent,
         |done, total| {
-            let _ = app.emit("dropbox-sync-progress", (done, total));
+            let _ = app.emit("sync-progress", (done, total));
         },
     ) {
         Ok(report) => {

@@ -151,12 +151,12 @@ export default function MobileApp() {
       if (!store.vaultPath || syncing.current) return;
       syncing.current = true;
       try {
-        await invoke("dropbox_sync");
+        await invoke("sync_now");
         await store.refresh();
       } catch (e) {
-        // Unlinked, offline, mid-flight token refresh: an automatic
-        // pass that cannot run is not an error worth a banner. The
-        // Sync now button reports properly when someone asks for it.
+        // Signed out, offline, Play services wanting a fresh sign-in:
+        // an automatic pass that cannot run is not an error worth a
+        // banner. The Sync now button reports properly when asked.
         warn("automatic sync", e);
       } finally {
         syncing.current = false;

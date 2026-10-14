@@ -94,6 +94,8 @@ pub fn run() {
         // fallback - the Dropbox consent page has to reach a real browser.
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init());
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(tauri_plugin_google_auth::init());
     // updater (GitHub-releases) and the global capture shortcut are
     // desktop-only concepts (REQUIREMENTS.md §6) - mobile has no
     // equivalent plugin to register in their place.
@@ -289,6 +291,7 @@ pub fn run() {
             cmd_sync::google_sign_in,
             cmd_sync::google_sign_in_cancel,
             cmd_sync::google_sign_out,
+            cmd_sync::google_pull_vault,
             cmd_sync::sync_conflicts_list,
             cmd_sync::sync_conflicts_clear,
             cmd_sync::sync_standing,

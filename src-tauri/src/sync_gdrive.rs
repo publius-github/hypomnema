@@ -555,7 +555,7 @@ fn error_from(reply: &Reply) -> Error {
         })
         .unwrap_or_else(|| String::from_utf8_lossy(&reply.body).into_owned());
     match reply.status {
-        401 => Error::State(format!(
+        401 => Error::SignInExpired(format!(
             "Google sign-in expired or was revoked; sign in again ({message})"
         )),
         status => Error::State(format!("Google Drive API error ({status}): {message}")),

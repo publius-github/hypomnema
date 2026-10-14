@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.90.0"
+version = "0.91.0"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
@@ -49,6 +49,10 @@ tauri-plugin-single-instance = "2"
 # already in the tree via tauri - named here so this crate can call it.
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
+# Google sign-in through Play services (AuthorizationClient). Kotlin
+# lives in the plugin's own android/ source set, tracked here rather
+# than in the regenerated gen/android project.
+tauri-plugin-google-auth = { path = "plugins/google-auth" }
 
 [profile.release]
 panic = "abort"

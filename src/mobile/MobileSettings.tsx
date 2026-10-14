@@ -4,7 +4,6 @@ import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { LockSettings } from "./MobileLock";
 import MobileVaultFolder from "./MobileVaultFolder";
-import DropboxLink from "../components/DropboxLink";
 import { NumberField, Toggle } from "./controls";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
@@ -14,9 +13,8 @@ import type {
   BackupEntry,
   BackupsOverview,
   ConflictEntry,
-  DropboxPull,
-  DropboxStatus,
   DropboxSync,
+  GoogleStatus,
   List,
   LockState,
   SyncStanding,
@@ -40,7 +38,7 @@ export default function MobileSettings() {
   const vaultPath = useAppStore((s) => s.vaultPath);
   const config = useAppStore((s) => s.config);
   const [panel, setPanel] = useState<Panel | null>(null);
-  const [status, setStatus] = useState<DropboxStatus | null>(null);
+  const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
   const [standing, setStanding] = useState<SyncStanding | null>(null);
   const [lock, setLock] = useState<LockState | null>(null);
@@ -57,8 +55,8 @@ export default function MobileSettings() {
   }, []);
 
   useEffect(() => {
-    void invoke("dropbox_status")
-      .then(setStatus)
+    void invoke("google_status")
+      .then(setGoogle)
       .catch((e) => useAppStore.getState().setError(errorMessage(e)));
     void invoke("app_lock_state")
       .then(setLock)
@@ -66,15 +64,15 @@ export default function MobileSettings() {
     loadSyncState();
   }, [loadSyncState]);
 
-  const syncHint = !status
-    ? "Dropbox"
-    : status.connected
-      ? `Linked${
+  const syncHint = !google
+    ? "Google Drive"
+    : google.signed_in
+      ? `${google.email ?? "Signed in"}${
           standing && standing.pending > 0
             ? ` · ${standing.pending} waiting`
             : ""
         }${conflicts.length > 0 ? ` · ${conflicts.length} conflicts` : ""}`
-      : "Not linked";
+      : "Not signed in";
 
   const panels: { id: Panel; label: string; hint: string }[] = [
     { id: "sync", label: "Sync", hint: syncHint },
@@ -119,8 +117,8 @@ export default function MobileSettings() {
         <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
           {panel === "sync" && (
             <SyncPanel
-              status={status}
-              setStatus={setStatus}
+              google={google}
+              setGoogle={setGoogle}
               standing={standing}
               conflicts={conflicts}
               setConflicts={setConflicts}
@@ -166,21 +164,21 @@ export default function MobileSettings() {
 }
 
 /**
- * The Dropbox panel. Not linked yet, it *is* the linking flow - the
- * first-run screen promises "it can be turned on later, from Settings",
- * and this is where that promise is kept. Linked, it is the everyday
- * sync button plus the switches, with the one-way verbs folded away.
+ * The Google sync panel. Signed out, it is the sign-in - the first-run
+ * screen promises "it can be turned on later, from Settings", and this
+ * is where that promise is kept. Signed in, it is the everyday sync
+ * button plus the switches.
  */
 function SyncPanel({
-  status,
-  setStatus,
+  google,
+  setGoogle,
   standing,
   conflicts,
   setConflicts,
   reload,
 }: {
-  status: DropboxStatus | null;
-  setStatus: (next: DropboxStatus) => void;
+  google: GoogleStatus | null;
+  setGoogle: (next: GoogleStatus) => void;
   standing: SyncStanding | null;
   conflicts: ConflictEntry[];
   setConflicts: (next: ConflictEntry[]) => void;
@@ -189,7 +187,6 @@ function SyncPanel({
   const config = useAppStore((s) => s.config);
   const updateConfig = useAppStore((s) => s.updateConfig);
   const setError = useAppStore((s) => s.setError);
-  const [pull, setPull] = useState<DropboxPull | null>(null);
   const [sync, setSync] = useState<DropboxSync | null>(null);
   const [showConflicts, setShowConflicts] = useState(false);
   const [progress, setProgress] = useState<[number, number] | null>(null);
@@ -198,17 +195,15 @@ function SyncPanel({
   // most of what this device had synced, and only the user can say
   // whether that is a wipe to repair or deletions to accept.
   const [wiped, setWiped] = useState(false);
+  // Google stopped accepting this device's grant; only a fresh sign-in
+  // helps, so the panel offers it in place.
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    const unlisten = Promise.all([
-      listen<[number, number]>("dropbox-pull-progress", (e) =>
-        setProgress(e.payload),
-      ),
-      listen<[number, number]>("dropbox-sync-progress", (e) =>
-        setProgress(e.payload),
-      ),
-    ]);
-    return () => void unlisten.then((fns) => fns.forEach((fn) => fn()));
+    const unlisten = listen<[number, number]>("sync-progress", (e) =>
+      setProgress(e.payload),
+    );
+    return () => void unlisten.then((fn) => fn());
   }, []);
 
   const run = async (action: () => Promise<void>) => {
@@ -216,8 +211,11 @@ function SyncPanel({
     try {
       await action();
       setWiped(false);
+      setExpired(false);
     } catch (e) {
-      if (errorKind(e) === "remote_wiped") setWiped(true);
+      const kind = errorKind(e);
+      if (kind === "remote_wiped") setWiped(true);
+      if (kind === "sign_in_expired") setExpired(true);
       setError(errorMessage(e));
     } finally {
       setBusy(false);
@@ -226,16 +224,56 @@ function SyncPanel({
     }
   };
 
-  if (!status?.connected) {
-    return <DropboxLink embedded onStatus={setStatus} />;
+  const syncNow = (resetFirst = false) =>
+    run(async () => {
+      if (resetFirst) await invoke("sync_reset_space");
+      setSync(await invoke("sync_now"));
+      await useAppStore.getState().refresh();
+    });
+
+  const signIn = () =>
+    run(async () => {
+      const next = await invoke("google_sign_in");
+      setGoogle(next);
+      // the first pass joins this vault with what Drive already holds
+      if (next.signed_in) {
+        setSync(await invoke("sync_now"));
+        await useAppStore.getState().refresh();
+      }
+    });
+
+  if (!google?.signed_in) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-content-muted">
+          Optional. Signing in keeps this vault in step with your other devices
+          through a hidden app folder in your Google Drive; the app sees
+          nothing else there. Sign in with the same account on every device.
+        </p>
+        <button
+          disabled={busy || google?.available === false}
+          onClick={() => void signIn()}
+          className="rounded-lg bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
+        >
+          {busy ? "Signing in..." : "Sign in with Google"}
+        </button>
+        {progress && (
+          <p className="text-sm text-content-muted">
+            {progress[0]} / {progress[1]} files
+          </p>
+        )}
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <p className="text-sm text-content-muted">
-          Linked. Token refreshes in{" "}
-          {Math.round(status.expires_in_secs / 60)} min.
+        <p className="text-sm">
+          Signed in as <span className="font-medium">{google.email}</span>
+          {google.name && (
+            <span className="text-content-muted"> ({google.name})</span>
+          )}
         </p>
         {/* Answered from disk, not from the network: a phone with no
             signal can still say exactly what it is holding, which is
@@ -261,17 +299,9 @@ function SyncPanel({
             )}
           </p>
         )}
-        {/* One button for the everyday case. Pull and push exist below
-            for the two moments they are actually the right verb: setting
-            a device up, and forcing this device's copy upward. */}
         <button
           disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              setSync(await invoke("dropbox_sync"));
-              await useAppStore.getState().refresh();
-            })
-          }
+          onClick={() => void syncNow()}
           className="rounded-lg bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
         >
           {busy ? "Syncing..." : "Sync now"}
@@ -281,23 +311,26 @@ function SyncPanel({
             {progress[0]} / {progress[1]} files
           </p>
         )}
+        {expired && (
+          <button
+            disabled={busy}
+            onClick={() => void signIn()}
+            className="rounded-lg border border-warn/60 px-4 py-2 text-sm disabled:opacity-50"
+          >
+            Sign in again
+          </button>
+        )}
         {wiped && (
           <div className="flex flex-col gap-2 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm">
             <p>
-              Most of what this phone had synced is gone from the remote at
-              once, so nothing was deleted here. If the remote was wiped,
+              Most of what this phone had synced is gone from Google Drive at
+              once, so nothing was deleted here. If the Drive copy was wiped,
               upload this vault again; if the deletions were intended, raise
               the limit below and sync.
             </p>
             <button
               disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await invoke("sync_reset_space");
-                  setSync(await invoke("dropbox_sync"));
-                  await useAppStore.getState().refresh();
-                })
-              }
+              onClick={() => void syncNow(true)}
               className="rounded-lg border border-line px-4 py-2 disabled:opacity-50"
             >
               Upload this vault again
@@ -369,8 +402,8 @@ function SyncPanel({
               <span className="min-w-0 text-sm">
                 Stop if this % vanishes at once
                 <span className="block text-xs text-content-muted">
-                  A wiped remote or another account looks like everything
-                  being deleted. 100 turns the check off.
+                  A wiped Drive folder or another account looks like
+                  everything being deleted. 100 turns the check off.
                 </span>
               </span>
               <NumberField
@@ -384,54 +417,21 @@ function SyncPanel({
             </div>
           </>
         )}
-        <details className="text-sm">
-          <summary className="cursor-pointer py-2 text-content-muted">
-            One-way actions
-          </summary>
-          <div className="flex flex-col gap-2 pt-1">
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  setPull(await invoke("dropbox_pull_vault"));
-                  await useAppStore.getState().refresh();
-                })
-              }
-              className="rounded-lg border border-line px-4 py-3 disabled:opacity-50"
-            >
-              Pull the whole vault down
-            </button>
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await invoke("dropbox_push_vault");
-                })
-              }
-              className="rounded-lg border border-line px-4 py-3 disabled:opacity-50"
-            >
-              Push this device's changes up
-            </button>
-            {pull && (
-              <p>
-                Pulled {pull.files}, skipped {pull.skipped} already current
-                {pull.failed.length > 0 && `, ${pull.failed.length} failed`}.
-              </p>
-            )}
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await invoke("dropbox_disconnect");
-                  setStatus({ connected: false, expires_in_secs: 0 });
-                })
-              }
-              className="rounded-lg border border-danger/50 px-4 py-3 text-danger disabled:opacity-50"
-            >
-              Unlink Dropbox
-            </button>
-          </div>
-        </details>
+        <button
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              setGoogle(await invoke("google_sign_out"));
+              setSync(null);
+            })
+          }
+          className="mt-2 rounded-lg border border-danger/50 px-4 py-3 text-danger disabled:opacity-50"
+        >
+          Sign out
+        </button>
+        <p className="text-xs text-content-muted">
+          Signing out stops syncing; the vault on this phone stays as it is.
+        </p>
       </section>
 
       <section className="flex flex-col gap-2">

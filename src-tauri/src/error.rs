@@ -32,6 +32,12 @@ pub enum Error {
          nothing was deleted here. Upload this vault again, or unlink"
     )]
     RemoteWiped { known: usize, gone: usize },
+    /// Google no longer accepts this device's grant: revoked from the
+    /// Google account page, expired, or (on Android) Play services wants
+    /// the user to confirm again. Only signing in again fixes it, so the
+    /// UI offers exactly that instead of a bare error.
+    #[error("{0}")]
+    SignInExpired(String),
 }
 
 impl Error {
@@ -47,6 +53,7 @@ impl Error {
             Error::NoVault => "no_vault",
             Error::SyncConflict { .. } => "sync_conflict",
             Error::RemoteWiped { .. } => "remote_wiped",
+            Error::SignInExpired(_) => "sign_in_expired",
         }
     }
 }

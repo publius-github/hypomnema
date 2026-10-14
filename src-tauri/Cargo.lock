@@ -1782,7 +1782,7 @@ dependencies = [
 
 [[package]]
 name = "hypomnema"
-version = "0.90.0"
+version = "0.91.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -1801,6 +1801,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-global-shortcut",
+ "tauri-plugin-google-auth",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-process",
@@ -4307,6 +4308,16 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "tauri-plugin-google-auth"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]
