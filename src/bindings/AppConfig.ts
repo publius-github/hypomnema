@@ -184,8 +184,9 @@ sync_interval_minutes: number,
  */
 sync_on_leave: boolean, 
 /**
- * Desktop: seconds after the last local edit before a pass sends
- * it, so a burst of edits goes up once.
+ * Seconds after the last local edit before a pass sends it, so a
+ * burst of edits goes up once - short, because the longer an edit
+ * waits here the likelier the other device edits the same thing.
  */
 sync_debounce_seconds: number, 
 /**

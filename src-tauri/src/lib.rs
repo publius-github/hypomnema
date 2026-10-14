@@ -109,7 +109,6 @@ pub fn run() {
                 install_panic_logger(dir.join("hypomnema.log"));
             }
             start_export_worker(app.handle().clone());
-            #[cfg(desktop)]
             sync_scheduler::start(app.handle().clone());
             // the quick-capture window is pre-created hidden: a WebView
             // spun up on demand takes long enough to defeat "quick".

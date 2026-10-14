@@ -158,6 +158,40 @@ fn base_path(local_root: &Path, relative: &str) -> PathBuf {
         .join(relative)
 }
 
+/// Text the pass merges line by line when both ends changed it, against
+/// the last version they agreed on - git's three-way merge. Prose that
+/// two devices edited in different places then needs nobody; only an
+/// edit of the same lines on both still ends in a conflicted copy.
+fn is_mergeable_text(relative: &str) -> bool {
+    let name = relative.rsplit('/').next().unwrap_or(relative);
+    name == ".hypomnemaignore"
+        || name.rsplit_once('.').is_some_and(|(_, ext)| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "md" | "markdown" | "txt" | "yml" | "yaml"
+            )
+        })
+}
+
+/// Whether a file's agreed version is kept as a merge base: the state
+/// snapshot (record merge) and mergeable text (line merge).
+pub(crate) fn keeps_base(relative: &str) -> bool {
+    sync_state::state_file_of(relative).is_some() || is_mergeable_text(relative)
+}
+
+/// `conflicted_copy_path`, stepped past a copy that already exists - a
+/// second disagreement over one file on one day must not overwrite the
+/// first one's copy.
+fn unused_copy_path(local_root: &Path, relative: &str, label: &str, day: &str) -> String {
+    let mut copy = conflicted_copy_path(relative, label, day);
+    let mut n = 2;
+    while local_root.join(&copy).exists() {
+        copy = conflicted_copy_path(relative, &format!("{label} {n}"), day);
+        n += 1;
+    }
+    copy
+}
+
 fn read_base(local_root: &Path, relative: &str) -> Option<String> {
     fs::read_to_string(base_path(local_root, relative)).ok()
 }
@@ -261,6 +295,9 @@ enum Incoming {
 struct Context<'a> {
     local_root: &'a Path,
     device: &'a str,
+    /// What a conflicted copy is named after: "phone" / "desktop" reads
+    /// on a file name, a device id does not.
+    device_label: &'a str,
     /// RFC3339 UTC; the day half names conflicted copies.
     now: &'a str,
 }
@@ -297,7 +334,7 @@ fn apply_incoming(
 
     let Some(local_bytes) = local_bytes else {
         write_local(&target, remote_bytes)?;
-        if sync_state::state_file_of(relative).is_some() {
+        if keeps_base(relative) {
             write_base(ctx.local_root, relative, remote_bytes)?;
         }
         return Ok(Incoming::Downloaded);
@@ -313,7 +350,7 @@ fn apply_incoming(
     if !changed_here || vault::is_untouched_sample(relative, &local_bytes) {
         // Only they moved: take theirs, and it becomes the agreed base.
         write_local(&target, remote_bytes)?;
-        if sync_state::state_file_of(relative).is_some() {
+        if keeps_base(relative) {
             write_base(ctx.local_root, relative, remote_bytes)?;
         }
         return Ok(Incoming::Downloaded);
@@ -339,23 +376,46 @@ fn apply_incoming(
         return Ok(Incoming::Merged);
     }
 
-    // Prose. Keep both, name the loser after this device.
-    let copy = conflicted_copy_path(relative, ctx.device, ctx.day());
+    // Text with a base: merge the two sets of changes line by line. The
+    // base becomes what the other side had, as for the snapshot above;
+    // the merged file goes up with this pass.
+    if is_mergeable_text(relative) {
+        if let (Some(base), Ok(local_text), Ok(remote_text)) = (
+            read_base(ctx.local_root, relative),
+            std::str::from_utf8(&local_bytes),
+            std::str::from_utf8(remote_bytes),
+        ) {
+            if let Ok(merged) = diffy::merge(&base, local_text, remote_text) {
+                fs::write(&target, merged.as_bytes())?;
+                write_base(ctx.local_root, relative, remote_bytes)?;
+                return Ok(Incoming::Merged);
+            }
+        }
+    }
+
+    // Prose the lines of which both sides changed (or no base to tell).
+    // Keep both, name the loser after this device.
+    let copy = unused_copy_path(ctx.local_root, relative, ctx.device_label, ctx.day());
     write_local(&ctx.local_root.join(&copy), &local_bytes)?;
     write_local(&target, remote_bytes)?;
     conflicted_copies.push(copy.clone());
-    out.extend(sync_conflicts::entries_from(
-        relative,
-        ctx.now,
-        [FieldConflict {
-            field: "<file>".into(),
-            kept: serde_json::Value::String(format!(
-                "the other device's version, now at {relative}"
-            )),
-            kept_updated_by: String::new(),
-            discarded: serde_json::Value::String(format!("this device's version, kept as {copy}")),
-            discarded_updated_by: ctx.device.to_string(),
-        }],
+    out.extend(sync_conflicts::with_copy(
+        sync_conflicts::entries_from(
+            relative,
+            ctx.now,
+            [FieldConflict {
+                field: "<file>".into(),
+                kept: serde_json::Value::String(format!(
+                    "the other device's version, now at {relative}"
+                )),
+                kept_updated_by: String::new(),
+                discarded: serde_json::Value::String(format!(
+                    "this device's version, kept as {copy}"
+                )),
+                discarded_updated_by: ctx.device.to_string(),
+            }],
+        ),
+        &copy,
     ));
     Ok(Incoming::Merged)
 }
@@ -394,21 +454,24 @@ fn apply_duplicate(
         ));
         return Ok(Some(true));
     }
-    let copy = conflicted_copy_path(relative, "duplicate", ctx.day());
+    let copy = unused_copy_path(ctx.local_root, relative, "duplicate", ctx.day());
     write_local(&ctx.local_root.join(&copy), bytes)?;
     conflicted_copies.push(copy.clone());
-    out.extend(sync_conflicts::entries_from(
-        relative,
-        ctx.now,
-        [FieldConflict {
-            field: "<file>".into(),
-            kept: serde_json::Value::String(format!("one device's version, at {relative}")),
-            kept_updated_by: String::new(),
-            discarded: serde_json::Value::String(format!(
-                "the other device's version, created at the same time, kept as {copy}"
-            )),
-            discarded_updated_by: String::new(),
-        }],
+    out.extend(sync_conflicts::with_copy(
+        sync_conflicts::entries_from(
+            relative,
+            ctx.now,
+            [FieldConflict {
+                field: "<file>".into(),
+                kept: serde_json::Value::String(format!("one device's version, at {relative}")),
+                kept_updated_by: String::new(),
+                discarded: serde_json::Value::String(format!(
+                    "the other device's version, created at the same time, kept as {copy}"
+                )),
+                discarded_updated_by: String::new(),
+            }],
+        ),
+        &copy,
     ));
     Ok(Some(true))
 }
@@ -421,20 +484,33 @@ fn write_local(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// The device running a pass: its id stamps the conflict log, its label
+/// ("phone" / "desktop") names the conflicted copies it keeps aside.
+#[derive(Clone, Copy)]
+pub struct DeviceTag<'a> {
+    pub id: &'a str,
+    pub label: &'a str,
+}
+
 /// Runs a full pass. `now` is RFC3339 UTC, injected so the tests are not
 /// at the mercy of the clock.
 pub fn sync_vault<P: SyncProvider>(
     provider: &P,
     local_root: &Path,
     root: &VaultRoot,
-    device: &str,
+    device: DeviceTag<'_>,
     now: &str,
     guard_percent: u32,
     mut on_progress: impl FnMut(usize, usize),
 ) -> Result<SyncReport> {
+    let DeviceTag {
+        id: device,
+        label: device_label,
+    } = device;
     let ctx = Context {
         local_root,
         device,
+        device_label,
         now,
     };
     let mut report = SyncReport::default();
@@ -460,6 +536,23 @@ pub fn sync_vault<P: SyncProvider>(
     }
 
     guard_mass_deletion(&manifest, &remote_live, guard_percent)?;
+
+    // Text synced before bases were kept for it has none yet. A file that
+    // still matches what both ends last agreed on is that base, so record
+    // it now - else its first edit on both sides could not be merged.
+    for (remote, state) in &manifest {
+        let (Some(relative), Some(hash)) = (root.relative(remote), state.hash.as_deref()) else {
+            continue;
+        };
+        if !is_mergeable_text(relative) || base_path(local_root, relative).exists() {
+            continue;
+        }
+        if let Ok(bytes) = fs::read(local_root.join(relative)) {
+            if content_hash(&bytes) == hash {
+                write_base(local_root, relative, &bytes)?;
+            }
+        }
+    }
 
     // The listing is always full, so a file this device has synced that
     // is no longer in it was deleted over there - whether or not the
@@ -672,7 +765,7 @@ pub fn sync_vault<P: SyncProvider>(
         .sent
         .iter()
         .filter_map(|remote| root.relative(remote))
-        .filter(|relative| sync_state::state_file_of(relative).is_some())
+        .filter(|relative| keeps_base(relative))
     {
         if let Ok(bytes) = fs::read(local_root.join(relative)) {
             write_base(local_root, relative, &bytes)?;
@@ -751,13 +844,18 @@ mod tests {
             },
         );
         save_manifest(local, &manifest).unwrap();
-        if sync_state::state_file_of(relative).is_some() {
+        if keeps_base(relative) {
             write_base(local, relative, contents.as_bytes()).unwrap();
         }
     }
 
+    const PHONE: DeviceTag<'static> = DeviceTag {
+        id: "phone",
+        label: "phone",
+    };
+
     fn sync(provider: &MockProvider, local: &Path) -> SyncReport {
-        sync_vault(provider, local, &root(), "phone", NOW, 30, |_, _| {}).unwrap()
+        sync_vault(provider, local, &root(), PHONE, NOW, 30, |_, _| {}).unwrap()
     }
 
     #[test]
@@ -867,6 +965,96 @@ mod tests {
         assert_eq!(read(&local, path), real);
         assert!(report.conflicted_copies.is_empty());
         assert!(sync_conflicts::load(&local).is_empty());
+    }
+
+    #[test]
+    fn edits_to_different_lines_on_both_devices_merge_without_a_copy() {
+        let local = temp_dir("prose-merge");
+        let provider = MockProvider::new();
+        in_sync(
+            &provider,
+            &local,
+            "journal/a.md",
+            "morning\n\nnoon\n\nevening\n",
+        );
+        let (_, marker) = provider.read_file("vault/journal/a.md").unwrap();
+        provider
+            .write_file(
+                "vault/journal/a.md",
+                b"morning, on the phone\n\nnoon\n\nevening\n",
+                Some(&marker),
+            )
+            .unwrap();
+        write(
+            &local,
+            "journal/a.md",
+            "morning\n\nnoon\n\nevening, at the desk\n",
+        );
+
+        let report = sync(&provider, &local);
+
+        let merged = "morning, on the phone\n\nnoon\n\nevening, at the desk\n";
+        assert_eq!(report.merged, 1);
+        assert!(report.conflicted_copies.is_empty());
+        assert_eq!(read(&local, "journal/a.md"), merged);
+        assert_eq!(
+            provider.read_file("vault/journal/a.md").unwrap().0,
+            merged.as_bytes()
+        );
+        assert!(sync_conflicts::load(&local).is_empty());
+        // and the next pass has nothing left to do
+        assert_eq!(sync(&provider, &local), SyncReport::default());
+    }
+
+    #[test]
+    fn a_file_synced_before_bases_were_kept_still_merges() {
+        let local = temp_dir("prose-seeded-base");
+        let provider = MockProvider::new();
+        in_sync(&provider, &local, "notes/n.md", "one\n\ntwo\n");
+        forget_base(&local, "notes/n.md");
+        // a quiet pass records the agreed version as the base
+        sync(&provider, &local);
+        let (_, marker) = provider.read_file("vault/notes/n.md").unwrap();
+        provider
+            .write_file("vault/notes/n.md", b"one!\n\ntwo\n", Some(&marker))
+            .unwrap();
+        write(&local, "notes/n.md", "one\n\ntwo!\n");
+
+        let report = sync(&provider, &local);
+
+        assert!(report.conflicted_copies.is_empty());
+        assert_eq!(read(&local, "notes/n.md"), "one!\n\ntwo!\n");
+    }
+
+    #[test]
+    fn a_second_clash_on_one_day_does_not_overwrite_the_first_copy() {
+        let local = temp_dir("copy-twice");
+        let provider = MockProvider::new();
+        in_sync(&provider, &local, "journal/a.md", "start");
+        write(
+            &local,
+            "journal/a (conflicted copy phone 2026-09-08).md",
+            "first",
+        );
+        let (_, marker) = provider.read_file("vault/journal/a.md").unwrap();
+        provider
+            .write_file("vault/journal/a.md", b"theirs", Some(&marker))
+            .unwrap();
+        write(&local, "journal/a.md", "mine");
+
+        let report = sync(&provider, &local);
+
+        let copy = "journal/a (conflicted copy phone 2 2026-09-08).md";
+        assert_eq!(report.conflicted_copies, vec![copy.to_string()]);
+        assert_eq!(read(&local, copy), "mine");
+        assert_eq!(
+            read(&local, "journal/a (conflicted copy phone 2026-09-08).md"),
+            "first"
+        );
+        let shown = sync_conflicts::for_display(&local, "phone");
+        assert_eq!(shown[0].copy.as_deref(), Some(copy));
+        assert!(shown[0].open);
+        assert_eq!(shown[0].discarded_by, "this device");
     }
 
     #[test]
@@ -1173,7 +1361,7 @@ mod tests {
             provider.delete_file(&path, Some(&marker)).unwrap();
         }
 
-        let err = sync_vault(&provider, &local, &root(), "phone", NOW, 30, |_, _| {}).unwrap_err();
+        let err = sync_vault(&provider, &local, &root(), PHONE, NOW, 30, |_, _| {}).unwrap_err();
 
         assert!(matches!(
             err,
@@ -1219,7 +1407,7 @@ mod tests {
             provider.delete_file(&path, Some(&marker)).unwrap();
         }
 
-        let report = sync_vault(&provider, &local, &root(), "phone", NOW, 100, |_, _| {}).unwrap();
+        let report = sync_vault(&provider, &local, &root(), PHONE, NOW, 100, |_, _| {}).unwrap();
 
         assert_eq!(report.removed_locally, 12);
     }

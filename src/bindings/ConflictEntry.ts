@@ -17,4 +17,14 @@ path: string,
  * `"<row>: <field>"` for a record merge, `"<record>"` for a whole-row
  * decision, `"<file>"` when a whole file was kept aside.
  */
-field: string, kept: string, kept_by: string, discarded: string, discarded_by: string, };
+field: string, kept: string, kept_by: string, discarded: string, discarded_by: string, 
+/**
+ * The `(conflicted copy ...)` file this decision left beside the
+ * original - the one kind of entry that asks something of the user.
+ */
+copy: string | null, 
+/**
+ * Filled in for display only (`for_display`): the copy still exists,
+ * so it is waiting to be read and merged by hand.
+ */
+open: boolean, };

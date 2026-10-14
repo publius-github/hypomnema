@@ -14,6 +14,12 @@
 //! - on quit (`sync_on_leave`), best effort with a time limit.
 //!
 //! One pass at a time: `cmd_sync::google_pass` refuses to start a second.
+//!
+//! The phone runs this thread too, for the after-edit pass alone: coming
+//! back to the app, leaving it, the heartbeat and regaining a network are
+//! moments the WebView sees (`MobileApp.tsx`), but an edit is a Rust-side
+//! event, and waiting for the next of those moments is what lets two
+//! devices drift apart long enough to edit the same thing.
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::time::Duration;
@@ -115,6 +121,16 @@ pub fn start(app: AppHandle) {
             if due.edit {
                 CHANGED_AT.store(0, Ordering::SeqCst);
             }
+            // the phone's other moments belong to MobileApp.tsx
+            let due = if cfg!(mobile) {
+                Due {
+                    interval: false,
+                    focus: false,
+                    ..due
+                }
+            } else {
+                due
+            };
             if due.interval || due.focus || (due.edit && pending(&root) > 0) {
                 last_pass = Some(now);
                 let _ = cmd_sync::google_pass(&app);

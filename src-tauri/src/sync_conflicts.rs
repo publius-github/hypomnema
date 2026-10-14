@@ -43,6 +43,14 @@ pub struct ConflictEntry {
     pub kept_by: String,
     pub discarded: String,
     pub discarded_by: String,
+    /// The `(conflicted copy ...)` file this decision left beside the
+    /// original - the one kind of entry that asks something of the user.
+    #[serde(default)]
+    pub copy: Option<String>,
+    /// Filled in for display only (`for_display`): the copy still exists,
+    /// so it is waiting to be read and merged by hand.
+    #[serde(default)]
+    pub open: bool,
 }
 
 fn log_path(local_root: &Path) -> PathBuf {
@@ -103,8 +111,57 @@ pub fn entries_from(
             kept_by: c.kept_updated_by,
             discarded: render(&c.discarded),
             discarded_by: c.discarded_updated_by,
+            copy: None,
+            open: false,
         })
         .collect()
+}
+
+/// The entry for a file kept aside as `copy`.
+pub fn with_copy(mut entries: Vec<ConflictEntry>, copy: &str) -> Vec<ConflictEntry> {
+    for entry in &mut entries {
+        entry.copy = Some(copy.to_string());
+    }
+    entries
+}
+
+/// Who a stamp names, in words: device ids mean nothing to a person, and
+/// with one phone and one computer "this device" / "the other device" is
+/// the whole story. The engine's untouched stamp is nobody.
+fn device_label(by: &str, own_device: &str) -> String {
+    match by {
+        "" | crate::ids::UNTOUCHED_BY => String::new(),
+        id if id == own_device => "this device".into(),
+        _ => "the other device".into(),
+    }
+}
+
+/// The log as the Sync screen shows it: devices named, and entries whose
+/// conflicted copy still sits in the vault first and marked open - those
+/// are the ones waiting on the user; the rest are a record of what the
+/// merge chose. Entries from before `copy` existed name it in their text.
+pub fn for_display(local_root: &Path, own_device: &str) -> Vec<ConflictEntry> {
+    let mut entries: Vec<ConflictEntry> = load(local_root)
+        .into_iter()
+        .map(|mut entry| {
+            if entry.copy.is_none() && entry.field == "<file>" {
+                entry.copy = entry
+                    .discarded
+                    .split_once(" kept as ")
+                    .map(|(_, copy)| copy.trim().to_string());
+            }
+            entry.open = entry
+                .copy
+                .as_deref()
+                .is_some_and(|copy| local_root.join(copy).is_file());
+            entry.kept_by = device_label(&entry.kept_by, own_device);
+            entry.discarded_by = device_label(&entry.discarded_by, own_device);
+            entry
+        })
+        .collect();
+    // stable: newest first within each group
+    entries.sort_by_key(|entry| !entry.open);
+    entries
 }
 
 /// Adds entries to the front and trims the tail.
@@ -122,6 +179,47 @@ pub fn append(local_root: &Path, new_entries: Vec<ConflictEntry>) -> Result<()> 
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn the_display_names_devices_and_puts_open_copies_first() {
+        let dir = std::env::temp_dir().join("hypomnema-conflicts-display");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("journal")).unwrap();
+        let field = FieldConflict {
+            field: "1: title".into(),
+            kept: json!("a"),
+            kept_updated_by: "me".into(),
+            discarded: json!("b"),
+            discarded_updated_by: "them".into(),
+        };
+        let copy = "journal/a (conflicted copy phone 2026-09-08).md";
+        fs::write(dir.join(copy), "kept aside").unwrap();
+        let file = FieldConflict {
+            field: "<file>".into(),
+            kept: json!("the other device's version, now at journal/a.md"),
+            kept_updated_by: String::new(),
+            // an entry from before `copy` was stored: named in its text
+            discarded: json!(format!("this device's version, kept as {copy}")),
+            discarded_updated_by: "me".into(),
+        };
+        append(&dir, entries_from("journal/a.md", "t0", [file])).unwrap();
+        append(
+            &dir,
+            entries_from(".hypomnema/state/tasks.jsonl", "t1", [field]),
+        )
+        .unwrap();
+
+        let shown = for_display(&dir, "me");
+
+        assert_eq!(shown[0].path, "journal/a.md");
+        assert!(shown[0].open);
+        assert_eq!(shown[0].copy.as_deref(), Some(copy));
+        assert_eq!(shown[0].discarded_by, "this device");
+        assert!(!shown[1].open);
+        assert_eq!(shown[1].kept_by, "this device");
+        assert_eq!(shown[1].discarded_by, "the other device");
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("hypomnema-conflicts-{name}"));

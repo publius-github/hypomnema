@@ -436,7 +436,10 @@ fn run_pass<P: SyncProvider>(
         provider,
         &local_root,
         root,
-        &device,
+        sync_cycle::DeviceTag {
+            id: &device,
+            label: if cfg!(mobile) { "phone" } else { "desktop" },
+        },
         &now,
         guard_percent,
         |done, total| {
@@ -568,13 +571,15 @@ pub(crate) async fn sync_standing(state: State<'_, AppState>) -> Result<sync_cyc
 /// What this device had to choose between during past syncs.
 #[tauri::command]
 pub(crate) async fn sync_conflicts_list(
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<sync_conflicts::ConflictEntry>> {
+    let device = device::ensure(&app_config_dir(&app)?)?;
     let guard = state.vault.lock_or_recover();
     let Some(vault) = guard.as_ref() else {
         return Ok(Vec::new());
     };
-    Ok(sync_conflicts::load(&vault.root))
+    Ok(sync_conflicts::for_display(&vault.root, &device))
 }
 
 #[tauri::command]

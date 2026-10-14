@@ -140,8 +140,9 @@ pub struct AppConfig {
     /// before locking the screen sits on the device until the app is
     /// opened again.
     pub sync_on_leave: bool,
-    /// Desktop: seconds after the last local edit before a pass sends
-    /// it, so a burst of edits goes up once.
+    /// Seconds after the last local edit before a pass sends it, so a
+    /// burst of edits goes up once - short, because the longer an edit
+    /// waits here the likelier the other device edits the same thing.
     pub sync_debounce_seconds: u32,
     /// Desktop: sync when the main window comes to the front (at most
     /// once a minute), to bring down what the other device did meanwhile.
@@ -539,7 +540,7 @@ impl Default for AppConfig {
             sync_auto: true,
             sync_interval_minutes: 15,
             sync_on_leave: true,
-            sync_debounce_seconds: 60,
+            sync_debounce_seconds: 15,
             sync_on_focus: true,
             sync_mass_delete_guard_percent: 30,
             // Trust the WebView first; a floor is for the device where
@@ -662,7 +663,7 @@ impl AppConfig {
         // A pass under a minute apart would spend the battery on
         // listings; a day apart is not a sync, it is a weekly backup.
         self.sync_interval_minutes = self.sync_interval_minutes.clamp(1, 720);
-        self.sync_debounce_seconds = self.sync_debounce_seconds.clamp(10, 3600);
+        self.sync_debounce_seconds = self.sync_debounce_seconds.clamp(5, 3600);
         // Under 5% a routine cleanup of old notes would trip it.
         self.sync_mass_delete_guard_percent = self.sync_mass_delete_guard_percent.clamp(5, 100);
         // A status bar is ~24-48dp and a navigation bar about the same;

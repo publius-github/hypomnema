@@ -7,6 +7,7 @@ import MobileVaultFolder from "./MobileVaultFolder";
 import { NumberField, Toggle } from "./controls";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
+import ConflictList from "../components/ConflictList";
 
 import type {
   AppConfig,
@@ -188,6 +189,8 @@ function SyncPanel({
   const setError = useAppStore((s) => s.setError);
   const [sync, setSync] = useState<SyncSummary | null>(null);
   const [showConflicts, setShowConflicts] = useState(false);
+  // decisions that left a conflicted copy still in the vault
+  const openConflicts = conflicts.filter((c) => c.open).length;
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);
   // Set when a pass stopped on the mass-deletion guard: the remote lost
@@ -385,6 +388,23 @@ function SyncPanel({
                   />
                 </div>
                 <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 text-sm">
+                    Seconds after an edit
+                    <span className="block text-xs text-content-muted">
+                      How soon a change goes up. Short keeps the two devices
+                      from editing the same thing apart.
+                    </span>
+                  </span>
+                  <NumberField
+                    value={config.sync_debounce_seconds}
+                    min={5}
+                    max={3600}
+                    onCommit={(next) =>
+                      void updateConfig({ sync_debounce_seconds: next })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm">Interval (minutes)</span>
                   <NumberField
                     value={config.sync_interval_minutes}
@@ -455,36 +475,17 @@ function SyncPanel({
           <>
             <button
               onClick={() => setShowConflicts((v) => !v)}
-              className="self-start text-sm text-accent"
+              className={`self-start text-sm ${
+                openConflicts > 0 ? "font-medium text-warn" : "text-accent"
+              }`}
             >
+              {openConflicts > 0
+                ? `${openConflicts} to review · `
+                : ""}
               {conflicts.length} decision{conflicts.length === 1 ? "" : "s"}{" "}
               {showConflicts ? "▴" : "▾"}
             </button>
-            {showConflicts && (
-              <ul className="flex flex-col gap-3">
-                {conflicts.map((entry, i) => (
-                  <li
-                    key={`${entry.at}-${entry.path}-${entry.field}-${i}`}
-                    className="rounded-lg border border-line p-3 text-sm"
-                  >
-                    <div className="break-all font-medium">{entry.path}</div>
-                    <div className="text-xs text-content-muted">
-                      {entry.field} · {entry.at.slice(0, 16).replace("T", " ")}
-                    </div>
-                    <div className="mt-2 break-words">
-                      <span className="text-content-muted">Kept: </span>
-                      {entry.kept}
-                      {entry.kept_by && ` (${entry.kept_by})`}
-                    </div>
-                    <div className="break-words text-warn">
-                      <span className="text-content-muted">Dropped: </span>
-                      {entry.discarded}
-                      {entry.discarded_by && ` (${entry.discarded_by})`}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {showConflicts && <ConflictList entries={conflicts} />}
           </>
         )}
       </section>

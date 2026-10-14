@@ -379,7 +379,7 @@ fn fetch_one<P: SyncProvider>(
     fs::write(&target, &bytes)?;
     // The first sync pass after a pull merges the snapshot three-way; with
     // no base every row the other device deleted since would come back.
-    if crate::sync_state::state_file_of(relative).is_some() {
+    if crate::sync_cycle::keeps_base(relative) {
         crate::sync_cycle::write_base(local_root, relative, &bytes)?;
     }
     Ok((bytes.len(), crate::sync_push::content_hash(&bytes)))

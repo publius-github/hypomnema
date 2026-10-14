@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Field, NumberInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
+import ConflictList from "../../components/ConflictList";
 import { errorKind, errorMessage, invoke } from "../../lib/ipc";
 import { useAppStore } from "../../store";
 import type {
@@ -257,7 +258,10 @@ export default function SyncTab() {
           <section className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <span className="flex-1 text-sm font-medium">
-                Sync conflicts ({conflicts.length})
+                Sync conflicts ({conflicts.length}
+                {conflicts.some((c) => c.open) &&
+                  `, ${conflicts.filter((c) => c.open).length} to review`}
+                )
               </span>
               <button
                 className="btn-ghost px-2 py-0.5 text-xs"
@@ -268,29 +272,9 @@ export default function SyncTab() {
                 Clear
               </button>
             </div>
-            <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto">
-              {conflicts.map((entry, i) => (
-                <li
-                  key={`${entry.at}-${entry.path}-${entry.field}-${i}`}
-                  className="rounded border border-line p-2 text-xs"
-                >
-                  <div className="break-all font-medium">{entry.path}</div>
-                  <div className="text-content-muted">
-                    {entry.field} · {when(entry.at)}
-                  </div>
-                  <div className="break-words">
-                    <span className="text-content-muted">Kept: </span>
-                    {entry.kept}
-                    {entry.kept_by && ` (${entry.kept_by})`}
-                  </div>
-                  <div className="break-words text-warn">
-                    <span className="text-content-muted">Dropped: </span>
-                    {entry.discarded}
-                    {entry.discarded_by && ` (${entry.discarded_by})`}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="max-h-72 overflow-y-auto">
+              <ConflictList entries={conflicts} compact />
+            </div>
           </section>
         )}
       </SettingsGroup>
@@ -313,10 +297,10 @@ export default function SyncTab() {
                 }
               />
             </Field>
-            <Field label="Seconds after an edit before it goes up (10-3600)">
+            <Field label="Seconds after an edit before it goes up (5-3600)">
               <NumberInput
                 value={config.sync_debounce_seconds}
-                min={10}
+                min={5}
                 onCommit={(n) =>
                   void updateConfig({ sync_debounce_seconds: Math.min(3600, n) })
                 }

@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.93.2"
+version = "0.94.0"
 description = "Weekly planner, journal, and personal knowledge base"
 edition = "2021"
 
@@ -36,6 +36,7 @@ getrandom = "0.2"
 aes-gcm = "0.10"
 argon2 = "0.5"
 tauri-plugin-opener = "2.5.5"
+diffy = "0.4"
 
 # A second launch (a shortcut clicked while the app sits in the tray)
 # must hand over to the running instance: two copies fight over the
