@@ -45,6 +45,18 @@ pub struct ChangedFile {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SyncCursor(pub Option<String>);
 
+/// An extra copy of a path: two devices created the same file before
+/// either saw the other's (Google Drive allows two files with one name).
+/// The sync pass merges `bytes` into the local file, then hands the
+/// duplicate back to `discard_duplicate`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Duplicate {
+    pub path: String,
+    pub bytes: Vec<u8>,
+    /// Provider-specific id of this copy (a Drive file id).
+    pub handle: String,
+}
+
 pub trait SyncProvider {
     /// List files changed since `cursor` (`SyncCursor::default()` = full
     /// listing). Returns the changes plus the cursor to pass next time.
@@ -72,6 +84,19 @@ pub trait SyncProvider {
     /// devices deleting the same note agree, and the second one arriving
     /// should not have to care that it was second.
     fn delete_file(&self, path: &str, expected_marker: Option<&ChangeMarker>) -> Result<()>;
+
+    /// Extra copies of paths found by the last `list_changes`, with their
+    /// bytes. A backend that cannot hold two files under one path (Dropbox)
+    /// never has any.
+    fn take_duplicates(&self) -> Result<Vec<Duplicate>> {
+        Ok(Vec::new())
+    }
+
+    /// Removes a duplicate whose content has been merged in. Gone already
+    /// is not an error.
+    fn discard_duplicate(&self, _duplicate: &Duplicate) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -94,6 +119,8 @@ pub(crate) mod mock {
         // Dropbox's `include_deleted` does - a device that never hears
         // about a deletion keeps resurrecting the file.
         tombstones: Mutex<std::collections::HashSet<String>>,
+        duplicates: Mutex<Vec<Duplicate>>,
+        pub discarded: Mutex<Vec<Duplicate>>,
     }
 
     impl MockProvider {
@@ -104,6 +131,24 @@ pub(crate) mod mock {
         /// Make this path exist in listings but fail to download.
         pub fn make_unreadable(&self, path: &str) {
             self.unreadable.lock().unwrap().insert(path.to_string());
+        }
+
+        /// Removes a file without leaving a tombstone, the way a backend
+        /// with no deletion records (Google Drive) just stops listing it.
+        pub fn vanish(&self, path: &str) {
+            self.files.lock().unwrap().remove(path);
+        }
+
+        /// A second copy of `path`, as two devices racing to create it
+        /// would leave on a backend that allows that.
+        pub fn add_duplicate(&self, path: &str, bytes: &[u8]) {
+            let mut duplicates = self.duplicates.lock().unwrap();
+            let handle = format!("dup-{}", duplicates.len());
+            duplicates.push(Duplicate {
+                path: path.to_string(),
+                bytes: bytes.to_vec(),
+                handle,
+            });
         }
 
         fn marker_for(rev: u64) -> ChangeMarker {
@@ -188,6 +233,19 @@ pub(crate) mod mock {
             }
             files.remove(path);
             self.tombstones.lock().unwrap().insert(path.to_string());
+            Ok(())
+        }
+
+        fn take_duplicates(&self) -> Result<Vec<Duplicate>> {
+            Ok(self.duplicates.lock().unwrap().clone())
+        }
+
+        fn discard_duplicate(&self, duplicate: &Duplicate) -> Result<()> {
+            self.duplicates
+                .lock()
+                .unwrap()
+                .retain(|d| d.handle != duplicate.handle);
+            self.discarded.lock().unwrap().push(duplicate.clone());
             Ok(())
         }
     }

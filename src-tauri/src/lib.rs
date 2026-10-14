@@ -19,6 +19,7 @@ mod sync_conflicts;
 mod sync_cycle;
 mod sync_dropbox;
 mod sync_dropbox_oauth;
+mod sync_gdrive;
 mod sync_merge;
 mod sync_paths;
 mod sync_provider;

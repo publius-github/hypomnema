@@ -356,6 +356,59 @@ fn apply_incoming(
     Ok(Incoming::Merged)
 }
 
+/// Folds an extra copy of a path (`SyncProvider::take_duplicates`) into
+/// the local file, which by now holds the canonical copy. There is no
+/// agreed base between the two - each was created without knowing the
+/// other - so state files are merged as a union, and differing prose is
+/// kept beside the file as a conflicted copy. The merged result goes up
+/// with this pass's push. `Some(changed)` once the copy's content is safe
+/// locally; `None` when there is nothing local to merge it into yet (the
+/// canonical copy failed to come down), so it must not be discarded.
+fn apply_duplicate(
+    ctx: &Context<'_>,
+    relative: &str,
+    bytes: &[u8],
+    out: &mut Vec<ConflictEntry>,
+    conflicted_copies: &mut Vec<String>,
+) -> Result<Option<bool>> {
+    let target = ctx.local_root.join(relative);
+    let Ok(local_bytes) = fs::read(&target) else {
+        return Ok(None);
+    };
+    if local_bytes == bytes {
+        return Ok(Some(false));
+    }
+    if let Some(kind) = sync_state::state_file_of(relative) {
+        let local_text = String::from_utf8_lossy(&local_bytes).into_owned();
+        let other_text = String::from_utf8_lossy(bytes).into_owned();
+        let merged = sync_state::merge_state_file(kind, None, &local_text, &other_text)?;
+        fs::write(&target, merged.text.as_bytes())?;
+        out.extend(sync_conflicts::entries_from(
+            relative,
+            ctx.now,
+            merged.conflicts,
+        ));
+        return Ok(Some(true));
+    }
+    let copy = conflicted_copy_path(relative, "duplicate", ctx.day());
+    write_local(&ctx.local_root.join(&copy), bytes)?;
+    conflicted_copies.push(copy.clone());
+    out.extend(sync_conflicts::entries_from(
+        relative,
+        ctx.now,
+        [FieldConflict {
+            field: "<file>".into(),
+            kept: serde_json::Value::String(format!("one device's version, at {relative}")),
+            kept_updated_by: String::new(),
+            discarded: serde_json::Value::String(format!(
+                "the other device's version, created at the same time, kept as {copy}"
+            )),
+            discarded_updated_by: String::new(),
+        }],
+    ));
+    Ok(Some(true))
+}
+
 fn write_local(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -403,6 +456,16 @@ pub fn sync_vault<P: SyncProvider>(
     }
 
     guard_mass_deletion(&manifest, &remote_live, guard_percent)?;
+
+    // The listing is always full, so a file this device has synced that
+    // is no longer in it was deleted over there - whether or not the
+    // backend reports tombstones (Google Drive does not).
+    for remote in manifest.keys() {
+        let synced = root.relative(remote).is_some_and(sync_paths::is_synced);
+        if synced && !remote_live.contains_key(remote) && !remote_gone.contains(remote) {
+            remote_gone.push(remote.clone());
+        }
+    }
 
     // --- Incoming ------------------------------------------------------
     let total = remote_live.len();
@@ -468,6 +531,41 @@ pub fn sync_vault<P: SyncProvider>(
                 hash: Some(content_hash(&bytes)),
             },
         );
+    }
+
+    // --- Copies two devices created under one path --------------------
+    for duplicate in provider.take_duplicates()? {
+        let remote = duplicate.path.trim_start_matches('/');
+        let Some(relative) = root.relative(remote) else {
+            continue;
+        };
+        if !sync_paths::is_synced(relative) {
+            continue;
+        }
+        let applied = apply_duplicate(
+            &ctx,
+            relative,
+            &duplicate.bytes,
+            &mut conflicts,
+            &mut report.conflicted_copies,
+        );
+        // Only a copy whose content is safely in the local file may go;
+        // one that could not be applied is still there next pass.
+        match applied {
+            Ok(Some(merged)) => {
+                if provider.discard_duplicate(&duplicate).is_err() {
+                    report.failed.push(remote.to_string());
+                }
+                if merged {
+                    report.merged += 1;
+                    if sync_state::state_file_of(relative).is_some() {
+                        report.state_changed = true;
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(_) => report.failed.push(remote.to_string()),
+        }
     }
 
     // --- Deletions made on the other device ----------------------------
@@ -850,6 +948,99 @@ mod tests {
 
         assert_eq!(report.removed_locally, 1);
         assert!(!local.join("journal/a.md").exists());
+    }
+
+    #[test]
+    fn a_note_that_simply_stops_being_listed_counts_as_deleted_there() {
+        let local = temp_dir("delete-no-tombstone");
+        let provider = MockProvider::new();
+        in_sync(&provider, &local, "journal/a.md", "text");
+        provider.vanish("vault/journal/a.md");
+
+        let report = sync(&provider, &local);
+
+        assert_eq!(report.removed_locally, 1);
+        assert!(!local.join("journal/a.md").exists());
+        assert_eq!(report.uploaded, 0);
+    }
+
+    #[test]
+    fn a_task_file_created_twice_at_once_is_merged_and_the_copy_discarded() {
+        let local = temp_dir("duplicate-state");
+        let provider = MockProvider::new();
+        let path = ".hypomnema/state/tasks.jsonl";
+        let one = "{\"id\":1,\"title\":\"one\",\"updated_at\":\"t1\",\"updated_by\":\"desk\"}\n";
+        let two = "{\"id\":2,\"title\":\"two\",\"updated_at\":\"t1\",\"updated_by\":\"phone\"}\n";
+        provider
+            .write_file(&root().absolute(path), one.as_bytes(), None)
+            .unwrap();
+        provider.add_duplicate(&root().absolute(path), two.as_bytes());
+
+        let report = sync(&provider, &local);
+
+        let merged = read(&local, path);
+        assert!(merged.contains("\"one\""));
+        assert!(merged.contains("\"two\""));
+        assert!(report.state_changed);
+        assert_eq!(report.uploaded, 1);
+        let uploaded = provider.read_file(&root().absolute(path)).unwrap().0;
+        assert_eq!(String::from_utf8(uploaded).unwrap(), merged);
+        assert_eq!(provider.discarded.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_note_created_twice_at_once_keeps_the_other_as_a_conflicted_copy() {
+        let local = temp_dir("duplicate-prose");
+        let provider = MockProvider::new();
+        provider
+            .write_file("vault/journal/a.md", b"first", None)
+            .unwrap();
+        provider.add_duplicate("vault/journal/a.md", b"second");
+
+        let report = sync(&provider, &local);
+
+        assert_eq!(read(&local, "journal/a.md"), "first");
+        let copy = "journal/a (conflicted copy duplicate 2026-09-08).md";
+        assert_eq!(read(&local, copy), "second");
+        assert_eq!(report.conflicted_copies, vec![copy.to_string()]);
+        assert_eq!(provider.discarded.lock().unwrap().len(), 1);
+        // The copy goes up as a file of its own.
+        assert_eq!(
+            provider.read_file(&root().absolute(copy)).unwrap().0,
+            b"second"
+        );
+    }
+
+    #[test]
+    fn an_identical_duplicate_is_just_discarded() {
+        let local = temp_dir("duplicate-same");
+        let provider = MockProvider::new();
+        provider
+            .write_file("vault/journal/a.md", b"same", None)
+            .unwrap();
+        provider.add_duplicate("vault/journal/a.md", b"same");
+
+        let report = sync(&provider, &local);
+
+        assert!(report.conflicted_copies.is_empty());
+        assert_eq!(report.merged, 0);
+        assert_eq!(provider.discarded.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_duplicate_with_nothing_local_to_merge_into_is_kept_for_later() {
+        let local = temp_dir("duplicate-unreadable");
+        let provider = MockProvider::new();
+        provider
+            .write_file("vault/journal/a.md", b"first", None)
+            .unwrap();
+        provider.make_unreadable("vault/journal/a.md");
+        provider.add_duplicate("vault/journal/a.md", b"second");
+
+        let report = sync(&provider, &local);
+
+        assert_eq!(report.failed, vec!["vault/journal/a.md".to_string()]);
+        assert!(provider.discarded.lock().unwrap().is_empty());
     }
 
     #[test]
