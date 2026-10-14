@@ -13,7 +13,7 @@ import type {
   BackupEntry,
   BackupsOverview,
   ConflictEntry,
-  DropboxSync,
+  SyncSummary,
   GoogleStatus,
   List,
   LockState,
@@ -77,11 +77,6 @@ export default function MobileSettings() {
   const panels: { id: Panel; label: string; hint: string }[] = [
     { id: "sync", label: "Sync", hint: syncHint },
     {
-      id: "lock",
-      label: "Passphrase",
-      hint: lock?.enabled ? "On" : "Off",
-    },
-    {
       id: "appearance",
       label: "Appearance",
       hint: config
@@ -99,6 +94,10 @@ export default function MobileSettings() {
       hint: "Backups, archived lists, cleanup",
     },
     { id: "vault", label: "Vault", hint: vaultPath ?? "none" },
+    // only while one is left over from the Dropbox days, to remove it
+    ...(lock?.enabled
+      ? [{ id: "lock" as Panel, label: "Passphrase", hint: "On - no longer needed" }]
+      : []),
   ];
 
   if (panel) {
@@ -187,7 +186,7 @@ function SyncPanel({
   const config = useAppStore((s) => s.config);
   const updateConfig = useAppStore((s) => s.updateConfig);
   const setError = useAppStore((s) => s.setError);
-  const [sync, setSync] = useState<DropboxSync | null>(null);
+  const [sync, setSync] = useState<SyncSummary | null>(null);
   const [showConflicts, setShowConflicts] = useState(false);
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [busy, setBusy] = useState(false);

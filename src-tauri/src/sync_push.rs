@@ -5,9 +5,9 @@
 //! file, the revision that was fetched and a hash of what arrived. A file
 //! whose hash still matches has not been touched here and is not worth a
 //! request; one that differs is a local edit, and it goes up **guarded by
-//! the revision it was based on**. Dropbox rejects the write if the
-//! remote has moved since - which is the whole reason the API backend was
-//! chosen over a filesystem one (ROADMAP.md's Spike A verdict). A
+//! the revision it was based on**. The provider rejects the write if the
+//! remote has moved since - which is the whole reason an API backend was
+//! chosen over a synced folder (ROADMAP.md's Spike A verdict). A
 //! rejection is reported, never overwritten: the other device's edit is
 //! not this device's to discard.
 #![allow(dead_code)]
@@ -128,7 +128,7 @@ pub fn push_vault<P: SyncProvider>(
             }
             Ok(other) => {
                 return Err(Error::State(format!(
-                    "Dropbox returned a non-revision marker: {other:?}"
+                    "the remote returned a non-revision marker: {other:?}"
                 )))
             }
             Err(Error::SyncConflict { .. }) => report.conflicts.push(remote),

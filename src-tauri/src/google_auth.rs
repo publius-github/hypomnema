@@ -21,11 +21,11 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 
 use crate::error::{Error, Result};
-use crate::sync_dropbox_oauth::OauthTransport;
+use crate::oauth::OauthTransport;
 use crate::sync_gdrive::percent_encode;
 
 /// The "Desktop app" OAuth client of the Hypomnema Google Cloud project.
-/// A public identifier, like Dropbox's app key.
+/// A public identifier, not a credential.
 pub const CLIENT_ID: &str =
     "901647150843-gni9t7lasuf143m1qbkn3hp8otr7r0ok.apps.googleusercontent.com";
 

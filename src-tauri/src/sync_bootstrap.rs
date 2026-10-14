@@ -1,12 +1,10 @@
-//! Finding the vault inside a Dropbox app folder, and deciding which of
-//! its files this device needs to pull. docs/android/ROADMAP.md Phase 1.
+//! Finding the vault in a remote's listing, the first pull of it onto a
+//! device, and the sync spaces that keep each remote's bookkeeping apart.
 //!
-//! The app folder is not the vault. Dropbox drops its own `desktop.ini`
-//! in there, this app writes a marker file (`dropbox_link.rs`), and a
-//! user may reasonably keep the vault as a named subfolder rather than
-//! spilling its contents next to those. So the vault root is *detected*,
-//! not configured: one less setup step to get wrong, and it works whether
-//! the vault sits at the app-folder root or one level down.
+//! The vault root is *detected*, not configured: in Google Drive's app
+//! folder it is always the root, but detection is also what tells "Drive
+//! holds a vault" from "Drive is empty" (`google_pull_vault`), and it
+//! copes with a vault kept one subfolder down.
 //!
 //! What identifies a vault root is `.hypomnema/` - the same working
 //! directory `vault.rs` creates and every vault has.
@@ -69,7 +67,7 @@ pub fn detect_vault_root(paths: &[String]) -> Result<VaultRoot> {
         .min()
         .ok_or_else(|| {
             Error::State(format!(
-                "no vault in this Dropbox app folder - expected a {WORK_DIR}/ directory, \
+                "no vault in the remote folder - expected a {WORK_DIR}/ directory, \
                  either at its root or inside one subfolder"
             ))
         })?;
@@ -81,7 +79,7 @@ pub fn detect_vault_root(paths: &[String]) -> Result<VaultRoot> {
     match shallowest.as_slice() {
         [only] => Ok(VaultRoot((*only).clone())),
         many => Err(Error::State(format!(
-            "this Dropbox app folder holds {} vaults ({}); it must hold one",
+            "the remote folder holds {} vaults ({}); it must hold one",
             many.len(),
             many.iter()
                 .map(|c| if c.is_empty() {
@@ -152,7 +150,7 @@ const SYNC_DIR: &str = ".hypomnema/sync";
 /// are kept per remote: linking a different provider or a different
 /// account starts from a clean space and the first pass joins instead of
 /// reading another remote's revisions as its own. With no pointer the
-/// space is `SYNC_DIR` itself - where the Dropbox link always kept them.
+/// space is `SYNC_DIR` itself - where the retired Dropbox link kept them.
 const SPACE_FILE: &str = ".hypomnema/sync/space";
 
 /// Where the active space's manifest and merge base live.
@@ -225,7 +223,7 @@ pub const MANIFEST_FLUSH_EVERY: usize = 25;
 /// What this device knows about one file in the shared vault: the
 /// revision it fetched, and a hash of the bytes that arrived. The hash is
 /// what makes "did anything change here?" answerable without asking
-/// Dropbox - see sync_push.rs.
+/// the remote - see sync_push.rs.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FileState {
     pub rev: String,

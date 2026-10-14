@@ -29,7 +29,9 @@
 //!   `sync_cycle` reads "in the manifest, absent from a full listing" as
 //!   that deletion, so no tombstones are needed.
 #![allow(dead_code)]
-// ureq's error type carries a whole Response; see sync_dropbox.rs.
+// ureq's error type carries a whole Response, so anything handing one
+// back trips `result_large_err`. Boxing it would only move the cost and
+// obscure the retry logic; these errors are per-request, not per-row.
 #![allow(clippy::result_large_err)]
 
 use std::collections::HashMap;

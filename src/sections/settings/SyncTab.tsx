@@ -6,7 +6,7 @@ import { errorKind, errorMessage, invoke } from "../../lib/ipc";
 import { useAppStore } from "../../store";
 import type {
   ConflictEntry,
-  DropboxSync,
+  SyncSummary,
   GoogleStatus,
   SyncActivity,
   SyncStanding,
@@ -49,7 +49,7 @@ export default function SyncTab() {
   const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
   const [signingIn, setSigningIn] = useState(false);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<DropboxSync | null>(null);
+  const [result, setResult] = useState<SyncSummary | null>(null);
   const [wiped, setWiped] = useState(false);
 
   const loadStanding = useCallback(() => {

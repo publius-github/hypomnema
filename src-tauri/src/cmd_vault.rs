@@ -27,9 +27,8 @@ pub(crate) async fn vault_status(
 ///
 /// A phone has no folder picker worth the name and no obvious place a
 /// user would point one at, so this is a fixed location the app owns.
-/// It is a normal directory read and written with normal file I/O - the
-/// Dropbox backend exists to *sync* a vault, and treating it as the only
-/// way to *have* one was a mistake this corrects.
+/// It is a normal directory read and written with normal file I/O -
+/// Google sync exists to *sync* a vault, not to be the way to *have* one.
 /// Where a vault goes when nobody chooses one.
 ///
 /// On Android this prefers the app's own folder on shared storage over
@@ -46,8 +45,8 @@ pub(crate) fn local_vault_dir(app: &AppHandle) -> Result<PathBuf> {
 
 /// Opens (creating if needed) this device's own vault, with no sync
 /// involved. `Vault::open` lays out an empty vault the same way it does
-/// on a first desktop run, so this works on a phone that has never seen
-/// Dropbox.
+/// on a first desktop run, so this works on a phone that has never
+/// signed in to anything.
 #[tauri::command]
 pub(crate) async fn vault_use_local(app: AppHandle, state: State<'_, AppState>) -> Result<String> {
     let root = local_vault_dir(&app)?;

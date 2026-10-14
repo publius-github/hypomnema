@@ -86,9 +86,9 @@ pub(crate) fn with_vault_root<T>(
     f(&vault.root)
 }
 
-/// True on Android. The frontend shows the Dropbox link screen instead of
-/// the desktop folder picker when this is set: a phone has no synced vault
-/// folder to point a picker at (docs/android/SPIKES.md, Spike A).
+/// True on Android. The frontend shows the phone's first-run screen
+/// (local vault, in-app folder browser, Google sign-in) instead of the
+/// desktop folder picker when this is set.
 #[tauri::command]
 pub(crate) fn platform_is_mobile() -> bool {
     cfg!(mobile)

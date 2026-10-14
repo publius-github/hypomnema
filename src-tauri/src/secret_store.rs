@@ -1,9 +1,10 @@
 //! Where secrets live on a device, and whether they are readable right
 //! now. docs/android/ROADMAP.md Phase 4.
 //!
-//! There is exactly one secret today - the Dropbox refresh token - and it
-//! is worth protecting for a reason the access token is not: it is a
-//! standing grant to the whole app folder that survives reboots, app
+//! There is exactly one secret today - the desktop's Google refresh token
+//! (the phone keeps none: Play services holds its grant) - and it is
+//! worth protecting for a reason the access token is not: it is a
+//! standing grant to the app's Drive folder that survives reboots, app
 //! restarts and every expiry in between. Somebody holding a phone they
 //! did not buy is the threat this answers.
 //!
@@ -188,7 +189,7 @@ pub fn read_secret(config_dir: &Path, name: &str) -> Result<Option<Vec<u8>>> {
     }
     let Some(passphrase) = passphrase() else {
         return Err(Error::State(
-            "this device is locked - enter its passphrase to reach the Dropbox link".into(),
+            "this device is locked - enter its passphrase to reach the Google sign-in".into(),
         ));
     };
     read_secret_with(config_dir, name, &passphrase)
@@ -219,7 +220,7 @@ pub fn write_secret(config_dir: &Path, name: &str, bytes: &[u8]) -> Result<()> {
     }
     let Some(passphrase) = passphrase() else {
         return Err(Error::State(
-            "this device is locked - enter its passphrase before linking Dropbox".into(),
+            "this device is locked - enter its passphrase before signing in".into(),
         ));
     };
     write_json(&path, &crypto::seal(&passphrase, bytes)?)

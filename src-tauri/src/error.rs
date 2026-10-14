@@ -16,10 +16,9 @@ pub enum Error {
     /// broken, the vault picker is simply still open.
     #[error("no vault selected")]
     NoVault,
-    // Raised by sync_provider.rs's mock and sync_dropbox.rs's real
-    // DropboxApiSyncProvider on a stale-marker write (docs/android/
-    // ROADMAP.md Phase 1). Not yet raised from any command reachable by
-    // the frontend - that lands with the vault-sync wiring above these.
+    // Raised by a sync provider (sync_gdrive.rs, the test mock) on a
+    // stale-marker write; sync_cycle.rs turns it into a merge on the
+    // next pass rather than letting it reach a command.
     #[error("write rejected, remote changed: {path}")]
     SyncConflict { path: String },
     /// A pass found most of what this device had synced gone from the

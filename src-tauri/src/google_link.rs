@@ -7,7 +7,7 @@
 //!   it is what the screen shows, and it must be readable on a locked
 //!   device to say who is signed in.
 //! - `google.json` - the tokens, through `secret_store.rs`, so the device
-//!   passphrase seals them like the Dropbox ones. The refresh token is a
+//!   passphrase seals them. The refresh token is a
 //!   standing grant to the app's Drive folder.
 //!
 //! `valid_access_token` refreshes ahead of expiry, so a sync pass never
@@ -21,8 +21,8 @@ use ts_rs::TS;
 
 use crate::error::{Error, Result};
 use crate::google_auth::{self, GoogleTokens};
+use crate::oauth::OauthTransport;
 use crate::secret_store;
-use crate::sync_dropbox_oauth::OauthTransport;
 use crate::sync_gdrive::DriveUser;
 
 const TOKENS_FILE: &str = "google.json";

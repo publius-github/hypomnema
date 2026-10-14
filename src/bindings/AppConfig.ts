@@ -165,8 +165,8 @@ notify_snooze_minutes: number,
 state_snapshot: boolean, 
 /**
  * Run sync passes on their own, without the user pressing Sync now
- * (the phone's Dropbox link; the desktop's Google sign-in, through
- * `sync_scheduler.rs`). Off leaves sync entirely manual.
+ * (on the phone from the shell's triggers; on the desktop through
+ * `sync_scheduler.rs`), while signed in to Google. Off leaves sync entirely manual.
  */
 sync_auto: boolean, 
 /**

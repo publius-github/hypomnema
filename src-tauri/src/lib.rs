@@ -5,13 +5,13 @@ mod config_files;
 mod crypto;
 mod db;
 mod device;
-mod dropbox_link;
 mod engine;
 mod error;
 mod google_auth;
 mod google_link;
 mod journal;
 mod kb;
+mod oauth;
 mod profiles;
 mod reminders;
 mod secret_store;
@@ -19,8 +19,6 @@ mod state_export;
 mod sync_bootstrap;
 mod sync_conflicts;
 mod sync_cycle;
-mod sync_dropbox;
-mod sync_dropbox_oauth;
 mod sync_gdrive;
 mod sync_merge;
 mod sync_paths;
@@ -91,7 +89,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         // opener works on Android too, unlike open_external's xdg-open
-        // fallback - the Dropbox consent page has to reach a real browser.
+        // fallback - the desktop's Google consent page opens through it.
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init());
     #[cfg(target_os = "android")]
@@ -276,15 +274,6 @@ pub fn run() {
             cmd_tasks::task_get,
             cmd_kb::open_external,
             state::platform_is_mobile,
-            cmd_sync::dropbox_auth_url,
-            cmd_sync::dropbox_connect,
-            cmd_sync::dropbox_status,
-            cmd_sync::dropbox_disconnect,
-            cmd_sync::dropbox_list_files,
-            cmd_sync::dropbox_write_marker,
-            cmd_sync::dropbox_pull_vault,
-            cmd_sync::dropbox_push_vault,
-            cmd_sync::dropbox_sync,
             cmd_sync::sync_reset_space,
             cmd_sync::sync_now,
             cmd_sync::google_status,

@@ -4,15 +4,16 @@
 //! Argon2id for the key derivation and AES-256-GCM for the box, both pure
 //! Rust so they cross-compile for `aarch64-linux-android` with no native
 //! dependency - the same constraint that picked `ureq`/rustls over a
-//! native-TLS client in `sync_dropbox.rs`.
+//! native-TLS client for the sync backend.
 //!
 //! **What this is for, and what it is not.** It protects a secret at rest
-//! on a device someone else has picked up: the Dropbox refresh token,
-//! which is a standing grant to the whole app folder and outlives any
-//! access token. It is *not* vault encryption. The vault is plain files
-//! that a desktop reads directly and Dropbox syncs as-is; encrypting the
-//! phone's copy would break both, and encrypting what goes to Dropbox
-//! would leave the desktop unable to read its own vault. That trade-off
+//! on a device someone else has picked up: the desktop's Google refresh
+//! token, which is a standing grant to the app's Drive folder and
+//! outlives any access token. It is *not* vault encryption. The vault is
+//! plain files that each device reads directly and sync moves as-is;
+//! encrypting it is a whole-product decision (end-to-end encryption of
+//! what goes to Drive is the optional last phase of the Google sync
+//! plan). That trade-off
 //! belongs to a whole-product decision, not to this module - see
 //! ROADMAP.md Phase 4 for what is and is not covered.
 //!

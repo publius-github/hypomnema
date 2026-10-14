@@ -1,15 +1,8 @@
 //! Backend-agnostic abstraction over "a folder of files kept in sync by
-//! someone else" (Dropbox API, or a Storage-Access-Framework-exposed
-//! folder). `docs/android/ROADMAP.md` Phase 1: the merge logic in
-//! `sync_merge.rs` consumes this trait without caring which backend moved
-//! the bytes - see ROADMAP.md's "Dropbox integration: dual-backend, not
-//! either/or".
-//!
-//! No concrete implementation lives here yet:
-//! - `DropboxApiSyncProvider` needs a registered Dropbox app (OAuth client
-//!   id) before it can be wired up for real.
-//! - `FilesystemSyncProvider` is gated on Spike A (SAF feasibility, see
-//!   `docs/android/SPIKES.md`) passing.
+//! someone else". The sync engine (`sync_cycle.rs`, `sync_merge.rs`)
+//! consumes this trait without caring which backend moved the bytes; the
+//! one real implementation is `sync_gdrive.rs` (Google Drive's hidden
+//! app folder), Dropbox's having been retired.
 //!
 //! Nothing outside this module's own tests calls into it yet - it's
 //! staged ahead of the concrete providers and the vault-bootstrap wiring

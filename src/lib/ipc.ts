@@ -20,11 +20,6 @@ import type {
   DayReminder,
   DeletedTasks,
   DirListing,
-  DropboxListing,
-  DropboxPull,
-  DropboxPush,
-  DropboxStatus,
-  DropboxSync,
   GooglePull,
   GoogleStatus,
   EngineOutcome,
@@ -45,6 +40,7 @@ import type {
   ScheduleBlock,
   ScheduledEvent,
   SyncStanding,
+  SyncSummary,
   Task,
   TaskPatch,
   UpcomingResult,
@@ -85,15 +81,6 @@ export interface Commands {
     args: { index: number; replacement: DayReminder | null };
     result: void;
   };
-  dropbox_auth_url: { args: void; result: string };
-  dropbox_connect: { args: { code: string }; result: DropboxStatus };
-  dropbox_disconnect: { args: void; result: void };
-  dropbox_list_files: { args: void; result: DropboxListing };
-  dropbox_pull_vault: { args: void; result: DropboxPull };
-  dropbox_push_vault: { args: void; result: DropboxPush };
-  dropbox_status: { args: void; result: DropboxStatus };
-  dropbox_sync: { args: void; result: DropboxSync };
-  dropbox_write_marker: { args: void; result: string };
   engine_run: { args: void; result: EngineOutcome };
   google_pull_vault: { args: void; result: GooglePull | null };
   google_sign_in: { args: void; result: GoogleStatus };
@@ -184,7 +171,7 @@ export interface Commands {
   sync_conflicts_clear: { args: void; result: void };
   sync_conflicts_list: { args: void; result: ConflictEntry[] };
   sync_reset_space: { args: void; result: void };
-  sync_now: { args: void; result: DropboxSync };
+  sync_now: { args: void; result: SyncSummary };
   sync_standing: { args: void; result: SyncStanding };
   task_create: { args: { new: NewTask }; result: Task };
   task_delete: { args: { id: number }; result: DeletedTasks };

@@ -11,11 +11,9 @@ import MobileMore from "./MobileMore";
 import MobileTaskEditor from "./MobileTaskEditor";
 import MobileSearch from "./MobileSearch";
 import DueToasts from "../components/DueToasts";
-import { LockScreen } from "./MobileLock";
 import { EditingTaskContext } from "./editing";
 import { MobileNavContext } from "./nav";
 import { useBackStep } from "./back";
-import type { LockState } from "../types";
 import { warn } from "../lib/log";
 
 export type MobileTab = "day" | "lists" | "journal" | "notes" | "more";
@@ -89,15 +87,6 @@ export default function MobileApp() {
   const [tab, setTab] = useState<MobileTab>("day");
   const [editing, setEditing] = useState<number | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-  // Null until asked. A device with no passphrase never sees this
-  // screen, and one that has been unlocked this session does not either.
-  const [lock, setLock] = useState<LockState | null>(null);
-  const [lockSkipped, setLockSkipped] = useState(false);
-  useEffect(() => {
-    void invoke("app_lock_state")
-      .then(setLock)
-      .catch(() => setLock({ enabled: false, unlocked: true }));
-  }, []);
   const error = useAppStore((s) => s.error);
   const clearError = useAppStore((s) => s.clearError);
   const undoEntry = useAppStore((s) => s.undoEntry);
@@ -143,9 +132,7 @@ export default function MobileApp() {
   const syncOnLeave = config?.sync_on_leave ?? false;
   const syncEvery = config?.sync_interval_minutes ?? 15;
   useEffect(() => {
-    // A locked device has no reachable token, so an automatic pass
-    // would be a request that cannot be made, once a minute.
-    if (!syncAuto || (lock?.enabled && !lock.unlocked)) return;
+    if (!syncAuto) return;
     const pass = async () => {
       const store = useAppStore.getState();
       if (!store.vaultPath || syncing.current) return;
@@ -182,7 +169,7 @@ export default function MobileApp() {
       window.removeEventListener("online", onOnline);
       clearInterval(timer);
     };
-  }, [syncAuto, syncOnLeave, syncEvery, lock]);
+  }, [syncAuto, syncOnLeave, syncEvery]);
 
   // Crossing midnight with the app open should move "today" with it.
   const today = useAppStore((s) => s.today);
@@ -195,12 +182,6 @@ export default function MobileApp() {
     }, 60_000);
     return () => clearInterval(timer);
   }, [today]);
-
-  if (lock?.enabled && !lock.unlocked && !lockSkipped) {
-    return (
-      <LockScreen onUnlocked={setLock} onSkip={() => setLockSkipped(true)} />
-    );
-  }
 
   return (
     <EditingTaskContext.Provider value={{ editing, setEditing }}>

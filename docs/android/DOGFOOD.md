@@ -18,9 +18,10 @@ question, not a clean run.
 
 ## Setup
 
-1. Desktop and phone both open the same vault: the desktop through the
-   filesystem, the phone through Dropbox (`Sync now` in phone Settings,
-   or leave `sync_auto` on).
+1. Desktop and phone are signed in to the same Google account (Settings >
+   Sync on both) and sync the same vault through its Drive app folder
+   (`Sync now`, or leave `sync_auto` on). The desktop vault must not sit
+   inside a Dropbox / OneDrive folder - Settings > Sync warns if it does.
 2. Confirm both ends agree before starting: phone Settings should say
    "Nothing waiting to go up", and a `Sync now` should report `0 in, 0
    out`. A dogfood run that starts out of step tests the catch-up, not
