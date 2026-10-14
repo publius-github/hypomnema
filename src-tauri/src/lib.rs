@@ -47,7 +47,9 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 use config::AppConfig;
-use desktop::{show_main, sync_global_shortcut, sync_tray};
+#[cfg(desktop)]
+use desktop::show_main;
+use desktop::{sync_global_shortcut, sync_tray};
 use state::{AppState, LockOrRecover};
 use watchers::start_export_worker;
 

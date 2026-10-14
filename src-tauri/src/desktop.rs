@@ -1,6 +1,8 @@
 //! Desktop-only chrome: main/capture windows, global shortcut, tray (mobile stubs alongside).
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::AppHandle;
+#[cfg(desktop)]
+use tauri::{Emitter, Manager};
 
 use crate::config::AppConfig;
 
