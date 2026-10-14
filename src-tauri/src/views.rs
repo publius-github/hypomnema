@@ -555,7 +555,7 @@ pub fn habit_rates(
          FROM tasks
          WHERE origin = 'recurring' AND rule_key IS NOT NULL
            AND archived_at IS NULL AND parent_task_id IS NULL
-         ORDER BY rule_key, day DESC, id DESC",
+         ORDER BY rule_key, day DESC, created_at DESC, id DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok((

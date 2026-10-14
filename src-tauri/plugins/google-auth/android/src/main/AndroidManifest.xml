@@ -1,3 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A sync pass keeps running when the app is put away: Android would
+         otherwise freeze the process mid-pass (SyncKeepAliveService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <application>
+        <service
+            android:name="com.hypomnema.googleauth.SyncKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+    </application>
 </manifest>

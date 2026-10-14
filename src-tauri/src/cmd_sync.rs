@@ -90,7 +90,9 @@ pub(crate) fn google_pass(app: &AppHandle) -> Result<sync_cycle::SyncReport> {
             error: None,
         },
     );
+    let keep_alive = KeepAlive::start(app);
     let result = google_pass_inner(app);
+    drop(keep_alive);
     SYNC_RUNNING.store(false, Ordering::SeqCst);
     let error = result.as_ref().err().map(|e| e.to_string());
     if let (Some(message), Some(root)) = (&error, open_vault_root(&app.state::<AppState>())) {
@@ -110,6 +112,34 @@ pub(crate) fn google_pass(app: &AppHandle) -> Result<sync_cycle::SyncReport> {
         },
     );
     result
+}
+
+/// Keeps the phone's process running for as long as it lives: Android
+/// freezes an app the user put away, and with it a pass half done. On
+/// the desktop nothing freezes, and this is empty.
+struct KeepAlive<'a> {
+    _app: &'a AppHandle,
+}
+
+impl<'a> KeepAlive<'a> {
+    fn start(app: &'a AppHandle) -> Self {
+        #[cfg(target_os = "android")]
+        {
+            use tauri_plugin_google_auth::GoogleAuthExt;
+            let _ = app.google_auth().keep_alive(true);
+        }
+        Self { _app: app }
+    }
+}
+
+impl Drop for KeepAlive<'_> {
+    fn drop(&mut self) {
+        #[cfg(target_os = "android")]
+        {
+            use tauri_plugin_google_auth::GoogleAuthExt;
+            let _ = self._app.google_auth().keep_alive(false);
+        }
+    }
 }
 
 fn google_pass_inner(app: &AppHandle) -> Result<sync_cycle::SyncReport> {
@@ -334,6 +364,9 @@ fn google_pull_blocking(app: &AppHandle) -> Result<Option<GooglePull>> {
     // the files being written are what the export worker writes too
     let engine_lock = state.engine_lock.clone();
     let _pass = engine_lock.lock_or_recover();
+    // a whole vault coming down takes a while; it must survive the user
+    // switching apps meanwhile
+    let _keep_alive = KeepAlive::start(app);
     let token = drive_token(app, &dir, &account)?;
     let provider = sync_gdrive::GdriveApiSyncProvider::new(sync_gdrive::HttpGdriveTransport::new(
         token.clone(),
@@ -429,6 +462,23 @@ fn run_pass<P: SyncProvider>(
         // disposable-cache route `state_export.rs` documents, rather than
         // a second way to write rows into SQLite.
         rebuild_cache(app, state, &local_root)?;
+        // The merge can bring in another device's copy of an instance
+        // this one generated under an older build's counted-up id, and
+        // rules this device has not run yet: one engine pass folds the
+        // twins (engine.rs `dedupe_instances`) now, not on the next
+        // launch, and its export goes up with the next pass.
+        {
+            let guard = state.vault.lock_or_recover();
+            if let Some(vault) = guard.as_ref() {
+                crate::engine::run(
+                    &vault.conn,
+                    &vault.config_dir(),
+                    &vault.config,
+                    chrono::Local::now(),
+                )?;
+            }
+        }
+        state.request_export();
     }
     let _ = app.emit("vault-updated", Vec::<String>::new());
     Ok(report)

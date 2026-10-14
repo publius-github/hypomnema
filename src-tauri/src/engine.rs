@@ -16,7 +16,7 @@ use crate::config_files::{
     ScheduledEvent, ScheduledFile,
 };
 use crate::error::Result;
-use crate::tasks;
+use crate::{ids, tasks};
 
 #[derive(Debug, Default, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
@@ -135,15 +135,23 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
         Some(name) => Some(tasks::list_ensure(conn, name)?.id),
         None => None,
     };
+    // Derived from the instance, not counted up: another device that
+    // generates the same period mints the same row, and the snapshot
+    // merge folds the two copies into one instead of keeping both.
+    let id = ids::fresh(
+        conn,
+        ids::Table::Tasks,
+        Some(&ids::generated_task_seed(&task.rule_key, &task.period_key)),
+    )?;
     conn.execute(
-        "INSERT INTO tasks (title, list_id, scheduled_date, time, sort_order,
+        "INSERT INTO tasks (id, title, list_id, scheduled_date, time, sort_order,
                             created_at, origin, rule_key, period_key, cadence,
-                            origin_date, dow_label)
-         VALUES (?1, ?2, ?3, ?4,
+                            origin_date, dow_label, updated_at, updated_by)
+         VALUES (?11, ?1, ?2, ?3, ?4,
                  (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tasks
                   WHERE scheduled_date = ?3),
-                 ?5, ?6, ?7, ?8, ?9, ?3, ?10)",
-        (
+                 ?5, ?6, ?7, ?8, ?9, ?3, ?10, ?12, ?13)",
+        rusqlite::params![
             &task.title,
             list_id,
             &task.scheduled_date,
@@ -154,7 +162,10 @@ fn insert_generated(conn: &Connection, task: &GeneratedTask, now: DateTime<Local
             &task.period_key,
             task.cadence,
             &task.dow_label,
-        ),
+            id,
+            ids::UNTOUCHED_AT,
+            ids::UNTOUCHED_BY,
+        ],
     )?;
     Ok(true)
 }
@@ -732,24 +743,14 @@ fn run_birthdays(
     Ok(())
 }
 
-/// Safety nets against duplicate recurring instances that older app
-/// versions could leave behind: (a) the same (rule, period)
-/// materialized twice - keep the oldest row; (b) an ancient row
-/// without a rule key sitting next to a keyed instance of the same
-/// title and day.
-fn dedupe_legacy_recurring(conn: &Connection) -> Result<usize> {
-    let mut deduped = conn.execute(
-        "DELETE FROM tasks
-         WHERE origin = 'recurring' AND status NOT IN ('done', 'dropped', 'waiting')
-           AND archived_at IS NULL AND parent_task_id IS NULL
-           AND rule_key IS NOT NULL
-           AND EXISTS (SELECT 1 FROM tasks twin
-                       WHERE twin.id < tasks.id
-                         AND twin.rule_key = tasks.rule_key
-                         AND twin.period_key = tasks.period_key
-                         AND twin.archived_at IS NULL)",
-        [],
-    )?;
+/// Safety nets against duplicate generated instances: (a) the same
+/// (rule, period) materialized twice - older app versions could do it,
+/// and so could two devices generating the same period under their own
+/// counted-up ids before a sync merged both rows in; (b) an ancient row
+/// without a rule key sitting next to a keyed instance of the same title
+/// and day.
+fn dedupe_instances(conn: &Connection) -> Result<usize> {
+    let mut deduped = collapse_instance_twins(conn)?;
     deduped += conn.execute(
         "DELETE FROM tasks
          WHERE origin = 'recurring' AND status = 'todo'
@@ -766,6 +767,43 @@ fn dedupe_legacy_recurring(conn: &Connection) -> Result<usize> {
         [],
     )?;
     Ok(deduped)
+}
+
+/// One row per (rule, period). The copy kept is the one someone acted
+/// on (done or dropped before waiting, waiting before postponed,
+/// postponed before untouched), then the smallest id. The choice depends on the
+/// rows alone, so two devices collapsing the same pair independently keep
+/// the same copy and the next merge agrees with both. Subtasks of a
+/// dropped copy move to the kept one rather than cascading away.
+fn collapse_instance_twins(conn: &Connection) -> Result<usize> {
+    const RANK: &str = "CASE status WHEN 'done' THEN 0 WHEN 'dropped' THEN 0
+                        WHEN 'waiting' THEN 1 WHEN 'postponed' THEN 2 ELSE 3 END";
+    let pairs: Vec<(i64, i64)> = {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT t.id,
+                    (SELECT k.id FROM tasks k
+                     WHERE k.rule_key = t.rule_key AND k.period_key = t.period_key
+                       AND k.archived_at IS NULL AND k.parent_task_id IS NULL
+                     ORDER BY {k_rank}, k.id LIMIT 1)
+             FROM tasks t
+             WHERE t.rule_key IS NOT NULL AND t.period_key IS NOT NULL
+               AND t.archived_at IS NULL AND t.parent_task_id IS NULL",
+            k_rank = RANK.replace("status", "k.status"),
+        ))?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()?
+            .into_iter()
+            .filter(|(id, keep)| id != keep)
+            .collect()
+    };
+    for (loser, keep) in &pairs {
+        conn.execute(
+            "UPDATE tasks SET parent_task_id = ?2 WHERE parent_task_id = ?1",
+            (loser, keep),
+        )?;
+        conn.execute("DELETE FROM tasks WHERE id = ?1", [loser])?;
+    }
+    Ok(pairs.len())
 }
 
 /// Moves every open pre-today task to today. With priority_overdue off,
@@ -813,7 +851,8 @@ fn collapse_carried_copies(conn: &Connection, today_str: &str) -> Result<usize> 
                          AND live.scheduled_date = ?1
                          AND (live.overdue = 0
                               OR (live.status NOT IN ('done', 'dropped')
-                                  AND live.id > tasks.id)))",
+                                  AND (live.created_at, live.id)
+                                      > (tasks.created_at, tasks.id))))",
         [today_str],
     )?)
 }
@@ -850,7 +889,7 @@ fn carry_over(
     priority_overdue: bool,
 ) -> Result<(usize, usize)> {
     let today_str = today.format("%Y-%m-%d").to_string();
-    let mut deduped = dedupe_legacy_recurring(conn)?;
+    let mut deduped = dedupe_instances(conn)?;
     let moved = move_overdue_to_today(conn, &today_str, priority_overdue)?;
     deduped += collapse_carried_copies(conn, &today_str)?;
     rehome_dailies(conn, priority_overdue)?;
@@ -1549,6 +1588,71 @@ mod tests {
         let outcome = run(&conn, &dir, &cfg, at("2026-08-24", "13:00:00")).unwrap();
         assert!(outcome.removed >= 2);
         assert_eq!(count_tasks(&conn), 1);
+    }
+
+    #[test]
+    fn two_devices_generate_the_same_instance_under_the_same_id() {
+        let yaml = "events:\n  - date: \"2026-08-24\"\n    title: dentist\n";
+        let ids: Vec<i64> = ["same-id-a", "same-id-b"]
+            .iter()
+            .map(|name| {
+                let (conn, dir) = setup(name);
+                fs::write(dir.join("scheduled.yml"), yaml).unwrap();
+                run(&conn, &dir, &config(3, 7, 0), at("2026-08-24", "09:00:00")).unwrap();
+                conn.query_row("SELECT id FROM tasks", [], |r| r.get(0))
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(ids[0], ids[1]);
+    }
+
+    #[test]
+    fn a_merged_twin_keeps_the_copy_someone_checked_off() {
+        let (conn, dir) = setup("checked-twin");
+        fs::write(
+            dir.join("scheduled.yml"),
+            "events:\n  - date: \"2026-08-24\"\n    title: dentist\n",
+        )
+        .unwrap();
+        let cfg = config(3, 7, 0);
+        run(&conn, &dir, &cfg, at("2026-08-24", "09:00:00")).unwrap();
+        // the other device's copy, merged in under its own id and done
+        conn.execute(
+            "INSERT INTO tasks (id, title, scheduled_date, origin, rule_key, period_key,
+                                created_at, status, completed_at)
+             SELECT 5, title, scheduled_date, origin, rule_key, period_key, created_at,
+                    'done', created_at FROM tasks",
+            [],
+        )
+        .unwrap();
+        let open_twin: i64 = conn
+            .query_row("SELECT id FROM tasks WHERE id != 5", [], |r| r.get(0))
+            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (title, parent_task_id, created_at)
+             VALUES ('bring the card', ?1, '2026-08-24T00:00:00Z')",
+            [open_twin],
+        )
+        .unwrap();
+
+        run(&conn, &dir, &cfg, at("2026-08-24", "10:00:00")).unwrap();
+
+        let rows: Vec<(i64, String)> = {
+            let mut stmt = conn
+                .prepare("SELECT id, status FROM tasks WHERE parent_task_id IS NULL")
+                .unwrap();
+            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+            rows.collect::<std::result::Result<_, _>>().unwrap()
+        };
+        assert_eq!(rows, vec![(5, "done".to_string())]);
+        let parent: i64 = conn
+            .query_row(
+                "SELECT parent_task_id FROM tasks WHERE title = 'bring the card'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(parent, 5);
     }
 
     #[test]

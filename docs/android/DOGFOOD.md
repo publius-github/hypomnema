@@ -68,7 +68,9 @@ survives real phone conditions:
 - Did a pass ever fire while the app was backgrounded? (Expected: no —
   automatic sync runs on resume, on leaving, on a heartbeat while open,
   and on reconnect. Real OS-scheduled background work is the open item
-  at the end of ROADMAP.md.)
+  at the end of ROADMAP.md.) A pass that *started* in the foreground
+  should finish after the app is put away, under the "Syncing with
+  Google Drive" notification.
 - Did leaving the app reliably push the last edit? Check the pending
   count on the next launch: a non-zero one that predates the last
   session means the on-leave pass did not complete before Android froze

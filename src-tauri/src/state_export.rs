@@ -25,6 +25,7 @@
 //! - weekly_focus.jsonl - the ISO-week -> phrase pin of the focus
 //!   rotation.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -305,6 +306,47 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
     let focus: Vec<FocusRow> = from_jsonl_optional(&state_dir.join("weekly_focus.jsonl"))?;
 
     let tx = conn.unchecked_transaction()?;
+    // Two rows under one name are the same thing created on two devices
+    // before either synced (their ids were counted up separately, see
+    // ids.rs). The first by id stands and the other's members move to
+    // it: an active-name clash would otherwise fail the whole restore on
+    // the unique index, and two groups of one name are no better. Both
+    // devices fold the same merged snapshot the same way.
+    let mut group_alias: HashMap<i64, i64> = HashMap::new();
+    let mut group_by_name: HashMap<&str, i64> = HashMap::new();
+    let groups: Vec<&GroupRow> = groups
+        .iter()
+        .filter(|g| match group_by_name.get(g.name.as_str()) {
+            Some(&kept) => {
+                group_alias.insert(g.id, kept);
+                false
+            }
+            None => {
+                group_by_name.insert(&g.name, g.id);
+                true
+            }
+        })
+        .collect();
+    let mut list_alias: HashMap<i64, i64> = HashMap::new();
+    let mut list_by_name: HashMap<&str, i64> = HashMap::new();
+    let lists: Vec<&ListRow> = lists
+        .iter()
+        .filter(|l| {
+            if l.archived != 0 {
+                return true;
+            }
+            match list_by_name.get(l.name.as_str()) {
+                Some(&kept) => {
+                    list_alias.insert(l.id, kept);
+                    false
+                }
+                None => {
+                    list_by_name.insert(&l.name, l.id);
+                    true
+                }
+            }
+        })
+        .collect();
     // groups before lists: lists.group_id is an enforced FK
     for g in &groups {
         tx.execute(
@@ -325,7 +367,10 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
     for l in &lists {
         // a merged snapshot can reference a group deleted on the other
         // device; dropping the membership beats failing the whole restore
-        let group_id = l.group_id.filter(|gid| group_ids.contains(gid));
+        let group_id = l
+            .group_id
+            .map(|gid| group_alias.get(&gid).copied().unwrap_or(gid))
+            .filter(|gid| group_ids.contains(gid));
         tx.execute(
             "INSERT OR REPLACE INTO lists
                  (id, name, sort_order, color, archived, auto, favorite, description,
@@ -361,7 +406,10 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
         .filter(|t| t.parent_task_id.is_none_or(|pid| task_ids.contains(&pid)))
         .collect();
     for t in ordered {
-        let list_id = t.list_id.filter(|lid| list_ids.contains(lid));
+        let list_id = t
+            .list_id
+            .map(|lid| list_alias.get(&lid).copied().unwrap_or(lid))
+            .filter(|lid| list_ids.contains(lid));
         tx.execute(
             "INSERT OR REPLACE INTO tasks
                  (id, title, description_md, list_id, scheduled_date, time, status,
@@ -567,6 +615,41 @@ mod tests {
             })
             .unwrap();
         assert_eq!(dangling_gid, None);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn two_lists_of_one_name_from_two_devices_restore_as_one() {
+        let (conn, dir) = setup("namesake-lists");
+        let list = |id: i64| {
+            format!(
+                "{{\"id\":{id},\"name\":\"Work\",\"sort_order\":0,\"color\":null,\
+                 \"archived\":0,\"auto\":0,\"favorite\":0,\"description\":\"\"}}"
+            )
+        };
+        fs::write(
+            dir.join("lists.jsonl"),
+            format!("{}\n{}\n", list(3), list(9)),
+        )
+        .unwrap();
+        fs::write(
+            dir.join("tasks.jsonl"),
+            "{\"id\":1,\"title\":\"from the phone\",\"description_md\":\"\",\"list_id\":9,\
+             \"scheduled_date\":null,\"time\":null,\"status\":\"todo\",\"color\":null,\
+             \"sort_order\":0,\"parent_task_id\":null,\"created_at\":\"2026-10-14T00:00:00Z\",\
+             \"completed_at\":null,\"overdue\":0,\"origin\":\"manual\",\"rule_key\":null,\
+             \"period_key\":null,\"archived_at\":null,\"cadence\":null,\"origin_date\":null,\
+             \"priority\":0,\"dow_label\":null}\n",
+        )
+        .unwrap();
+
+        assert!(restore(&conn, &dir).unwrap());
+
+        assert_eq!(count(&conn, "lists"), 1);
+        let list_id: i64 = conn
+            .query_row("SELECT list_id FROM tasks", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(list_id, 3);
         let _ = fs::remove_dir_all(&dir);
     }
 

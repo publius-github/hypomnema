@@ -9,6 +9,7 @@ mod engine;
 mod error;
 mod google_auth;
 mod google_link;
+mod ids;
 mod journal;
 mod kb;
 mod oauth;

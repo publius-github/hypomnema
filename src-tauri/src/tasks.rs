@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::{Error, Result};
+use crate::ids;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
@@ -251,11 +252,19 @@ pub fn list_create(conn: &Connection, name: &str, color: Option<&str>, auto: boo
         [],
         |row| row.get(0),
     )?;
+    let id = ids::fresh(conn, ids::Table::Lists, Some(&ids::list_seed(name)))?;
+    // an auto list is the engine's doing, not a decision anyone made:
+    // stamped as untouched, so a real edit on another device outranks it
+    let (stamp_at, stamp_by) = if auto {
+        (Some(ids::UNTOUCHED_AT), Some(ids::UNTOUCHED_BY))
+    } else {
+        (None, None)
+    };
     conn.execute(
-        "INSERT INTO lists (name, sort_order, color, auto) VALUES (?1, ?2, ?3, ?4)",
-        (name, next, color, auto as i64),
+        "INSERT INTO lists (id, name, sort_order, color, auto, updated_at, updated_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![id, name, next, color, auto as i64, stamp_at, stamp_by],
     )?;
-    let id = conn.last_insert_rowid();
     conn.query_row("SELECT * FROM lists WHERE id = ?1", [id], row_to_list)
         .map_err(Into::into)
 }
@@ -450,11 +459,11 @@ pub fn group_create(conn: &Connection, name: &str) -> Result<ListGroup> {
         [],
         |row| row.get(0),
     )?;
+    let id = ids::fresh(conn, ids::Table::ListGroups, Some(&ids::group_seed(name)))?;
     conn.execute(
-        "INSERT INTO list_groups (name, sort_order) VALUES (?1, ?2)",
-        (name, next),
+        "INSERT INTO list_groups (id, name, sort_order) VALUES (?1, ?2, ?3)",
+        (id, name, next),
     )?;
-    let id = conn.last_insert_rowid();
     conn.query_row(
         "SELECT * FROM list_groups WHERE id = ?1",
         [id],
@@ -607,7 +616,7 @@ pub fn tasks_search(conn: &Connection, query: &str) -> Result<Vec<Task>> {
                 OR description_md LIKE ?1 ESCAPE '\\')
            AND parent_task_id IS NULL
            AND archived_at IS NULL
-         ORDER BY scheduled_date IS NULL, scheduled_date DESC, id DESC
+         ORDER BY scheduled_date IS NULL, scheduled_date DESC, created_at DESC, id DESC
          LIMIT 100",
     )?;
     let tasks = stmt
@@ -679,7 +688,7 @@ pub fn backlinks(conn: &Connection, stem: &str, full_name: &str) -> Result<Vec<T
         "SELECT * FROM tasks
          WHERE archived_at IS NULL AND parent_task_id IS NULL
            AND (title LIKE '%[[%' OR description_md LIKE '%[[%')
-         ORDER BY id DESC LIMIT 500",
+         ORDER BY created_at DESC, id DESC LIMIT 500",
     )?;
     let candidates = stmt
         .query_map([], row_to_task)?
@@ -739,11 +748,13 @@ pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
         (&scheduled_date, list_id),
         |row| row.get(0),
     )?;
+    let id = ids::fresh(conn, ids::Table::Tasks, None)?;
     conn.execute(
-        "INSERT INTO tasks (title, description_md, list_id, scheduled_date, time,
+        "INSERT INTO tasks (id, title, description_md, list_id, scheduled_date, time,
                             color, sort_order, parent_task_id, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         (
+            id,
             &title,
             &new.description_md,
             list_id,
@@ -755,7 +766,6 @@ pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
             Utc::now().to_rfc3339(),
         ),
     )?;
-    let id = conn.last_insert_rowid();
     task_get(conn, id)
 }
 
@@ -993,7 +1003,11 @@ pub fn task_restore(conn: &Connection, deleted: &DeletedTasks) -> Result<Vec<Tas
             [task.id],
             |row| row.get(0),
         )?;
-        // NULL into INTEGER PRIMARY KEY = let SQLite assign a fresh id
+        let id = if id_free {
+            task.id
+        } else {
+            ids::fresh(&tx, ids::Table::Tasks, None)?
+        };
         tx.execute(
             "INSERT INTO tasks (id, title, description_md, list_id, scheduled_date, time,
                                 status, color, sort_order, parent_task_id, created_at,
@@ -1002,7 +1016,7 @@ pub fn task_restore(conn: &Connection, deleted: &DeletedTasks) -> Result<Vec<Tas
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
                      ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
             rusqlite::params![
-                id_free.then_some(task.id),
+                id,
                 &task.title,
                 &task.description_md,
                 list_id,
@@ -1024,9 +1038,8 @@ pub fn task_restore(conn: &Connection, deleted: &DeletedTasks) -> Result<Vec<Tas
                 &task.dow_label,
             ],
         )?;
-        let actual_id = tx.last_insert_rowid();
-        id_map.insert(task.id, actual_id);
-        restored.push(task_get(&tx, actual_id)?);
+        id_map.insert(task.id, id);
+        restored.push(task_get(&tx, id)?);
     }
     tx.commit()?;
     Ok(restored)
@@ -1488,23 +1501,17 @@ mod tests {
         )
         .unwrap();
         let deleted = task_delete(&conn, parent.id).unwrap();
-        // both freed ids get taken by new rows before the undo
-        let usurper = task_create(
-            &conn,
-            &NewTask {
-                title: "usurper".into(),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        task_create(
-            &conn,
-            &NewTask {
-                title: "usurper 2".into(),
-                ..Default::default()
-            },
-        )
-        .unwrap();
+        // both freed ids get taken by other rows before the undo (a
+        // merge bringing in another device's rows, say)
+        let sub_id = deleted.tasks.iter().find(|t| t.title == "sub").unwrap().id;
+        for (id, title) in [(parent.id, "usurper"), (sub_id, "usurper 2")] {
+            conn.execute(
+                "INSERT INTO tasks (id, title, created_at) VALUES (?1, ?2, '2026-01-01T00:00:00Z')",
+                (id, title),
+            )
+            .unwrap();
+        }
+        let usurper = task_get(&conn, parent.id).unwrap();
 
         let restored = task_restore(&conn, &deleted).unwrap();
         assert_eq!(restored.len(), 2);
@@ -1845,7 +1852,9 @@ mod tests {
             let rows = stmt.query_map([], |r| r.get(0)).unwrap();
             rows.collect::<rusqlite::Result<_>>().unwrap()
         };
-        assert_eq!(live, vec![kept.id, kept_sub.id]);
+        let mut expected = vec![kept.id, kept_sub.id];
+        expected.sort();
+        assert_eq!(live, expected);
         assert!(task_get(&conn, swept.id).unwrap().id == swept.id);
     }
 

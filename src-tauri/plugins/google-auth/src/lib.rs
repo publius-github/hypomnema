@@ -110,6 +110,21 @@ impl<R: Runtime> GoogleAuth<R> {
     }
 }
 
+impl<R: Runtime> GoogleAuth<R> {
+    /// Holds the app in the foreground (a notification and a foreground
+    /// service) while `on`, so a sync pass survives the user putting the
+    /// app away. Best effort: Android may refuse the start.
+    pub fn keep_alive(&self, on: bool) -> Result<(), Error> {
+        #[derive(Serialize)]
+        struct Args {
+            on: bool,
+        }
+        self.handle
+            .run_mobile_plugin::<serde_json::Value>("keepAlive", Args { on })?;
+        Ok(())
+    }
+}
+
 /// `app.google_auth()` from anything that reaches the app.
 pub trait GoogleAuthExt<R: Runtime> {
     fn google_auth(&self) -> &GoogleAuth<R>;

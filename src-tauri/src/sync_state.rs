@@ -31,6 +31,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::{Map, Value};
 
 use crate::error::{Error, Result};
+use crate::ids;
 use crate::sync_merge::{merge_record, FieldConflict, Record};
 
 /// One row's identity within its file, in the order `state_export.rs`
@@ -229,6 +230,10 @@ fn merge_stamped(base: Option<&str>, local: &str, remote: &str) -> Result<StateM
         }
         // A conflict is only findable later if it says which row it was
         // in - "title" alone is every task in the vault.
+        // A fresh engine copy of an instance holds nobody's decision:
+        // what it loses (its own created_at, its place in the day) is
+        // not a conflict anyone needs to read about.
+        row_conflicts.retain(|c| c.discarded_updated_by != ids::UNTOUCHED_BY);
         for mut conflict in row_conflicts {
             conflict.field = format!("{}: {}", describe_key(key), conflict.field);
             conflicts.push(conflict);
@@ -409,6 +414,28 @@ mod tests {
 
         assert!(merged.text.contains("\"status\":\"done\""));
         assert!(merged.conflicts.is_empty());
+    }
+
+    #[test]
+    fn an_instance_generated_on_both_devices_keeps_the_desktops_check_off() {
+        // Same derived id on both ends (ids.rs); the phone generated its
+        // copy after the desktop had already checked it off.
+        let desktop = "{\"id\":7,\"title\":\"pay rent\",\"status\":\"done\",\
+                       \"created_at\":\"2026-10-14T06:00:00Z\",\
+                       \"updated_at\":\"2026-10-14T08:00:00Z\",\"updated_by\":\"desktop\"}";
+        let phone = format!(
+            "{{\"id\":7,\"title\":\"pay rent\",\"status\":\"todo\",\
+             \"created_at\":\"2026-10-14T19:00:00Z\",\
+             \"updated_at\":\"{}\",\"updated_by\":\"{}\"}}",
+            ids::UNTOUCHED_AT,
+            ids::UNTOUCHED_BY
+        );
+
+        let merged = merge_state_file(StateFile::Stamped, None, &phone, desktop).unwrap();
+
+        assert_eq!(merged.text.lines().count(), 1);
+        assert!(merged.text.contains("\"status\":\"done\""));
+        assert!(merged.conflicts.is_empty(), "{:?}", merged.conflicts);
     }
 
     #[test]

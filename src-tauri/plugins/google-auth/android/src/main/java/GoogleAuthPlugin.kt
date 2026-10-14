@@ -2,6 +2,8 @@ package com.hypomnema.googleauth
 
 import android.accounts.Account
 import android.app.Activity
+import android.content.Intent
+import androidx.core.content.ContextCompat
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import app.tauri.annotation.ActivityCallback
@@ -38,6 +40,11 @@ class TokenArgs {
 @InvokeArg
 class RevokeArgs {
   lateinit var email: String
+}
+
+@InvokeArg
+class KeepAliveArgs {
+  var on: Boolean = false
 }
 
 /**
@@ -127,6 +134,28 @@ class GoogleAuthPlugin(private val activity: Activity) : Plugin(activity) {
     client.revokeAccess(request)
       .addOnSuccessListener { invoke.resolve() }
       .addOnFailureListener { e -> invoke.reject(describe(e), e) }
+  }
+
+  /**
+   * Starts or ends SyncKeepAliveService around a sync pass. Best effort:
+   * Android refuses a foreground start from an app already in the
+   * background (a pass begun as the user left), and that pass then runs
+   * as long as the system lets it, as before.
+   */
+  @Command
+  fun keepAlive(invoke: Invoke) {
+    val args = invoke.parseArgs(KeepAliveArgs::class.java)
+    val intent = Intent(activity, SyncKeepAliveService::class.java)
+    try {
+      if (args.on) {
+        ContextCompat.startForegroundService(activity, intent)
+      } else {
+        activity.startService(intent.setAction(ACTION_STOP))
+      }
+    } catch (e: Exception) {
+      // refused by the system; nothing to undo
+    }
+    invoke.resolve()
   }
 
   private fun describe(e: Exception): String =
