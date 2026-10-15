@@ -157,7 +157,7 @@ export default function TaskRow({
       ? (s.habitRates[task.rule_key] ?? null)
       : null,
   );
-  const rateAlertColor = config?.habit_rate_alert_color || "#f97316";
+  const rateAlertColor = config?.habit_rate_alert_color || "#c95e05";
   const rateAlertOnly = config?.habit_rate_alert_only ?? true;
   // a closed row fades everything but its status box
   const dim = closed ? (config?.closed_row_opacity ?? 50) / 100 : 1;

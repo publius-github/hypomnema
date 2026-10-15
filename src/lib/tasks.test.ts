@@ -421,24 +421,16 @@ describe("categoryChipColor", () => {
       cadence_colors: true,
       cadence_color_general: "",
       cadence_color_daily: "#9ca3af",
-      cadence_color_weekly: "#3b82f6",
-      cadence_color_monthly: "#a855f7",
-      cadence_color_yearly: "#f59e0b",
-      cadence_color_exact: "#0ea5e9",
+      cadence_color_weekly: "#4c78e3",
+      cadence_color_monthly: "#8b68db",
+      cadence_color_yearly: "#c16403",
+      cadence_color_exact: "#058a95",
     };
     const avoid = config({ ...cadence, category_avoid_cadence_colors: true });
     const names = Array.from({ length: 60 }, (_, i) => `Category ${i}`);
     const used = new Set(names.map((n) => categoryChipColor(n, [], avoid)));
-    // the plate colors and their near neighbors (violet, cyan, orange)
-    for (const near of [
-      "#3b82f6",
-      "#a855f7",
-      "#8b5cf6",
-      "#f59e0b",
-      "#f97316",
-      "#0ea5e9",
-      "#06b6d4",
-    ]) {
+    // the plate colors themselves
+    for (const near of ["#4c78e3", "#8b68db", "#c16403", "#058a95"]) {
       expect(used.has(near)).toBe(false);
     }
     const all = config({ ...cadence, category_avoid_cadence_colors: false });

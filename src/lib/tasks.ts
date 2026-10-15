@@ -307,23 +307,24 @@ export function cadenceColor(
 }
 
 /**
- * Hues a category chip can take when `category_colors_vary` is on.
- * Distinct enough that two of them side by side never read as the same
- * label.
+ * Hues a category chip can take in `varied` mode: twelve hues 30 degrees
+ * apart in OKLCH, each at the lightness that reads best on both the dark
+ * and the light panels (about 3.7:1 on either), so one palette serves
+ * both themes. Ordered to jump around the wheel.
  */
 export const CATEGORY_PALETTE = [
-  "#3b82f6",
-  "#22c55e",
-  "#f59e0b",
-  "#a855f7",
-  "#ec4899",
-  "#14b8a6",
-  "#ef4444",
-  "#0ea5e9",
-  "#84cc16",
-  "#f97316",
-  "#8b5cf6",
-  "#06b6d4",
+  "#4c78e3",
+  "#19902d",
+  "#c16403",
+  "#8b68db",
+  "#ce4f89",
+  "#038d75",
+  "#d64f4c",
+  "#0086ba",
+  "#798307",
+  "#b459bb",
+  "#9e7704",
+  "#058a95",
 ];
 
 /** FNV-1a 32, the same stable hash the Rust side uses for rule keys. */
@@ -357,11 +358,11 @@ export function categoryChipColor(
 ): string {
   const mode = config?.category_color_mode ?? "alternate";
   if (mode === "alternate") {
-    const a = config?.category_color_a || "#0d9488";
-    const b = config?.category_color_b || "#ea580c";
+    const a = config?.category_color_a || "#5a8a05";
+    const b = config?.category_color_b || "#c95e05";
     return (blockIndex ?? 0) % 2 === 0 ? a : b;
   }
-  if (mode !== "varied") return config?.category_color || "#3b82f6";
+  if (mode !== "varied") return config?.category_color || "#6b7f98";
   const list = lists.find((l) => l.name === name && l.color);
   if (list?.color) return list.color;
   const palette =

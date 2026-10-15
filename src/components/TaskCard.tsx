@@ -156,7 +156,7 @@ function TaskCard({
       : null,
   );
   const rateAlertColor = useAppStore(
-    (s) => s.config?.habit_rate_alert_color || "#f97316",
+    (s) => s.config?.habit_rate_alert_color || "#c95e05",
   );
   const rateAlertOnly = useAppStore(
     (s) => s.config?.habit_rate_alert_only ?? true,
