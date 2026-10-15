@@ -378,6 +378,7 @@ pub fn write_from(
     stamp: bool,
 ) -> Result<(String, Option<PathBuf>)> {
     let path = resolve(root, rel)?;
+    let _files = crate::text_merge::user_file_lock();
     let on_disk = fs::read_to_string(&path).ok();
     let day = chrono::Local::now().format("%Y-%m-%d").to_string();
     let saved = crate::text_merge::reconcile_save(&path, on_disk.as_deref(), base, content, &day)?;
@@ -524,6 +525,19 @@ fn render_header(body: &str, created: &str, edited: &str) -> String {
     } else {
         format!("{header}{eol}{body}")
     }
+}
+
+/// The note split into its Created / Last edited stamps and the text
+/// under them, for a merge that must not read two devices' different
+/// "Last edited" minutes as both sides changing the same line.
+pub(crate) fn split_stamps(content: &str) -> (Option<String>, Option<String>, String) {
+    let h = split_header(content);
+    (h.created, h.edited, h.body)
+}
+
+/// `render_header` for the merge: puts the stamps back over a body.
+pub(crate) fn with_stamps(body: &str, created: &str, edited: &str) -> String {
+    render_header(body, created, edited)
 }
 
 /// Puts the Created / Last edited header on a note being saved, always

@@ -7,7 +7,8 @@ import TaskModal from "../../components/TaskModal";
 import { useAppStore } from "../../store";
 import { splitCategory } from "../../lib/tasks";
 import type { BacklinksResult, KbSearchHit, Task } from "../../types";
-import { noteBodyOffset, type OpenDoc } from "./util";
+import { noteBodyOffset, type OpenDoc, type SaveState } from "./util";
+import SaveIndicator from "../../components/SaveIndicator";
 import { errorMessage } from "../../lib/ipc";
 
 /**
@@ -149,13 +150,15 @@ function BacklinksPanel({ path }: { path: string }) {
  *  status, config validation errors, and the CodeMirror editor. */
 export default function EditorPane({
   current,
-  saved,
+  saveState,
+  onRetry,
   configErrors,
   lineNumbers,
   onChange,
 }: {
   current: OpenDoc;
-  saved: boolean;
+  saveState: SaveState;
+  onRetry: () => void;
   configErrors: { line: number | null; message: string }[];
   lineNumbers: boolean;
   onChange: (content: string) => void;
@@ -171,17 +174,11 @@ export default function EditorPane({
         <span className="ml-auto shrink-0 text-xs text-content-muted">
           Ctrl/Cmd+click a link to open it
         </span>
-        <span
-          className={`text-xs ${
-            configErrors.length > 0 ? "text-danger" : "text-content-muted"
-          }`}
-        >
-          {configErrors.length > 0
-            ? "Invalid, not saved"
-            : saved
-              ? "Saved"
-              : "Saving..."}
-        </span>
+        {configErrors.length > 0 ? (
+          <span className="text-xs text-danger">Invalid, not saved</span>
+        ) : (
+          <SaveIndicator state={saveState} onRetry={onRetry} />
+        )}
       </div>
       {configErrors.length > 0 && (
         <div className="border-b border-danger/40 bg-danger/10 px-4 py-2 text-xs text-danger">

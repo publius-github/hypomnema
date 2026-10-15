@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noteBodyOffset, rebaseStamp, settleSave } from "./util";
+import { noteBodyOffset, rebaseStamp, serialSaves, settleSave } from "./util";
 
 const header = (created: string, edited: string) =>
   `Created: ${created}\nLast edited: ${edited}\n\n`;
@@ -64,5 +64,37 @@ describe("settleSave", () => {
       content: "A\nb",
       base: "a\nb",
     });
+  });
+});
+
+describe("serialSaves", () => {
+  it("runs a save only after the one before it settled, failures included", async () => {
+    const queue = serialSaves();
+    const log: string[] = [];
+    let release!: () => void;
+    const first = queue(
+      () =>
+        new Promise<void>((resolve) => {
+          log.push("first start");
+          release = () => {
+            log.push("first end");
+            resolve();
+          };
+        }),
+    );
+    const second = queue(async () => {
+      log.push("second");
+      throw new Error("disk full");
+    });
+    const third = queue(async () => {
+      log.push("third");
+    });
+    await Promise.resolve();
+    expect(log).toEqual(["first start"]);
+    release();
+    await first;
+    await expect(second).rejects.toThrow("disk full");
+    await third;
+    expect(log).toEqual(["first start", "first end", "second", "third"]);
   });
 });

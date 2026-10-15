@@ -3,7 +3,12 @@ import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { addDaysISO } from "../lib/tasks";
 import { useBackStep } from "./back";
-import { settleSave } from "../sections/kb/util";
+import {
+  serialSaves,
+  settleSave,
+  type SaveState,
+} from "../sections/kb/util";
+import SaveIndicator from "../components/SaveIndicator";
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -20,11 +25,18 @@ export default function MobileJournal() {
   const setError = useAppStore((s) => s.setError);
   const [date, setDate] = useState(today);
   const [content, setContent] = useState("");
-  const [saved, setSaved] = useState(true);
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const saved = saveState === "saved";
   const [browsing, setBrowsing] = useState(false);
   const [entries, setEntries] = useState<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pending = useRef<{ date: string; content: string } | null>(null);
+  const pending = useRef<{ date: string; content: string; gen: number } | null>(
+    null,
+  );
+  // bumped by every keystroke: a save only marks the entry saved when
+  // nothing was typed after the text it carried
+  const editGen = useRef(0);
+  const queueSave = useRef(serialSaves()).current;
   const contentRef = useRef(content);
   contentRef.current = content;
   const savedRef = useRef(saved);
@@ -46,25 +58,33 @@ export default function MobileJournal() {
   }, [openDate]);
 
   const persist = useCallback(
-    async (entryDate: string, text: string) => {
-      try {
-        const base = baseRef.current;
-        const written = await invoke("journal_save", {
-          date: entryDate,
-          content: text,
-          base: base?.date === entryDate ? base.content : null,
-        });
-        setSaved(true);
-        if (loadedDate.current === entryDate) {
-          const settled = settleSave(text, written, contentRef.current);
-          baseRef.current = { date: entryDate, content: settled.base };
-          if (settled.content !== contentRef.current) setContent(settled.content);
+    (save: { date: string; content: string; gen: number }) =>
+      queueSave(async () => {
+        const { date: entryDate, content: text, gen } = save;
+        try {
+          const base = baseRef.current;
+          const written = await invoke("journal_save", {
+            date: entryDate,
+            content: text,
+            base: base?.date === entryDate ? base.content : null,
+          });
+          if (gen === editGen.current) setSaveState("saved");
+          if (loadedDate.current === entryDate) {
+            const settled = settleSave(text, written, contentRef.current);
+            baseRef.current = { date: entryDate, content: settled.base };
+            if (settled.content !== contentRef.current) {
+              setContent(settled.content);
+            }
+          }
+        } catch (e) {
+          // kept for the next flush (day switch, leaving, Retry) unless
+          // newer typing already replaced it
+          if (!pending.current) pending.current = save;
+          if (gen === editGen.current) setSaveState("failed");
+          setError(errorMessage(e));
         }
-      } catch (e) {
-        setError(errorMessage(e));
-      }
-    },
-    [setError],
+      }),
+    [queueSave, setError],
   );
 
   // Switching days (or leaving) must not drop an edit still sitting in
@@ -78,7 +98,7 @@ export default function MobileJournal() {
     const outstanding = pending.current;
     if (outstanding) {
       pending.current = null;
-      await persist(outstanding.date, outstanding.content);
+      await persist(outstanding);
     }
   }, [persist]);
 
@@ -96,7 +116,8 @@ export default function MobileJournal() {
         loadedDate.current = entry.date;
         baseRef.current = { date: entry.date, content: entry.content };
         setContent(entry.content);
-        setSaved(true);
+        editGen.current++;
+        setSaveState("saved");
       } catch (e) {
         if (!cancelled) setError(errorMessage(e));
       }
@@ -136,8 +157,8 @@ export default function MobileJournal() {
     // lands; a keystroke now would queue that text under the new date
     if (loadedDate.current !== date) return;
     setContent(text);
-    setSaved(false);
-    pending.current = { date, content: text };
+    setSaveState("dirty");
+    pending.current = { date, content: text, gen: ++editGen.current };
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void flush(), SAVE_DEBOUNCE_MS);
   };
@@ -219,7 +240,7 @@ export default function MobileJournal() {
               aria-label="Jump to date"
               className="border-none bg-transparent p-0 text-center text-xs text-content-muted outline-none"
             />
-            <span>{saved ? "Saved" : "Saving..."}</span>
+            <SaveIndicator state={saveState} onRetry={() => void flush()} />
           </div>
         </div>
         <button

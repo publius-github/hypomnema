@@ -133,6 +133,7 @@ pub fn save_entry_from(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
+    let _files = crate::text_merge::user_file_lock();
     let on_disk = fs::read_to_string(&path).ok();
     let day = chrono::Local::now().format("%Y-%m-%d").to_string();
     let saved = crate::text_merge::reconcile_save(&path, on_disk.as_deref(), base, content, &day)?;

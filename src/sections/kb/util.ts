@@ -87,3 +87,23 @@ export function settleSave(
   // merges `written`'s changes back in against `sent`
   return { content: current, base: sent };
 }
+
+/**
+ * Runs an editor's saves one at a time, in the order they were asked
+ * for. Two saves in flight together would both carry the base the editor
+ * had before either landed, and the second would then meet the first
+ * one's text on disk as a change "made elsewhere" - a three-way merge
+ * clash with itself and a spurious conflicted copy. Queued, each save
+ * reads the base the previous one left behind.
+ */
+export function serialSaves(): <T>(job: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(job: () => Promise<T>) => {
+    const next = tail.then(job, job);
+    tail = next.catch(() => undefined);
+    return next;
+  };
+}
+
+/** What an editor's save indicator says. */
+export type SaveState = "saved" | "dirty" | "failed";

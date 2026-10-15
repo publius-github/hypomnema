@@ -3,8 +3,27 @@
 //! two versions of one note that moved apart from a common base.
 
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 use crate::error::Result;
+
+/// Held across a read-merge-write of a user file - an editor's save
+/// (`journal::save_entry_from`, `kb::write_from`) and a sync pass
+/// applying a download (`sync_cycle`) - so neither writes over a change
+/// the other made between its read and its write. Local file IO only:
+/// nothing that waits on the network or on the vault lock runs under it.
+static USER_FILE: Mutex<()> = Mutex::new(());
+
+pub fn user_file_lock() -> MutexGuard<'static, ()> {
+    USER_FILE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Text compared the way the merge compares it: CRLF and LF alike.
+fn same_text(a: &str, b: &str) -> bool {
+    a == b || a.replace("\r\n", "\n") == b.replace("\r\n", "\n")
+}
 
 /// What an editor's save turned into.
 pub struct Reconciled {
@@ -39,10 +58,10 @@ pub fn reconcile_save(
     let (Some(base), Some(disk)) = (base, on_disk) else {
         return Ok(plain(ours));
     };
-    if disk == base || disk == ours {
+    if same_text(disk, base) || same_text(disk, ours) {
         return Ok(plain(ours));
     }
-    if let Some(merged) = merge3(base, ours, disk) {
+    if let Some(merged) = merge_file(&path.to_string_lossy(), base, ours, disk) {
         return Ok(plain(&merged));
     }
     let copy = unused_copy(path, day);
@@ -73,6 +92,35 @@ fn unused_copy(path: &Path, day: &str) -> PathBuf {
         label = format!("{ELSEWHERE_LABEL} {n}");
         n += 1;
     }
+}
+
+/// `merge3` for a file at `path`: a Markdown note's Created / Last
+/// edited header (`kb::split_stamps`) is taken off all three versions
+/// and merged on its own - the earliest Created, the latest Last edited -
+/// because every save through the app rewrites the Last edited line, so
+/// two devices editing different paragraphs of one note would otherwise
+/// always "both change" that line and never merge.
+pub fn merge_file(path: &str, base: &str, ours: &str, theirs: &str) -> Option<String> {
+    let markdown = path
+        .rsplit_once('.')
+        .is_some_and(|(_, ext)| matches!(ext.to_ascii_lowercase().as_str(), "md" | "markdown"));
+    if !markdown {
+        return merge3(base, ours, theirs);
+    }
+    let [b, o, t] = [base, ours, theirs].map(crate::kb::split_stamps);
+    let created = [&o.0, &t.0, &b.0].into_iter().flatten().min().cloned();
+    let edited = [&o.1, &t.1, &b.1].into_iter().flatten().max().cloned();
+    if o.0.is_none() && o.1.is_none() && t.0.is_none() && t.1.is_none() {
+        return merge3(base, ours, theirs);
+    }
+    let body = merge3(&b.2, &o.2, &t.2)?;
+    let (created, edited) = match (created, edited) {
+        (Some(c), Some(e)) => (c, e),
+        (Some(c), None) => (c.clone(), c),
+        (None, Some(e)) => (e.clone(), e),
+        (None, None) => return Some(body),
+    };
+    Some(crate::kb::with_stamps(&body, &created, &edited))
 }
 
 /// Merges `ours` and `theirs` against `base`. `None` when both changed
@@ -179,6 +227,34 @@ mod tests {
         assert_eq!(
             merge3(base, ours, theirs).as_deref(),
             Some("A\r\nb\r\nC\r\n")
+        );
+    }
+
+    #[test]
+    fn notes_stamped_on_both_devices_still_merge() {
+        let base = "Created: 2026-10-01 09:00\nLast edited: 2026-10-10 10:00\n\na\nb\nc\n";
+        let ours = "Created: 2026-10-01 09:00\nLast edited: 2026-10-15 08:01\n\nA\nb\nc\n";
+        let theirs = "Created: 2026-10-01 09:00\nLast edited: 2026-10-15 08:30\n\na\nb\nC\n";
+        assert_eq!(
+            merge_file("notes/n.md", base, ours, theirs).as_deref(),
+            Some("Created: 2026-10-01 09:00\nLast edited: 2026-10-15 08:30\n\nA\nb\nC\n")
+        );
+        // the same lines under the header still conflict
+        let clash = "Created: 2026-10-01 09:00\nLast edited: 2026-10-15 08:30\n\nX\nb\nc\n";
+        assert_eq!(merge_file("n.md", base, ours, clash), None);
+    }
+
+    #[test]
+    fn stamp_lines_are_only_special_in_markdown() {
+        // a YAML key that looks like a stamp is an ordinary line
+        assert_eq!(
+            merge_file(
+                "c.yml",
+                "Last edited: 2026-10-01\n",
+                "Last edited: 2026-10-02\n",
+                "Last edited: 2026-10-03\n"
+            ),
+            None
         );
     }
 }

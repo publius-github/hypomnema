@@ -5,8 +5,11 @@ import {
   CONFIG_FILES,
   basenameOf,
   parentDirOf,
+  serialSaves,
   settleSave,
+  type SaveState,
 } from "../sections/kb/util";
+import SaveIndicator from "../components/SaveIndicator";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
@@ -350,7 +353,8 @@ function NoteEditor({
 }) {
   const setError = useAppStore((s) => s.setError);
   const [content, setContent] = useState(note.content);
-  const [saved, setSaved] = useState(true);
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const saved = saveState === "saved";
   const [confirmTrash, setConfirmTrash] = useState(false);
   // a config file opens straight into the editor: its reading view is
   // YAML, which there is nothing to "read" - only to change
@@ -367,7 +371,11 @@ function NoteEditor({
   const [actionValue, setActionValue] = useState("");
   useBackStep(action !== null, () => setAction(null));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pending = useRef<string | null>(null);
+  const pending = useRef<{ text: string; gen: number } | null>(null);
+  // bumped by every keystroke: a save only marks the note saved when
+  // nothing was typed after the text it carried
+  const editGen = useRef(0);
+  const queueSave = useRef(serialSaves()).current;
   const contentRef = useRef(content);
   contentRef.current = content;
   const savedRef = useRef(saved);
@@ -384,34 +392,46 @@ function NoteEditor({
       clearTimeout(timer.current);
       timer.current = null;
     }
-    const outstanding = pending.current;
-    if (outstanding === null) return;
+    const save = pending.current;
+    if (save === null) return;
     pending.current = null;
-    try {
-      if (note.kind === "config") {
-        // invalid YAML is reported and never written (last valid state
-        // stays active), same as the desktop's Config editor
-        const errors = await invoke(
-          "config_file_set",
-          { file: note.path, content: outstanding },
-        );
-        setConfigErrors(errors);
-        if (errors.length === 0) setSaved(true);
-      } else {
-        const written = await invoke("kb_write", {
-          path: note.path,
-          content: outstanding,
-          base: baseRef.current,
-        });
-        setSaved(true);
-        const settled = settleSave(outstanding, written, contentRef.current);
-        baseRef.current = settled.base;
-        if (settled.content !== contentRef.current) setContent(settled.content);
+    const { text: outstanding, gen } = save;
+    await queueSave(async () => {
+      const done = () => {
+        if (gen === editGen.current) setSaveState("saved");
+      };
+      try {
+        if (note.kind === "config") {
+          // invalid YAML is reported and never written (last valid state
+          // stays active), same as the desktop's Config editor
+          const errors = await invoke("config_file_set", {
+            file: note.path,
+            content: outstanding,
+          });
+          setConfigErrors(errors);
+          if (errors.length === 0) done();
+        } else {
+          const written = await invoke("kb_write", {
+            path: note.path,
+            content: outstanding,
+            base: baseRef.current,
+          });
+          done();
+          const settled = settleSave(outstanding, written, contentRef.current);
+          baseRef.current = settled.base;
+          if (settled.content !== contentRef.current) {
+            setContent(settled.content);
+          }
+        }
+      } catch (e) {
+        // kept for the next flush (Back, leaving, Retry) unless newer
+        // typing already replaced it
+        if (!pending.current) pending.current = save;
+        if (gen === editGen.current) setSaveState("failed");
+        setError(errorMessage(e));
       }
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  }, [note.path, note.kind, setError]);
+    });
+  }, [note.path, note.kind, queueSave, setError]);
   const flushRef = useRef(flush);
   flushRef.current = flush;
   useEffect(() => () => void flushRef.current(), []);
@@ -437,8 +457,8 @@ function NoteEditor({
 
   const edit = (text: string) => {
     setContent(text);
-    setSaved(false);
-    pending.current = text;
+    setSaveState("dirty");
+    pending.current = { text, gen: ++editGen.current };
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void flush(), SAVE_DEBOUNCE_MS);
   };
@@ -489,9 +509,11 @@ function NoteEditor({
         <span className="min-w-0 flex-1 truncate font-semibold">
           {note.path}
         </span>
-        <span className="shrink-0 text-xs text-content-muted">
-          {saved ? "" : "Saving…"}
-        </span>
+        {!saved && (
+          <span className="shrink-0">
+            <SaveIndicator state={saveState} onRetry={() => void flush()} />
+          </span>
+        )}
         <button
           onClick={() => setEditing((v) => !v)}
           className="px-2 text-sm text-accent"

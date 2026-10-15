@@ -16,7 +16,9 @@ import {
   flattenAll,
   flattenFiles,
   parentDirOf,
+  serialSaves,
   settleSave,
+  type SaveState,
 } from "./kb/util";
 
 import type { KbNode, KbSearchHit } from "../types";
@@ -62,13 +64,17 @@ export default function KnowledgeBase() {
   const [configErrors, setConfigErrors] = useState<
     { line: number | null; message: string }[]
   >([]);
-  const [saved, setSaved] = useState(true);
+  const [saveState, setSaveState] = useState<SaveState>("saved");
   const savedRef = useRef(true);
-  savedRef.current = saved;
+  savedRef.current = saveState === "saved";
+  // bumped by every keystroke: a save only marks the note saved when
+  // nothing was typed after the text it carried
+  const editGen = useRef(0);
+  const queueSave = useRef(serialSaves()).current;
   const currentRef = useRef<OpenDoc | null>(null);
   currentRef.current = current;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<OpenDoc | null>(null);
+  const pendingRef = useRef<(OpenDoc & { gen: number }) | null>(null);
   // the on-disk text the open note's editor text derives from: each save
   // sends it, so a change that landed under the editor (a sync merging
   // the other device's edit) is merged in rather than overwritten
@@ -160,7 +166,8 @@ export default function KnowledgeBase() {
       setCurrent({ kind: "note", path, content });
       useAppStore.getState().setKbCurrent({ kind: "note", path });
       setConfigErrors([]);
-      setSaved(true);
+      editGen.current++;
+      setSaveState("saved");
     } catch (e) {
       setError(e);
     }
@@ -175,7 +182,8 @@ export default function KnowledgeBase() {
       setCurrent({ kind: "config", path: file, content });
       useAppStore.getState().setKbCurrent({ kind: "config", path: file });
       setConfigErrors([]);
-      setSaved(true);
+      editGen.current++;
+      setSaveState("saved");
     } catch (e) {
       setError(e);
     }
@@ -191,51 +199,64 @@ export default function KnowledgeBase() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const persist = async (doc: OpenDoc) => {
-    try {
-      if (doc.kind === "config") {
-        // invalid YAML is reported and never written (last valid
-        // state stays active), same as the Settings editor
-        const errors = await invoke(
-          "config_file_set",
-          { file: doc.path, content: doc.content },
-        );
-        setConfigErrors(errors);
-        if (errors.length === 0) setSaved(true);
-      } else {
-        const base = baseRef.current;
-        const written = await invoke("kb_write", {
-          path: doc.path,
-          content: doc.content,
-          base: base?.path === doc.path ? base.text : null,
-        });
-        setSaved(true);
-        // the save stamped the note's Created / Last edited header, or
-        // merged in a change made elsewhere: the editor takes it over
-        // without losing what was typed meanwhile
-        const cur = currentRef.current;
-        if (cur && cur.kind === "note" && cur.path === doc.path) {
-          const settled = settleSave(doc.content, written, cur.content);
-          baseRef.current = { path: doc.path, text: settled.base };
-          if (settled.content !== cur.content) {
-            setCurrent((prev) =>
-              prev && prev.path === doc.path
-                ? { ...prev, content: settled.content }
-                : prev,
-            );
+  const persist = (doc: OpenDoc & { gen: number }) =>
+    queueSave(async () => {
+      const done = () => {
+        if (doc.gen === editGen.current) setSaveState("saved");
+      };
+      try {
+        if (doc.kind === "config") {
+          // invalid YAML is reported and never written (last valid
+          // state stays active), same as the Settings editor
+          const errors = await invoke("config_file_set", {
+            file: doc.path,
+            content: doc.content,
+          });
+          setConfigErrors(errors);
+          if (errors.length === 0) done();
+        } else {
+          const base = baseRef.current;
+          const written = await invoke("kb_write", {
+            path: doc.path,
+            content: doc.content,
+            base: base?.path === doc.path ? base.text : null,
+          });
+          done();
+          // the save stamped the note's Created / Last edited header, or
+          // merged in a change made elsewhere: the editor takes it over
+          // without losing what was typed meanwhile
+          const cur = currentRef.current;
+          if (cur && cur.kind === "note" && cur.path === doc.path) {
+            const settled = settleSave(doc.content, written, cur.content);
+            baseRef.current = { path: doc.path, text: settled.base };
+            if (settled.content !== cur.content) {
+              setCurrent((prev) =>
+                prev && prev.path === doc.path
+                  ? { ...prev, content: settled.content }
+                  : prev,
+              );
+            }
           }
         }
+      } catch (e) {
+        // kept for the next flush (file switch, leaving, Retry) unless
+        // newer typing already replaced it
+        if (!pendingRef.current) pendingRef.current = doc;
+        if (doc.gen === editGen.current) setSaveState("failed");
+        setError(e);
       }
-    } catch (e) {
-      setError(e);
-    }
-  };
+    });
 
   const scheduleSave = (content: string) => {
     if (!current) return;
-    const target: OpenDoc = { kind: current.kind, path: current.path, content };
+    const target = {
+      kind: current.kind,
+      path: current.path,
+      content,
+      gen: ++editGen.current,
+    };
     setCurrent(target);
-    setSaved(false);
+    setSaveState("dirty");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     pendingRef.current = target;
     saveTimer.current = setTimeout(() => {
@@ -783,7 +804,8 @@ export default function KnowledgeBase() {
         {current ? (
           <EditorPane
             current={current}
-            saved={saved}
+            saveState={saveState}
+            onRetry={() => void flushPending()}
             configErrors={configErrors}
             lineNumbers={config?.kb_line_numbers ?? false}
             onChange={scheduleSave}

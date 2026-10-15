@@ -7,9 +7,15 @@ function subject(field: string): string {
   return field;
 }
 
-/** RFC3339 UTC -> "2026-10-14 21:01". */
+/** RFC3339 UTC -> "2026-10-14 21:01" in this device's local time: the
+ * log stamps in UTC, and a person reads a clock in their own zone. */
 function when(at: string): string {
-  return at.slice(0, 16).replace("T", " ");
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return at.slice(0, 16).replace("T", " ");
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
 }
 
 /**

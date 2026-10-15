@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import SaveIndicator from "../components/SaveIndicator";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { todayISO } from "../lib/tasks";
-import { settleSave } from "./kb/util";
+import { serialSaves, settleSave, type SaveState } from "./kb/util";
 import { lazy, Suspense } from "react";
 
 // CodeMirror and its language packs are the biggest thing in the bundle
@@ -14,6 +15,12 @@ interface OpenDoc {
   content: string;
 }
 
+/** An edit waiting to be saved, numbered so a save that lands knows
+ * whether anything was typed after it. */
+interface PendingSave extends OpenDoc {
+  gen: number;
+}
+
 export default function Journal() {
   const setError = useCallback(
     (e: unknown) => useAppStore.getState().setError(errorMessage(e)),
@@ -21,9 +28,14 @@ export default function Journal() {
   );
   const [dates, setDates] = useState<string[]>([]);
   const [doc, setDoc] = useState<OpenDoc | null>(null);
-  const [saved, setSaved] = useState(true);
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const saved = saveState === "saved";
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<OpenDoc | null>(null);
+  const pendingRef = useRef<PendingSave | null>(null);
+  // bumped by every keystroke: a save only marks the entry saved when
+  // nothing was typed after the text it carried
+  const editGen = useRef(0);
+  const queueSave = useRef(serialSaves()).current;
   const docRef = useRef<OpenDoc | null>(null);
   docRef.current = doc;
   const savedRef = useRef(true);
@@ -42,30 +54,38 @@ export default function Journal() {
   }, [setError]);
 
   const persist = useCallback(
-    async (date: string, content: string) => {
-      try {
-        const base = baseRef.current;
-        const written = await invoke("journal_save", {
-          date,
-          content,
-          base: base?.date === date ? base.content : null,
-        });
-        setSaved(true);
-        const cur = docRef.current;
-        if (cur?.date === date) {
-          const settled = settleSave(content, written, cur.content);
-          baseRef.current = { date, content: settled.base };
-          if (settled.content !== cur.content) {
-            setDoc((prev) =>
-              prev?.date === date ? { ...prev, content: settled.content } : prev,
-            );
+    (pending: PendingSave) =>
+      queueSave(async () => {
+        const { date, content, gen } = pending;
+        try {
+          const base = baseRef.current;
+          const written = await invoke("journal_save", {
+            date,
+            content,
+            base: base?.date === date ? base.content : null,
+          });
+          if (gen === editGen.current) setSaveState("saved");
+          const cur = docRef.current;
+          if (cur?.date === date) {
+            const settled = settleSave(content, written, cur.content);
+            baseRef.current = { date, content: settled.base };
+            if (settled.content !== cur.content) {
+              setDoc((prev) =>
+                prev?.date === date
+                  ? { ...prev, content: settled.content }
+                  : prev,
+              );
+            }
           }
+        } catch (e) {
+          // kept for the next flush (entry switch, leaving, Retry) unless
+          // newer typing already replaced it
+          if (!pendingRef.current) pendingRef.current = pending;
+          if (gen === editGen.current) setSaveState("failed");
+          setError(e);
         }
-      } catch (e) {
-        setError(e);
-      }
-    },
-    [setError],
+      }),
+    [queueSave, setError],
   );
 
   // saves the debounced edit immediately (tab switch, entry switch);
@@ -79,7 +99,7 @@ export default function Journal() {
     const pending = pendingRef.current;
     if (pending) {
       pendingRef.current = null;
-      await persist(pending.date, pending.content);
+      await persist(pending);
     }
   }, [persist]);
 
@@ -98,7 +118,8 @@ export default function Journal() {
         if (seq !== openSeq.current) return;
         baseRef.current = { date: entry.date, content: entry.content };
         setDoc({ date: entry.date, content: entry.content });
-        setSaved(true);
+        editGen.current++;
+        setSaveState("saved");
         await loadDates();
       } catch (e) {
         setError(e);
@@ -145,13 +166,13 @@ export default function Journal() {
   const scheduleSave = (content: string) => {
     if (!doc) return;
     setDoc({ ...doc, content });
-    setSaved(false);
+    setSaveState("dirty");
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    const target = { ...doc, content };
+    const target = { ...doc, content, gen: ++editGen.current };
     pendingRef.current = target;
     saveTimer.current = setTimeout(() => {
       pendingRef.current = null;
-      void persist(target.date, target.content);
+      void persist(target);
     }, 800);
   };
 
@@ -207,9 +228,7 @@ export default function Journal() {
           <>
             <div className="flex items-center justify-between border-b border-line px-4 py-2 text-sm">
               <span className="text-base font-semibold">{doc.date}</span>
-              <span className="text-xs text-content-muted">
-                {saved ? "Saved" : "Saving..."}
-              </span>
+              <SaveIndicator state={saveState} onRetry={() => void flushPending()} />
             </div>
             <div className="min-h-0 flex-1">
               <Suspense fallback={null}>

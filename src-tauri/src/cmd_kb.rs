@@ -105,6 +105,7 @@ pub(crate) async fn kb_write(
     if let Some(copy) = kept_aside {
         crate::sync_conflicts::log_kept_aside(&vault_root, &root.join(&path), &copy);
     }
+    crate::sync_scheduler::poke();
     Ok(text)
 }
 

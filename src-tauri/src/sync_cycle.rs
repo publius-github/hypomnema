@@ -381,7 +381,9 @@ fn apply_incoming(
             std::str::from_utf8(&local_bytes),
             std::str::from_utf8(remote_bytes),
         ) {
-            if let Some(merged) = crate::text_merge::merge3(&base, local_text, remote_text) {
+            if let Some(merged) =
+                crate::text_merge::merge_file(relative, &base, local_text, remote_text)
+            {
                 write_local(&target, merged.as_bytes())?;
                 write_base(ctx.local_root, relative, remote_bytes)?;
                 return Ok(Incoming::Merged);
@@ -594,14 +596,18 @@ pub fn sync_vault<P: SyncProvider>(
         // S8-style resilience: one file that cannot be applied (a merge
         // parse error, a name the local filesystem rejects) is reported,
         // not allowed to abort the pass with the manifest unsaved.
-        let applied = match apply_incoming(
-            &ctx,
-            &relative,
-            &bytes,
-            known.as_ref(),
-            &mut conflicts,
-            &mut report.conflicted_copies,
-        ) {
+        let outcome = {
+            let _files = crate::text_merge::user_file_lock();
+            apply_incoming(
+                &ctx,
+                &relative,
+                &bytes,
+                known.as_ref(),
+                &mut conflicts,
+                &mut report.conflicted_copies,
+            )
+        };
+        let applied = match outcome {
             Ok(applied) => applied,
             Err(_) => {
                 report.failed.push(remote.clone());
@@ -638,13 +644,16 @@ pub fn sync_vault<P: SyncProvider>(
         if !sync_paths::is_synced(relative) {
             continue;
         }
-        let applied = apply_duplicate(
-            &ctx,
-            relative,
-            &duplicate.bytes,
-            &mut conflicts,
-            &mut report.conflicted_copies,
-        );
+        let applied = {
+            let _files = crate::text_merge::user_file_lock();
+            apply_duplicate(
+                &ctx,
+                relative,
+                &duplicate.bytes,
+                &mut conflicts,
+                &mut report.conflicted_copies,
+            )
+        };
         // Only a copy whose content is safely in the local file may go;
         // one that could not be applied is still there next pass.
         match applied {
