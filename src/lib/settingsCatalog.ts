@@ -22,7 +22,7 @@ import type { AppConfig } from "../types";
 export const SETTINGS_TABS = [
   { id: "profiles", label: "Profiles" },
   { id: "appearance", label: "Appearance" },
-  { id: "views", label: "Views" },
+  { id: "views", label: "Pages" },
   { id: "cards", label: "Task cards" },
   { id: "columns", label: "Columns" },
   { id: "recurring", label: "Recurring & calendar" },
@@ -36,17 +36,17 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];
 export type SettingsGroupId =
   | "appearance.theme"
   | "appearance.fonts"
-  | "appearance.text"
-  | "appearance.editor"
+  | "views.navigation"
   | "views.dashboard"
   | "views.lists"
-  | "views.listview"
-  | "views.navigation"
+  | "views.history"
   | "cards.colors"
   | "cards.chips"
   | "cards.markers"
+  | "cards.rate"
   | "cards.behavior"
-  | "columns.shared"
+  | "columns.sections"
+  | "columns.closed"
   | "columns.day"
   | "columns.list"
   | "recurring.buckets"
@@ -80,26 +80,29 @@ type GroupDef = {
 };
 
 export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
-  "appearance.theme": { tab: "appearance", title: "Theme & palette" },
+  "appearance.theme": { tab: "appearance", title: "Theme & colors" },
   "appearance.fonts": { tab: "appearance", title: "Fonts & sizes" },
-  "appearance.text": { tab: "appearance", title: "Text colors", knobs: true },
-  "appearance.editor": { tab: "appearance", title: "Markdown editor" },
 
+  "views.navigation": { tab: "views", title: "Left bar" },
   "views.dashboard": { tab: "views", title: "Dashboard" },
   "views.lists": { tab: "views", title: "Lists page" },
-  "views.listview": {
-    tab: "views",
-    title: "List view (Days and Lists)",
-    knobs: true,
-  },
-  "views.navigation": { tab: "views", title: "Navigation" },
+  "views.history": { tab: "views", title: "History" },
 
   "cards.colors": { tab: "cards", title: "Card colors" },
-  "cards.chips": { tab: "cards", title: "Category chips" },
-  "cards.markers": { tab: "cards", title: "Card markers" },
+  "cards.chips": { tab: "cards", title: "Chips & categories" },
+  "cards.markers": { tab: "cards", title: "Weekday markers" },
+  "cards.rate": { tab: "cards", title: "Completion rate" },
   "cards.behavior": { tab: "cards", title: "Card behavior" },
 
-  "columns.shared": { tab: "columns", title: "Day and list columns" },
+  "columns.sections": {
+    tab: "columns",
+    title: "Column layout: sections and separators",
+    knobs: true,
+  },
+  "columns.closed": {
+    tab: "columns",
+    title: "Postponed and done tasks",
+  },
   "columns.day": { tab: "columns", title: "Day columns" },
   "columns.list": { tab: "columns", title: "List columns" },
 
@@ -121,14 +124,13 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
     always: true,
     noReset: true,
   },
-  "data.notes": { tab: "data", title: "Notes" },
+  "data.notes": { tab: "data", title: "Journal & notes" },
   "data.mirror": { tab: "data", title: "Snapshots & mirror" },
   "data.backups": { tab: "data", title: "Backups", always: true },
   "data.cleanup": {
     tab: "data",
-    title: "Cleanup",
+    title: "Done tasks cleanup",
     always: true,
-    noReset: true,
   },
 
   "sync.account": {
@@ -150,57 +152,32 @@ export type CatalogEntry = {
 };
 
 export const SETTINGS_CATALOG: CatalogEntry[] = [
-  // --- Appearance -------------------------------------------------
+  // --- Appearance ----------------------------------------------
   { key: "theme", label: "Theme", group: "appearance.theme", terms: "dark light vscode palette" },
   { key: "accent_color", label: "Accent color", group: "appearance.theme" },
   { key: "surface_color", label: "Background color", group: "appearance.theme" },
   { key: "surface_alt_color", label: "Panel color", group: "appearance.theme" },
   { key: "line_color", label: "Border color", group: "appearance.theme" },
+  { key: "content_color", label: "Main text color", group: "appearance.theme" },
+  { key: "content_muted_color", label: "Secondary text color", group: "appearance.theme" },
 
   { key: "ui_font", label: "UI font", group: "appearance.fonts", terms: "typeface family" },
   { key: "editor_font", label: "Editor font", group: "appearance.fonts", terms: "journal notes monospace" },
   { key: "ui_font_size", label: "Base font size", group: "appearance.fonts", terms: "text size scale" },
   { key: "editor_font_size", label: "Editor font size", group: "appearance.fonts" },
 
-  { key: "content_color", label: "Main text color", group: "appearance.text" },
-  { key: "content_muted_color", label: "Secondary text color", group: "appearance.text" },
-  { key: "weekly_focus_color", label: "Weekly focus color", group: "appearance.text" },
-  { key: "reminder_color", label: "Day reminders color", group: "appearance.text" },
-  { key: "day_header_color", label: "Day header color", group: "appearance.text", terms: "weekday date" },
-  { key: "dow_label_color", label: "Weekday marker color", group: "appearance.text", terms: "sat#1 cron label" },
+  // --- Pages ---------------------------------------------------
+  { key: "section_order", label: "Page order in the left bar", group: "views.navigation", terms: "rail sidebar sections" },
+  { key: "section_hidden", label: "Hidden pages", group: "views.navigation", terms: "rail sidebar hide sections" },
 
-  { key: "kb_line_numbers", label: "Line numbers in the Notes editor", group: "appearance.editor" },
-
-  // --- Views ------------------------------------------------------
+  { key: "weekly_focus_color", label: "Weekly focus color", group: "views.dashboard" },
   { key: "dashboard_split", label: "Dashboard split", group: "views.dashboard", terms: "day grid height divider" },
 
   { key: "lists_page_align_rows", label: "Align list rows", group: "views.lists" },
-  { key: "list_view_plate_scale", label: "Section plate height in list view", group: "views.listview", terms: "header daily monthly done percent font text size" },
-  { key: "gap_fill_color", label: "Gap fill color", group: "views.listview", terms: "hatch glow band" },
-  { key: "gap_fill_fade", label: "Gap fill edge softness", group: "views.listview", terms: "hatch glow fade blur gradient" },
-  { key: "gap_fill_max_thickness", label: "Gap fill maximum thickness", group: "views.listview", terms: "hatch glow band height tall" },
-  { key: "list_gap_stripe", label: "Separator stripe height, % of a row", group: "views.listview", terms: "gap spacing glow band stripe category section" },
-  { key: "gap_fill_opacity", label: "Gap fill opacity", group: "views.listview", terms: "hatch glow band transparency alpha" },
-  { key: "gap_fill_inset", label: "Gap fill inset from the row lines", group: "views.listview", terms: "hatch glow margin padding" },
-  { key: "section_cards", label: "Sections as framed panels", group: "views.listview", terms: "card rail frame border" },
-  { key: "section_gap", label: "Space between section panels", group: "views.listview", terms: "gap margin" },
-  { key: "category_gap_bands", label: "Bands in category breaks", group: "views.listview", terms: "stripe gap" },
-  { key: "row_hairlines", label: "Hairlines between rows", group: "views.listview", terms: "border line separator" },
-  { key: "category_headers", label: "Category as a block header", group: "views.listview", terms: "chip label group" },
-  { key: "category_header_bold", label: "Bold category header", group: "views.listview", terms: "chip label group weight" },
-  { key: "section_plate_count", label: "Task count on section plates", group: "views.listview", terms: "counter number" },
-  { key: "section_plate_sticky", label: "Sticky section plates", group: "views.listview", terms: "header pin scroll" },
-  { key: "fold_postponed", label: "Fold Postponed by default", group: "views.listview", terms: "closed collapse hide" },
-  { key: "fold_waiting", label: "Fold Done, waiting by default", group: "views.listview", terms: "closed collapse hide" },
-  { key: "fold_done", label: "Fold Done by default", group: "views.listview", terms: "closed collapse hide" },
-  { key: "fold_dropped", label: "Fold Not done, dropped by default", group: "views.listview", terms: "closed collapse hide" },
-  { key: "closed_row_opacity", label: "Closed row opacity", group: "views.listview", terms: "done dropped dim fade" },
 
+  { key: "streak_strip_days", label: "Daily streak marks in History", group: "views.history", terms: "habit heatmap strip history" },
 
-  { key: "section_order", label: "Section order in the left bar", group: "views.navigation", terms: "rail sidebar" },
-  { key: "section_hidden", label: "Hidden sections", group: "views.navigation", terms: "rail sidebar hide" },
-
-  // --- Task cards -------------------------------------------------
+  // --- Task cards ----------------------------------------------
   { key: "cadence_colors", label: "Color tasks by cadence", group: "cards.colors", terms: "stripe" },
   { key: "cadence_color_general", label: "General cadence color", group: "cards.colors", terms: "stripe plate" },
   { key: "cadence_color_daily", label: "Daily cadence color", group: "cards.colors", terms: "stripe" },
@@ -208,14 +185,12 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "cadence_color_monthly", label: "Monthly cadence color", group: "cards.colors", terms: "stripe" },
   { key: "cadence_color_yearly", label: "Yearly cadence color", group: "cards.colors", terms: "stripe" },
   { key: "cadence_color_exact", label: "Exact-date cadence color", group: "cards.colors", terms: "stripe scheduled birthday" },
-  { key: "postponed_plate_color", label: "Postponed plate color", group: "cards.colors", terms: "section header closed" },
-  { key: "waiting_plate_color", label: "Done, waiting plate color", group: "cards.colors", terms: "section header closed" },
-  { key: "done_plate_color", label: "Done plate color", group: "cards.colors", terms: "section header closed" },
-  { key: "dropped_plate_color", label: "Not done, dropped plate color", group: "cards.colors", terms: "section header closed" },
   { key: "done_color", label: "Done checkbox color", group: "cards.colors" },
   { key: "waiting_color", label: "Done, waiting mark color", group: "cards.colors" },
   { key: "dropped_color", label: "Not done, dropped mark color", group: "cards.colors", terms: "checkbox red cancel" },
 
+  { key: "category_headers", label: "Category as a block header", group: "cards.chips", terms: "chip label group" },
+  { key: "category_header_bold", label: "Bold category header", group: "cards.chips", terms: "chip label group weight" },
   { key: "category_color", label: "Category label color", group: "cards.chips" },
   { key: "category_color_mode", label: "Category chip coloring", group: "cards.chips", terms: "single varied alternate" },
   { key: "category_avoid_cadence_colors", label: "Varied chips avoid the cadence colors", group: "cards.chips", terms: "palette weekly monthly plate" },
@@ -223,46 +198,70 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "category_color_b", label: "Alternating chip color B", group: "cards.chips" },
   { key: "chip_font_scale", label: "Chip text size", group: "cards.chips", terms: "category list date chip" },
 
+  { key: "dow_label_color", label: "Weekday marker color", group: "cards.markers", terms: "sat#1 cron label" },
   { key: "cron_weekday_labels", label: "Weekday marker from cron", group: "cards.markers", terms: "sat#1" },
   { key: "cron_everyday_label", label: "[EVERYDAY] marker", group: "cards.markers" },
   { key: "dow_label_opacity", label: "Weekday marker opacity", group: "cards.markers", terms: "sat#1 cron label dim" },
-  { key: "habit_rate_chip", label: "Completion rate chip", group: "cards.markers", terms: "habit rate percent" },
-  { key: "habit_rate_alert_only", label: "Rate chip only below the threshold", group: "cards.markers", terms: "habit rate percent alert" },
-  { key: "habit_rate_threshold", label: "Rate alert threshold", group: "cards.markers", terms: "habit percent" },
-  { key: "habit_rate_window", label: "Rate window", group: "cards.markers", terms: "habit last instances" },
-  { key: "streak_strip_days", label: "Daily streak marks in History", group: "cards.markers", terms: "habit heatmap strip history" },
-  { key: "habit_rate_min_instances", label: "Rate minimum instances", group: "cards.markers", terms: "habit" },
-  { key: "habit_rate_alert_color", label: "Rate alert color", group: "cards.markers", terms: "habit" },
 
-  { key: "done_hold_seconds", label: "Hold before a done task moves", group: "cards.behavior", terms: "misclick postponed" },
+  { key: "habit_rate_chip", label: "Completion rate chip", group: "cards.rate", terms: "habit rate percent" },
+  { key: "habit_rate_alert_only", label: "Rate chip only below the threshold", group: "cards.rate", terms: "habit rate percent alert" },
+  { key: "habit_rate_threshold", label: "Rate alert threshold", group: "cards.rate", terms: "habit percent" },
+  { key: "habit_rate_window", label: "Rate window", group: "cards.rate", terms: "habit last instances" },
+  { key: "habit_rate_min_instances", label: "Rate minimum instances", group: "cards.rate", terms: "habit" },
+  { key: "habit_rate_alert_color", label: "Rate alert color", group: "cards.rate", terms: "habit" },
+
   { key: "undo_toast_seconds", label: "Undo toast length", group: "cards.behavior", terms: "delete archive" },
   { key: "subtasks_done_last", label: "Done subtasks sink to the bottom", group: "cards.behavior" },
   { key: "priority_overdue", label: "Priority tasks get the overdue mark", group: "cards.behavior", terms: "star" },
 
-  // --- Columns ----------------------------------------------------
-  { key: "done_display", label: "Done tasks display", group: "columns.shared", terms: "inline separate block" },
-  { key: "closed_sections_sort_alpha", label: "Sort Postponed and Done alphabetically", group: "columns.shared", terms: "waiting order abc" },
+  // --- Columns -------------------------------------------------
+  { key: "list_view_plate_scale", label: "Section plate height in list view", group: "columns.sections", terms: "header daily monthly done percent font text size" },
+  { key: "gap_fill_color", label: "Gap fill color", group: "columns.sections", terms: "hatch glow band" },
+  { key: "gap_fill_fade", label: "Gap fill edge softness", group: "columns.sections", terms: "hatch glow fade blur gradient" },
+  { key: "gap_fill_max_thickness", label: "Gap fill maximum thickness", group: "columns.sections", terms: "hatch glow band height tall" },
+  { key: "list_gap_stripe", label: "Separator stripe height, % of a row", group: "columns.sections", terms: "gap spacing glow band stripe category section" },
+  { key: "gap_fill_opacity", label: "Gap fill opacity", group: "columns.sections", terms: "hatch glow band transparency alpha" },
+  { key: "gap_fill_inset", label: "Gap fill inset from the row lines", group: "columns.sections", terms: "hatch glow margin padding" },
+  { key: "section_cards", label: "Sections as framed panels", group: "columns.sections", terms: "card rail frame border" },
+  { key: "section_gap", label: "Space between section panels", group: "columns.sections", terms: "gap margin" },
+  { key: "category_gap_bands", label: "Bands in category breaks", group: "columns.sections", terms: "stripe gap" },
+  { key: "row_hairlines", label: "Hairlines between rows", group: "columns.sections", terms: "border line separator" },
+  { key: "section_plate_count", label: "Task count on section plates", group: "columns.sections", terms: "counter number" },
+  { key: "section_plate_sticky", label: "Sticky section plates", group: "columns.sections", terms: "header pin scroll" },
 
+  { key: "fold_postponed", label: "Fold Postponed by default", group: "columns.closed", terms: "closed collapse hide" },
+  { key: "fold_waiting", label: "Fold Done, waiting by default", group: "columns.closed", terms: "closed collapse hide" },
+  { key: "fold_done", label: "Fold Done by default", group: "columns.closed", terms: "closed collapse hide" },
+  { key: "fold_dropped", label: "Fold Not done, dropped by default", group: "columns.closed", terms: "closed collapse hide" },
+  { key: "closed_row_opacity", label: "Closed row opacity", group: "columns.closed", terms: "done dropped dim fade" },
+  { key: "postponed_plate_color", label: "Postponed plate color", group: "columns.closed", terms: "section header closed" },
+  { key: "waiting_plate_color", label: "Done, waiting plate color", group: "columns.closed", terms: "section header closed" },
+  { key: "done_plate_color", label: "Done plate color", group: "columns.closed", terms: "section header closed" },
+  { key: "dropped_plate_color", label: "Not done, dropped plate color", group: "columns.closed", terms: "section header closed" },
+  { key: "done_hold_seconds", label: "Hold before a done task moves", group: "columns.closed", terms: "misclick postponed" },
+  { key: "done_display", label: "Done tasks display", group: "columns.closed", terms: "inline separate block" },
+  { key: "closed_sections_sort_alpha", label: "Sort Postponed and Done alphabetically", group: "columns.closed", terms: "waiting order abc" },
+
+  { key: "reminder_color", label: "Day reminders color", group: "columns.day" },
+  { key: "day_header_color", label: "Day header color", group: "columns.day", terms: "weekday date" },
   { key: "day_header_centered", label: "Center day headers", group: "columns.day" },
   { key: "daily_tasks_today_only", label: "Daily tasks only on today", group: "columns.day" },
   { key: "cadence_group_order", label: "Day column section order", group: "columns.day", terms: "cadence groups" },
 
   { key: "lists_sort_alpha", label: "Sort lists alphabetically", group: "columns.list" },
   { key: "list_tasks_sort_alpha", label: "Sort tasks inside lists alphabetically", group: "columns.list" },
-  { key: "clear_done_list_tasks", label: "Clear done list tasks at rollover", group: "columns.list" },
   { key: "list_task_lines", label: "Task title lines in a list column", group: "columns.list", terms: "truncate clamp" },
   { key: "list_dialog_task_lines", label: "Task title lines in the list dialog", group: "columns.list", terms: "truncate clamp" },
   { key: "list_exact_stripe", label: "Exact-date stripe inside the list", group: "columns.list", terms: "dated scheduled" },
   { key: "list_date_chip_color", label: "Date chip color inside the list", group: "columns.list", terms: "dated scheduled" },
 
-  // --- Recurring & calendar ---------------------------------------
+  // --- Recurring & calendar ------------------------------------
   { key: "cadence_daily_min_per_year", label: "Daily bucket threshold", group: "recurring.buckets", terms: "firings per year" },
   { key: "cadence_weekly_min_per_year", label: "Weekly bucket threshold", group: "recurring.buckets", terms: "firings per year" },
   { key: "cadence_monthly_min_per_year", label: "Monthly bucket threshold", group: "recurring.buckets", terms: "firings per year" },
 
   { key: "catchup_days", label: "Recurring catch-up window", group: "recurring.generation", terms: "missed" },
   { key: "cron_ignore_time", label: "Catch up crons by calendar day", group: "recurring.generation", terms: "missed time" },
-  { key: "retention_days", label: "Retention of done one-off tasks", group: "recurring.generation", terms: "prune history" },
 
   { key: "calendar_daily_days", label: "Calendar: daily rules ahead", group: "recurring.calendar", terms: "horizon projection outlook" },
   { key: "calendar_weekly_weeks", label: "Calendar: weekly rules ahead", group: "recurring.calendar", terms: "horizon projection outlook" },
@@ -270,11 +269,12 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "calendar_yearly_years", label: "Calendar: yearly rules ahead", group: "recurring.calendar", terms: "horizon projection outlook" },
   { key: "calendar_dates_years", label: "Calendar: exact dates ahead", group: "recurring.calendar", terms: "horizon birthdays projection" },
 
-  // --- Capture & alerts -------------------------------------------
+  // --- Capture & alerts ----------------------------------------
   { key: "capture_list", label: "Quick-capture list", group: "capture.capture", terms: "inbox" },
   // desktop-only (see docs/windows/ARCHITECTURE.md): the global
   // shortcut and the tray need a window manager the phone has not got
   { key: "capture_shortcut", label: "Global capture shortcut", group: "capture.capture", terms: "hotkey" },
+
   { key: "tray_icon", label: "Tray icon", group: "capture.tray", terms: "system tray notification area" },
   { key: "close_to_tray", label: "Close to tray", group: "capture.tray", terms: "minimize hide quit" },
 
@@ -283,8 +283,10 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "notify_lead_minutes", label: "Remind ahead of a timed task", group: "capture.alerts", terms: "reminder early before minutes notification" },
   { key: "notify_toast_seconds", label: "Due-task toast duration", group: "capture.alerts", terms: "reminder notification seconds hide" },
 
-  // --- Data -------------------------------------------------------
+  // --- Data ----------------------------------------------------
   { key: "kb_path", label: "Notes folder", group: "data.vault", terms: "kb vault path" },
+
+  { key: "kb_line_numbers", label: "Line numbers in the Notes editor", group: "data.notes" },
   { key: "notes_timestamps", label: "Created and Last edited lines", group: "data.notes", terms: "timestamps frontmatter" },
   { key: "journal_day_tasks", label: "Tasks of the day in the Journal", group: "data.notes", terms: "journal entry done open strip" },
 
@@ -297,7 +299,10 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   { key: "backup_keep", label: "Backups to keep", group: "data.backups", terms: "snapshots restore" },
 
-  // --- Sync -------------------------------------------------------
+  { key: "clear_done_list_tasks", label: "Clear done list tasks at rollover", group: "data.cleanup" },
+  { key: "retention_days", label: "Retention of done one-off tasks", group: "data.cleanup", terms: "prune history" },
+
+  // --- Sync ----------------------------------------------------
   { key: "sync_auto", label: "Sync automatically", group: "sync.schedule", terms: "google drive auto" },
   { key: "sync_interval_minutes", label: "Minutes between passes", group: "sync.schedule", terms: "interval period" },
   { key: "sync_debounce_seconds", label: "Seconds after an edit", group: "sync.schedule", terms: "debounce delay" },

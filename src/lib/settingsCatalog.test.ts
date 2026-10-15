@@ -87,16 +87,16 @@ describe("searchSettings", () => {
   });
 
   it("requires every term to match, in any order", () => {
-    const hits = searchSettings("plate done").map((h) => h.key);
-    expect(hits).toContain("done_plate_color");
-    expect(hits).toContain("waiting_plate_color");
-    expect(hits).not.toContain("postponed_plate_color");
+    const hits = searchSettings("color mark").map((h) => h.key);
+    expect(hits).toContain("waiting_color");
+    expect(hits).toContain("dropped_color");
+    expect(hits).not.toContain("done_color");
   });
 
   it("reports the tab and group a hit lives on", () => {
     const [hit] = searchSettings("theme palette");
     expect(hit.tab).toBe("appearance");
-    expect(hit.groupTitle).toBe("Theme & palette");
+    expect(hit.groupTitle).toBe("Theme & colors");
   });
 
   it("is empty for a blank query", () => {
@@ -121,13 +121,15 @@ describe("profileCoverage", () => {
         "surface_color",
         "surface_alt_color",
         "line_color",
+        "content_color",
+        "content_muted_color",
       ]),
     ).toBe("all");
   });
 
   it("reports a partly covered group", () => {
-    // card markers: the toggles travel with a profile, the thresholds
-    // do not
+    // weekday markers: the toggles travel with a profile, the opacity
+    // and color do not
     expect(profileCoverage("cards.markers", keys)).toBe("some");
   });
 
@@ -161,6 +163,7 @@ describe("profileCoverage", () => {
     expect(groups.map((g) => g.id)).toEqual([
       "appearance.theme",
       "cards.markers",
+      "cards.rate",
     ]);
     expect(groups.find((g) => g.id === "cards.markers")?.partial).toBe(true);
     expect(groups.find((g) => g.id === "appearance.theme")?.partial).toBe(true);

@@ -62,8 +62,9 @@ function BackupList({
 
 /**
  * Everything the vault holds and what the app does to it: where the
- * files are, which of them it writes, how many copies it keeps - and,
- * in the same place, restoring those copies and sweeping the database.
+ * files are, how notes and the journal are written, which extra files
+ * it keeps, how many copies - and, in the same place, restoring those
+ * copies and clearing out done tasks, automatically or by hand.
  * The retention knob and the restore list used to sit two tabs apart,
  * with the one pointing at the other in prose.
  */
@@ -190,7 +191,27 @@ export default function DataTab() {
             </button>
           </div>
         </section>
+      </SettingsGroup>
 
+      <SettingsGroup id="data.notes">
+        <Toggle
+          checked={config.kb_line_numbers}
+          label="Line numbers in the Notes editor"
+          hint="Config files always show them; this covers regular notes."
+          onChange={(v) => void updateConfig({ kb_line_numbers: v })}
+        />
+        <Toggle
+          checked={config.notes_timestamps}
+          label="Created and Last edited lines on notes"
+          hint="Markdown notes saved from the Notes editor carry two lines at the top - Created: and Last edited:, date and time - kept up to date by the app. A note with a YAML frontmatter block gets them inside it. Created can be corrected by hand; Last edited moves whenever the text below it changes. A note without them takes its file dates on its first save; edits made in other editors are not stamped."
+          onChange={(v) => void updateConfig({ notes_timestamps: v })}
+        />
+        <Toggle
+          checked={config.journal_day_tasks}
+          label="Tasks of the day in the Journal"
+          hint="A strip under the Journal entry's header lists that day's tasks - what got done and what stayed open - so an entry can be written against the day as it went."
+          onChange={(v) => void updateConfig({ journal_day_tasks: v })}
+        />
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Journal template</span>
           <p className="text-xs text-content-muted">
@@ -206,21 +227,6 @@ export default function DataTab() {
             Edit in Notes
           </button>
         </section>
-      </SettingsGroup>
-
-      <SettingsGroup id="data.notes">
-        <Toggle
-          checked={config.notes_timestamps}
-          label="Created and Last edited lines on notes"
-          hint="Markdown notes saved from the Notes editor carry two lines at the top - Created: and Last edited:, date and time - kept up to date by the app. A note with a YAML frontmatter block gets them inside it. Created can be corrected by hand; Last edited moves whenever the text below it changes. A note without them takes its file dates on its first save; edits made in other editors are not stamped."
-          onChange={(v) => void updateConfig({ notes_timestamps: v })}
-        />
-        <Toggle
-          checked={config.journal_day_tasks}
-          label="Tasks of the day in the Journal"
-          hint="A strip under the Journal entry's header lists that day's tasks - what got done and what stayed open - so an entry can be written against the day as it went."
-          onChange={(v) => void updateConfig({ journal_day_tasks: v })}
-        />
       </SettingsGroup>
 
       <SettingsGroup id="data.mirror">
@@ -315,6 +321,21 @@ export default function DataTab() {
       </SettingsGroup>
 
       <SettingsGroup id="data.cleanup">
+        <Field label="Retention of done one-off tasks, days (0 = keep forever)">
+          <NumberInput
+            value={config.retention_days}
+            min={0}
+            onCommit={(n) => void updateConfig({ retention_days: n })}
+          />
+        </Field>
+
+        <Toggle
+          checked={config.clear_done_list_tasks}
+          label="Clear done list tasks at day rollover"
+          hint="Tasks checked off in a list column are removed from the database once their completion day has passed - the list is a working queue, not history."
+          onChange={(v) => void updateConfig({ clear_done_list_tasks: v })}
+        />
+
         <div className="flex items-center gap-2">
           <button
             className="btn-danger w-fit px-3 py-1 text-xs"

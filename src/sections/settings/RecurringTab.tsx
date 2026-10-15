@@ -64,14 +64,6 @@ export default function RecurringTab() {
           hint="The firing time is ignored: a rule like 0 0 * * 1 counts as missed for the whole Monday, as if it fired at 23:59."
           onChange={(v) => void updateConfig({ cron_ignore_time: v })}
         />
-
-        <Field label="Retention of done one-off tasks, days (0 = keep forever)">
-          <NumberInput
-            value={config.retention_days}
-            min={0}
-            onCommit={(n) => void updateConfig({ retention_days: n })}
-          />
-        </Field>
       </SettingsGroup>
 
       <SettingsGroup id="recurring.calendar">

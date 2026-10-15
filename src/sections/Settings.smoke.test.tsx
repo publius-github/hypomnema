@@ -51,6 +51,8 @@ function seed(patch: Partial<typeof defaultConfig> = {}) {
       "surface_color",
       "surface_alt_color",
       "line_color",
+      "content_color",
+      "content_muted_color",
     ],
     profiles: [],
   });
@@ -68,10 +70,10 @@ describe("Settings smoke", () => {
     seed();
     render(<Settings />);
 
-    expect(screen.getByText("Theme & palette")).toBeTruthy();
+    expect(screen.getByText("Theme & colors")).toBeTruthy();
     // the per-object tabs replaced the look/geometry/behavior split
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
-    expect(screen.getByText("Day and list columns")).toBeTruthy();
+    expect(screen.getByText("Postponed and done tasks")).toBeTruthy();
     expect(screen.getByText("Day columns")).toBeTruthy();
     expect(screen.getByText("List columns")).toBeTruthy();
   });
@@ -154,8 +156,8 @@ describe("Settings smoke", () => {
   });
 
   it("offers a reset only for a group that left its defaults", async () => {
-    // a changed done display lives in the shared group; the day and
-    // list groups are untouched
+    // a changed done display lives in the postponed-and-done group; the
+    // day and list groups are untouched
     seed({ done_display: "inline" });
     render(<Settings />);
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
@@ -201,7 +203,7 @@ describe("Settings smoke", () => {
     seed();
     render(<Settings />);
 
-    // Theme & palette is fully inside the scope seeded above
+    // Theme & colors is fully inside the scope seeded above
     expect(screen.getByText("in profiles")).toBeTruthy();
     // and the Profiles tab lists that same group
     fireEvent.click(screen.getByRole("button", { name: "Profiles" }));
@@ -213,6 +215,6 @@ describe("Settings smoke", () => {
     const row = within(scope as HTMLElement)
       .getByText("Appearance")
       .closest("div");
-    expect(row?.querySelector("button")?.textContent).toBe("Theme & palette");
+    expect(row?.querySelector("button")?.textContent).toBe("Theme & colors");
   });
 });

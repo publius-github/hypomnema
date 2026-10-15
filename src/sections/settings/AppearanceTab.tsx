@@ -1,31 +1,26 @@
-import {
-  ColorPicker,
-  Field,
-  NumberInput,
-  TextInput,
-} from "../../components/form";
-import { Toggle } from "../../components/form";
+import { Field, NumberInput, TextInput } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import type { Theme } from "../../types";
 import { useAppStore } from "../../store";
+import ColorRow from "./ColorRow";
 
-// overridable text colors: [label, config key, dark default, light
-// default] - the defaults are the stylesheet values, shown in the
-// picker while no override is set
-const TEXT_COLOR_ROWS = [
+// the chrome palette: [label, config key, dark default, light default] -
+// the defaults are the stylesheet values (VS Code Dark+ / Light+), shown
+// in the picker while no override is set
+const THEME_COLOR_ROWS = [
+  ["Accent", "accent_color", "#3794ff", "#005fb8"],
+  ["Background", "surface_color", "#1e1e1e", "#ffffff"],
+  ["Panels", "surface_alt_color", "#252526", "#f3f3f3"],
+  ["Borders", "line_color", "#3c3c3c", "#e0e0e0"],
   ["Main text", "content_color", "#d4d4d4", "#333333"],
   ["Secondary text", "content_muted_color", "#8c8c8c", "#6f6f6f"],
-  ["Weekly focus", "weekly_focus_color", "#3794ff", "#005fb8"],
-  ["Day reminders", "reminder_color", "#8c8c8c", "#6f6f6f"],
-  ["Day header (weekday, date)", "day_header_color", "#d4d4d4", "#333333"],
-  ["Weekday marker ([SAT#1])", "dow_label_color", "#8c8c8c", "#6f6f6f"],
 ] as const;
 
 /**
  * The app's global look: the chrome that belongs to no single object on
- * screen. What a task card, a day column or a list column looks like
- * lives with that object - under Task cards and Columns - so its color,
- * spacing and behavior can be set in one place.
+ * screen - theme, palette, text colors and fonts. Anything that colors
+ * one object (the weekly focus, a day header, a marker) lives with that
+ * object under Pages, Task cards or Columns.
  */
 export default function AppearanceTab() {
   const config = useAppStore((s) => s.config);
@@ -50,52 +45,15 @@ export default function AppearanceTab() {
 
         <section className="flex flex-col gap-2">
           <span className="text-sm font-medium">Theme colors</span>
-          {(
-            [
-              ["Accent", "accent_color", "accent"],
-              ["Background", "surface_color", "surface"],
-              ["Panels", "surface_alt_color", "surfaceAlt"],
-              ["Borders", "line_color", "line"],
-            ] as const
-          ).map(([label, key, token]) => {
-            // the stylesheet palette (VS Code Light+ / Dark+)
-            const stylesheet =
-              config.theme === "light"
-                ? {
-                    accent: "#005fb8",
-                    surface: "#ffffff",
-                    surfaceAlt: "#f3f3f3",
-                    line: "#e0e0e0",
-                  }
-                : {
-                    accent: "#3794ff",
-                    surface: "#1e1e1e",
-                    surfaceAlt: "#252526",
-                    line: "#3c3c3c",
-                  };
-            const fallback = stylesheet[token];
-            return (
-              <div key={key} className="flex items-center gap-2">
-                <span className="w-48 text-xs text-content-muted">{label}</span>
-                <ColorPicker
-                  value={config[key] || fallback}
-                  onChange={(color) => void updateConfig({ [key]: color })}
-                />
-                {config[key] ? (
-                  <button
-                    className="text-xs text-content-muted hover:text-content"
-                    onClick={() => void updateConfig({ [key]: "" })}
-                  >
-                    reset to theme default
-                  </button>
-                ) : (
-                  <span className="text-xs text-content-muted">
-                    theme default
-                  </span>
-                )}
-              </div>
-            );
-          })}
+          {THEME_COLOR_ROWS.map(([label, key, dark, light]) => (
+            <ColorRow
+              key={key}
+              label={label}
+              field={key}
+              dark={dark}
+              light={light}
+            />
+          ))}
         </section>
       </SettingsGroup>
 
@@ -133,49 +91,6 @@ export default function AppearanceTab() {
             }
           />
         </Field>
-      </SettingsGroup>
-
-      <SettingsGroup id="appearance.text">
-        <section className="flex flex-col gap-2">
-          {TEXT_COLOR_ROWS.map(([label, key, darkHex, lightHex]) => {
-            const fallback = config.theme === "light" ? lightHex : darkHex;
-            return (
-              <div key={key} className="flex items-center gap-2">
-                <span className="w-48 text-xs text-content-muted">{label}</span>
-                <ColorPicker
-                  value={config[key] || fallback}
-                  onChange={(color) => void updateConfig({ [key]: color })}
-                />
-                {config[key] ? (
-                  <button
-                    className="text-xs text-content-muted hover:text-content"
-                    onClick={() => void updateConfig({ [key]: "" })}
-                  >
-                    reset to theme default
-                  </button>
-                ) : (
-                  <span className="text-xs text-content-muted">
-                    theme default
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </section>
-      </SettingsGroup>
-
-      <SettingsGroup id="appearance.editor">
-        <span className="text-xs text-content-muted">
-          Markdown and YAML in the Journal/Notes editor follow the VS Code
-          Dark+/Light+ palette of the current theme.
-        </span>
-
-        <Toggle
-          checked={config.kb_line_numbers}
-          label="Line numbers in the Notes editor"
-          hint="Config files always show them; this covers regular notes."
-          onChange={(v) => void updateConfig({ kb_line_numbers: v })}
-        />
       </SettingsGroup>
     </>
   );

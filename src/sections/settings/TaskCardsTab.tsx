@@ -7,11 +7,13 @@ import {
 import SettingsGroup from "../../components/SettingsGroup";
 import type { AppConfig } from "../../types";
 import { useAppStore } from "../../store";
+import ColorRow from "./ColorRow";
 
 /**
- * The task card itself, wherever it shows up: its colors, the chips and
- * markers it wears, and what it does when checked off. The column a
- * card sits in is under Columns.
+ * The task card itself, wherever it shows up: its colors, the chips,
+ * category headers and markers it wears, its completion-rate chip and
+ * what it does when acted on. The column a card sits in - including
+ * the Postponed/Done blocks it lands in - is under Columns.
  */
 export default function TaskCardsTab() {
   const config = useAppStore((s) => s.config);
@@ -71,37 +73,6 @@ export default function TaskCardsTab() {
             </div>
           </div>
         )}
-
-        {/* the closed sections are not a cadence, so their plates keep
-            their own colors whether cadence coloring is on or not */}
-        <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Closed section plates</span>
-          <span className="-mt-1 text-xs text-content-muted">
-            The Postponed, Done-waiting, Done and Not-done-dropped headers of
-            a day or list column (Separate done display), each in a color of
-            its own.
-          </span>
-          <div className="flex flex-col gap-2 pl-6">
-            {(
-              [
-                ["Postponed", "postponed_plate_color"],
-                ["Done, waiting", "waiting_plate_color"],
-                ["Done", "done_plate_color"],
-                ["Dropped", "dropped_plate_color"],
-              ] as const
-            ).map(([label, key]) => (
-              <div key={key} className="flex items-center gap-2">
-                <span className="w-24 text-xs text-content-muted">
-                  {label}
-                </span>
-                <ColorPicker
-                  value={config[key]}
-                  onChange={(color) => void updateConfig({ [key]: color })}
-                />
-              </div>
-            ))}
-          </div>
-        </section>
 
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Done checkbox color</span>
@@ -187,6 +158,22 @@ export default function TaskCardsTab() {
             />
           </div>
         )}
+        <Toggle
+          checked={config.category_headers}
+          label="Category as a block header"
+          hint="A category block names its category once over its rows instead of a chip on every row."
+          onChange={(v) => void updateConfig({ category_headers: v })}
+        />
+        {config.category_headers && (
+          <div className="pl-6">
+            <Toggle
+              checked={config.category_header_bold}
+              label="Bold category header"
+              hint="The header reads in bold at the task text size, apart from the titles under it; off = a small medium-weight label."
+              onChange={(v) => void updateConfig({ category_header_bold: v })}
+            />
+          </div>
+        )}
         <Field label="Chip text size, % of the text beside it">
           <NumberInput
             value={config.chip_font_scale}
@@ -216,6 +203,13 @@ export default function TaskCardsTab() {
               hint="Rules free on both day fields (e.g. 0 9 * * *) wear an [EVERYDAY] marker instead of going unlabeled."
               onChange={(v) => void updateConfig({ cron_everyday_label: v })}
             />
+            <ColorRow
+              label="Marker color"
+              field="dow_label_color"
+              dark="#8c8c8c"
+              light="#6f6f6f"
+              fallbackName="secondary text"
+            />
             <Field label="Marker opacity, % (default color only; a picked color shows as picked)">
               <NumberInput
                 value={config.dow_label_opacity}
@@ -227,7 +221,9 @@ export default function TaskCardsTab() {
             </Field>
           </div>
         )}
+      </SettingsGroup>
 
+      <SettingsGroup id="cards.rate">
         <Toggle
           checked={config.habit_rate_chip}
           label="Completion rate chip on recurring tasks"
@@ -263,16 +259,6 @@ export default function TaskCardsTab() {
               />
             </Field>
 
-            <Field label="History: marks per daily streak (0 = hide the strip)">
-              <NumberInput
-                value={config.streak_strip_days}
-                min={0}
-                onCommit={(n) =>
-                  void updateConfig({ streak_strip_days: Math.min(180, n) })
-                }
-              />
-            </Field>
-
             <Field label="Show the rate after at least N instances">
               <NumberInput
                 value={config.habit_rate_min_instances}
@@ -299,20 +285,6 @@ export default function TaskCardsTab() {
       </SettingsGroup>
 
       <SettingsGroup id="cards.behavior">
-        <Field label="Hold before a done/postponed task moves to its section, seconds (0 = immediately)">
-          <NumberInput
-            value={config.done_hold_seconds}
-            min={0}
-            onCommit={(n) =>
-              void updateConfig({ done_hold_seconds: Math.min(30, n) })
-            }
-          />
-        </Field>
-        <span className="-mt-1 text-xs text-content-muted">
-          Only matters while Done tasks show as a separate block (Columns
-          &gt; Day and list columns).
-        </span>
-
         <Field label="Undo toast after deleting a task or archiving a list, seconds (0 = no undo offer)">
           <NumberInput
             value={config.undo_toast_seconds}

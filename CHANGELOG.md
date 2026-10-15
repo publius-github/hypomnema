@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.96.6 - 2026-10-15
+
+Settings regrouped so related settings sit together: Appearance keeps only the theme, one palette list (incl. main and secondary text) and fonts; Views is now Pages - Left bar, Dashboard (split, weekly focus color), Lists page, History (streak marks); Task cards splits into Card colors, Chips & categories (with the category block headers), Weekday markers (with their color) and Completion rate; Columns opens with the column layout (sections and separators, moved from Views) and a Postponed and done tasks group holding the done display, sort, hold-before-move, plate colors, fold defaults and closed-row opacity, and Day columns gain the day header and reminder colors; Data gets Journal & notes (editor line numbers, stamps, day tasks, template) and Done tasks cleanup (retention, clear done list tasks, delete-done, archived lists)
+
 ## 0.96.5 - 2026-10-15
 
 Page layout is set on the pages, not in Settings: the Dashboard header gains a Lists column count and the Groups Folded/Flat switch beside its Days count, and Settings > Views drops Day columns on the Days page, Grid columns on the Lists page, the dashboard's list-column count and the grouped-lists switch (all already on their page headers); the Settings content width setting is gone - the page is exactly as wide as its tab strip on one line
