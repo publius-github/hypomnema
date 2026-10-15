@@ -22,6 +22,7 @@ import SectionBlock, {
 import ListModal from "./ListModal";
 import { ConfirmModal } from "./dialogs";
 import type { List, ListGroup } from "../types";
+import { readable } from "../lib/color";
 
 function ListColumn({
   list,
@@ -135,7 +136,7 @@ function ListColumn({
             {list.color && (
               <span
                 className="h-3 w-1 shrink-0 rounded"
-                style={{ backgroundColor: list.color }}
+                style={{ backgroundColor: readable(list.color, "mark") }}
               />
             )}
             <span className="truncate">{list.name}</span>

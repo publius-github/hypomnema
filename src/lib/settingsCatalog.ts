@@ -155,6 +155,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   // --- Appearance ----------------------------------------------
   { key: "theme", label: "Theme", group: "appearance.theme", terms: "dark light vscode palette" },
   { key: "accent_color", label: "Accent color", group: "appearance.theme" },
+  { key: "color_min_contrast", label: "Color contrast floor", group: "appearance.theme", terms: "readable adaptive wcag light dark plate chip" },
   { key: "surface_color", label: "Background color", group: "appearance.theme" },
   { key: "surface_alt_color", label: "Panel color", group: "appearance.theme" },
   { key: "line_color", label: "Border color", group: "appearance.theme" },

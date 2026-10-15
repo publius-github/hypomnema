@@ -8,6 +8,7 @@ import type {
   TaskPatch,
   TaskStatus,
 } from "../types";
+import { readable } from "./color";
 
 /**
  * Cut a wrapping text off after `lines` lines. The webview is Chromium,
@@ -459,7 +460,8 @@ export function tintStyle(color: string): {
   color: string;
   backgroundColor: string;
 } {
-  return { color, backgroundColor: `${color}26` };
+  const shown = readable(color, "tint");
+  return { color: shown, backgroundColor: `${shown}26` };
 }
 
 /**

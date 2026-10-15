@@ -10,6 +10,7 @@ import {
 import type { ColumnRow, ColumnSection } from "../hooks/useColumnSections";
 import type { AppConfig } from "../types";
 import GapFill from "./GapFill";
+import { readable } from "../lib/color";
 
 /** The closed sections, each with its own fold-by-default switch. */
 const CLOSED_FOLD: Record<string, keyof AppConfig> = {
@@ -118,7 +119,7 @@ export default function SectionBlock({
       className="flex flex-col overflow-clip rounded-md border border-line/70"
       style={{
         marginTop: stripes > 0 ? (config?.section_gap ?? 16) : 0,
-        borderLeft: `3px solid ${sectionColor(section)}`,
+        borderLeft: `3px solid ${readable(sectionColor(section), "mark")}`,
       }}
     >
       {plate}

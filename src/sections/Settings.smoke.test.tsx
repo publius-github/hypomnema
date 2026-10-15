@@ -51,6 +51,7 @@ function seed(patch: Partial<typeof defaultConfig> = {}) {
       "surface_color",
       "surface_alt_color",
       "line_color",
+      "color_min_contrast",
       "content_color",
       "content_muted_color",
     ],

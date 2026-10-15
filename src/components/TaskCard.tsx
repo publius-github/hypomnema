@@ -19,6 +19,7 @@ import {
 } from "../lib/tasks";
 import type { Task } from "../types";
 import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
+import { readable } from "../lib/color";
 
 function TaskCard({
   task,
@@ -225,7 +226,7 @@ function TaskCard({
         {showStripe && (
           <span
             className={`h-4 w-1 shrink-0 rounded ${multiline ? "mt-0.5" : ""}`}
-            style={{ backgroundColor: stripe }}
+            style={{ backgroundColor: stripe && readable(stripe, "mark") }}
           />
         )}
         <button
@@ -338,7 +339,7 @@ function TaskCard({
               // tone fades to dow_label_opacity
               style={
                 dowColor && !closed
-                  ? { color: dowColor }
+                  ? { color: readable(dowColor, "text") }
                   : { opacity: dowOpacity }
               }
               title="Weekday pinned by the rule's cron"

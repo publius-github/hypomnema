@@ -6,6 +6,7 @@ import DayHeader, { dayLabel, HeaderButton, SearchIcon } from "./DayHeader";
 import { useDaySections } from "../hooks/useColumnSections";
 import { useMobileNav } from "./nav";
 import Sections from "./Sections";
+import { readable } from "../lib/color";
 
 /**
  * The phone's main screen: one day at a time, swipeable by buttons and a
@@ -80,7 +81,7 @@ export default function MobileDay() {
               className="italic"
               style={
                 config?.reminder_color
-                  ? { color: config.reminder_color }
+                  ? { color: readable(config.reminder_color, "text") }
                   : undefined
               }
             >

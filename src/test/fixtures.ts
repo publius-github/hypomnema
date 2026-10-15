@@ -9,6 +9,7 @@ export const defaultConfig: AppConfig = {
   surface_color: "",
   surface_alt_color: "",
   line_color: "",
+  color_min_contrast: 45,
   grid_columns: 7,
   done_display: "separate",
   retention_days: 0,

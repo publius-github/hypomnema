@@ -18,6 +18,13 @@ pub struct AppConfig {
     pub surface_color: String,
     pub surface_alt_color: String,
     pub line_color: String,
+    /// Contrast floor for the object colors (plates, chips, stripes,
+    /// status marks, header and marker tones), in tenths of a ratio
+    /// (45 = 4.5:1): a color that reads below it on the current theme's
+    /// panels is moved in lightness until it does, hue kept - lighter
+    /// on a dark theme, darker on a light one. Marks stop at 3:1.
+    /// 0 = off, colors used as picked.
+    pub color_min_contrast: u32,
     pub grid_columns: u32,
     #[ts(type = "\"inline\" | \"separate\"")]
     pub done_display: String,
@@ -409,6 +416,7 @@ pub const PROFILE_KEYS: &[&str] = &[
     "surface_color",
     "surface_alt_color",
     "line_color",
+    "color_min_contrast",
     // fonts
     "ui_font",
     "ui_font_size",
@@ -499,6 +507,7 @@ impl Default for AppConfig {
             surface_color: String::new(),
             surface_alt_color: String::new(),
             line_color: String::new(),
+            color_min_contrast: 45,
             grid_columns: 7,
             done_display: "separate".into(),
             retention_days: 0,
@@ -766,6 +775,11 @@ impl AppConfig {
             self.category_color_mode = defaults.category_color_mode;
         }
         self.chip_font_scale = self.chip_font_scale.clamp(50, 200);
+        // below 1:1 a floor means nothing; 21:1 is black on white
+        self.color_min_contrast = match self.color_min_contrast {
+            0..=9 => 0,
+            n => n.min(210),
+        };
         sanitize_color(&mut self.done_color, defaults.done_color);
         sanitize_color(&mut self.waiting_color, defaults.waiting_color);
         sanitize_color(&mut self.dropped_color, defaults.dropped_color);
@@ -881,6 +895,7 @@ impl AppConfig {
             ("surface_color", self.surface_color.clone()),
             ("surface_alt_color", self.surface_alt_color.clone()),
             ("line_color", self.line_color.clone()),
+            ("color_min_contrast", self.color_min_contrast.to_string()),
             ("grid_columns", self.grid_columns.to_string()),
             ("done_display", self.done_display.clone()),
             ("retention_days", self.retention_days.to_string()),

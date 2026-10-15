@@ -10,6 +10,7 @@ import SectionBlock, {
   railColor,
   RowLead,
 } from "./ColumnSection";
+import { readable } from "../lib/color";
 
 function DayColumn({
   date,
@@ -59,7 +60,7 @@ function DayColumn({
         }`}
         style={
           config?.day_header_color
-            ? { color: config.day_header_color }
+            ? { color: readable(config.day_header_color, "text") }
             : undefined
         }
         title={dayLabel(date, today)}
@@ -74,7 +75,7 @@ function DayColumn({
               className="italic"
               style={
                 config?.reminder_color
-                  ? { color: config.reminder_color }
+                  ? { color: readable(config.reminder_color, "text") }
                   : undefined
               }
             >

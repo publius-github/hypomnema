@@ -21,6 +21,7 @@ import QuickAddModal from "../components/QuickAddModal";
 import NewListForm from "../components/NewListForm";
 import GroupBackBar from "../components/GroupBackBar";
 import type { AppConfig, Task } from "../types";
+import { readable } from "../lib/color";
 
 export default function Dashboard() {
   const config = useAppStore((s) => s.config);
@@ -207,7 +208,7 @@ export default function Dashboard() {
               className="absolute left-1/2 -translate-x-1/2 text-sm font-medium italic text-accent hover:underline"
               style={
                 config.weekly_focus_color
-                  ? { color: config.weekly_focus_color }
+                  ? { color: readable(config.weekly_focus_color, "text") }
                   : undefined
               }
               title="Edit weekly-focus.yml"

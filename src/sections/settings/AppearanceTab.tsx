@@ -16,6 +16,16 @@ const THEME_COLOR_ROWS = [
   ["Secondary text", "content_muted_color", "#8c8c8c", "#6f6f6f"],
 ] as const;
 
+// color_min_contrast steps, in tenths of a ratio: off keeps every color
+// as picked, 3:1 is the WCAG floor for marks and large text, 4.5:1 for
+// body text (AA), 7:1 the AAA level
+const CONTRAST_FLOORS = [
+  [0, "Off - use colors as picked"],
+  [30, "3:1 - minimal"],
+  [45, "4.5:1 - WCAG AA (recommended)"],
+  [70, "7:1 - WCAG AAA"],
+] as const;
+
 /**
  * The app's global look: the chrome that belongs to no single object on
  * screen - theme, palette, text colors and fonts. Anything that colors
@@ -55,6 +65,27 @@ export default function AppearanceTab() {
             />
           ))}
         </section>
+
+        <Field label="Color contrast floor (plates, chips, stripes and marks adapt to the theme)">
+          <select
+            className="input"
+            value={config.color_min_contrast}
+            onChange={(e) =>
+              void updateConfig({ color_min_contrast: Number(e.target.value) })
+            }
+          >
+            {CONTRAST_FLOORS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+            {!CONTRAST_FLOORS.some(([v]) => v === config.color_min_contrast) && (
+              <option value={config.color_min_contrast}>
+                {config.color_min_contrast / 10}:1
+              </option>
+            )}
+          </select>
+        </Field>
       </SettingsGroup>
 
       <SettingsGroup id="appearance.fonts">

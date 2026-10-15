@@ -18,6 +18,7 @@ import type {
 } from "./types";
 import { addDaysISO, compareTasks, todayISO } from "./lib/tasks";
 import { warn } from "./lib/log";
+import { readable, setColorContext } from "./lib/color";
 
 /// Settings the backend's habit rates are computed from.
 const HABIT_RATE_KEYS: (keyof AppConfig)[] = [
@@ -185,6 +186,7 @@ const THEME_OVERRIDES = [
 ] as const;
 
 function applyTheme(config: AppConfig | null) {
+  setColorContext(config);
   const root = document.documentElement;
   root.classList.toggle("dark", config?.theme !== "light");
   // fonts are config-driven: the UI font overrides the stylesheet
@@ -216,13 +218,20 @@ function applyTheme(config: AppConfig | null) {
     else root.style.removeProperty(name);
   }
   // done checkboxes (cards, subtasks, calendar status marks)
-  if (config?.done_color) root.style.setProperty("--color-done", config.done_color);
-  else root.style.removeProperty("--color-done");
+  if (config?.done_color) {
+    root.style.setProperty("--color-done", readable(config.done_color, "mark"));
+  } else root.style.removeProperty("--color-done");
   if (config?.waiting_color) {
-    root.style.setProperty("--color-waiting", config.waiting_color);
+    root.style.setProperty(
+      "--color-waiting",
+      readable(config.waiting_color, "mark"),
+    );
   } else root.style.removeProperty("--color-waiting");
   if (config?.dropped_color) {
-    root.style.setProperty("--color-dropped", config.dropped_color);
+    root.style.setProperty(
+      "--color-dropped",
+      readable(config.dropped_color, "mark"),
+    );
   } else root.style.removeProperty("--color-dropped");
 }
 

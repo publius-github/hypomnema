@@ -5,7 +5,16 @@ export type AppConfig = { theme: "dark" | "light",
  * Individual chrome color overrides, hex; empty = the stylesheet's
  * VS Code Dark+/Light+ palette.
  */
-accent_color: string, surface_color: string, surface_alt_color: string, line_color: string, grid_columns: number, done_display: "inline" | "separate", retention_days: number, catchup_days: number, 
+accent_color: string, surface_color: string, surface_alt_color: string, line_color: string, 
+/**
+ * Contrast floor for the object colors (plates, chips, stripes,
+ * status marks, header and marker tones), in tenths of a ratio
+ * (45 = 4.5:1): a color that reads below it on the current theme's
+ * panels is moved in lightness until it does, hue kept - lighter
+ * on a dark theme, darker on a light one. Marks stop at 3:1.
+ * 0 = off, colors used as picked.
+ */
+color_min_contrast: number, grid_columns: number, done_display: "inline" | "separate", retention_days: number, catchup_days: number, 
 /**
  * Catch up recurring crons by calendar day: a firing counts as
  * missed based on its date only, as if it fired at 23:59.

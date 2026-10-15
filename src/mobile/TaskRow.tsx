@@ -25,6 +25,7 @@ import {
 } from "../components/StatusMark";
 import { useEditTask } from "./editing";
 import type { Task } from "../types";
+import { readable } from "../lib/color";
 
 /** A status badge in the row's right-hand column: small enough not to
  * outweigh the title, narrow enough for the column's fixed width. */
@@ -194,7 +195,9 @@ export default function TaskRow({
           className="w-1 shrink-0"
           style={{
             background:
-              stripe && stripe !== sectionColor ? stripe : "transparent",
+              stripe && stripe !== sectionColor
+                ? readable(stripe, "mark")
+                : "transparent",
             opacity: dim,
           }}
         />
@@ -258,7 +261,7 @@ export default function TaskRow({
                     className="text-content-muted"
                     style={
                       dowColor && !closed
-                        ? { color: dowColor }
+                        ? { color: readable(dowColor, "text") }
                         : { opacity: (config?.dow_label_opacity ?? 60) / 100 }
                     }
                   >

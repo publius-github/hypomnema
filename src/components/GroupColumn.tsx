@@ -5,6 +5,7 @@ import { useAppStore } from "../store";
 import { orderLists } from "../lib/tasks";
 import GroupModal from "./GroupModal";
 import type { ListGroup } from "../types";
+import { readable } from "../lib/color";
 
 /**
  * A group's tile in the list panel: an index of the group's lists
@@ -102,7 +103,7 @@ function GroupColumn({
           {group.color && (
             <span
               className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: group.color }}
+              style={{ backgroundColor: readable(group.color, "mark") }}
             />
           )}
           <span className="truncate">{group.name}</span>
@@ -137,7 +138,7 @@ function GroupColumn({
             {list.color && (
               <span
                 className="h-3 w-1 shrink-0 rounded"
-                style={{ backgroundColor: list.color }}
+                style={{ backgroundColor: readable(list.color, "mark") }}
               />
             )}
             <span className="min-w-0 flex-1 truncate">{list.name}</span>

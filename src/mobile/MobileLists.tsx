@@ -6,6 +6,7 @@ import Sections from "./Sections";
 import { useBackStep } from "./back";
 import { Toggle } from "./controls";
 import type { List } from "../types";
+import { readable } from "../lib/color";
 
 const FOLDED_KEY = "hypomnema.lists.foldedGroups";
 
@@ -106,7 +107,7 @@ export default function MobileLists() {
             {list.color && (
               <span
                 aria-hidden
-                style={{ background: list.color }}
+                style={{ background: readable(list.color, "mark") }}
                 className="h-3 w-3 shrink-0 rounded-full"
               />
             )}
@@ -156,7 +157,7 @@ export default function MobileLists() {
             {currentGroup.color && (
               <span
                 aria-hidden
-                style={{ background: currentGroup.color }}
+                style={{ background: readable(currentGroup.color, "mark") }}
                 className="h-3 w-3 shrink-0 rounded-full"
               />
             )}
@@ -354,7 +355,7 @@ export default function MobileLists() {
                     {group.color && (
                       <span
                         aria-hidden
-                        style={{ background: group.color }}
+                        style={{ background: readable(group.color, "mark") }}
                         className="h-3 w-3 shrink-0 rounded-full"
                       />
                     )}

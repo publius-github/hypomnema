@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.98.0 - 2026-10-16
+
+Colors adapt to the theme: every object color - cadence plates and stripes, category/list/date chips, status marks, section rails, list and group dots, the day header, reminder, weekly focus and weekday marker tones - keeps its hue but is moved in lightness (OKLCH) just far enough to read on the current theme: lighter on dark panels, darker on light ones, judged against the actual surface colors. The floor is a new Settings > Appearance option, Color contrast floor (Off / 3:1 / 4.5:1 WCAG AA - default / 7:1 AAA); marks stop at 3:1, and a color that already reads is left exactly as picked
+
 ## 0.97.0 - 2026-10-16
 
 New default color palette, tuned for both themes: every object color is picked in OKLCH at the lightness that reads best on dark and light panels alike (about 3.7-4.1:1 on all four surfaces). Cadences: exact coral #df4645, daily teal #0a8c81, weekly blue #2f7dda, monthly violet #8b68db, yearly pink #cb5092, General neutral; closed plates and status marks: postponed amber #a97205, waiting cyan #0a88a5, done green #079042, dropped neutral gray #797d85; category chip steel #6b7f98 (alternate pair lime #5a8a05 / orange #c95e05), habit-rate alert orange #c95e05; the varied chip palette is twelve hues on the same rule. Main text, weekday marker and the list date chip go back to following the theme (a fixed light text color made the Light theme unreadable)

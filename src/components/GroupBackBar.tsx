@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import GroupModal from "./GroupModal";
 import type { ListGroup } from "../types";
+import { readable } from "../lib/color";
 
 /**
  * The bar over an open group's columns: the way back to the whole panel,
@@ -40,7 +41,7 @@ export default function GroupBackBar({
         {group.color && (
           <span
             className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: group.color }}
+            style={{ backgroundColor: readable(group.color, "mark") }}
           />
         )}
         <span className="truncate">{group.name}</span>
