@@ -71,7 +71,12 @@ describe("MobileApp smoke", () => {
       }),
     );
     useAppStore.setState({
-      config: { ...defaultConfig, done_display: "separate", sync_auto: false },
+      config: {
+        ...defaultConfig,
+        done_display: "separate",
+        fold_postponed: true,
+        sync_auto: false,
+      },
       vaultPath: "/vault",
       lists: [],
       tasks: [open, later],
@@ -80,7 +85,7 @@ describe("MobileApp smoke", () => {
 
     render(<MobileApp />);
 
-    // closed sections start folded to their plate; a click opens them
+    // a section set to start folded shows only its plate; a click opens it
     expect(await screen.findByText("Postponed")).toBeTruthy();
     expect(screen.queryByText("later one")).toBeNull();
     fireEvent.click(screen.getByText("Postponed"));

@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.96.7 - 2026-10-16
+
+Default settings follow the owner's mine3 profile: editor line numbers on, dashboard split 75, UI and editor font size 16, softer weekly (#c9c8fe) and monthly (#febec3) cadence colors, main text #dedede, violet weekday markers (#c485ff), a cyan date chip inside list columns (#06b6d4), brighter done/waiting/dropped plate colors, and Postponed, waiting and dropped sections start unfolded (Done still folds)
+
 ## 0.96.6 - 2026-10-15
 
 Settings regrouped so related settings sit together: Appearance keeps only the theme, one palette list (incl. main and secondary text) and fonts; Views is now Pages - Left bar, Dashboard (split, weekly focus color), Lists page, History (streak marks); Task cards splits into Card colors, Chips & categories (with the category block headers), Weekday markers (with their color) and Completion rate; Columns opens with the column layout (sections and separators, moved from Views) and a Postponed and done tasks group holding the done display, sort, hold-before-move, plate colors, fold defaults and closed-row opacity, and Day columns gain the day header and reminder colors; Data gets Journal & notes (editor line numbers, stamps, day tasks, template) and Done tasks cleanup (retention, clear done list tasks, delete-done, archived lists)
