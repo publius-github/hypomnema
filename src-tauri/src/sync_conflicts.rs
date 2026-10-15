@@ -209,6 +209,96 @@ pub fn append(local_root: &Path, new_entries: Vec<ConflictEntry>) -> Result<()> 
     save(local_root, &entries)
 }
 
+/// One line of a file set against its conflicted copy.
+#[derive(Debug, Clone, Serialize, TS, PartialEq, Eq)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct DiffLine {
+    /// `"same"` in both, `"file"` only in the file, `"copy"` only in the
+    /// conflicted copy.
+    pub kind: String,
+    pub text: String,
+}
+
+/// A file and its conflicted copy, line by line, for the review dialog.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct ConflictDiff {
+    pub path: String,
+    pub copy: String,
+    pub lines: Vec<DiffLine>,
+}
+
+/// The pair a review acts on, checked: both vault-relative without
+/// traversal, the copy beside the file and named as its conflicted copy.
+/// The commands take paths from the page, and "keep the copy" writes one
+/// file over another.
+fn review_pair(root: &Path, path: &str, copy: &str) -> Result<(PathBuf, PathBuf)> {
+    let file = crate::kb::resolve(root, path)?;
+    let copy_abs = crate::kb::resolve(root, copy)?;
+    let stem = |p: &Path| {
+        p.file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    };
+    let beside = file.parent() == copy_abs.parent();
+    let named = stem(&copy_abs).starts_with(&format!("{} (conflicted copy", stem(&file)));
+    if !beside || !named {
+        return Err(Error::State(format!(
+            "{copy} is not a conflicted copy of {path}"
+        )));
+    }
+    Ok((file, copy_abs))
+}
+
+/// Line diff of the file (as it is now) against its conflicted copy.
+pub fn diff(root: &Path, path: &str, copy: &str) -> Result<ConflictDiff> {
+    let (file, copy_abs) = review_pair(root, path, copy)?;
+    let ours = fs::read_to_string(&file).unwrap_or_default();
+    let theirs = fs::read_to_string(&copy_abs)?;
+    let lf = |s: &str| s.replace("\r\n", "\n");
+    let (ours, theirs) = (lf(&ours), lf(&theirs));
+    let line = |kind: &str, text: &str| DiffLine {
+        kind: kind.to_string(),
+        text: text.trim_end_matches('\n').to_string(),
+    };
+    let lines = if ours == theirs {
+        ours.lines().map(|l| line("same", l)).collect()
+    } else {
+        let patch = diffy::DiffOptions::new()
+            .set_context_len(usize::MAX / 4)
+            .create_patch(&ours, &theirs);
+        patch
+            .hunks()
+            .iter()
+            .flat_map(|hunk| hunk.lines())
+            .map(|l| match l {
+                diffy::Line::Context(t) => line("same", t),
+                diffy::Line::Delete(t) => line("file", t),
+                diffy::Line::Insert(t) => line("copy", t),
+            })
+            .collect()
+    };
+    Ok(ConflictDiff {
+        path: path.to_string(),
+        copy: copy.to_string(),
+        lines,
+    })
+}
+
+/// Settles a conflicted copy: `keep_copy` puts the copy's text in the
+/// file, otherwise the file stays as it is. Either way the copy goes to
+/// `.trash/` (recoverable for 30 days, like a Notes delete), which is
+/// what takes the entry off "to review".
+pub fn resolve(root: &Path, path: &str, copy: &str, keep_copy: bool) -> Result<()> {
+    let (file, copy_abs) = review_pair(root, path, copy)?;
+    if keep_copy {
+        let _files = crate::text_merge::user_file_lock();
+        let text = fs::read(&copy_abs)?;
+        crate::vault::write_atomic_bytes(&file, &text)?;
+    }
+    crate::kb::delete(root, copy)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,5 +422,40 @@ mod tests {
         .unwrap();
         clear(&dir).unwrap();
         assert!(load(&dir).is_empty());
+    }
+
+    #[test]
+    fn a_conflicted_copy_diffs_against_its_file_and_resolves_either_way() {
+        let root = std::env::temp_dir().join("app-pkb-conflict-review");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("notes")).unwrap();
+        let path = "notes/n.md";
+        let copy = "notes/n (conflicted copy phone 2026-10-15).md";
+        fs::write(root.join(path), "a\nb\nc\n").unwrap();
+        fs::write(root.join(copy), "a\nB\nc\n").unwrap();
+        let d = diff(&root, path, copy).unwrap();
+        let kinds: Vec<_> = d
+            .lines
+            .iter()
+            .map(|l| (l.kind.as_str(), l.text.as_str()))
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![("same", "a"), ("file", "b"), ("copy", "B"), ("same", "c")]
+        );
+        // only a copy beside the file, named after it, is accepted
+        assert!(diff(&root, path, "notes/other.md").is_err());
+        assert!(resolve(&root, path, "../n (conflicted copy x).md", true).is_err());
+
+        resolve(&root, path, copy, true).unwrap();
+        assert_eq!(fs::read_to_string(root.join(path)).unwrap(), "a\nB\nc\n");
+        assert!(!root.join(copy).exists());
+        assert!(root.join(".trash").read_dir().unwrap().next().is_some());
+
+        fs::write(root.join(copy), "x\n").unwrap();
+        resolve(&root, path, copy, false).unwrap();
+        assert_eq!(fs::read_to_string(root.join(path)).unwrap(), "a\nB\nc\n");
+        assert!(!root.join(copy).exists());
+        let _ = fs::remove_dir_all(&root);
     }
 }

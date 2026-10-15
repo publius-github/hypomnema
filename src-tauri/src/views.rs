@@ -422,14 +422,30 @@ pub struct DailyStreak {
     #[ts(type = "number")]
     pub streak: u32,
     pub done_today: bool,
+    /// The rule's newest instances (up to the requested count), oldest
+    /// first: the History's per-rule strip of done / not-done marks.
+    pub recent: Vec<StreakDay>,
+}
+
+/// One instance of a daily rule in `DailyStreak::recent`.
+#[derive(Debug, Clone, Serialize, TS, PartialEq, Eq)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct StreakDay {
+    pub date: String,
+    pub status: String,
 }
 
 /// Current done-streak per daily recurring rule: consecutive done
 /// instances counted from the newest backwards. Instances, not calendar
 /// days, so a MON-FRI daily is not broken by the weekend. Today's
 /// still-open instance neither counts nor breaks the streak. Retention
-/// pruning caps how far back a streak can reach.
-pub fn daily_streaks(conn: &Connection, today: NaiveDate) -> Result<Vec<DailyStreak>> {
+/// pruning caps how far back a streak can reach. `recent` caps
+/// `DailyStreak::recent`.
+pub fn daily_streaks(
+    conn: &Connection,
+    today: NaiveDate,
+    recent: usize,
+) -> Result<Vec<DailyStreak>> {
     let today_str = today.format("%Y-%m-%d").to_string();
     let mut stmt = conn.prepare(
         "SELECT rule_key, title, scheduled_date, status FROM tasks
@@ -467,12 +483,19 @@ pub fn daily_streaks(conn: &Connection, today: NaiveDate) -> Result<Vec<DailyStr
                     title,
                     streak: 0,
                     done_today: false,
+                    recent: Vec::new(),
                 },
                 false,
             ));
         }
         let (_, acc, broken) = current.as_mut().expect("just set");
         let done = status == "done";
+        if acc.recent.len() < recent {
+            acc.recent.push(StreakDay {
+                date: date.clone(),
+                status: status.clone(),
+            });
+        }
         if date == today_str {
             acc.done_today = done;
             if done {
@@ -491,6 +514,9 @@ pub fn daily_streaks(conn: &Connection, today: NaiveDate) -> Result<Vec<DailyStr
     }
     if let Some((_, streak, _)) = current.take() {
         out.push(streak);
+    }
+    for streak in &mut out {
+        streak.recent.reverse();
     }
     out.sort_by(|a, b| b.streak.cmp(&a.streak).then(a.title.cmp(&b.title)));
     Ok(out)
@@ -702,7 +728,7 @@ mod tests {
         insert("r2", "journal", "2026-08-30", "done");
 
         let today = NaiveDate::from_ymd_opt(2026, 8, 31).unwrap();
-        let streaks = daily_streaks(&conn, today).unwrap();
+        let streaks = daily_streaks(&conn, today, 3).unwrap();
         assert_eq!(streaks.len(), 2);
         assert_eq!(streaks[0].title, "water plants");
         assert_eq!(streaks[0].streak, 2);
@@ -710,6 +736,20 @@ mod tests {
         assert_eq!(streaks[1].title, "journal");
         assert_eq!(streaks[1].streak, 1);
         assert!(!streaks[1].done_today);
+        // the newest instances, capped, oldest first
+        let marks: Vec<_> = streaks[0]
+            .recent
+            .iter()
+            .map(|d| (d.date.as_str(), d.status.as_str()))
+            .collect();
+        assert_eq!(
+            marks,
+            vec![
+                ("2026-08-26", "todo"),
+                ("2026-08-27", "done"),
+                ("2026-08-28", "done")
+            ]
+        );
     }
 
     #[test]

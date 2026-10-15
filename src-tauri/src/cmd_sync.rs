@@ -582,6 +582,32 @@ pub(crate) async fn sync_conflicts_list(
     Ok(sync_conflicts::for_display(&vault.root, &device))
 }
 
+/// A file set against its conflicted copy, for the review dialog.
+#[tauri::command]
+pub(crate) async fn sync_conflict_diff(
+    state: State<'_, AppState>,
+    path: String,
+    copy: String,
+) -> Result<sync_conflicts::ConflictDiff> {
+    crate::state::with_vault_root(&state, |root| sync_conflicts::diff(root, &path, &copy))
+}
+
+/// Settles a conflicted copy: keep the copy's text or the file's, and
+/// move the copy to the trash.
+#[tauri::command]
+pub(crate) async fn sync_conflict_resolve(
+    state: State<'_, AppState>,
+    path: String,
+    copy: String,
+    keep_copy: bool,
+) -> Result<()> {
+    crate::state::with_vault_root(&state, |root| {
+        sync_conflicts::resolve(root, &path, &copy, keep_copy)
+    })?;
+    crate::sync_scheduler::poke();
+    Ok(())
+}
+
 #[tauri::command]
 pub(crate) async fn sync_conflicts_clear(state: State<'_, AppState>) -> Result<()> {
     let guard = state.vault.lock_or_recover();

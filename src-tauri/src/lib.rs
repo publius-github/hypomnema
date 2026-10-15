@@ -284,6 +284,8 @@ pub fn run() {
             cmd_sync::google_pull_vault,
             cmd_sync::sync_conflicts_list,
             cmd_sync::sync_conflicts_clear,
+            cmd_sync::sync_conflict_diff,
+            cmd_sync::sync_conflict_resolve,
             cmd_sync::sync_standing,
             cmd_sync::app_lock_state,
             cmd_sync::app_lock_enable,

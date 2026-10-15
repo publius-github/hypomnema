@@ -17,6 +17,8 @@ export type { DashboardContext } from "./bindings/DashboardContext";
 export type { DayContext } from "./bindings/DayContext";
 export type { DayReminder } from "./bindings/DayReminder";
 export type { ConflictEntry } from "./bindings/ConflictEntry";
+export type { ConflictDiff } from "./bindings/ConflictDiff";
+export type { DiffLine } from "./bindings/DiffLine";
 export type { SyncStanding } from "./bindings/SyncStanding";
 export type { GooglePull } from "./bindings/GooglePull";
 export type { GoogleStatus } from "./bindings/GoogleStatus";

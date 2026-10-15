@@ -43,6 +43,12 @@ pub struct AppConfig {
     /// Markdown notes saved from the Notes editor carry a `Created:` and
     /// a `Last edited:` line at the top, kept up to date by the app.
     pub notes_timestamps: bool,
+    /// The Journal shows the tasks of the entry's day (done and open)
+    /// in a strip under its header.
+    pub journal_day_tasks: bool,
+    /// How many of a daily rule's newest instances the History's streak
+    /// strip shows as done / not-done marks; 0 hides the strip.
+    pub streak_strip_days: u32,
     /// Hide daily-cadence tasks on future day columns - they repeat
     /// every day anyway and only clutter the look-ahead.
     pub daily_tasks_today_only: bool,
@@ -122,6 +128,12 @@ pub struct AppConfig {
     /// Snooze length of the due-task toast's Snooze button, minutes:
     /// the reminder comes back after this long.
     pub notify_snooze_minutes: u32,
+    /// How many minutes ahead of a timed task its reminder fires; 0 =
+    /// at the task's time.
+    pub notify_lead_minutes: u32,
+    /// How long a due-task toast stays on screen before it hides itself,
+    /// seconds.
+    pub notify_toast_seconds: u32,
     /// Keep a full text snapshot of the database under
     /// <vault>/.hypomnema/state/ (tasks, lists, engine ledgers), so a
     /// vault synced without its .db rebuilds the database on open.
@@ -504,6 +516,8 @@ impl Default for AppConfig {
             list_columns: 4,
             kb_line_numbers: false,
             notes_timestamps: true,
+            journal_day_tasks: true,
+            streak_strip_days: 30,
             daily_tasks_today_only: false,
             dashboard_split: 60,
             calendar_daily_days: 3,
@@ -536,6 +550,8 @@ impl Default for AppConfig {
             backup_keep: 14,
             notify_system: true,
             notify_snooze_minutes: 10,
+            notify_lead_minutes: 0,
+            notify_toast_seconds: 15,
             state_snapshot: true,
             sync_auto: true,
             sync_interval_minutes: 15,
@@ -708,6 +724,9 @@ impl AppConfig {
         self.done_hold_seconds = self.done_hold_seconds.min(30);
         self.undo_toast_seconds = self.undo_toast_seconds.min(30);
         self.notify_snooze_minutes = self.notify_snooze_minutes.clamp(1, 180);
+        self.notify_lead_minutes = self.notify_lead_minutes.min(240);
+        self.streak_strip_days = self.streak_strip_days.min(180);
+        self.notify_toast_seconds = self.notify_toast_seconds.clamp(3, 600);
         self.backup_keep = self.backup_keep.min(365);
         self.ui_font_size = self.ui_font_size.clamp(10, 28);
         self.editor_font_size = self.editor_font_size.clamp(10, 28);
@@ -888,6 +907,8 @@ impl AppConfig {
             ("list_columns", self.list_columns.to_string()),
             ("kb_line_numbers", self.kb_line_numbers.to_string()),
             ("notes_timestamps", self.notes_timestamps.to_string()),
+            ("journal_day_tasks", self.journal_day_tasks.to_string()),
+            ("streak_strip_days", self.streak_strip_days.to_string()),
             (
                 "daily_tasks_today_only",
                 self.daily_tasks_today_only.to_string(),
@@ -937,6 +958,11 @@ impl AppConfig {
             (
                 "notify_snooze_minutes",
                 self.notify_snooze_minutes.to_string(),
+            ),
+            ("notify_lead_minutes", self.notify_lead_minutes.to_string()),
+            (
+                "notify_toast_seconds",
+                self.notify_toast_seconds.to_string(),
             ),
             ("state_snapshot", self.state_snapshot.to_string()),
             ("sync_auto", self.sync_auto.to_string()),

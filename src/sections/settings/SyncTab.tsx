@@ -273,7 +273,11 @@ export default function SyncTab() {
               </button>
             </div>
             <div className="max-h-72 overflow-y-auto">
-              <ConflictList entries={conflicts} compact />
+              <ConflictList
+                entries={conflicts}
+                compact
+                onChanged={loadStanding}
+              />
             </div>
           </section>
         )}

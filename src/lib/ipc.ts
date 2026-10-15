@@ -14,6 +14,7 @@ import type {
   BirthdayEntry,
   BirthdaysResult,
   ConfigError,
+  ConflictDiff,
   ConflictEntry,
   DailyStreak,
   DashboardContext,
@@ -174,6 +175,14 @@ export interface Commands {
   };
   storage_access: { args: void; result: boolean };
   storage_access_request: { args: void; result: void };
+  sync_conflict_diff: {
+    args: { path: string; copy: string };
+    result: ConflictDiff;
+  };
+  sync_conflict_resolve: {
+    args: { path: string; copy: string; keepCopy: boolean };
+    result: void;
+  };
   sync_conflicts_clear: { args: void; result: void };
   sync_conflicts_list: { args: void; result: ConflictEntry[] };
   sync_reset_space: { args: void; result: void };

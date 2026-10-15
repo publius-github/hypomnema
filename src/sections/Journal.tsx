@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import SaveIndicator from "../components/SaveIndicator";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
-import { todayISO } from "../lib/tasks";
+import { addDaysISO, dayLabel, todayISO } from "../lib/tasks";
+import EntryList from "./journal/EntryList";
+import DayTasks from "./journal/DayTasks";
 import { serialSaves, settleSave, type SaveState } from "./kb/util";
 import { lazy, Suspense } from "react";
 
@@ -181,6 +183,21 @@ export default function Journal() {
   }, [flushPending]);
 
   const today = todayISO();
+  const config = useAppStore((s) => s.config);
+
+  // Alt+Left / Alt+Right step through the days, from the editor too
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const open = docRef.current;
+      if (!open) return;
+      e.preventDefault();
+      void openEntry(addDaysISO(open.date, e.key === "ArrowLeft" ? -1 : 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openEntry]);
 
   return (
     <div className="flex h-full">
@@ -203,33 +220,48 @@ export default function Journal() {
           />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-          <div className="pb-1 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
-            Entries
-          </div>
-          {dates.map((date) => (
-            <button
-              key={date}
-              className={`block w-full rounded px-2 py-1 text-left text-sm ${
-                doc?.date === date
-                  ? "bg-accent/15 text-accent"
-                  : "text-content hover:bg-line/40"
-              }`}
-              onClick={() => void openEntry(date)}
-            >
-              {date}
-              {date === today && " (today)"}
-            </button>
-          ))}
+          <EntryList
+            dates={dates}
+            current={doc?.date ?? null}
+            today={today}
+            onOpen={(date) => void openEntry(date)}
+          />
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {doc ? (
           <>
-            <div className="flex items-center justify-between border-b border-line px-4 py-2 text-sm">
-              <span className="text-base font-semibold">{doc.date}</span>
-              <SaveIndicator state={saveState} onRetry={() => void flushPending()} />
+            <div className="flex items-center gap-2 border-b border-line px-4 py-2 text-sm">
+              <button
+                className="btn-ghost px-2 py-0.5"
+                title="Previous day (Alt+←)"
+                aria-label="Previous day"
+                onClick={() => void openEntry(addDaysISO(doc.date, -1))}
+              >
+                ‹
+              </button>
+              <span className="text-base font-semibold">
+                {dayLabel(doc.date, today)}
+              </span>
+              <button
+                className="btn-ghost px-2 py-0.5"
+                title="Next day (Alt+→)"
+                aria-label="Next day"
+                onClick={() => void openEntry(addDaysISO(doc.date, 1))}
+              >
+                ›
+              </button>
+              <span className="ml-auto">
+                <SaveIndicator
+                  state={saveState}
+                  onRetry={() => void flushPending()}
+                />
+              </span>
             </div>
+            {(config?.journal_day_tasks ?? true) && (
+              <DayTasks date={doc.date} />
+            )}
             <div className="min-h-0 flex-1">
               <Suspense fallback={null}>
                 <MarkdownEditor

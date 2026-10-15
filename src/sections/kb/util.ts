@@ -107,3 +107,9 @@ export function serialSaves(): <T>(job: () => Promise<T>) => Promise<T> {
 
 /** What an editor's save indicator says. */
 export type SaveState = "saved" | "dirty" | "failed";
+
+/** A conflicted copy a sync or a save left beside a file
+ * (`<name> (conflicted copy <who> <date>).<ext>`): the tree marks it so it
+ * is found without a trip to the Sync settings. */
+export const isConflictedCopy = (name: string) =>
+  name.includes(" (conflicted copy ");

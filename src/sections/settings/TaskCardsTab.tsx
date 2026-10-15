@@ -263,6 +263,16 @@ export default function TaskCardsTab() {
               />
             </Field>
 
+            <Field label="History: marks per daily streak (0 = hide the strip)">
+              <NumberInput
+                value={config.streak_strip_days}
+                min={0}
+                onCommit={(n) =>
+                  void updateConfig({ streak_strip_days: Math.min(180, n) })
+                }
+              />
+            </Field>
+
             <Field label="Show the rate after at least N instances">
               <NumberInput
                 value={config.habit_rate_min_instances}

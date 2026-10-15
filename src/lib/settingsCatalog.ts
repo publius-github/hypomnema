@@ -240,6 +240,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "habit_rate_alert_only", label: "Rate chip only below the threshold", group: "cards.markers", terms: "habit rate percent alert" },
   { key: "habit_rate_threshold", label: "Rate alert threshold", group: "cards.markers", terms: "habit percent" },
   { key: "habit_rate_window", label: "Rate window", group: "cards.markers", terms: "habit last instances" },
+  { key: "streak_strip_days", label: "Daily streak marks in History", group: "cards.markers", terms: "habit heatmap strip history" },
   { key: "habit_rate_min_instances", label: "Rate minimum instances", group: "cards.markers", terms: "habit" },
   { key: "habit_rate_alert_color", label: "Rate alert color", group: "cards.markers", terms: "habit" },
 
@@ -289,10 +290,13 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   { key: "notify_system", label: "System notifications for due tasks", group: "capture.alerts", terms: "os toast" },
   { key: "notify_snooze_minutes", label: "Snooze length", group: "capture.alerts", terms: "toast due" },
+  { key: "notify_lead_minutes", label: "Remind ahead of a timed task", group: "capture.alerts", terms: "reminder early before minutes notification" },
+  { key: "notify_toast_seconds", label: "Due-task toast duration", group: "capture.alerts", terms: "reminder notification seconds hide" },
 
   // --- Data -------------------------------------------------------
   { key: "kb_path", label: "Notes folder", group: "data.vault", terms: "kb vault path" },
   { key: "notes_timestamps", label: "Created and Last edited lines", group: "data.notes", terms: "timestamps frontmatter" },
+  { key: "journal_day_tasks", label: "Tasks of the day in the Journal", group: "data.notes", terms: "journal entry done open strip" },
 
   { key: "state_snapshot", label: "Text snapshot of the database", group: "data.mirror", terms: "jsonl rebuild sync" },
   { key: "tasks_mirror", label: "Mirror tasks to Markdown files", group: "data.mirror", terms: "bulk edit files" },

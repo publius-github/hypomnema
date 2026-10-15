@@ -202,6 +202,25 @@ export default function History() {
               <span className="min-w-0 flex-1 truncate">
                 {splitCategory(s.title).text}
               </span>
+              {s.recent.length > 0 && (
+                <span className="flex shrink-0 gap-px" aria-hidden>
+                  {s.recent.map((d) => (
+                    <span
+                      key={d.date}
+                      title={`${d.date}: ${d.date === today && d.status === "todo" ? "open" : d.status === "todo" ? "not done" : d.status}`}
+                      className={`h-3 w-2 rounded-sm ${
+                        d.status === "done"
+                          ? "bg-accent"
+                          : d.status === "waiting"
+                            ? "bg-accent/50"
+                            : d.date === today
+                              ? "border border-line"
+                              : "bg-danger/30"
+                      }`}
+                    />
+                  ))}
+                </span>
+              )}
               {s.done_today && (
                 <span className="text-xs text-accent">done today</span>
               )}
@@ -216,8 +235,9 @@ export default function History() {
           ))}
           <span className="pt-1 text-[11px] text-content-muted">
             Consecutive completed instances per daily rule; skipped
-            weekdays (e.g. MON-FRI rules) do not break a streak. Limited
-            by the done-task retention window.
+            weekdays (e.g. MON-FRI rules) do not break a streak. The marks
+            are the newest instances, oldest on the left. Limited by the
+            done-task retention window.
           </span>
         </div>
       )}

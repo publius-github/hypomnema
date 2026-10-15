@@ -485,7 +485,9 @@ function SyncPanel({
               {conflicts.length} decision{conflicts.length === 1 ? "" : "s"}{" "}
               {showConflicts ? "▴" : "▾"}
             </button>
-            {showConflicts && <ConflictList entries={conflicts} />}
+            {showConflicts && (
+              <ConflictList entries={conflicts} onChanged={reload} />
+            )}
           </>
         )}
       </section>
@@ -636,6 +638,17 @@ function TasksPanel({ config }: { config: AppConfig }) {
           max={240}
           onCommit={(next) =>
             void updateConfig({ notify_snooze_minutes: next })
+          }
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Remind ahead of a task (min)</span>
+        <NumberField
+          value={config.notify_lead_minutes}
+          min={0}
+          max={240}
+          onCommit={(next) =>
+            void updateConfig({ notify_lead_minutes: next })
           }
         />
       </label>

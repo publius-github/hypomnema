@@ -37,7 +37,7 @@ fn guard_work_dir(rel: &str) -> Result<()> {
 
 /// Rejects absolute paths and traversal; the app must never touch
 /// anything outside the user-chosen KB folder.
-fn resolve(root: &Path, rel: &str) -> Result<PathBuf> {
+pub(crate) fn resolve(root: &Path, rel: &str) -> Result<PathBuf> {
     let rel_path = Path::new(rel);
     if rel_path.is_absolute()
         || rel_path

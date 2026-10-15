@@ -215,6 +215,12 @@ export default function DataTab() {
           hint="Markdown notes saved from the Notes editor carry two lines at the top - Created: and Last edited:, date and time - kept up to date by the app. A note with a YAML frontmatter block gets them inside it. Created can be corrected by hand; Last edited moves whenever the text below it changes. A note without them takes its file dates on its first save; edits made in other editors are not stamped."
           onChange={(v) => void updateConfig({ notes_timestamps: v })}
         />
+        <Toggle
+          checked={config.journal_day_tasks}
+          label="Tasks of the day in the Journal"
+          hint="A strip under the Journal entry's header lists that day's tasks - what got done and what stayed open - so an entry can be written against the day as it went."
+          onChange={(v) => void updateConfig({ journal_day_tasks: v })}
+        />
       </SettingsGroup>
 
       <SettingsGroup id="data.mirror">

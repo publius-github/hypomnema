@@ -1,7 +1,8 @@
 import type { MutableRefObject } from "react";
 import Icon from "../../components/icons";
 import type { KbNode } from "../../types";
-import { parentDirOf } from "./util";
+import { isConflictedCopy, parentDirOf } from "./util";
+import ConflictBadge from "../../components/ConflictBadge";
 
 /** Everything a tree row needs from the section, bundled once instead
  *  of threading a dozen props through the recursion. */
@@ -124,12 +125,13 @@ export default function NoteRow({
         ) : (
           <>
             <button
-              className="flex-1 truncate text-left"
+              className="flex min-w-0 flex-1 items-center text-left"
               onClick={(e) => {
                 if (!ctx.selectRow(node, e)) ctx.openFile(node.path);
               }}
             >
-              {node.name}
+              <span className="truncate">{node.name}</span>
+              {isConflictedCopy(node.name) && <ConflictBadge />}
             </button>
             <button
               className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"

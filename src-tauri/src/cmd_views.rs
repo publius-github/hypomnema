@@ -69,9 +69,13 @@ pub(crate) async fn recurring_list(state: State<'_, AppState>) -> Result<views::
 
 #[tauri::command]
 pub(crate) async fn daily_streaks(state: State<'_, AppState>) -> Result<Vec<views::DailyStreak>> {
-    with_conn(&state, |conn| {
-        views::daily_streaks(conn, chrono::Local::now().date_naive())
-    })
+    let guard = state.vault.lock_or_recover();
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
+    views::daily_streaks(
+        &vault.conn,
+        chrono::Local::now().date_naive(),
+        vault.config.streak_strip_days as usize,
+    )
 }
 
 #[tauri::command]

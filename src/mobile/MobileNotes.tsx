@@ -4,12 +4,14 @@ import { useAppStore } from "../store";
 import {
   CONFIG_FILES,
   basenameOf,
+  isConflictedCopy,
   parentDirOf,
   serialSaves,
   settleSave,
   type SaveState,
 } from "../sections/kb/util";
 import SaveIndicator from "../components/SaveIndicator";
+import ConflictBadge from "../components/ConflictBadge";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
@@ -251,6 +253,9 @@ export default function MobileNotes() {
                     {node.is_dir ? "▸" : "·"}
                   </span>
                   <span className="min-w-0 break-words">{node.name}</span>
+                  {!node.is_dir && isConflictedCopy(node.name) && (
+                    <ConflictBadge />
+                  )}
                 </button>
               </li>
             ))}

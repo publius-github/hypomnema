@@ -86,6 +86,30 @@ export default function CaptureTab() {
             }
           />
         </Field>
+
+        <Field label="Remind ahead of a timed task, minutes (0 = at its time)">
+          <NumberInput
+            value={config.notify_lead_minutes}
+            min={0}
+            onCommit={(n) =>
+              void updateConfig({
+                notify_lead_minutes: Math.min(240, Math.max(0, n)),
+              })
+            }
+          />
+        </Field>
+
+        <Field label="Due-task toast stays on screen, seconds">
+          <NumberInput
+            value={config.notify_toast_seconds}
+            min={3}
+            onCommit={(n) =>
+              void updateConfig({
+                notify_toast_seconds: Math.min(600, Math.max(3, n)),
+              })
+            }
+          />
+        </Field>
       </SettingsGroup>
     </>
   );

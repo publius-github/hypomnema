@@ -40,6 +40,16 @@ kb_line_numbers: boolean,
  */
 notes_timestamps: boolean, 
 /**
+ * The Journal shows the tasks of the entry's day (done and open)
+ * in a strip under its header.
+ */
+journal_day_tasks: boolean, 
+/**
+ * How many of a daily rule's newest instances the History's streak
+ * strip shows as done / not-done marks; 0 hides the strip.
+ */
+streak_strip_days: number, 
+/**
  * Hide daily-cadence tasks on future day columns - they repeat
  * every day anyway and only clutter the look-ahead.
  */
@@ -157,6 +167,16 @@ notify_system: boolean,
  * the reminder comes back after this long.
  */
 notify_snooze_minutes: number, 
+/**
+ * How many minutes ahead of a timed task its reminder fires; 0 =
+ * at the task's time.
+ */
+notify_lead_minutes: number, 
+/**
+ * How long a due-task toast stays on screen before it hides itself,
+ * seconds.
+ */
+notify_toast_seconds: number, 
 /**
  * Keep a full text snapshot of the database under
  * <vault>/.hypomnema/state/ (tasks, lists, engine ledgers), so a
