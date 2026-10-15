@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy - Hypomnema</title>
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<p class="back"><a href="index.html">&larr; Hypomnema</a></p>
+
+<h1>Privacy Policy</h1>
+<p class="muted">Effective 15 October 2026</p>
+
+<p>Hypomnema is a local-first planner, journal and notes app for Windows and
+Android, made by &lt;COPYRIGHT HOLDER&gt; ("we"). This policy explains what
+happens to your information when you use it. The short version: <strong>we
+never receive your data.</strong> There is no Hypomnema server, no account
+with us, no analytics and no advertising.</p>
+
+<h2>Data that stays on your device</h2>
+<p>Everything you write - tasks, lists, journal entries, notes, settings and
+the configuration files - is stored as plain files and a local SQLite
+database in a folder you choose (your "vault"). The app also keeps, on the
+device only:</p>
+<ul>
+  <li>a random device identifier, used to tell your devices' edits apart
+  when they are synced;</li>
+  <li>if you sign in to Google: your Google account's email address, name
+  and Drive user id (to show who is signed in), and on Windows the OAuth
+  tokens that let the app reach your Drive. On Android, Google Play
+  services keeps those tokens instead. On Windows you can seal the tokens
+  with a passphrase.</li>
+</ul>
+<p>We have no access to any of this.</p>
+
+<h2>Google Drive sync (optional)</h2>
+<p>If you choose "Sign in with Google", the app syncs your vault between
+your own devices through your own Google Drive. It asks for a single
+permission, <code>https://www.googleapis.com/auth/drive.appdata</code>,
+which only lets it read and write its own hidden application-data folder in
+your Drive. <strong>It cannot see, open or change any other file in your
+Drive.</strong></p>
+<p>The data travels directly between your device and Google's servers
+(<code>accounts.google.com</code>, <code>oauth2.googleapis.com</code>,
+<code>www.googleapis.com</code>); it never passes through any server of
+ours. Google processes it under the
+<a href="https://policies.google.com/privacy">Google Privacy Policy</a>.
+What is synced: the notes, journal and other files in your vault (except
+the trash and anything you exclude with <code>.hypomnemasyncignore</code>),
+your configuration files, and a snapshot of your tasks and lists.</p>
+<p>Hypomnema's use and transfer of information received from Google APIs
+adheres to the
+<a href="https://developers.google.com/terms/api-services-user-data-policy">Google
+API Services User Data Policy</a>, including the Limited Use requirements.
+Data from Google APIs is used only to sync your vault between your devices,
+is never transferred to anyone else, never used for advertising, and never
+read by humans.</p>
+
+<h2>Update checks (Windows)</h2>
+<p>The Windows app checks for new versions by downloading a small file from
+GitHub (<code>github.com</code>). Like any web request this reveals your IP
+address to GitHub, which handles it under the
+<a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub
+Privacy Statement</a>. No personal data or app content is sent.</p>
+
+<h2>What we do not do</h2>
+<ul>
+  <li>No analytics, telemetry or crash reporting.</li>
+  <li>No ads, no tracking, no selling or sharing of data.</li>
+  <li>No account with us - we do not know who uses the app.</li>
+</ul>
+
+<h2>Your control</h2>
+<ul>
+  <li><strong>Stop syncing:</strong> Settings &rarr; Sync &rarr; Sign out. This
+  revokes the app's access to your Drive and deletes the tokens from the
+  device. You can also revoke access at
+  <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+  <li><strong>Delete synced data:</strong> in Google Drive, open Settings
+  &rarr; Manage apps &rarr; Hypomnema &rarr; Options &rarr; Delete hidden app
+  data.</li>
+  <li><strong>Delete local data:</strong> delete your vault folder and
+  uninstall the app.</li>
+</ul>
+
+<h2>Children</h2>
+<p>The app is not directed at children under 13 and collects nothing from
+anyone.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the new version will be published on this page
+with a new effective date.</p>
+
+<h2>Contact</h2>
+<p>Questions about privacy: &lt;CONTACT EMAIL&gt;</p>
+</main>
+</body>
+</html>

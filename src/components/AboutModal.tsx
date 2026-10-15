@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "../lib/ipc";
+import { COPYRIGHT, LICENSE_URL } from "../lib/legal";
 import AppLogo from "./AppLogo";
 
 export default function AboutModal({ onClose }: { onClose: () => void }) {
@@ -68,8 +70,47 @@ export function AboutContent() {
       </p>
       <p className="mt-2 text-sm text-content-muted">
         Everything lives in your vault folder as plain files and a local
-        database; nothing leaves your machine.
+        database. Nothing is sent to the developer - no account, no
+        telemetry. Google Drive sync, when you turn it on, moves the vault
+        between your own devices through your own Drive; the desktop app
+        also asks GitHub whether an update is out.
       </p>
+      <LegalNotice />
     </>
+  );
+}
+
+/** Copyright, the GPL's no-warranty notice and the third-party license
+ * texts - the "appropriate legal notices" an interactive program shows. */
+function LegalNotice() {
+  const [licenses, setLicenses] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const show = () => {
+    setError(false);
+    void invoke("third_party_licenses")
+      .then(setLicenses)
+      .catch(() => setError(true));
+  };
+  return (
+    <div className="mt-3 border-t border-line pt-3 text-xs text-content-muted">
+      <p>{COPYRIGHT}</p>
+      <p className="mt-1">
+        Free software under the GNU General Public License v3 (
+        <span className="select-text">{LICENSE_URL}</span>), provided
+        with ABSOLUTELY NO WARRANTY.
+      </p>
+      {licenses === null ? (
+        <button
+          className="mt-2 underline hover:text-content"
+          onClick={show}
+        >
+          {error ? "Could not load - retry" : "Third-party licenses"}
+        </button>
+      ) : (
+        <pre className="mt-2 max-h-64 select-text overflow-auto whitespace-pre-wrap break-words rounded border border-line p-2 text-[10px] leading-snug">
+          {licenses}
+        </pre>
+      )}
+    </div>
   );
 }

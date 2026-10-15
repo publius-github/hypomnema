@@ -203,6 +203,7 @@ export interface Commands {
     args: { startDate: string; endDate: string };
     result: Task[];
   };
+  third_party_licenses: { args: void; result: string };
   upcoming_events: { args: void; result: UpcomingResult };
   vault_browse: { args: { path: string | null }; result: DirListing };
   vault_browse_mkdir: {

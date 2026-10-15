@@ -1,102 +1,131 @@
 # Hypomnema
 
-Локальное приложение (Windows-first, Tauri 2 + React) для личной продуктивности: недельный планировщик задач, дневник по шаблону и база знаний на Markdown в одном окне. Все данные лежат в выбранной пользователем папке-vault, без облака и регистрации. UI англоязычный.
+A local-first personal productivity app: a weekly task planner, a daily journal and a Markdown knowledge base in one window. Windows first, with an Android companion. Everything lives in a folder you choose, as plain files and a local database - no account, no server, no telemetry. Sync between your devices is optional and goes through your own Google Drive.
 
-Техническая карта общего ядра (модули, схемы конфигов, инварианты движка) - в `docs/general/ARCHITECTURE.md`; Windows-специфика (трей, capture-окно, сборка/релиз) - в `docs/windows/ARCHITECTURE.md`.
+*Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
 
-Мобильная (Android) часть — план и требования в `docs/android/`.
+- [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Building](#building-and-releasing) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
-## Разделы
+Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android: `docs/android/`.
 
-Слева вертикальная панель; порядок разделов настраивается, Settings всегда внизу. Там же: поиск по всему (Ctrl/Cmd+K), кнопка Sync (прогон движка генерации), переключатель темы.
+## Sections
 
-- **Dashboard** - сверху сетка дней (число колонок настраивается, с постраничной прокруткой), снизу пользовательские списки-беклоги. Drag & drop задач между днями и списками, подзадачи, цвета, время, приоритет, Markdown в описании, статусы To Do / Done / Postponed / Waiting (сделано, жду ответа) / Dropped (не сделано, убрано). В шапке - фраза-фокус недели и напоминания по типу дня.
-- **Upcoming** - три саб-вкладки: Scheduled (разовые события на дату), Birthdays (дни рождения с возрастом при известном годе), Recurring (правила cron). Формы UI пишут прямо в YAML-файлы с сохранением комментариев.
-- **Calendar** - месячная сетка: реальные задачи плюс проекции будущих срабатываний правил (горизонт настраивается по типу каденции).
-- **History** - архив по месяцам: статистика выполнения, стрики по ежедневным правилам, выполненные задачи по дням.
-- **Journal** - одна Markdown-запись на дату (`journal/<год>/<YYYY-MM-DD>.md`), создаётся из настраиваемого шаблона при первом сохранении; список и поиск по записям.
-- **Notes** - база знаний: дерево Markdown-файлов (корень vault или отдельная папка из настроек), редактор с live-подсветкой, вики-ссылки `[[...]]`, поиск по содержимому, корзина `.trash` (чистится через 30 дней), файл `.hypomnemaignore` для скрытия путей из дерева. Здесь же редактируются конфиг-файлы с валидацией при сохранении.
-- **Settings** - вкладки Appearance / Planner / Calendar / Navigation / Files / Maintenance; все параметры хранятся в `settings/app.yml`.
+A vertical rail on the left; the section order is configurable and Settings always sits at the bottom. The rail also holds global search (Ctrl/Cmd+K), Sync (runs the task engine and, when a Google account is signed in, a Drive sync pass) and About.
 
-## Данные: vault
+- **Dashboard** - a grid of days on top (column count configurable, paged scrolling) and your own backlog lists below. Drag and drop between days and lists, subtasks, colors, times, priority, Markdown in descriptions, statuses To Do / Done / Postponed / Waiting / Dropped. The header shows the week's focus phrase and day-type reminders. **Lists** and **Days** are focused variants of the same view.
+- **Upcoming** - three tabs: Scheduled (one-off dated events), Birthdays (with age when the year is known) and Recurring (cron rules). The forms write straight into the YAML files, keeping your comments.
+- **Calendar** - a month grid with real tasks plus projections of future rule occurrences (the horizon is configurable per cadence).
+- **Review** and **History** - how the week went, and a month-by-month archive with completion stats and streaks for daily rules.
+- **Journal** - one Markdown entry per date (`journal/<year>/<YYYY-MM-DD>.md`), created from a configurable template on first save, with "on this day" entries from earlier years.
+- **Notes** - a knowledge base: a tree of Markdown files (the vault root or a folder set in Settings), an editor with live highlighting, `[[wiki links]]` and backlinks, full-text search, a `.trash` folder (emptied after 30 days) and a `.hypomnemaignore` file to hide paths from the tree. The config files are edited here too, validated on save.
+- **Settings** - appearance, planner, calendar, navigation, files, sync and maintenance; everything is stored in `.hypomnema/settings/app.yml`.
 
-Всё рабочее хозяйство приложения живёт в скрытой папке `.hypomnema` внутри vault (как `.git` у репозитория); пользовательский контент - на верхнем уровне:
+On Windows there is also a tray icon and a global shortcut for a quick-capture window.
+
+## Data: the vault
+
+The app keeps its working files in a hidden `.hypomnema` folder inside the vault (like `.git` in a repository); your own content sits at the top level:
 
 ```
 <vault>/
-  journal/                # записи дневника
-  <заметки>               # база знаний (если не указана другая папка)
-  .hypomnemaignore        # фильтр дерева заметок
-  .trash/                 # корзина заметок
+  journal/                # journal entries
+  <notes>                 # knowledge base (unless another folder is set)
+  .hypomnemaignore        # hides paths from the notes tree
+  .trash/                 # deleted notes
   .hypomnema/
-    app.db                # SQLite: задачи, списки, состояние
-    settings/app.yml      # настройки приложения
-    config/               # пользовательские YAML-конфиги (см. ниже)
-    tasks/                # Markdown-зеркало ручных задач (двусторонняя правка)
-    backups/              # ежедневный снапшот БД + копии конфигов перед перезаписью
+    app.db                # SQLite: tasks, lists, state
+    settings/app.yml      # app settings
+    config/               # your YAML config files (see below)
+    tasks/                # Markdown mirror of manual tasks (editable both ways)
+    backups/              # daily database snapshot + copies of configs before overwrite
 ```
 
-Зеркало `tasks/` (включается в настройках) - по файлу на список плюс `scheduled.md`: задачи можно массово править в любом редакторе, изменения импортируются обратно.
+The `tasks/` mirror (enabled in Settings) holds one file per list plus `scheduled.md`: edit tasks in bulk in any text editor and the changes are imported back.
 
-## YAML-конфигурация
+### Sync
 
-Один файл на тип правил в `.hypomnema/config/`; подпапки работают как "паки" - любые `*.yml` в них домердживаются к recurring/scheduled/birthdays по верхнеуровневому ключу. Правки в файлах подхватываются вотчером на лету; сломанный файл не трогает данные - действует последнее валидное состояние, ошибка с файлом и строкой показывается баннером в UI.
+Signing in with Google syncs the vault between your devices through a hidden app-data folder in your own Drive (scope `drive.appdata` - the app cannot see any other file there). Notes and other text files edited on two devices are merged line by line; a real clash leaves a `(conflicted copy ...)` file next to the original, which Settings lets you compare and resolve. See the [privacy policy](site/privacy.html) for exactly what goes where.
+
+## YAML configuration
+
+One file per rule type in `.hypomnema/config/`; subfolders work as "packs" - any `*.yml` in them is merged into recurring/scheduled/birthdays by its top-level key. Edits are picked up live by a file watcher; a broken file never touches your data - the last valid state stays in effect and a banner shows the error with its file and line.
 
 ```yaml
-# recurring.yml - повторяющиеся задачи
+# recurring.yml - repeating tasks
 tasks:
   - schedule: "0 0 1 * *"        # cron
     description: "Monthly"
     items:
-      - "{05 Finance} pay bills for apartment"   # {Список} текст задачи
+      - "{05 Finance} pay bills for apartment"   # {List} task text
 
-# scheduled.yml - разовые события на дату
+# scheduled.yml - one-off dated events
 events:
   - date: 2026-09-14
     title: "{02 Personal} dentist appointment"
-    time: "10:30"                # опционально
+    time: "10:30"                # optional
 
-# birthdays.yml - дни рождения
+# birthdays.yml - birthdays
 birthdays:
   - name: "John Smith"
     date: "03-14"                # MM-DD
-    year: 1985                   # опционально, для показа возраста
+    year: 1985                   # optional, to show the age
 ```
 
-Плюс `weekly-focus.yml` (фраза-фокус недели, ротация по ISO-неделям), `day-reminders.yml` (напоминания по типу дня: workday / weekend / день недели), `day-schedule.yml` (блоки дневного расписания), `templates/journal.md` (шаблон дневника, поддерживает `{{date}}`).
+Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-reminders.yml` (reminders by day type: workday / weekend / weekday), `day-schedule.yml` (blocks of the daily schedule) and `templates/journal.md` (the journal template, supports `{{date}}`).
 
-## Правила движка
+## Engine rules
 
-- Генерация идёт при старте, по кнопке Sync, при смене дня и при изменении конфигов. Дубли исключены навсегда: леджер `rule_runs` помнит каждую сгенерированную пару (правило, период), рестарты и правки конфига не создают повторов.
-- Пользовательские правки и статусы неприкосновенны: перегенерация только досоздаёт недостающее, удалённый экземпляр не воскресает.
-- Просроченные незакрытые задачи переносятся на сегодня с пометкой overdue (не больше одной открытой копии на правило); ежедневные задачи не считаются просроченными.
-- Пропущенные срабатывания за окно catch-up схлопываются в одно (за неделю простоя - одна задача, а не семь).
-- Удаление правила из конфига убирает его будущие и сегодняшние открытые экземпляры; выполненные остаются в истории. Выполненные задачи чистятся по retention-настройке.
+- Generation runs at startup, on Sync, when the day changes and when configs change. Duplicates are impossible: the `rule_runs` ledger remembers every generated (rule, period) pair, so restarts and config edits never repeat a task.
+- Your edits and statuses are never overwritten: regeneration only creates what is missing, and a deleted instance does not come back.
+- Overdue open tasks move to today marked overdue (at most one open copy per rule); daily tasks never count as overdue.
+- Missed occurrences within the catch-up window collapse into one (a week away gives one task, not seven).
+- Removing a rule removes its future and today's open instances; completed ones stay in history. Completed tasks are cleaned up by the retention setting.
 
-## Сборка и релиз
+## Building and releasing
 
-Релизный инсталлятор (NSIS `.exe`) собирается GitHub Actions на Windows-раннере.
+Development works on Windows, macOS or Linux; the release installer (NSIS `.exe`) is built by GitHub Actions on a Windows runner.
 
-Требования к машине сборки: Node.js 22+, Rust stable (rustup); на Windows дополнительно VS Build Tools (Desktop C++), WebView2, Git Bash; на Linux - `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
+Requirements: Node.js 22+, Rust stable (rustup). On Windows also VS Build Tools (Desktop C++), WebView2 and Git Bash; on Linux `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
 ```bash
-npm ci && npm run tauri dev             # dev-режим с hot reload
-./scripts/windows/build.sh              # локальная сборка инсталлятора (build.ps1 для PowerShell)
+npm ci && npm run tauri dev             # dev mode with hot reload
+./scripts/windows/build.sh              # local installer build (build.ps1 for PowerShell)
+./scripts/android/build-android.sh      # Android build, see docs/android/
 ```
 
-Артефакты попадают в `src-tauri/target/release/bundle/`.
+Artifacts land in `src-tauri/target/release/bundle/`.
 
-### Версия и релиз
+Google sign-in on the desktop needs an OAuth client secret compiled in from the `HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET` environment variable (see `docs/windows/ARCHITECTURE.md`); a build without it simply has no Google sync. If you build your own copy, register your own OAuth client in Google Cloud and put its id in `src-tauri/src/google_auth.rs`.
 
-Источник истины для версии - файл `VERSION` в корне; руками его и версии в манифестах не редактируем:
+### Version and release
+
+The `VERSION` file at the root is the single source of truth for the version; never edit it or the manifests' versions by hand:
 
 ```bash
-./scripts/general/bump.sh [major|minor|patch]      # бамп + синк манифестов, без коммита
-./scripts/windows/release.sh [major|minor|patch]   # бамп + коммит + тег v<версия> + push (release.ps1 для PowerShell)
+./scripts/general/bump.sh [major|minor|patch]      # bump + sync manifests, no commit
+./scripts/windows/release.sh [major|minor|patch]   # bump + commit + tag v<version> + push (release.ps1 for PowerShell)
 ```
 
-Workflow `release.yml` на теге `v*` сверяет тег с `VERSION`, собирает Windows-инсталлятор через `tauri-action` и прикладывает его к draft GitHub Release. CI (`ci.yml`) на PR и push в main гоняет lint/typecheck/test/build фронта и fmt/clippy/test Rust-ядра.
+The `release.yml` workflow, on a `v*` tag, checks the tag against `VERSION`, builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend and fmt/clippy/test for the Rust core on pull requests and pushes to main.
 
-### Автообновления
+### Third-party licenses
 
-Приложение при старте проверяет `releases/latest/download/latest.json` этого репозитория и предлагает обновиться. Манифест подписывается: в GitHub Secrets нужны `TAURI_SIGNING_PRIVATE_KEY` (содержимое `~/.tauri/app-pkb.key`) и `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; паблик-ключ прописан в `src-tauri/tauri.conf.json`. Без секретов release-workflow падает на подписи. Локальный `scripts/windows/build.sh` подписывает updater-артефакты, только если ключ лежит в `~/.tauri/app-pkb.key`. Чтобы обновления доходили, draft-релиз нужно публиковать - `latest.json` отдаётся только из опубликованного релиза.
+`THIRD_PARTY_LICENSES.txt` collects the license texts of every bundled Rust crate and npm package; the app compiles it in and shows it under About. Regenerate it after changing dependencies:
+
+```bash
+node scripts/general/third-party-licenses.mjs
+```
+
+### Auto-updates
+
+At startup the desktop app checks `releases/latest/download/latest.json` of the release repository and offers to update. The manifest is signed: GitHub Secrets need `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/app-pkb.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is in `src-tauri/tauri.conf.json`. Without the secrets the release workflow fails at signing. A local `scripts/windows/build.sh` signs the updater artifacts only when the key is at `~/.tauri/app-pkb.key`. Updates reach users only once the draft release is published - `latest.json` is served from published releases only.
+
+## Website
+
+`site/` is the static project website (home page and privacy policy) - plain HTML and CSS, host it anywhere. Google's OAuth verification needs both pages on a domain you own.
+
+## License
+
+Copyright (C) 2026 &lt;COPYRIGHT HOLDER&gt;
+
+Hypomnema is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3, as published by the Free Software Foundation. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text, and [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the licenses of the libraries it is built on.

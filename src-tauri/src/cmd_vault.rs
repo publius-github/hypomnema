@@ -1,4 +1,5 @@
-//! Commands: vault selection, app settings and settings profiles, backups.
+//! Commands: vault selection, app settings and settings profiles, backups,
+//! and the About dialog's third-party notices.
 
 use std::path::{Path, PathBuf};
 
@@ -331,4 +332,12 @@ pub(crate) async fn backup_restore_config(state: State<'_, AppState>, id: String
         (vault.root.clone(), vault.config.backup_keep)
     };
     backup::restore_config_backup(&root, &id, keep, chrono::Local::now())
+}
+
+/// The third-party license notices (`THIRD_PARTY_LICENSES.txt`, generated
+/// by `scripts/general/third-party-licenses.mjs`), compiled in so every
+/// platform carries them with the binary as those licenses require.
+#[tauri::command]
+pub(crate) async fn third_party_licenses() -> Result<&'static str> {
+    Ok(include_str!("../../THIRD_PARTY_LICENSES.txt"))
 }

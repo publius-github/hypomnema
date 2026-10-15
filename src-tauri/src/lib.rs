@@ -196,6 +196,7 @@ pub fn run() {
             cmd_vault::vault_browse_mkdir,
             cmd_vault::storage_access,
             cmd_vault::storage_access_request,
+            cmd_vault::third_party_licenses,
             cmd_vault::vault_use_path,
             cmd_vault::config_get,
             cmd_vault::config_set,

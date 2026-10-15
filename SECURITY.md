@@ -1,0 +1,22 @@
+# Security policy
+
+## Supported versions
+
+Only the latest released version receives security fixes. The desktop app updates itself; on Android, install the newest release.
+
+## Reporting a vulnerability
+
+Please report security problems privately to **&lt;CONTACT EMAIL&gt;** rather than in a public issue. Include the app version, the platform (Windows / Android), what an attacker could do, and the steps to reproduce.
+
+You can expect an acknowledgement within a week. Once a fix is released, the report is credited in the changelog unless you prefer otherwise.
+
+## Scope
+
+Of particular interest:
+
+- anything that exposes the Google OAuth tokens (desktop `google.json`, sealed or not) or lets another app use the app's Drive access;
+- the sync engine writing outside the vault, or deleting or overwriting user data it should not touch;
+- the auto-updater accepting a release not signed with the project's key;
+- script execution through note, journal or task content (Markdown rendering, wiki links).
+
+Out of scope: attacks that need full control of an already unlocked device or user account, and data the user chooses to put in a shared or synced folder outside the app's control.
