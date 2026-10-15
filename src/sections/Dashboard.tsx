@@ -20,7 +20,7 @@ import TaskModal from "../components/TaskModal";
 import QuickAddModal from "../components/QuickAddModal";
 import NewListForm from "../components/NewListForm";
 import GroupBackBar from "../components/GroupBackBar";
-import type { Task } from "../types";
+import type { AppConfig, Task } from "../types";
 
 export default function Dashboard() {
   const config = useAppStore((s) => s.config);
@@ -142,8 +142,9 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          {/* the day count lives here, not in Settings: the same
-              control the Days page carries, on the grid it resizes */}
+          {/* the day count, the list-zone count and the group shape
+              live here, not in Settings: each control sits on the panel
+              it reshapes */}
           <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
             <span>Days</span>
             <select
@@ -160,6 +161,38 @@ export default function Dashboard() {
                   {n}
                 </option>
               ))}
+            </select>
+            <span className="ml-2">Lists</span>
+            <select
+              className="input px-1 py-0.5 text-xs"
+              title="List columns visible in the bottom zone"
+              value={config.list_columns}
+              onChange={(e) =>
+                void useAppStore
+                  .getState()
+                  .updateConfig({ list_columns: Number(e.target.value) })
+              }
+            >
+              {[1, 2, 3, 4, 5, 6, 8].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <span className="ml-2">Groups</span>
+            <select
+              className="input px-1 py-0.5 text-xs"
+              title="Folded: one tile per group. Flat: every list its own column, with its group as a chip on the header."
+              value={config.lists_group_display}
+              onChange={(e) =>
+                void useAppStore.getState().updateConfig({
+                  lists_group_display: e.target
+                    .value as AppConfig["lists_group_display"],
+                })
+              }
+            >
+              <option value="folded">Folded</option>
+              <option value="flat">Flat</option>
             </select>
           </div>
           <button

@@ -39,10 +39,8 @@ export type SettingsGroupId =
   | "appearance.text"
   | "appearance.editor"
   | "views.dashboard"
-  | "views.days"
   | "views.lists"
   | "views.listview"
-  | "views.settings"
   | "views.navigation"
   | "cards.colors"
   | "cards.chips"
@@ -88,14 +86,12 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
   "appearance.editor": { tab: "appearance", title: "Markdown editor" },
 
   "views.dashboard": { tab: "views", title: "Dashboard" },
-  "views.days": { tab: "views", title: "Days page" },
   "views.lists": { tab: "views", title: "Lists page" },
   "views.listview": {
     tab: "views",
     title: "List view (Days and Lists)",
     knobs: true,
   },
-  "views.settings": { tab: "views", title: "Settings page" },
   "views.navigation": { tab: "views", title: "Navigation" },
 
   "cards.colors": { tab: "cards", title: "Card colors" },
@@ -176,12 +172,8 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "kb_line_numbers", label: "Line numbers in the Notes editor", group: "appearance.editor" },
 
   // --- Views ------------------------------------------------------
-  { key: "list_columns", label: "List columns in the dashboard zone", group: "views.dashboard" },
   { key: "dashboard_split", label: "Dashboard split", group: "views.dashboard", terms: "day grid height divider" },
 
-  { key: "days_page_columns", label: "Day columns on the Days page", group: "views.days" },
-
-  { key: "lists_page_columns", label: "Grid columns on the Lists page", group: "views.lists" },
   { key: "lists_page_align_rows", label: "Align list rows", group: "views.lists" },
   { key: "list_view_plate_scale", label: "Section plate height in list view", group: "views.listview", terms: "header daily monthly done percent font text size" },
   { key: "gap_fill_color", label: "Gap fill color", group: "views.listview", terms: "hatch glow band" },
@@ -203,9 +195,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "fold_done", label: "Fold Done by default", group: "views.listview", terms: "closed collapse hide" },
   { key: "fold_dropped", label: "Fold Not done, dropped by default", group: "views.listview", terms: "closed collapse hide" },
   { key: "closed_row_opacity", label: "Closed row opacity", group: "views.listview", terms: "done dropped dim fade" },
-  { key: "lists_group_display", label: "Grouped lists display", group: "views.lists", terms: "folded flat group tile" },
 
-  { key: "settings_width", label: "Settings content width", group: "views.settings", terms: "tab strip wrap" },
 
   { key: "section_order", label: "Section order in the left bar", group: "views.navigation", terms: "rail sidebar" },
   { key: "section_hidden", label: "Hidden sections", group: "views.navigation", terms: "rail sidebar hide" },
@@ -332,6 +322,22 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
   {
     key: "days_today_only",
     why: "the same toggle on the Days page header",
+  },
+  {
+    key: "days_page_columns",
+    why: "set by the Days dropdown on the Days page header",
+  },
+  {
+    key: "list_columns",
+    why: "set by the Lists dropdown on the dashboard header, over the list zone it resizes",
+  },
+  {
+    key: "lists_page_columns",
+    why: "set by the Columns dropdown on the Lists page header",
+  },
+  {
+    key: "lists_group_display",
+    why: "the Groups Folded/Flat switch on the dashboard and Lists page headers",
   },
   { key: "mobile_safe_area_top", why: "mobile only - status bar inset floor" },
   { key: "mobile_safe_area_bottom", why: "mobile only - gesture bar inset floor" },

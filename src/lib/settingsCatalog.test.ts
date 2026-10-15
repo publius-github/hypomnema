@@ -143,7 +143,7 @@ describe("profileCoverage", () => {
     const rows = profileGroupsByTab([
       ...keys,
       "closed_sections_sort_alpha",
-      "lists_page_columns",
+      "lists_page_align_rows",
     ]);
     expect(rows.map((r) => r.tab)).toEqual([
       "appearance",

@@ -283,10 +283,6 @@ pub struct AppConfig {
     /// own column wearing its group's name as a chip.
     #[ts(type = "\"folded\" | \"flat\"")]
     pub lists_group_display: String,
-    /// Maximum content width of the Settings page, px (0 = the whole
-    /// window). The tab strip wraps inside it, which is what makes a
-    /// narrow column push half the tabs onto a second line.
-    pub settings_width: u32,
     /// Day columns on the dedicated Days page (its own width, not tied
     /// to the dashboard grid). 0 is a legacy "follow the dashboard"
     /// value that sanitize resolves to grid_columns.
@@ -482,7 +478,6 @@ pub const PROFILE_KEYS: &[&str] = &[
     "fold_dropped",
     "closed_row_opacity",
     "lists_group_display",
-    "settings_width",
     "day_header_centered",
     "cadence_group_order",
     "done_display",
@@ -602,7 +597,6 @@ impl Default for AppConfig {
             fold_dropped: true,
             closed_row_opacity: 50,
             lists_group_display: "flat".into(),
-            settings_width: 1120,
             days_page_columns: 7,
             days_today_only: false,
             closed_sections_sort_alpha: true,
@@ -694,11 +688,6 @@ impl AppConfig {
         }
         if !["folded", "flat"].contains(&self.lists_group_display.as_str()) {
             self.lists_group_display = "folded".into();
-        }
-        // 0 means "as wide as the window"; anything narrower than a
-        // couple of settings columns is not a layout, it is a mistake
-        if self.settings_width != 0 {
-            self.settings_width = self.settings_width.clamp(480, 4000);
         }
         self.dashboard_split = self.dashboard_split.clamp(20, 80);
         self.list_columns = self.list_columns.clamp(1, 12);
@@ -1055,7 +1044,6 @@ impl AppConfig {
             ("fold_dropped", self.fold_dropped.to_string()),
             ("closed_row_opacity", self.closed_row_opacity.to_string()),
             ("lists_group_display", self.lists_group_display.clone()),
-            ("settings_width", self.settings_width.to_string()),
             ("days_page_columns", self.days_page_columns.to_string()),
             ("days_today_only", self.days_today_only.to_string()),
             (
@@ -1162,13 +1150,11 @@ mod tests {
             section_order: vec!["kb".into(), "typo".into(), "kb".into()],
             section_hidden: vec!["kb".into(), "typo".into(), "kb".into()],
             lists_group_display: "sideways".into(),
-            settings_width: 12,
             ..AppConfig::default()
         }
         .sanitized();
         assert_eq!(config.section_hidden, vec!["kb"]);
         assert_eq!(config.lists_group_display, "folded");
-        assert_eq!(config.settings_width, 480);
         assert_eq!(config.grid_columns, 1);
         assert_eq!(config.catchup_days, 365);
         assert_eq!(config.theme, "dark");

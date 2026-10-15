@@ -137,9 +137,9 @@ export default function Lists() {
           ) : (
             <span className="text-sm font-semibold">Lists</span>
           )}
-          {/* the panel shape belongs next to the column count, not three
-              clicks away in Settings - both write the same config, the
-              Views tab keeps its own copy */}
+          {/* the panel shape sits next to the column count, on the page
+              it reshapes - Settings has no copy; the dashboard header
+              carries the same switch */}
           {!openGroup && (
             <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
               <span>Groups</span>

@@ -1,6 +1,5 @@
 import { ColorPicker, Field, NumberInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
-import type { AppConfig } from "../../types";
 import { useAppStore } from "../../store";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -37,26 +36,10 @@ export default function ViewsTab() {
   return (
     <>
       <SettingsGroup id="views.dashboard">
-        {/* the day-column count and the today-only switch are set on the
-            dashboard header itself, where the grid they reshape is
-            visible; a second copy here would only invite the two to
-            disagree */}
-        <Field label="List columns visible in the bottom zone">
-          <select
-            className="input"
-            value={config.list_columns}
-            onChange={(e) =>
-              void updateConfig({ list_columns: Number(e.target.value) })
-            }
-          >
-            {[1, 2, 3, 4, 5, 6, 8].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </Field>
-
+        {/* column counts, the group shape and the today-only switches
+            are set on the page headers themselves, where the grid they
+            reshape is visible; a second copy here would only invite the
+            two to disagree */}
         <Field label="Dashboard split: day grid height, % (also draggable on the dashboard)">
           <NumberInput
             value={config.dashboard_split}
@@ -68,73 +51,13 @@ export default function ViewsTab() {
         </Field>
       </SettingsGroup>
 
-      <SettingsGroup id="views.days">
-        {/* same as the dashboard: the page's own header owns its
-            today-only switch */}
-        <Field label="Day columns on the Days page">
-          <select
-            className="input"
-            value={config.days_page_columns}
-            onChange={(e) =>
-              void updateConfig({ days_page_columns: Number(e.target.value) })
-            }
-          >
-            {Array.from({ length: 14 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </SettingsGroup>
-
       <SettingsGroup id="views.lists">
-        <Field label="Grid columns on the Lists page">
-          <select
-            className="input"
-            value={config.lists_page_columns}
-            onChange={(e) =>
-              void updateConfig({ lists_page_columns: Number(e.target.value) })
-            }
-          >
-            {[1, 2, 3, 4, 5, 6, 8].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </Field>
-
         <Toggle
           checked={config.lists_page_align_rows}
           label="Align list rows on the Lists page"
           hint="Every list column stretches to its grid row's height, so the rows line up instead of forming a ragged mosaic. Off = each column takes its natural height."
           onChange={(v) => void updateConfig({ lists_page_align_rows: v })}
         />
-
-        <Field label="Grouped lists in the list panels">
-          <select
-            className="input"
-            value={config.lists_group_display}
-            onChange={(e) =>
-              void updateConfig({
-                lists_group_display: e.target
-                  .value as AppConfig["lists_group_display"],
-              })
-            }
-          >
-            <option value="folded">Folded: one tile per group</option>
-            <option value="flat">Flat: every list its own column</option>
-          </select>
-        </Field>
-        <span className="-mt-1 text-xs text-content-muted">
-          Folded gives a group one panel slot listing its lists, opened by
-          a click. Flat gives every list its own column whatever group it
-          is in, with the group&apos;s name as a chip on the column header -
-          the same lists, spread out instead of filed away. Applies to the
-          dashboard list zone and the Lists page alike, and the Lists page
-          header carries the same switch.
-        </span>
       </SettingsGroup>
 
       <SettingsGroup id="views.listview">
@@ -321,24 +244,6 @@ export default function ViewsTab() {
           the gap instead of touching the lines of the rows around it. 0 = the
           band spans the whole gap. In a tall gap the band stops at the maximum
           thickness and stays centered.
-        </span>
-      </SettingsGroup>
-
-      <SettingsGroup id="views.settings">
-        <Field label="Settings content width, px (0 = the whole window)">
-          <NumberInput
-            value={config.settings_width}
-            min={0}
-            onCommit={(n) =>
-              void updateConfig({
-                settings_width: n === 0 ? 0 : Math.min(4000, Math.max(480, n)),
-              })
-            }
-          />
-        </Field>
-        <span className="text-xs text-content-muted">
-          This page&apos;s own column. Too narrow and the tab strip above wraps
-          onto a second line; widen it until every tab fits.
         </span>
       </SettingsGroup>
 

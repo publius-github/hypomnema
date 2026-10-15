@@ -114,7 +114,6 @@ export const defaultConfig: AppConfig = {
   fold_dropped: true,
   closed_row_opacity: 50,
   lists_group_display: "flat",
-  settings_width: 1120,
   days_page_columns: 7,
   days_today_only: false,
   closed_sections_sort_alpha: true,

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useAppStore } from "../store";
 import {
   SettingsFocusContext,
   type SettingsFocus,
@@ -35,11 +34,6 @@ export default function Settings() {
   const [tab, setTab] = useState<SettingsTab>("appearance");
   const [query, setQuery] = useState("");
   const [focus, setFocus] = useState<SettingsFocus | null>(null);
-  // The page used to sit in a fixed narrow column, which pushed half the
-  // tab strip onto a second line on anything but a huge font. The width
-  // is a setting now (0 = the whole window), like every other layout
-  // proportion.
-  const width = useAppStore((s) => s.config?.settings_width ?? 1120);
   const hits = searchSettings(query);
 
   // a hit names the field, so the jump opens the group holding it
@@ -56,11 +50,14 @@ export default function Settings() {
   };
 
   return (
-    <div
-      className="mx-auto flex h-full w-full flex-col gap-4 p-6"
-      style={{ maxWidth: width > 0 ? width : undefined }}
-    >
-      <div className="relative flex flex-col gap-2">
+    // The column is exactly as wide as the tab strip on one line (w-fit
+    // over a nowrap strip; the search and the tab body are sized 0 with
+    // min-w-full, so they take that width instead of setting it) - every
+    // tab fits at any font size, and nothing gets wider than that. A
+    // window narrower than the strip caps it at the window and the
+    // strip wraps.
+    <div className="mx-auto flex h-full w-fit min-w-0 max-w-full flex-col gap-4 p-6">
+      <div className="relative flex w-0 min-w-full flex-col gap-2">
         <input
           className="input w-full max-w-md"
           placeholder="Search settings..."
@@ -101,7 +98,7 @@ export default function Settings() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-line">
+      <div className="flex flex-wrap gap-1 whitespace-nowrap border-b border-line">
         {SETTINGS_TABS.map((t) => (
           <button
             key={t.id}
@@ -121,7 +118,7 @@ export default function Settings() {
       </div>
 
       <SettingsFocusContext.Provider value={focus}>
-        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-10">
+        <div className="flex min-h-0 w-0 min-w-full flex-1 flex-col gap-5 overflow-y-auto pb-10">
           {tab === "profiles" && <ProfilesTab onJump={jumpToGroup} />}
           {tab === "appearance" && <AppearanceTab />}
           {tab === "views" && <ViewsTab />}

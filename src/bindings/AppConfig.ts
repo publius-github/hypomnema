@@ -406,12 +406,6 @@ closed_row_opacity: number,
  */
 lists_group_display: "folded" | "flat", 
 /**
- * Maximum content width of the Settings page, px (0 = the whole
- * window). The tab strip wraps inside it, which is what makes a
- * narrow column push half the tabs onto a second line.
- */
-settings_width: number, 
-/**
  * Day columns on the dedicated Days page (its own width, not tied
  * to the dashboard grid). 0 is a legacy "follow the dashboard"
  * value that sanitize resolves to grid_columns.
