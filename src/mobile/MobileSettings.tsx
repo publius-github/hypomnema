@@ -8,6 +8,7 @@ import { NumberField, Toggle } from "./controls";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
 import ConflictList from "../components/ConflictList";
+import { AboutContent, useAppVersion } from "../components/AboutModal";
 
 import type {
   AppConfig,
@@ -21,7 +22,14 @@ import type {
   SyncStanding,
 } from "../types";
 
-type Panel = "sync" | "lock" | "appearance" | "tasks" | "maintenance" | "vault";
+type Panel =
+  | "sync"
+  | "lock"
+  | "appearance"
+  | "tasks"
+  | "maintenance"
+  | "vault"
+  | "about";
 
 /**
  * Phone settings: an index of panels rather than one long scroll. Seven
@@ -43,6 +51,7 @@ export default function MobileSettings() {
   const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
   const [standing, setStanding] = useState<SyncStanding | null>(null);
   const [lock, setLock] = useState<LockState | null>(null);
+  const version = useAppVersion();
   // hardware back closes the open panel before leaving Settings
   useBackStep(panel !== null, () => setPanel(null));
 
@@ -99,6 +108,11 @@ export default function MobileSettings() {
     ...(lock?.enabled
       ? [{ id: "lock" as Panel, label: "Passphrase", hint: "On - no longer needed" }]
       : []),
+    {
+      id: "about",
+      label: "About",
+      hint: version ? `Hypomnema ${version}` : "Hypomnema",
+    },
   ];
 
   if (panel) {
@@ -134,6 +148,7 @@ export default function MobileSettings() {
           {panel === "tasks" && config && <TasksPanel config={config} />}
           {panel === "maintenance" && <MaintenancePanel />}
           {panel === "vault" && <VaultPanel vaultPath={vaultPath} />}
+          {panel === "about" && <AboutContent />}
         </div>
       </div>
     );

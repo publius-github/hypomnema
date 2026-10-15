@@ -3,12 +3,6 @@ import { getVersion } from "@tauri-apps/api/app";
 import AppLogo from "./AppLogo";
 
 export default function AboutModal({ onClose }: { onClose: () => void }) {
-  const [version, setVersion] = useState("");
-
-  useEffect(() => {
-    void getVersion().then(setVersion);
-  }, []);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -26,27 +20,7 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
         className="w-80 rounded-xl border border-line bg-surface-alt p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col items-center text-center">
-          <AppLogo size={88} />
-          <h2 className="mt-3 text-lg font-semibold tracking-[0.2em]">
-            HYPOMNEMA
-          </h2>
-          <p className="text-sm text-content-muted">The Meander Habit</p>
-          <p className="mt-1 text-xs text-content-muted">
-            {version ? `Version ${version}` : ""}
-          </p>
-        </div>
-        <p className="mt-3 text-sm text-content-muted">
-          Hypomnema (Greek ὑπόμνημα) is the
-          notebook the ancient Greeks kept at hand: notes, reminders, and
-          reflections collected for one's own use. This one is the same
-          idea in software - a weekly planner with recurring rules, a
-          daily journal, and Markdown notes in a single window.
-        </p>
-        <p className="mt-2 text-sm text-content-muted">
-          Everything lives in your vault folder as plain files and a local
-          database; nothing leaves your machine.
-        </p>
+        <AboutContent />
         <button
           className="btn-primary mt-4 w-full"
           onClick={onClose}
@@ -55,5 +29,47 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** The app's version, read once from the binary. */
+export function useAppVersion(): string {
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    void getVersion()
+      .then(setVersion)
+      .catch(() => {});
+  }, []);
+  return version;
+}
+
+/** The About text itself: the desktop dialog and the phone's Settings
+ * panel show the same thing. */
+export function AboutContent() {
+  const version = useAppVersion();
+  return (
+    <>
+      <div className="flex flex-col items-center text-center">
+        <AppLogo size={88} />
+        <h2 className="mt-3 text-lg font-semibold tracking-[0.2em]">
+          HYPOMNEMA
+        </h2>
+        <p className="text-sm text-content-muted">The Meander Habit</p>
+        <p className="mt-1 text-xs text-content-muted">
+          {version ? `Version ${version}` : ""}
+        </p>
+      </div>
+      <p className="mt-3 text-sm text-content-muted">
+        Hypomnema (Greek ὑπόμνημα) is the
+        notebook the ancient Greeks kept at hand: notes, reminders, and
+        reflections collected for one's own use. This one is the same
+        idea in software - a weekly planner with recurring rules, a
+        daily journal, and Markdown notes in a single window.
+      </p>
+      <p className="mt-2 text-sm text-content-muted">
+        Everything lives in your vault folder as plain files and a local
+        database; nothing leaves your machine.
+      </p>
+    </>
   );
 }
