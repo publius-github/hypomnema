@@ -10,7 +10,7 @@
 //! through the webview (`PlatformWebview::jni_handle()`), so both halves
 //! of the job - "is it granted?" and "ask for it" - live here, in
 //! tracked Rust, rather than in `src-tauri/gen/android`, which is
-//! regenerated and would lose them (`docs/android/SPIKES.md`).
+//! regenerated and would lose them (`docs/android/ARCHITECTURE.md`).
 //!
 //! Everything here is best-effort by construction. A JNI call that fails
 //! must never take the app down with it: the check answers "no" and the

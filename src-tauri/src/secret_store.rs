@@ -1,5 +1,5 @@
 //! Where secrets live on a device, and whether they are readable right
-//! now. docs/android/ROADMAP.md Phase 4.
+//! now.
 //!
 //! There is exactly one secret today - the desktop's Google refresh token
 //! (the phone keeps none: Play services holds its grant) - and it is

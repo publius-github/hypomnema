@@ -448,10 +448,3 @@ releases/
 *.jks
 *.keystore
 keystore.properties
-
-# Android SAF spike (spikes/android-saf-test/README.md) - Gradle build output
-# and machine-local SDK path, not source
-spikes/android-saf-test/local.properties
-spikes/android-saf-test/.gradle/
-spikes/android-saf-test/app/build/
-spikes/android-saf-test/build/

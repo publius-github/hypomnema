@@ -6,7 +6,7 @@ A local-first personal productivity app: a weekly task planner, a daily journal 
 
 - [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Building](#building-and-releasing) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
-Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android: `docs/android/`.
+Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
 
 ## Sections
 
@@ -18,7 +18,7 @@ A vertical rail on the left; the section order is configurable and Settings alwa
 - **Review** and **History** - how the week went, and a month-by-month archive with completion stats and streaks for daily rules.
 - **Journal** - one Markdown entry per date (`journal/<year>/<YYYY-MM-DD>.md`), created from a configurable template on first save, with "on this day" entries from earlier years.
 - **Notes** - a knowledge base: a tree of Markdown files (the vault root or a folder set in Settings), an editor with live highlighting, `[[wiki links]]` and backlinks, full-text search, a `.trash` folder (emptied after 30 days) and a `.hypomnemaignore` file to hide paths from the tree. The config files are edited here too, validated on save.
-- **Settings** - appearance, planner, calendar, navigation, files, sync and maintenance; everything is stored in `.hypomnema/settings/app.yml`.
+- **Settings** - profiles, appearance, pages, task cards, columns, recurring & calendar, capture & alerts, data and sync, with a search over every setting; everything is stored in `.hypomnema/settings/app.yml`.
 
 On Windows there is also a tray icon and a global shortcut for a quick-capture window.
 

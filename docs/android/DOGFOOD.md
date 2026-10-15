@@ -1,10 +1,10 @@
 # Dogfood log — desktop and phone on one vault
 
-ROADMAP.md Phase 3's last item is the one that cannot be closed by
-writing code: run both clients against the same real vault for a stretch
-and see what the merge actually does. Everything above it in Phase 3 —
-the merge, the conflict log, deletions, offline queueing — is built and
-unit-tested; this file is where the evidence that it holds up goes.
+The one sync item that cannot be closed by writing code: run both
+clients against the same real vault for a stretch and see what the merge
+actually does. The merge, the conflict log, deletions and offline
+queueing are built and unit-tested; this file is where the evidence that
+they hold up goes.
 
 ## Why a log and not just "use it"
 
@@ -62,13 +62,13 @@ entry, which is worse). Keep it terse.
 
 ## Battery and scheduling notes
 
-Worth recording alongside the merges, since Phase 3 also claims sync
-survives real phone conditions:
+Worth recording alongside the merges, since sync also claims to survive
+real phone conditions:
 
 - Did a pass ever fire while the app was backgrounded? (Expected: no —
   automatic sync runs on resume, on leaving, on a heartbeat while open,
-  and on reconnect. Real OS-scheduled background work is the open item
-  at the end of ROADMAP.md.) A pass that *started* in the foreground
+  on reconnect and after an edit. OS-scheduled background work is an
+  open item in `ARCHITECTURE.md`.) A pass that *started* in the foreground
   should finish after the app is put away, under the "Syncing with
   Google Drive" notification.
 - Did leaving the app reliably push the last edit? Check the pending

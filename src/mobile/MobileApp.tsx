@@ -76,7 +76,7 @@ const TAB_ICONS: Record<MobileTab, ReactElement> = {
 };
 
 /**
- * The phone shell (docs/android/ROADMAP.md Phase 2).
+ * The phone shell.
  *
  * Deliberately not a responsive squeeze of the desktop layout. The desktop
  * app is a multi-column grid built for a mouse and a wide window; on a

@@ -1,5 +1,5 @@
 //! The conflict log: what a sync had to choose between, kept where a
-//! person can read it. docs/android/ROADMAP.md Phase 3.
+//! person can read it.
 //!
 //! REQUIREMENTS.md §7 asks for "no silent data loss on conflict". The
 //! merge itself (`sync_merge.rs`, `sync_state.rs`) never drops a value

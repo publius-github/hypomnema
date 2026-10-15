@@ -1,6 +1,5 @@
 //! One full sync pass: take what the other device wrote, merge it into
 //! what this one wrote, send the result back, and propagate deletions.
-//! docs/android/ROADMAP.md Phase 1/3, REQUIREMENTS.md §3 and §7.
 //!
 //! `sync_bootstrap.rs` pulls a vault onto a device for the first time and
 //! `sync_push.rs` sends changes up; neither of them handles the case both

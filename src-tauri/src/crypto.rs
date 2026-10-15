@@ -1,5 +1,5 @@
 //! Passphrase-derived encryption for the few things on a device that are
-//! genuinely secret. docs/android/ROADMAP.md Phase 4.
+//! genuinely secret.
 //!
 //! Argon2id for the key derivation and AES-256-GCM for the box, both pure
 //! Rust so they cross-compile for `aarch64-linux-android` with no native

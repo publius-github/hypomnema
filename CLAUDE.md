@@ -16,13 +16,13 @@ The `VERSION` file at the repo root is the single source of truth for the app ve
 - Every bump also gets an entry at the top of `CHANGELOG.md` (`## <version> - <date>` plus the commit's summary).
 - `scripts/windows/release.sh [major|minor|patch]` does the same bump plus commit, tag `v<version>`, and push - it triggers the release pipeline, so use it only when actually cutting a release. The release workflow rejects tags that do not match `VERSION`.
 
-## This machine: development and testing only
+## This machine: development, testing and local builds
 
-This machine is for development and testing (lint, typecheck, unit tests, `npm run tauri dev`). Do not cut releases from here - the shipped Windows installer is built in CI (`release.yml` on a `v*` tag builds NSIS on a Windows runner).
+A Windows machine worked on from WSL. `node_modules` is installed for Windows, so `npm test` and `npm run build` (vitest/vite need the native Windows packages) run through `powershell.exe`; lint, typecheck and the Rust checks run from WSL. Local Windows installers are built with `scripts/windows/build.ps1` through `powershell.exe`, and the Android APK with `scripts/android/build-android.sh`. Do not cut releases from here - the shipped Windows installer is built in CI (`release.yml` on a `v*` tag builds NSIS on a Windows runner).
 
 ## Settings over hardcode
 
-Any behavior that can reasonably be parameterized must be exposed through Settings, not hardcoded: add a field to `AppConfig` (`src-tauri/src/config.rs` - default, `sanitized()` clamp, `settings_pairs()`), let ts-rs regenerate the binding via `cargo test`, and add a control in the matching Settings tab (`src/sections/Settings.tsx`). This applies to counts, sizes, horizons, visibility toggles, and layout proportions alike. Hardcode only true constants (protocol values, schema names) or things with no sane alternative value.
+Any behavior that can reasonably be parameterized must be exposed through Settings, not hardcoded: add a field to `AppConfig` (`src-tauri/src/config.rs` - default, `sanitized()` clamp, `settings_pairs()`), let ts-rs regenerate the binding via `cargo test`, and add a control in the matching Settings tab (`src/sections/settings/`, filed in `src/lib/settingsCatalog.ts`). This applies to counts, sizes, horizons, visibility toggles, and layout proportions alike. Hardcode only true constants (protocol values, schema names) or things with no sane alternative value.
 
 ## Checks before committing
 

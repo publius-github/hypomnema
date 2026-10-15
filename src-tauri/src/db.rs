@@ -136,8 +136,8 @@ const MIGRATIONS: &[&str] = &[
     ) WHERE list_id IS NULL AND id IN (SELECT task_id FROM lists_task_map);
     DROP TABLE lists_task_map;
     CREATE UNIQUE INDEX idx_lists_active_name ON lists(name) WHERE archived = 0;",
-    // 016: per-record provenance for cross-device merge
-    // (docs/android/ROADMAP.md Phase 1). `updated_at` is UTC ISO-8601,
+    // 016: per-record provenance for cross-device merge.
+    // `updated_at` is UTC ISO-8601,
     // `updated_by` the writing device's id from `sync_device`.
     //
     // Stamped by triggers rather than at the ~70 call sites that write

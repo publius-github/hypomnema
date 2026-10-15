@@ -1,5 +1,5 @@
 //! This installation's device id: the `updated_by` half of the merge
-//! stamps (docs/android/ROADMAP.md Phase 1, REQUIREMENTS.md §3).
+//! stamps.
 //!
 //! It lives in the app's **private config dir**, never in the vault. A
 //! vault copied or synced to a second machine must not carry the first

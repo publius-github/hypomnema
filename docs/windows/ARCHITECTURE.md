@@ -10,7 +10,7 @@ Two windows: `main` (the app) and `capture`, a small hidden always-on-top window
 
 Google sign-in (`google_auth.rs`) is desktop-only too: the consent page opens in the default browser and returns to a one-shot listener on `127.0.0.1:<free port>`, which answers with a "you can close this tab" page; the main window is brought back to the front afterwards. The desktop sync scheduler (`sync_scheduler.rs`) starts in setup, hears main-window focus from `on_window_event`, and gets one last pass from the `RunEvent::Exit` handler (`run` now builds the app and runs it with an event callback).
 
-None of this exists on mobile: the tray, global-shortcut and updater plugins, and the pre-created capture window are `#[cfg(desktop)]`-only in `lib.rs`; mobile gets no-op `#[cfg(mobile)]` stubs with the same signatures so shared call sites need no branching (see `docs/android/SPIKES.md`, Spike B).
+None of this exists on mobile: the tray, global-shortcut and updater plugins, and the pre-created capture window are `#[cfg(desktop)]`-only in `lib.rs`; mobile gets no-op `#[cfg(mobile)]` stubs with the same signatures so shared call sites need no branching.
 
 ## Build
 
