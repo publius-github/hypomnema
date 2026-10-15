@@ -4,11 +4,12 @@ import type { AppConfig } from "../types";
  * Theme-adaptive object colors. Every object color (cadence plates and
  * stripes, chips, status marks, the header and marker tones) is one hex
  * for both themes; a hex tuned for dark panels is unreadable on light
- * ones and the other way round. `readable` keeps the hue and chroma and
- * moves only the OKLCH lightness - lighter on a dark theme, darker on a
- * light one - just far enough to reach `color_min_contrast` against the
- * panels. A color that already reads is returned untouched, so a picked
- * color stays the picked color wherever it works.
+ * ones and the other way round. `readable` keeps the hue and moves only
+ * the OKLCH lightness (chroma drops only where the gamut runs out) -
+ * lighter on a dark theme, darker on a light one - just far enough to
+ * reach `color_min_contrast` against the panels. A color that already
+ * reads is returned untouched, so a picked color stays the picked color
+ * wherever it works.
  */
 
 /** Alpha of the tint behind colored text (plates, chips) - `26` hex. */

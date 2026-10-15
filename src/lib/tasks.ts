@@ -400,9 +400,9 @@ const CADENCE_HUE_MARGIN = 20;
 
 /**
  * CATEGORY_PALETTE minus the hues the cadence sections already wear:
- * with the defaults weekly is blue and monthly purple, and a chip of
- * the same hue under that plate reads as noise rather than as a
- * separate label. Greyish cadence colors (daily) claim no hue. Falls
+ * a chip of the same hue as the Weekly or Monthly plate above it reads
+ * as noise rather than as a separate label. Greyish cadence colors
+ * claim no hue. Falls
  * back to the whole palette should the cadence colors cover it all.
  */
 function chipPalette(config: AppConfig | null): string[] {

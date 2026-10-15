@@ -8,11 +8,11 @@ Colors adapt to the theme: every object color - cadence plates and stripes, cate
 
 ## 0.97.0 - 2026-10-16
 
-New default color palette, tuned for both themes: every object color is picked in OKLCH at the lightness that reads best on dark and light panels alike (about 3.7-4.1:1 on all four surfaces). Cadences: exact coral #df4645, daily teal #0a8c81, weekly blue #2f7dda, monthly violet #8b68db, yearly pink #cb5092, General neutral; closed plates and status marks: postponed amber #a97205, waiting cyan #0a88a5, done green #079042, dropped neutral gray #797d85; category chip steel #6b7f98 (alternate pair lime #5a8a05 / orange #c95e05), habit-rate alert orange #c95e05; the varied chip palette is twelve hues on the same rule. Main text, weekday marker and the list date chip go back to following the theme (a fixed light text color made the Light theme unreadable)
+New default color palette, tuned for both themes: every object color is picked in OKLCH at the lightness that reads best on dark and light panels alike (about 3.7-4.1:1 on all four surfaces). Cadences: exact coral #df4645, daily teal #0a8c81, weekly blue #2f7dda, monthly violet #8b68db, yearly pink #cb5092, General neutral; closed plates and status marks: postponed amber #a97205, waiting cyan #0a88a5, done green #079042, dropped neutral gray #797d85; category chip steel #6b7f98 (alternate pair lime #5a8a05 / orange #c95e05), habit-rate alert orange #c95e05; the varied chip palette is twelve hues on the same rule. Main text, weekday marker and the list date chip follow the theme by default
 
 ## 0.96.7 - 2026-10-16
 
-Default settings follow the owner's mine3 profile: editor line numbers on, dashboard split 75, UI and editor font size 16, softer weekly (#c9c8fe) and monthly (#febec3) cadence colors, main text #dedede, violet weekday markers (#c485ff), a cyan date chip inside list columns (#06b6d4), brighter done/waiting/dropped plate colors, and Postponed, waiting and dropped sections start unfolded (Done still folds)
+New defaults: editor line numbers on, dashboard split 75, UI and editor font size 16, and Postponed, waiting and dropped sections start unfolded (Done still folds); the color defaults set here were replaced in 0.97.0
 
 ## 0.96.6 - 2026-10-15
 
