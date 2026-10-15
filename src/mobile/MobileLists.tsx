@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useAppStore } from "../store";
 import { orderLists } from "../lib/tasks";
 import { useListSections } from "../hooks/useColumnSections";
@@ -6,6 +6,8 @@ import Sections from "./Sections";
 import { useBackStep } from "./back";
 import { Toggle } from "./controls";
 import type { List } from "../types";
+
+const FOLDED_KEY = "hypomnema.lists.foldedGroups";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
 
@@ -43,6 +45,28 @@ export default function MobileLists() {
   // the open group's own settings fold, same shape as a list's
   const [groupSettings, setGroupSettings] = useState(false);
 
+  // groups the user folded on the index; every group starts open, and
+  // the choice is remembered on this phone
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(FOLDED_KEY);
+      return new Set(raw ? (JSON.parse(raw) as number[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleGroup = (id: number) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      try {
+        localStorage.setItem(FOLDED_KEY, JSON.stringify([...next]));
+      } catch {
+        // storage unavailable: the fold just lasts this session
+      }
+      return next;
+    });
+
   const alpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   const active = useMemo(() => lists.filter((list) => !list.archived), [lists]);
   const current = active.find((list) => list.id === openId) ?? null;
@@ -63,7 +87,7 @@ export default function MobileLists() {
   // the desktop list column's own layout: Priority, backlog, closed
   const sections = useListSections(current);
 
-  const listRow = (list: List) => {
+  const listRow = (list: List, nested = false) => {
     const open = tasks.filter(
       (t) =>
         t.list_id === list.id &&
@@ -74,7 +98,9 @@ export default function MobileLists() {
       <li key={list.id} className="border-b border-line/60">
         <button
           onClick={() => setOpenId(list.id)}
-          className="flex w-full items-center justify-between px-4 py-4 text-left"
+          className={`flex w-full items-center justify-between py-4 pr-4 text-left ${
+            nested ? "pl-10" : "pl-4"
+          }`}
         >
           <span className="flex min-w-0 items-center gap-2">
             {list.color && (
@@ -218,7 +244,7 @@ export default function MobileLists() {
               No lists in this group yet - add one below.
             </li>
           )}
-          {members.map(listRow)}
+          {members.map((list) => listRow(list))}
         </ul>
 
         {/* filling a group from inside it: a new list lands here
@@ -300,17 +326,31 @@ export default function MobileLists() {
               No lists yet.
             </li>
           )}
+          {/* groups open in place, members indented under them, so
+              the whole hierarchy reads at a glance; the triangle folds
+              a group, the gear opens its own screen (settings, filing
+              lists in) */}
           {groups.map((group) => {
-            const count = active.filter(
-              (l) => l.group_id === group.id,
-            ).length;
+            const members = orderLists(
+              active.filter((l) => l.group_id === group.id),
+              tasks,
+              alpha,
+            );
+            const folded = collapsed.has(group.id);
             return (
-              <li key={`g${group.id}`} className="border-b border-line/60">
-                <button
-                  onClick={() => setGroupId(group.id)}
-                  className="flex w-full items-center justify-between px-4 py-4 text-left"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
+              <Fragment key={`g${group.id}`}>
+                <li className="flex items-stretch border-b border-line/60">
+                  <button
+                    onClick={() => toggleGroup(group.id)}
+                    aria-expanded={!folded}
+                    className="flex min-w-0 flex-1 items-center gap-2 py-4 pl-4 text-left"
+                  >
+                    <span
+                      aria-hidden
+                      className="w-4 shrink-0 text-center text-xs text-content-muted"
+                    >
+                      {folded ? "▸" : "▾"}
+                    </span>
                     {group.color && (
                       <span
                         aria-hidden
@@ -319,17 +359,25 @@ export default function MobileLists() {
                       />
                     )}
                     <span className="min-w-0 break-words font-medium">
-                      ▸ {group.name}
+                      {group.name}
                     </span>
-                  </span>
-                  <span className="ml-3 shrink-0 text-sm text-content-muted">
-                    {count} {count === 1 ? "list" : "lists"}
-                  </span>
-                </button>
-              </li>
+                    <span className="ml-auto shrink-0 pl-3 text-sm text-content-muted">
+                      {members.length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setGroupId(group.id)}
+                    aria-label={`Open group ${group.name}`}
+                    className="shrink-0 px-4 text-content-muted"
+                  >
+                    ⋯
+                  </button>
+                </li>
+                {!folded && members.map((list) => listRow(list, true))}
+              </Fragment>
             );
           })}
-          {ungrouped.map(listRow)}
+          {ungrouped.map((list) => listRow(list))}
         </ul>
         <div className="flex flex-col gap-2 border-t border-line p-3">
           {/* the same field makes both: a phone with no way to create a

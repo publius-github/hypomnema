@@ -26,9 +26,10 @@ import {
 import { useEditTask } from "./editing";
 import type { Task } from "../types";
 
-/** A status badge on the title line: small enough not to outweigh it. */
+/** A status badge in the row's right-hand column: small enough not to
+ * outweigh the title, narrow enough for the column's fixed width. */
 const BADGE =
-  "whitespace-nowrap rounded px-1 text-[10px] font-semibold uppercase leading-4 tracking-wide";
+  "whitespace-nowrap rounded px-1 text-[9px] font-semibold uppercase leading-4";
 
 /**
  * One task, sized for a thumb and legible at a glance.
@@ -219,7 +220,7 @@ export default function TaskRow({
           >
             <StatusIcon status={task.status} />
           </span>
-          <span className="min-w-0" style={{ opacity: dim }}>
+          <span className="min-w-0 flex-1" style={{ opacity: dim }}>
             <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
               {listExact &&
                 task.scheduled_date &&
@@ -266,41 +267,43 @@ export default function TaskRow({
                 )}
                 {text}
               </span>
-              {/* the badges ride the title's own line and wrap after it,
-                  rather than taking a line of their own under every row */}
-              {task.priority && (
-                // the day view's loud label; inside a list the Priority
-                // plate already says it, so a star is enough
-                showList ? (
-                  <span className={`${BADGE} bg-warn/15 text-warn`}>
-                    priority
-                  </span>
-                ) : (
-                  <span className="text-warn">★</span>
-                )
+              {task.priority && !showList && (
+                // inside a list the Priority plate already says it, so a
+                // star is enough
+                <span className="text-warn">★</span>
               )}
               {task.time && (
                 <span className="text-xs text-content-muted">{task.time}</span>
               )}
-              {task.overdue && !closed && (
-                <span className={`${BADGE} bg-danger/15 text-danger`}>
-                  overdue
-                </span>
-              )}
-              {habitRate && (habitRate.alert || !rateAlertOnly) && (
-                <span
-                  title="Completion rate"
-                  className={`${BADGE} ${
-                    habitRate.alert ? "" : "bg-line/40 text-content-muted"
-                  }`}
-                  style={
-                    habitRate.alert ? tintStyle(rateAlertColor) : undefined
-                  }
-                >
-                  rate {habitRate.rate}%
-                </span>
-              )}
             </span>
+          </span>
+          {/* status badges sit in a column of their own on the right,
+              reserved on every row: a badge riding the title's line
+              wrapped under some titles and not others, so rows of the
+              same list read differently */}
+          <span
+            className="ml-auto flex w-[3.25rem] shrink-0 flex-col items-end gap-0.5 pt-0.5"
+            style={{ opacity: dim }}
+          >
+            {task.priority && showList && (
+              <span className={`${BADGE} bg-warn/15 text-warn`}>priority</span>
+            )}
+            {task.overdue && !closed && (
+              <span className={`${BADGE} bg-danger/15 text-danger`}>
+                overdue
+              </span>
+            )}
+            {habitRate && (habitRate.alert || !rateAlertOnly) && (
+              <span
+                title="Completion rate"
+                className={`${BADGE} ${
+                  habitRate.alert ? "" : "bg-line/40 text-content-muted"
+                }`}
+                style={habitRate.alert ? tintStyle(rateAlertColor) : undefined}
+              >
+                rate {habitRate.rate}%
+              </span>
+            )}
           </span>
         </button>
         {subtasks.length > 0 && (

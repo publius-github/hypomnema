@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
-import { addDaysISO } from "../lib/tasks";
 import { useBackStep } from "./back";
+import DayHeader, { HeaderButton, MenuIcon } from "./DayHeader";
 import {
   serialSaves,
   settleSave,
@@ -47,6 +47,8 @@ export default function MobileJournal() {
   const baseRef = useRef<{ date: string; content: string } | null>(null);
   // hardware back leaves the entry browser before leaving the tab
   useBackStep(browsing, () => setBrowsing(false));
+  // and from another day returns to today first
+  useBackStep(!browsing && date !== today, () => setDate(today));
 
   // a search hit or the Review's "Weekly note" landed here with a date
   const openDate = useAppStore((s) => s.journalOpenDate);
@@ -204,61 +206,35 @@ export default function MobileJournal() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-1 border-b border-line px-2 py-3">
-        <button
-          onClick={() => {
-            // newest first: the recent past is what gets reopened
-            void invoke("journal_list")
-              .then((dates) => {
-                setEntries([...dates].sort((a, b) => b.localeCompare(a)));
-                setBrowsing(true);
-              })
-              .catch((e) => setError(errorMessage(e)));
-          }}
-          aria-label="All entries"
-          className="px-2 py-1 text-lg text-content-muted"
-        >
-          ≡
-        </button>
-        <button
-          onClick={() => setDate((d) => addDaysISO(d, -1))}
-          aria-label="Previous day"
-          className="px-2 py-1 text-lg text-content-muted"
-        >
-          ‹
-        </button>
-        <div className="min-w-0 text-center">
-          <div className="truncate font-semibold">
-            {date === today ? "Today" : date}
-          </div>
-          <div className="flex items-center justify-center gap-2 text-xs text-content-muted">
-            {/* the date doubles as a picker, same as the day view's */}
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => e.target.value && setDate(e.target.value)}
-              aria-label="Jump to date"
-              className="border-none bg-transparent p-0 text-center text-xs text-content-muted outline-none"
-            />
-            <SaveIndicator state={saveState} onRetry={() => void flush()} />
-          </div>
+      <DayHeader
+        date={date}
+        today={today}
+        onDate={setDate}
+        left={
+          <HeaderButton
+            label="All entries"
+            onClick={() => {
+              // newest first: the recent past is what gets reopened
+              void invoke("journal_list")
+                .then((dates) => {
+                  setEntries([...dates].sort((a, b) => b.localeCompare(a)));
+                  setBrowsing(true);
+                })
+                .catch((e) => setError(errorMessage(e)));
+            }}
+          >
+            <MenuIcon />
+          </HeaderButton>
+        }
+        status={saveState === "dirty" && " · Saving..."}
+      />
+      {/* a failed save is the one state worth a line of its own; a
+          steady "Saved" in the header was noise on every entry */}
+      {saveState === "failed" && (
+        <div className="flex justify-end border-b border-line px-4 py-1">
+          <SaveIndicator state={saveState} onRetry={() => void flush()} />
         </div>
-        <button
-          onClick={() => setDate((d) => addDaysISO(d, 1))}
-          aria-label="Next day"
-          className="px-2 py-1 text-lg text-content-muted"
-        >
-          ›
-        </button>
-        <button
-          onClick={() => setDate(today)}
-          disabled={date === today}
-          aria-label="Back to today"
-          className="px-2 py-1 text-xs text-content-muted disabled:opacity-30"
-        >
-          Today
-        </button>
-      </header>
+      )}
       <textarea
         value={content}
         onChange={(e) => edit(e.target.value)}

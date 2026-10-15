@@ -1,28 +1,11 @@
 import { useState } from "react";
 import { useAppStore } from "../store";
 import { addDaysISO, currentAndNextBlock, daysBetweenISO } from "../lib/tasks";
+import { useBackStep } from "./back";
+import DayHeader, { dayLabel, HeaderButton, SearchIcon } from "./DayHeader";
 import { useDaySections } from "../hooks/useColumnSections";
 import { useMobileNav } from "./nav";
 import Sections from "./Sections";
-
-function dayLabel(date: string, today: string): string {
-  if (date === today) return "Today";
-  if (date === addDaysISO(today, 1)) return "Tomorrow";
-  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-/** The date under the day's name: "Wed, 14 Oct". */
-function dateLine(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
 
 /**
  * The phone's main screen: one day at a time, swipeable by buttons and a
@@ -47,6 +30,9 @@ export default function MobileDay() {
 
   const date = addDaysISO(today, offset);
   const sections = useDaySections(date);
+  // hardware back from another day returns to today before the press
+  // that closes the app
+  useBackStep(offset !== 0, () => setGridOffset(0));
 
   // the day's ambient context, same sources as the desktop column:
   // weekly focus, this day's reminders, and (today only) the schedule
@@ -67,66 +53,16 @@ export default function MobileDay() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Three columns with equal side slots, so the day sits in the
-          true centre whatever the side buttons hold */}
-      <header className="grid grid-cols-[3rem_1fr_3rem] items-center border-b border-line px-1 py-1.5">
-        <button
-          onClick={openSearch}
-          aria-label="Search"
-          className="h-10 text-lg text-content-muted"
-        >
-          ⌕
-        </button>
-        <div className="flex min-w-0 items-center justify-center">
-          <button
-            onClick={() => setGridOffset(offset - 1)}
-            aria-label="Previous day"
-            className="h-10 w-10 shrink-0 text-xl text-content-muted"
-          >
-            ‹
-          </button>
-          {/* the label doubles as a picker: a transparent date input laid
-              over it opens the system calendar, without the input's own
-              mm/dd/yyyy field and dropdown arrow showing */}
-          <label className="relative min-w-0 flex-1 text-center">
-            <div className="truncate font-semibold leading-tight">
-              {dayLabel(date, today)}
-            </div>
-            <div className="truncate text-xs leading-tight text-content-muted">
-              {dateLine(date)}
-            </div>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => {
-                if (e.target.value)
-                  setGridOffset(daysBetweenISO(today, e.target.value));
-              }}
-              aria-label="Jump to date"
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            />
-          </label>
-          <button
-            onClick={() => setGridOffset(offset + 1)}
-            aria-label="Next day"
-            className="h-10 w-10 shrink-0 text-xl text-content-muted"
-          >
-            ›
-          </button>
-        </div>
-        {/* only away from today; the slot stays so nothing shifts */}
-        {offset !== 0 ? (
-          <button
-            onClick={() => setGridOffset(0)}
-            aria-label="Back to today"
-            className="h-10 text-xs font-medium text-accent"
-          >
-            Today
-          </button>
-        ) : (
-          <span />
-        )}
-      </header>
+      <DayHeader
+        date={date}
+        today={today}
+        onDate={(d) => setGridOffset(daysBetweenISO(today, d))}
+        left={
+          <HeaderButton label="Search" onClick={openSearch}>
+            <SearchIcon />
+          </HeaderButton>
+        }
+      />
 
       {(focus || reminders.length > 0 || schedule) && (
         <div className="flex flex-col gap-0.5 border-b border-line px-4 py-2 text-xs text-content-muted">
