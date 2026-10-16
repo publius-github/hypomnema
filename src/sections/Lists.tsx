@@ -234,12 +234,17 @@ export default function Lists() {
                 <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
                   {openGroup ? "Group lists" : "All lists"}
                 </div>
-                {rows.map((row) => {
-                  // a flat panel has no group column to scroll to, so
-                  // the group's own row drills in, like its header chip
-                  const drillIn =
+                {rows.map((row, i) => {
+                  // a flat panel has no group column: the group's row
+                  // scrolls to its first member, which the index lists
+                  // right under it - the index only ever scrolls, the
+                  // group view is entered from the group chip
+                  const next = rows[i + 1];
+                  const target =
                     row.type === "group" &&
-                    config.lists_group_display === "flat";
+                    config.lists_group_display === "flat"
+                      ? next?.type === "list" && next.nested && next
+                      : row;
                   return (
                     <button
                       key={itemKey(row)}
@@ -248,16 +253,8 @@ export default function Lists() {
                           ? "bg-accent/15 text-accent"
                           : "text-content-muted hover:bg-line/40 hover:text-content"
                       }`}
-                      title={
-                        drillIn
-                          ? `Open group "${itemName(row)}"`
-                          : `Scroll to "${itemName(row)}"`
-                      }
-                      onClick={() =>
-                        drillIn && row.type === "group"
-                          ? setOpenGroupId(row.group.id)
-                          : jumpTo(itemKey(row))
-                      }
+                      title={`Scroll to "${itemName(row)}"`}
+                      onClick={() => target && jumpTo(itemKey(target))}
                     >
                       <IndexRowLabel row={row} name={itemName(row)} />
                     </button>

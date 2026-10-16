@@ -500,12 +500,17 @@ function ListZone({
             <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
               {openGroup ? "Group lists" : "All lists"}
             </div>
-            {rows.map((row) => {
-              const slot = slotOf(itemKey(row));
-              const onPage = slot >= off && slot < off + perPage;
-              // a flat zone has no group column to page to, so the
-              // group's own row drills in, like its header chip
-              const drillIn = row.type === "group" && slot < 0;
+            {rows.map((row, i) => {
+              const own = slotOf(itemKey(row));
+              const onPage = own >= off && own < off + perPage;
+              // a flat zone has no group column: the group's row pages
+              // to its first member, listed right under it - the index
+              // only ever pages, the group view is entered from the
+              // group chip
+              const next = rows[i + 1];
+              const target =
+                own < 0 && next?.type === "list" && next.nested ? next : row;
+              const slot = slotOf(itemKey(target));
               return (
                 <button
                   key={itemKey(row)}
@@ -514,15 +519,9 @@ function ListZone({
                       ? "bg-accent/15 text-accent"
                       : "text-content-muted hover:bg-line/40 hover:text-content"
                   }`}
-                  title={
-                    drillIn
-                      ? `Open group "${itemName(row)}"`
-                      : `Jump to "${itemName(row)}"`
-                  }
+                  title={`Jump to "${itemName(row)}"`}
                   onClick={() =>
-                    drillIn && row.type === "group"
-                      ? openGroupAt(row.group.id)
-                      : jumpTo(Math.max(0, slot), itemKey(row))
+                    slot >= 0 && jumpTo(slot, itemKey(target))
                   }
                 >
                   <IndexRowLabel row={row} name={itemName(row)} />

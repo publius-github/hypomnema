@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.100.2 - 2026-10-16
+
+All-lists index never opens a group view any more: with flat groups a group's row scrolls (Lists page) or pages (dashboard) to its first member list instead; the group view is entered from the group chip on a list header or a group tile
+
 ## 0.100.1 - 2026-10-16
 
 All-lists index: a jump on the Lists page lands the column a little below the top edge, so its highlight ring is no longer cut off; top-level lists start at the left edge, under the groups' ▸ markers, which are a size larger, and group members hang one step past the group's name
