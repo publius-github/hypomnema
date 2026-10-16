@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import type { AppConfig } from "../types";
 import { indexRows, orderLists, orderPanel } from "../lib/tasks";
 import type { IndexRow } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
@@ -12,6 +11,13 @@ import TaskModal from "../components/TaskModal";
 import NewListForm from "../components/NewListForm";
 import GroupBackBar from "../components/GroupBackBar";
 import QuickAddModal from "../components/QuickAddModal";
+import {
+  counts,
+  GROUP_DISPLAY_OPTIONS,
+  GROUP_DISPLAY_TITLE,
+  HeaderControls,
+  HeaderSelect,
+} from "../components/HeaderControls";
 
 /**
  * Dedicated lists dashboard: every list at once in a wrapping grid,
@@ -127,7 +133,7 @@ export default function Lists() {
       onDragCancel={dnd.onDragCancel}
     >
       <div className="flex min-h-full flex-col gap-3 p-4">
-        <div className="flex items-center gap-2">
+        <div className="flex min-h-[24px] items-center gap-2">
           {openGroup ? (
             <GroupBackBar
               group={openGroup}
@@ -137,59 +143,45 @@ export default function Lists() {
           ) : (
             <span className="text-sm font-semibold">Lists</span>
           )}
-          {/* the panel shape sits next to the column count, on the page
-              it reshapes - Settings has no copy; the dashboard header
-              carries the same switch */}
-          {!openGroup && (
-            <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
-              <span>Groups</span>
-              <select
-                className="input px-1 py-0.5 text-xs"
-                title="Folded: one tile per group. Flat: every list its own column, with its group as a chip on the header."
-                value={config.lists_group_display}
-                onChange={(e) =>
-                  void useAppStore.getState().updateConfig({
-                    lists_group_display: e.target
-                      .value as AppConfig["lists_group_display"],
-                  })
-                }
-              >
-                <option value="folded">Folded</option>
-                <option value="flat">Flat</option>
-              </select>
-            </div>
-          )}
-          <div
-            className={`flex items-center gap-1 text-xs text-content-muted${
-              openGroup ? " ml-auto" : ""
-            }`}
-          >
-            <span>Columns</span>
-            <select
-              className="input px-1 py-0.5 text-xs"
+          {/* the column count and the panel shape, on the page they
+              reshape - Settings has no copy; the dashboard header
+              carries the same two, named the same and in the same
+              order */}
+          <HeaderControls>
+            <HeaderSelect
+              label="Lists"
+              title="List columns per row"
               value={columns}
-              onChange={(e) =>
+              options={counts([1, 2, 3, 4, 5, 6, 8])}
+              onChange={(n) =>
                 void useAppStore
                   .getState()
-                  .updateConfig({ lists_page_columns: Number(e.target.value) })
+                  .updateConfig({ lists_page_columns: n })
               }
+            />
+            {!openGroup && (
+              <HeaderSelect
+                label="Groups"
+                title={GROUP_DISPLAY_TITLE}
+                value={config.lists_group_display}
+                options={GROUP_DISPLAY_OPTIONS}
+                onChange={(v) =>
+                  void useAppStore
+                    .getState()
+                    .updateConfig({ lists_group_display: v })
+                }
+              />
+            )}
+            {/* same entry point as the dashboard header, and the same
+                spot on every task view: the far right of the header */}
+            <button
+              className="btn-ghost px-2 py-0.5 text-xs"
+              title="Add a task to any day or list"
+              onClick={() => setQuickAddOpen(true)}
             >
-              {[1, 2, 3, 4, 5, 6, 8].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* same entry point as the dashboard header, and the same spot
-              on every task view: the far right of the header */}
-          <button
-            className="btn-ghost px-2 py-0.5 text-xs"
-            title="Add a task to any day or list"
-            onClick={() => setQuickAddOpen(true)}
-          >
-            + Task
-          </button>
+              + Task
+            </button>
+          </HeaderControls>
         </div>
         <div className="flex items-start gap-3">
           <div

@@ -302,7 +302,7 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
   },
   {
     key: "lists_page_columns",
-    why: "set by the Columns dropdown on the Lists page header",
+    why: "set by the Lists dropdown on the Lists page header",
   },
   {
     key: "lists_group_display",

@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.100.0 - 2026-10-16
+
+Notes: Markdown headings stay bold and colored but no longer grow - every line of a note is the text size. Alt+Z toggles word wrap in the editor (for the session, across notes): off, a long Tab-aligned table keeps its rows on one line and scrolls sideways. Page headers: the view controls on Dashboard, Days and Lists share one component with one spacing - the same gap between controls and before + Task; the Lists page's column count is called Lists, as on the dashboard; the dashboard's Days count moves to the right end, where the Days page has it
+
 ## 0.99.0 - 2026-10-16
 
 Colors leave Settings: every color control is gone from the Settings page - the Appearance palette (accent, background, panels, borders, text tones) and the contrast floor, cadence and status-mark colors, category chip coloring, closed-section plate colors, gap fill, day header, reminder, weekly focus, weekday marker, rate alert and list date chip colors; they are still read from app.yml and profiles, edited by hand. New defaults from the owner's profile: weekly cadence amber #d8ac5f, category chip blue #5194e6, dropped mark #b76262, weekday marker violet #bb9dc8, Not done, dropped folded by default, the exact-date stripe kept inside lists, and a lighter dark-theme secondary text (#bfbfbf). The framed section-panel layout is removed (section_cards, section_gap, category_gap_bands): the flat list view is the only one. Section plates (DAILY, WEEKLY, DONE...) are bold. Breaks: three stripes still open the closed blocks, but between Postponed / Done, waiting / Done / Dropped there are now two

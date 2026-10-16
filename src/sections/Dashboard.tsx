@@ -18,9 +18,16 @@ import GroupColumn from "../components/GroupColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import QuickAddModal from "../components/QuickAddModal";
+import {
+  counts,
+  GROUP_DISPLAY_OPTIONS,
+  GROUP_DISPLAY_TITLE,
+  HeaderControls,
+  HeaderSelect,
+} from "../components/HeaderControls";
 import NewListForm from "../components/NewListForm";
 import GroupBackBar from "../components/GroupBackBar";
-import type { AppConfig, Task } from "../types";
+import type { Task } from "../types";
 import { readable } from "../lib/color";
 
 export default function Dashboard() {
@@ -143,66 +150,47 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          {/* the day count, the list-zone count and the group shape
+          {/* the list-zone count, the group shape and the day count
               live here, not in Settings: each control sits on the panel
-              it reshapes */}
-          <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
-            <span>Days</span>
-            <select
-              className="input px-1 py-0.5 text-xs"
-              value={config.grid_columns}
-              onChange={(e) =>
-                void useAppStore
-                  .getState()
-                  .updateConfig({ grid_columns: Number(e.target.value) })
-              }
-            >
-              {dayCounts.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            <span className="ml-2">Lists</span>
-            <select
-              className="input px-1 py-0.5 text-xs"
+              it reshapes. Days comes last, so it stands where the Days
+              page has it */}
+          <HeaderControls>
+            <HeaderSelect
+              label="Lists"
               title="List columns visible in the bottom zone"
               value={config.list_columns}
-              onChange={(e) =>
+              options={counts([1, 2, 3, 4, 5, 6, 8])}
+              onChange={(n) =>
+                void useAppStore.getState().updateConfig({ list_columns: n })
+              }
+            />
+            <HeaderSelect
+              label="Groups"
+              title={GROUP_DISPLAY_TITLE}
+              value={config.lists_group_display}
+              options={GROUP_DISPLAY_OPTIONS}
+              onChange={(v) =>
                 void useAppStore
                   .getState()
-                  .updateConfig({ list_columns: Number(e.target.value) })
+                  .updateConfig({ lists_group_display: v })
               }
-            >
-              {[1, 2, 3, 4, 5, 6, 8].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            <span className="ml-2">Groups</span>
-            <select
-              className="input px-1 py-0.5 text-xs"
-              title="Folded: one tile per group. Flat: every list its own column, with its group as a chip on the header."
-              value={config.lists_group_display}
-              onChange={(e) =>
-                void useAppStore.getState().updateConfig({
-                  lists_group_display: e.target
-                    .value as AppConfig["lists_group_display"],
-                })
+            />
+            <HeaderSelect
+              label="Days"
+              value={config.grid_columns}
+              options={counts(dayCounts)}
+              onChange={(n) =>
+                void useAppStore.getState().updateConfig({ grid_columns: n })
               }
+            />
+            <button
+              className="btn-ghost px-2 py-0.5 text-xs"
+              title="Add a task to any day or list"
+              onClick={() => setQuickAddOpen(true)}
             >
-              <option value="folded">Folded</option>
-              <option value="flat">Flat</option>
-            </select>
-          </div>
-          <button
-            className="btn-ghost px-2 py-0.5 text-xs"
-            title="Add a task to any day or list"
-            onClick={() => setQuickAddOpen(true)}
-          >
-            + Task
-          </button>
+              + Task
+            </button>
+          </HeaderControls>
           {dashboard?.focus && (
             <button
               className="absolute left-1/2 -translate-x-1/2 text-sm font-medium italic text-accent hover:underline"

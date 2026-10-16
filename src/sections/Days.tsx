@@ -9,6 +9,7 @@ import DayColumn from "../components/DayColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import QuickAddModal from "../components/QuickAddModal";
+import { counts, HeaderControls, HeaderSelect } from "../components/HeaderControls";
 import type { Task } from "../types";
 
 /**
@@ -104,33 +105,27 @@ export default function Days() {
               Back to today
             </button>
           )}
-          <div className="ml-auto flex items-center gap-1 text-xs text-content-muted">
-            <span>Days</span>
-            <select
-              className="input px-1 py-0.5 text-xs"
+          <HeaderControls>
+            <HeaderSelect
+              label="Days"
               value={config.days_page_columns}
-              onChange={(e) =>
+              options={counts(Array.from({ length: 14 }, (_, i) => i + 1))}
+              onChange={(n) =>
                 void useAppStore
                   .getState()
-                  .updateConfig({ days_page_columns: Number(e.target.value) })
+                  .updateConfig({ days_page_columns: n })
               }
+            />
+            {/* same entry point as the dashboard header, and the same
+                spot on every task view: the far right of the header */}
+            <button
+              className="btn-ghost px-2 py-0.5 text-xs"
+              title="Add a task to any day or list"
+              onClick={() => setQuickAddOpen(true)}
             >
-              {Array.from({ length: 14 }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* same entry point as the dashboard header, and the same spot
-              on every task view: the far right of the header */}
-          <button
-            className="btn-ghost px-2 py-0.5 text-xs"
-            title="Add a task to any day or list"
-            onClick={() => setQuickAddOpen(true)}
-          >
-            + Task
-          </button>
+              + Task
+            </button>
+          </HeaderControls>
         </div>
         <div
           className="grid min-h-0 flex-1 gap-3 overflow-x-auto"

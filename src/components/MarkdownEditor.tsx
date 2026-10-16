@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { EditorState, Prec, RangeSetBuilder, type Extension, Transaction } from "@codemirror/state";
+import { Compartment, EditorState, Prec, RangeSetBuilder, type Extension, Transaction } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -44,16 +44,30 @@ import { useAppStore } from "../store";
 
 export type EditorMode = "markdown" | "yaml" | "plain";
 
-// Live-preview-lite: markdown syntax rendered in place (headings sized,
-// emphasis styled, code monospaced) while the source stays editable.
+// Word wrap, toggled with Alt+Z as in VS Code: off, a long line (a wide
+// Markdown table above all) stays on one row and scrolls sideways
+// instead of folding into a ragged block. The choice holds for the
+// session across documents - every editor reads it when it is built.
+let wrapLines = true;
+const wrapCompartment = new Compartment();
+
+const toggleWrap: Command = (view) => {
+  wrapLines = !wrapLines;
+  view.dispatch({
+    effects: wrapCompartment.reconfigure(
+      wrapLines ? EditorView.lineWrapping : [],
+    ),
+  });
+  return true;
+};
+
+// Live-preview-lite: markdown syntax rendered in place (headings bold
+// but at the text size - a note reads as one even column, no line
+// jumps in height - emphasis styled, code monospaced) while the source stays editable.
 // Token colors follow the VS Code Dark+/Light+ specs (dark_vs.json /
 // light_vs.json markup rules) via the --md-* theme vars in styles.css.
 const markdownHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.5em", fontWeight: "700", color: "var(--md-heading)" },
-  { tag: tags.heading2, fontSize: "1.3em", fontWeight: "700", color: "var(--md-heading)" },
-  { tag: tags.heading3, fontSize: "1.15em", fontWeight: "600", color: "var(--md-heading)" },
-  { tag: tags.heading4, fontWeight: "600", color: "var(--md-heading)" },
-  { tag: tags.heading, fontWeight: "600", color: "var(--md-heading)" },
+  { tag: tags.heading, fontWeight: "700", color: "var(--md-heading)" },
   { tag: tags.strong, fontWeight: "700", color: "var(--md-bold)" },
   { tag: tags.emphasis, fontStyle: "italic", color: "var(--md-italic)" },
   { tag: tags.strikethrough, textDecoration: "line-through", color: "rgb(var(--color-content-muted))" },
@@ -460,6 +474,7 @@ export default function MarkdownEditor({
         highlightSelectionMatches(),
         keymap.of([
           { key: "Tab", run: tabTableOrIndent, shift: indentLess },
+          { key: "Alt-z", run: toggleWrap, preventDefault: true },
           ...closeBracketsKeymap,
           ...defaultKeymap,
           ...searchKeymap,
@@ -493,7 +508,7 @@ export default function MarkdownEditor({
             return true;
           },
         }),
-        EditorView.lineWrapping,
+        wrapCompartment.of(wrapLines ? EditorView.lineWrapping : []),
         editorTheme,
         ...modeExtensions(mode),
         ...(showLineNumbers
