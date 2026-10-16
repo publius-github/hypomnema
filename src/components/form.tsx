@@ -294,3 +294,30 @@ export function Field({
     </label>
   );
 }
+
+/** A color that may be unset: the picker, then "clear" while one is
+ *  chosen or "none" while not (list and group dialogs). */
+export function OptionalColorField({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (color: string | null) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-content-muted">Color</span>
+      <ColorPicker value={value ?? "#3b82f6"} onChange={(c) => onChange(c)} />
+      {value ? (
+        <button
+          className="text-xs text-content-muted hover:text-content"
+          onClick={() => onChange(null)}
+        >
+          clear
+        </button>
+      ) : (
+        <span className="text-xs text-content-muted">none</span>
+      )}
+    </div>
+  );
+}

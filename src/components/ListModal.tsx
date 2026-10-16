@@ -11,7 +11,7 @@ import {
   STATUS_LABEL,
   LIST_GAP_STRIPES,
 } from "../lib/tasks";
-import { ColorPicker } from "./form";
+import { OptionalColorField } from "./form";
 import TaskModal from "./TaskModal";
 import GapFill from "./GapFill";
 import type { List, Task } from "../types";
@@ -171,23 +171,7 @@ export default function ListModal({
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-content-muted">Color</span>
-          <ColorPicker
-            value={color ?? "#3b82f6"}
-            onChange={(c) => setColor(c)}
-          />
-          {color ? (
-            <button
-              className="text-xs text-content-muted hover:text-content"
-              onClick={() => setColor(null)}
-            >
-              clear
-            </button>
-          ) : (
-            <span className="text-xs text-content-muted">none</span>
-          )}
-        </div>
+        <OptionalColorField value={color} onChange={setColor} />
         <label className="flex flex-col gap-1">
           <span className="text-xs text-content-muted">Description</span>
           <textarea

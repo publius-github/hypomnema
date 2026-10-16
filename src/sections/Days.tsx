@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
-import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
+import { useEditingTask } from "../hooks/useEditingTask";
 import { addDaysISO, gridDates } from "../lib/tasks";
 import { useTaskDnd, DND_ACCESSIBILITY } from "../components/taskDnd";
 import DateJump from "../components/DateJump";
@@ -10,7 +10,6 @@ import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
 import QuickAddModal from "../components/QuickAddModal";
 import { counts, HeaderControls, HeaderSelect } from "../components/HeaderControls";
-import type { Task } from "../types";
 import NavArrow from "../components/NavArrow";
 
 /**
@@ -20,46 +19,17 @@ import NavArrow from "../components/NavArrow";
 export default function Days() {
   const config = useAppStore((s) => s.config);
   const today = useAppStore((s) => s.today);
-  const tasks = useAppStore((s) => s.tasks);
   const gridOffset = useAppStore((s) => s.gridOffset);
   const setGridOffset = useAppStore((s) => s.setGridOffset);
-  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
-  const [fetchedTask, setFetchedTask] = useState<Task | null>(null);
+  const { setEditingTaskId, editingTask } = useEditingTask();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const dnd = useTaskDnd();
-
-  // same fallback as the Dashboard: the open task may leave the
-  // snapshot window while its modal is up
-  useEffect(() => {
-    if (editingTaskId === null) {
-      setFetchedTask(null);
-      return;
-    }
-    const inStore = useAppStore
-      .getState()
-      .tasks.some((t) => t.id === editingTaskId);
-    if (inStore) return;
-    let cancelled = false;
-    invoke("task_get", { id: editingTaskId })
-      .then((t) => {
-        if (!cancelled) setFetchedTask(t);
-      })
-      .catch(() => {
-        if (!cancelled) setEditingTaskId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [editingTaskId, tasks]);
 
   if (!config) return null;
   // the page has its own focus controls, independent of the dashboard:
   // a Today-only toggle and its own day count
   const columns = config.days_today_only ? 1 : config.days_page_columns;
   const dates = gridDates(addDaysISO(today, gridOffset), columns);
-  const editingTask =
-    tasks.find((t) => t.id === editingTaskId) ??
-    (fetchedTask && fetchedTask.id === editingTaskId ? fetchedTask : null);
 
   return (
     <DndContext

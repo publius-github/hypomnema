@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { currentAndNextBlock } from "../lib/tasks";
@@ -166,6 +166,103 @@ export default function Reminders() {
   );
 }
 
+/**
+ * Writes one change to a config file and reloads the overview, sending
+ * a failure to the error banner - the one way every tab here writes.
+ */
+function useConfigWrite(onWrite: () => Promise<void>) {
+  return async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      await onWrite();
+    } catch (e) {
+      useAppStore.getState().setError(errorMessage(e));
+    }
+  };
+}
+
+/**
+ * The rows of one config file: each opens its editor on click (or Enter
+ * on its text), deletes behind a confirmation, and shows `empty` when
+ * there is nothing. A row's own buttons keep it from being a button
+ * itself, so the keyboard stop is its text (`pressable`, `lib/a11y.ts`).
+ */
+function RowListEditor<T>({
+  items,
+  rowKey,
+  empty,
+  lead,
+  text,
+  trail,
+  editor,
+  deleteLabel,
+  onDelete,
+}: {
+  items: T[];
+  rowKey: (item: T, index: number) => string;
+  empty: ReactNode;
+  lead: (item: T, index: number) => ReactNode;
+  text: (item: T) => ReactNode;
+  trail?: (item: T) => ReactNode;
+  /** the row's edit form; `close` puts the row back */
+  editor: (item: T, index: number, close: () => void) => ReactNode;
+  deleteLabel: (item: T) => string;
+  onDelete: (index: number) => void;
+}) {
+  const [editing, setEditing] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const close = () => setEditing(null);
+
+  return (
+    <>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {items.length === 0 && (
+          <p className="pt-6 text-center text-sm text-content-muted">{empty}</p>
+        )}
+        {items.map((item, i) =>
+          editing === i ? (
+            <Fragment key={`edit-${i}`}>{editor(item, i, close)}</Fragment>
+          ) : (
+            <div
+              key={rowKey(item, i)}
+              className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
+              title="Click to edit"
+              role="presentation"
+              onClick={() => setEditing(i)}
+            >
+              {lead(item, i)}
+              <span
+                className="min-w-0 flex-1 wrap-break-word"
+                {...pressable(() => setEditing(i), { click: false })}
+              >
+                {text(item)}
+              </span>
+              {trail?.(item)}
+              <DeleteRowButton
+                onDelete={(e) => {
+                  e.stopPropagation();
+                  setConfirmDelete(i);
+                }}
+              />
+            </div>
+          ),
+        )}
+      </div>
+      {confirmDelete !== null && items[confirmDelete] !== undefined && (
+        <ConfirmModal
+          title={`Delete "${deleteLabel(items[confirmDelete])}"?`}
+          onConfirm={() => {
+            const index = confirmDelete;
+            setConfirmDelete(null);
+            onDelete(index);
+          }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+    </>
+  );
+}
+
 function FocusTab({
   phrases,
   rotation,
@@ -177,20 +274,8 @@ function FocusTab({
   current: string | null;
   onWrite: () => Promise<void>;
 }) {
-  const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
+  const write = useConfigWrite(onWrite);
   const [phrase, setPhrase] = useState("");
-  const [editing, setEditing] = useState<number | null>(null);
-  const [draft, setDraft] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-
-  const write = async (fn: () => Promise<unknown>) => {
-    try {
-      await fn();
-      await onWrite();
-    } catch (e) {
-      setError(e);
-    }
-  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -219,94 +304,70 @@ function FocusTab({
         />
         <button className="btn-primary py-0">Add</button>
       </form>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {phrases.length === 0 && (
-          <p className="pt-6 text-center text-sm text-content-muted">
-            No phrases yet. With none, the dashboard simply shows no focus
-            line.
-          </p>
+      <RowListEditor
+        items={phrases}
+        rowKey={(text, i) => `${text}-${i}`}
+        empty="No phrases yet. With none, the dashboard simply shows no focus line."
+        lead={(_, i) => (
+          <span className="w-8 shrink-0 font-mono text-content-muted">{i + 1}</span>
         )}
-        {phrases.map((text, i) =>
-          editing === i ? (
-            <form
-              key={`edit-${i}`}
-              className="flex items-center gap-2 border-b border-line py-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!draft.trim()) return;
-                void write(async () => {
-                  await invoke("focus_phrase_edit", {
-                    index: i,
-                    replacement: draft.trim(),
-                  });
-                  setEditing(null);
-                });
-              }}
-            >
-              <input
-                className="input min-w-0 flex-1"
-                required
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-              />
-              <EditFormButtons onCancel={() => setEditing(null)} />
-            </form>
-          ) : (
-            <div
-              key={`${text}-${i}`}
-              className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
-              title="Click to edit"
-              role="presentation"
-              onClick={() => {
-                setDraft(text);
-                setEditing(i);
-              }}
-            >
-              <span className="w-8 shrink-0 font-mono text-content-muted">
-                {i + 1}
-              </span>
-              <span
-                className="min-w-0 flex-1 wrap-break-word"
-                {...pressable(
-                  () => {
-                    setDraft(text);
-                    setEditing(i);
-                  },
-                  { click: false },
-                )}
-              >
-                {text}
-              </span>
-              {text === current && (
-                <span className="shrink-0 rounded-sm bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent">
-                  this week
-                </span>
-              )}
-              <DeleteRowButton
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(i);
-                }}
-              />
-            </div>
-          ),
+        text={(text) => text}
+        trail={(text) =>
+          text === current && (
+            <span className="shrink-0 rounded-sm bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent">
+              this week
+            </span>
+          )
+        }
+        editor={(text, i, close) => (
+          <PhraseEditRow
+            text={text}
+            onCancel={close}
+            onSave={(replacement) =>
+              void write(async () => {
+                await invoke("focus_phrase_edit", { index: i, replacement });
+                close();
+              })
+            }
+          />
         )}
-      </div>
-      {confirmDelete !== null && (
-        <ConfirmModal
-          title={`Delete "${phrases[confirmDelete]}"?`}
-          onConfirm={() => {
-            const index = confirmDelete;
-            setConfirmDelete(null);
-            void write(() =>
-              invoke("focus_phrase_edit", { index, replacement: null }),
-            );
-          }}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+        deleteLabel={(text) => text}
+        onDelete={(index) =>
+          void write(() => invoke("focus_phrase_edit", { index, replacement: null }))
+        }
+      />
     </div>
+  );
+}
+
+function PhraseEditRow({
+  text,
+  onSave,
+  onCancel,
+}: {
+  text: string;
+  onSave: (replacement: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(text);
+  return (
+    <form
+      className="flex items-center gap-2 border-b border-line py-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!draft.trim()) return;
+        onSave(draft.trim());
+      }}
+    >
+      <input
+        className="input min-w-0 flex-1"
+        required
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      <EditFormButtons onCancel={onCancel} />
+    </form>
   );
 }
 
@@ -317,20 +378,9 @@ function DayRemindersTab({
   reminders: DayReminder[];
   onWrite: () => Promise<void>;
 }) {
-  const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
+  const write = useConfigWrite(onWrite);
   const [dayType, setDayType] = useState("workday");
   const [text, setText] = useState("");
-  const [editing, setEditing] = useState<number | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-
-  const write = async (fn: () => Promise<unknown>) => {
-    try {
-      await fn();
-      await onWrite();
-    } catch (e) {
-      setError(e);
-    }
-  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -360,65 +410,33 @@ function DayRemindersTab({
         />
         <button className="btn-primary py-0">Add</button>
       </form>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {reminders.length === 0 && (
-          <p className="pt-6 text-center text-sm text-content-muted">
-            No day reminders yet.
-          </p>
+      <RowListEditor
+        items={reminders}
+        rowKey={(entry, i) => `${entry.day_type}-${entry.text}-${i}`}
+        empty="No day reminders yet."
+        lead={(entry) => (
+          <span className="w-36 shrink-0 text-content-muted">
+            {DAY_TYPE_LABELS[entry.day_type] ?? entry.day_type}
+          </span>
         )}
-        {reminders.map((entry, i) =>
-          editing === i ? (
-            <ReminderEditRow
-              key={`edit-${i}`}
-              entry={entry}
-              onCancel={() => setEditing(null)}
-              onSave={(replacement) =>
-                void write(async () => {
-                  await invoke("day_reminder_edit", { index: i, replacement });
-                  setEditing(null);
-                })
-              }
-            />
-          ) : (
-            <div
-              key={`${entry.day_type}-${entry.text}-${i}`}
-              className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
-              title="Click to edit"
-              role="presentation"
-              onClick={() => setEditing(i)}
-            >
-              <span className="w-36 shrink-0 text-content-muted">
-                {DAY_TYPE_LABELS[entry.day_type] ?? entry.day_type}
-              </span>
-              <span
-                className="min-w-0 flex-1 wrap-break-word"
-                {...pressable(() => setEditing(i), { click: false })}
-              >
-                {entry.text}
-              </span>
-              <DeleteRowButton
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(i);
-                }}
-              />
-            </div>
-          ),
+        text={(entry) => entry.text}
+        editor={(entry, i, close) => (
+          <ReminderEditRow
+            entry={entry}
+            onCancel={close}
+            onSave={(replacement) =>
+              void write(async () => {
+                await invoke("day_reminder_edit", { index: i, replacement });
+                close();
+              })
+            }
+          />
         )}
-      </div>
-      {confirmDelete !== null && reminders[confirmDelete] && (
-        <ConfirmModal
-          title={`Delete "${reminders[confirmDelete].text}"?`}
-          onConfirm={() => {
-            const index = confirmDelete;
-            setConfirmDelete(null);
-            void write(() =>
-              invoke("day_reminder_edit", { index, replacement: null }),
-            );
-          }}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+        deleteLabel={(entry) => entry.text}
+        onDelete={(index) =>
+          void write(() => invoke("day_reminder_edit", { index, replacement: null }))
+        }
+      />
     </div>
   );
 }
@@ -486,21 +504,10 @@ function ScheduleTab({
   blocks: ScheduleBlock[];
   onWrite: () => Promise<void>;
 }) {
-  const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
+  const write = useConfigWrite(onWrite);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [label, setLabel] = useState("");
-  const [editing, setEditing] = useState<number | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-
-  const write = async (fn: () => Promise<unknown>) => {
-    try {
-      await fn();
-      await onWrite();
-    } catch (e) {
-      setError(e);
-    }
-  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -527,6 +534,7 @@ function ScheduleTab({
         <input
           className="input"
           type="time"
+          aria-label="From"
           required
           value={from}
           onChange={(e) => setFrom(e.target.value)}
@@ -534,6 +542,7 @@ function ScheduleTab({
         <input
           className="input"
           type="time"
+          aria-label="To"
           required
           value={to}
           onChange={(e) => setTo(e.target.value)}
@@ -547,68 +556,33 @@ function ScheduleTab({
         />
         <button className="btn-primary py-0">Add</button>
       </form>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {blocks.length === 0 && (
-          <p className="pt-6 text-center text-sm text-content-muted">
-            No blocks yet.
-          </p>
+      <RowListEditor
+        items={blocks}
+        rowKey={(block, i) => `${block.from}-${block.label}-${i}`}
+        empty="No blocks yet."
+        lead={(block) => (
+          <span className="w-28 shrink-0 font-mono text-content-muted">
+            {block.from}-{block.to}
+          </span>
         )}
-        {blocks.map((block, i) =>
-          editing === i ? (
-            <BlockEditRow
-              key={`edit-${i}`}
-              block={block}
-              onCancel={() => setEditing(null)}
-              onSave={(replacement) =>
-                void write(async () => {
-                  await invoke("schedule_block_edit", {
-                    index: i,
-                    replacement,
-                  });
-                  setEditing(null);
-                })
-              }
-            />
-          ) : (
-            <div
-              key={`${block.from}-${block.label}-${i}`}
-              className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
-              title="Click to edit"
-              role="presentation"
-              onClick={() => setEditing(i)}
-            >
-              <span className="w-28 shrink-0 font-mono text-content-muted">
-                {block.from}-{block.to}
-              </span>
-              <span
-                className="min-w-0 flex-1 wrap-break-word"
-                {...pressable(() => setEditing(i), { click: false })}
-              >
-                {block.label}
-              </span>
-              <DeleteRowButton
-                onDelete={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(i);
-                }}
-              />
-            </div>
-          ),
+        text={(block) => block.label}
+        editor={(block, i, close) => (
+          <BlockEditRow
+            block={block}
+            onCancel={close}
+            onSave={(replacement) =>
+              void write(async () => {
+                await invoke("schedule_block_edit", { index: i, replacement });
+                close();
+              })
+            }
+          />
         )}
-      </div>
-      {confirmDelete !== null && blocks[confirmDelete] && (
-        <ConfirmModal
-          title={`Delete "${blocks[confirmDelete].label}"?`}
-          onConfirm={() => {
-            const index = confirmDelete;
-            setConfirmDelete(null);
-            void write(() =>
-              invoke("schedule_block_edit", { index, replacement: null }),
-            );
-          }}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+        deleteLabel={(block) => block.label}
+        onDelete={(index) =>
+          void write(() => invoke("schedule_block_edit", { index, replacement: null }))
+        }
+      />
     </div>
   );
 }

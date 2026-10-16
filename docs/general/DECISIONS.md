@@ -52,6 +52,14 @@ reasoning no longer holds.
   already cover; the platform surfaces (tray, global capture hotkey,
   autoupdate on Windows; the Android build) get a manual smoke pass
   before a release instead.
+- **Separate phone screens, shared everything else.** `src/mobile/` is
+  its own set of screens (one column, bottom tabs, sheets instead of
+  dialogs) over the same store, `lib/` and hooks as the desktop; making
+  one component serve both layouts would trade a little duplication for
+  a lot of branching. Measured with jscpd (min 8 lines / 60 tokens) the
+  whole frontend duplicates 1.2% of its lines, the phone and desktop
+  pairs a few dozen lines between them; where a pair did repeat logic it
+  moved into a shared hook or component (`useDayAmbient`/`DayAmbientLines`).
 - **UI is English-only.** No i18n layer. Single user, no localization need
   today; would need to be designed in rather than bolted on if that changes.
 - **No binary attachments in tasks/journal/notes.** Everything is Markdown

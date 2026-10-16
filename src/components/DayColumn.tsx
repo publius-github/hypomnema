@@ -1,7 +1,8 @@
 import { useDroppable } from "@dnd-kit/core";
 import { memo } from "react";
 import { useAppStore } from "../store";
-import { currentAndNextBlock, dayLabel } from "../lib/tasks";
+import { dayLabel } from "../lib/tasks";
+import { DayAmbientLines, useDayAmbient } from "./DayAmbient";
 import { useDaySections } from "../hooks/useColumnSections";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
@@ -22,15 +23,9 @@ function DayColumn({
   // column on unrelated state changes (toasts, palette, banners)
   const config = useAppStore((s) => s.config);
   const today = useAppStore((s) => s.today);
-  const dashboard = useAppStore((s) => s.dashboard);
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
 
-  const reminders =
-    dashboard?.days.find((d) => d.date === date)?.reminders ?? [];
-  const schedule =
-    date === today && dashboard
-      ? currentAndNextBlock(dashboard.blocks, new Date())
-      : null;
+  const { reminders, schedule } = useDayAmbient(date);
 
   // cadence sections, then Postponed / Done, waiting / Done / Dropped; tasks are
   // hairline-separated rows sitting flush, the breaks between them are
@@ -68,31 +63,7 @@ function DayColumn({
       </div>
       {(reminders.length > 0 || schedule) && (
         <div className="flex flex-col gap-0.5 px-2.5 pb-1.5 text-[11px] text-content-muted">
-          {reminders.map((text, i) => (
-            <div
-              key={i}
-              className="italic"
-              style={
-                config?.reminder_color
-                  ? { color: readable(config.reminder_color, "text") }
-                  : undefined
-              }
-            >
-              {text}
-            </div>
-          ))}
-          {schedule?.current && (
-            <div>
-              <span className="font-medium text-accent">Now:</span>{" "}
-              {schedule.current.label} (until {schedule.current.to})
-            </div>
-          )}
-          {schedule?.next && (
-            <div>
-              <span className="font-medium">Next:</span> {schedule.next.label}{" "}
-              at {schedule.next.from}
-            </div>
-          )}
+          <DayAmbientLines reminders={reminders} schedule={schedule} />
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2">

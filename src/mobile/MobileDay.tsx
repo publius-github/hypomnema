@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useAppStore } from "../store";
-import { addDaysISO, currentAndNextBlock, daysBetweenISO } from "../lib/tasks";
+import { addDaysISO, daysBetweenISO } from "../lib/tasks";
+import { DayAmbientLines, useDayAmbient } from "../components/DayAmbient";
 import { useBackStep } from "./back";
 import DayHeader, { dayLabel, HeaderButton, SearchIcon } from "./DayHeader";
 import { useDaySections } from "../hooks/useColumnSections";
 import { useMobileNav } from "./nav";
 import Sections from "./Sections";
-import { readable } from "../lib/color";
 
 /**
  * The phone's main screen: one day at a time, swipeable by buttons and a
@@ -24,10 +24,7 @@ export default function MobileDay() {
   const createTask = useAppStore((s) => s.createTask);
   const offset = useAppStore((s) => s.gridOffset);
   const setGridOffset = useAppStore((s) => s.setGridOffset);
-  const dashboard = useAppStore((s) => s.dashboard);
   const { openSearch } = useMobileNav();
-
-  const config = useAppStore((s) => s.config);
 
   const date = addDaysISO(today, offset);
   const sections = useDaySections(date);
@@ -37,13 +34,7 @@ export default function MobileDay() {
 
   // the day's ambient context, same sources as the desktop column:
   // weekly focus, this day's reminders, and (today only) the schedule
-  const reminders =
-    dashboard?.days.find((d) => d.date === date)?.reminders ?? [];
-  const schedule =
-    date === today && dashboard
-      ? currentAndNextBlock(dashboard.blocks, new Date())
-      : null;
-  const focus = dashboard?.focus ?? null;
+  const { reminders, schedule, focus } = useDayAmbient(date);
 
   const submit = () => {
     const trimmed = title.trim();
@@ -75,31 +66,7 @@ export default function MobileDay() {
               {focus}
             </div>
           )}
-          {reminders.map((text, i) => (
-            <div
-              key={i}
-              className="italic"
-              style={
-                config?.reminder_color
-                  ? { color: readable(config.reminder_color, "text") }
-                  : undefined
-              }
-            >
-              {text}
-            </div>
-          ))}
-          {schedule?.current && (
-            <div>
-              <span className="font-medium text-accent">Now:</span>{" "}
-              {schedule.current.label} (until {schedule.current.to})
-            </div>
-          )}
-          {schedule?.next && (
-            <div>
-              <span className="font-medium">Next:</span> {schedule.next.label}{" "}
-              at {schedule.next.from}
-            </div>
-          )}
+          <DayAmbientLines reminders={reminders} schedule={schedule} />
         </div>
       )}
 

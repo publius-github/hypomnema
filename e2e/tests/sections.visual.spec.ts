@@ -43,6 +43,10 @@ for (const theme of ["dark", "light"]) {
       test(`Settings ${tab}`, async ({ app }) => {
         const page = await app(`theme=${theme}`);
         await rail(page, "Settings").click();
+        if (tab === "Recurring & calendar") {
+          // a tab of advanced groups only
+          await page.getByRole("checkbox", { name: "Show advanced settings" }).check();
+        }
         await page.getByRole("button", { name: tab, exact: true }).last().click();
         await settle(page);
         await expect(page).toHaveScreenshot(`${theme}-settings-${tab.replace(/\W+/g, "-")}.png`, {

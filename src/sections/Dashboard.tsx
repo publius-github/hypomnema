@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "../lib/ipc";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
+import { useEditingTask } from "../hooks/useEditingTask";
 import {
   addDaysISO,
   gridDates,
@@ -28,7 +28,6 @@ import {
 } from "../components/HeaderControls";
 import NewListForm from "../components/NewListForm";
 import GroupBackBar from "../components/GroupBackBar";
-import type { Task } from "../types";
 import { readable } from "../lib/color";
 import NavArrow from "../components/NavArrow";
 
@@ -41,11 +40,7 @@ export default function Dashboard() {
   const gridOffset = useAppStore((s) => s.gridOffset);
   const setGridOffset = useAppStore((s) => s.setGridOffset);
   const dnd = useTaskDnd();
-  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
-  // Moving the open task's date beyond the grid window drops it from
-  // the snapshot; the modal must survive that (and keep unsaved edits),
-  // so fall back to fetching the task by id.
-  const [fetchedTask, setFetchedTask] = useState<Task | null>(null);
+  const { setEditingTaskId, editingTask } = useEditingTask();
   // first visible list in the paged list zone; store-held so the page
   // survives switching sections and coming back
   const listOffset = useAppStore((s) => s.listOffset);
@@ -54,28 +49,6 @@ export default function Dashboard() {
   const [splitDraft, setSplitDraft] = useState<number | null>(null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const zonesRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (editingTaskId === null) {
-      setFetchedTask(null);
-      return;
-    }
-    const inStore = useAppStore
-      .getState()
-      .tasks.some((t) => t.id === editingTaskId);
-    if (inStore) return;
-    let cancelled = false;
-    invoke("task_get", { id: editingTaskId })
-      .then((t) => {
-        if (!cancelled) setFetchedTask(t);
-      })
-      .catch(() => {
-        if (!cancelled) setEditingTaskId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [editingTaskId, tasks]);
 
   if (!config) return null;
 
@@ -94,9 +67,6 @@ export default function Dashboard() {
   // fresh vault: nothing exists yet, so the automation features are
   // invisible - point at them once
   const freshVault = tasks.length === 0 && lists.length === 0;
-  const editingTask =
-    tasks.find((t) => t.id === editingTaskId) ??
-    (fetchedTask && fetchedTask.id === editingTaskId ? fetchedTask : null);
 
   return (
     <DndContext

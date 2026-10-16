@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.107.1 - 2026-10-17
+
+Frontend structure, no visible change (the visual baselines of Reminders, Dashboard, Days and the phone day are pixel-identical). The store is assembled from slices - vault and settings, the task snapshot, undo, navigation - with the theme code beside them; `useAppStore` and its API are unchanged. Shared pieces replace repeated code: `useEditingTask` (Dashboard, Days), `useDayAmbient`/`DayAmbientLines` (the desktop day column and the phone's day), `OptionalColorField` (list and group dialogs), and one `RowListEditor` behind the three Reminders tabs. The schedule form's time fields are labelled
+
 ## 0.107.0 - 2026-10-17
 
 A friendlier first run. The welcome screen offers *Try it with an example* beside *Select vault folder*: it opens an empty folder as a vault with two lists and their tasks (one with a description and subtasks), a daily, a weekly and a monthly rule, a scheduled event, a birthday, a weekly focus, a day reminder, two linked notes and today's journal entry - an ordinary vault made through the same code as your own edits. Notes on the desktop show the vault's own notes from the start instead of asking for a folder first (the phone already did); *Use another folder* in the sidebar still points it elsewhere. Settings keeps fine-tuning off the page until *Show advanced settings* is ticked (cadence buckets, generation, calendar projections, the Markdown mirror; app.yml `settings_advanced`) - a group already changed, or one a search lands in, shows either way
