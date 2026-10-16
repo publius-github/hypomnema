@@ -1,0 +1,8 @@
+# Text files are stored and checked out with LF on every OS, so a
+# Windows checkout does not turn every line of a diff into a change.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.icns binary
+*.jar binary

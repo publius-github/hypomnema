@@ -74,7 +74,7 @@ pub fn run() {
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_google_auth::init());
     // updater (GitHub-releases) and the global capture shortcut are
-    // desktop-only concepts (REQUIREMENTS.md §6) - mobile has no
+    // desktop-only concepts - mobile has no
     // equivalent plugin to register in their place.
     #[cfg(desktop)]
     let builder = builder

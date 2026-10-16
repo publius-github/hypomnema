@@ -36,7 +36,7 @@ pub(crate) fn show_capture(app: &AppHandle) {
 /// block saving the config that caused it.
 ///
 /// Desktop-only: global shortcuts and the tray (below) are desktop
-/// concepts (REQUIREMENTS.md §6 mobile parity table) - mobile's quick-add
+/// concepts - mobile's quick-add
 /// is in-app instead, so both get a no-op stub on mobile rather than
 /// touching every call site.
 #[cfg(desktop)]

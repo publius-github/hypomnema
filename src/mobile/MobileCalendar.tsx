@@ -24,7 +24,7 @@ function weekdayIndex(date: Date): number {
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 /**
- * The month, to look at (REQUIREMENTS.md §6 scopes the phone's calendar
+ * The month, to look at (the phone's calendar is scoped
  * to browsing - rescheduling by dragging a card across a month grid is a
  * mouse gesture, and a thumb-sized month cell is not a drop target).
  *

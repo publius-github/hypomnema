@@ -124,7 +124,7 @@ export default function MobileApp() {
     return () => document.removeEventListener("visibilitychange", runIfStale);
   }, []);
 
-  // Automatic sync (ROADMAP.md Phase 3).
+  // Automatic sync.
   //
   // The three moments that matter on a phone, and none of them is a
   // timer alone: coming back to the app (someone else may have written

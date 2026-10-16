@@ -1,13 +1,12 @@
 //! Which vault-relative paths belong to the *shared* vault, and which
-//! stay on the device that made them. docs/android/ROADMAP.md Phase 1,
-//! REQUIREMENTS.md §2.
+//! stay on the device that made them.
 //!
 //! This is a whitelist, not a blocklist, and deliberately so: a new file
 //! kind added elsewhere in the app defaults to "device-local" and is
 //! merely absent from the other device, instead of defaulting to "shared"
 //! and arriving somewhere it can do damage. `app.db` is the case that
 //! decides the shape - two app instances writing one SQLite file through
-//! a file sync is the corruption scenario REQUIREMENTS.md §2 opens with,
+//! a file sync is the corruption scenario the whole design starts from,
 //! and it must be impossible to reach by forgetting something.
 //!
 //! Paths here are vault-relative and always `/`-separated, the form the
@@ -55,6 +54,9 @@ pub fn is_synced_with(path: &str, user_ignore: &[String]) -> bool {
         return false;
     }
     let parts: Vec<&str> = path.split('/').collect();
+    if !parts.iter().all(|part| is_portable_name(part)) {
+        return false;
+    }
     let name = parts.last().copied().unwrap_or("");
     // a crashed write_atomic's leftover, and the trash at any depth (the
     // Notes root can be a subfolder of the vault)
@@ -78,7 +80,7 @@ pub fn is_synced_with(path: &str, user_ignore: &[String]) -> bool {
         "state" => !rest.starts_with("state/mirror-base/"),
         // User-authored rules and templates: recurring.yml, scheduled.yml,
         // birthdays.yml, packs, templates/. Editing these on a phone is a
-        // P0 requirement (REQUIREMENTS.md §6).
+        // core requirement.
         "config" => true,
         // app.db and its -wal/-shm siblings. The whole reason this
         // module is a whitelist.
@@ -99,6 +101,43 @@ pub fn is_synced_with(path: &str, user_ignore: &[String]) -> bool {
         "sync" => false,
         // Unknown newcomer: keep it local. See the module note.
         _ => false,
+    }
+}
+
+/// A path segment every platform the vault travels to stores as itself.
+///
+/// The remote half of a sync pass joins listed paths onto the vault
+/// folder, and the listing is only as trustworthy as whoever last wrote
+/// to the account's app folder: `..`, a drive letter (`C:`) or a `\`
+/// would otherwise carry a write out of the vault on Windows, where those
+/// mean something to the path parser. Names Windows cannot hold as
+/// given, such as device names (`CON`, `nul.md`) or a trailing dot or
+/// space it would silently strip, are refused for the same reason: the
+/// file written would not be the file named. Such a path stays on the
+/// device that has it, the same as an ignored one.
+fn is_portable_name(part: &str) -> bool {
+    if part.is_empty()
+        || part.ends_with(['.', ' '])
+        || part
+            .chars()
+            .any(|c| c == '\\' || c == ':' || c.is_control())
+    {
+        return false;
+    }
+    let stem = part.split('.').next().unwrap_or(part).trim_end();
+    !is_windows_device_name(stem)
+}
+
+fn is_windows_device_name(stem: &str) -> bool {
+    let upper = stem.to_ascii_uppercase();
+    match upper.as_str() {
+        "CON" | "PRN" | "AUX" | "NUL" => true,
+        _ => {
+            let digit = upper
+                .strip_prefix("COM")
+                .or_else(|| upper.strip_prefix("LPT"));
+            matches!(digit, Some(d) if d.len() == 1 && d.as_bytes()[0].is_ascii_digit() && d != "0")
+        }
     }
 }
 
@@ -145,7 +184,7 @@ mod tests {
     #[test]
     fn the_database_and_its_siblings_never_travel() {
         // The one this module exists for: SQLite in WAL mode moved by a
-        // file sync is how a vault gets corrupted (REQUIREMENTS.md §2).
+        // file sync is how a vault gets corrupted.
         assert!(!is_synced(".hypomnema/app.db"));
         assert!(!is_synced(".hypomnema/app.db-wal"));
         assert!(!is_synced(".hypomnema/app.db-shm"));
@@ -204,5 +243,45 @@ mod tests {
         assert!(!is_synced("/.hypomnema/app.db"));
         assert!(!is_synced(""));
         assert!(!is_synced("/"));
+    }
+
+    #[test]
+    fn paths_that_would_escape_the_vault_are_refused() {
+        for path in [
+            "../outside.md",
+            "journal/../../outside.md",
+            "./journal/2026-09-08.md",
+            "journal//2026-09-08.md",
+            "C:/Users/someone/outside.md",
+            "notes/C:outside.md",
+            "notes\\..\\..\\outside.md",
+            "notes/a\u{0}b.md",
+        ] {
+            assert!(!is_synced_with(path, &[]), "{path}");
+        }
+    }
+
+    #[test]
+    fn names_windows_would_rewrite_are_refused() {
+        for path in [
+            "notes/CON",
+            "notes/nul.md",
+            "notes/Com1.txt",
+            "lpt9/file.md",
+            "notes/trailing.",
+            "notes/trailing ",
+        ] {
+            assert!(!is_synced_with(path, &[]), "{path}");
+        }
+        for path in [
+            "notes/console.md",
+            "notes/com10.md",
+            "notes/com0.md",
+            "notes/.hidden.md",
+            "notes/a.b.c.md",
+            "journal/2026/2026-09-08.md",
+        ] {
+            assert!(is_synced_with(path, &[]), "{path}");
+        }
     }
 }

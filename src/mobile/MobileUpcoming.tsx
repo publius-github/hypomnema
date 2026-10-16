@@ -19,7 +19,7 @@ const SUBS: { id: Sub; label: string }[] = [
 ];
 
 /**
- * The three rule files, editable from the phone (REQUIREMENTS.md §6, P0).
+ * The three rule files, editable from the phone.
  *
  * Every write goes through the same commands the desktop uses, which
  * splice the YAML in place rather than re-serializing it - so a rule

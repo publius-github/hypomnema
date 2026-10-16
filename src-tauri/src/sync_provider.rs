@@ -12,7 +12,7 @@
 use crate::error::Result;
 
 /// Opaque per-file change marker. The two backends give different
-/// guarantees (see ROADMAP.md "Change detection / write safety"):
+/// guarantees:
 /// - `Rev` (Dropbox API): server-issued, monotonic - a real
 ///   optimistic-concurrency token.
 /// - `HashMtime` (SAF/filesystem): best-effort content hash + mtime, a
@@ -62,7 +62,7 @@ pub trait SyncProvider {
     /// for it. `None` means "create; fail if something is already there".
     /// A stale `expected_marker` fails with `Error::SyncConflict` rather
     /// than silently overwriting - the caller re-reads, runs the
-    /// `sync_merge` step, and retries (ROADMAP.md Phase 1/3).
+    /// `sync_merge` step, and retries.
     fn write_file(
         &self,
         path: &str,

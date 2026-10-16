@@ -19,7 +19,7 @@ const DAY_TYPES = [
  * The three ambient files behind the day view: the weekly focus phrase,
  * the day-type reminders, and the schedule blocks.
  *
- * Read *and* write, though REQUIREMENTS.md §6 only asked for read on
+ * Read *and* write, though the first plan only asked for read on
  * mobile first. The reason it costs almost nothing: these files are
  * edited by index through the same comment-preserving splice the desktop
  * uses, so the whole feature is a list and an add box over commands that

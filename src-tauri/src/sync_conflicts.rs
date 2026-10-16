@@ -1,7 +1,7 @@
 //! The conflict log: what a sync had to choose between, kept where a
 //! person can read it.
 //!
-//! REQUIREMENTS.md §7 asks for "no silent data loss on conflict". The
+//! The rule is "no silent data loss on conflict". The
 //! merge itself (`sync_merge.rs`, `sync_state.rs`) never drops a value
 //! without handing it back; this is where those hand-backs go so they
 //! survive the sync that produced them and can be shown later.

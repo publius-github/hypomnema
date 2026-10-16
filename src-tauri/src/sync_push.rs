@@ -1,5 +1,4 @@
 //! Sending this device's changes back to the shared vault.
-//! docs/android/ROADMAP.md Phase 1/3.
 //!
 //! The pull's manifest is what makes this answerable: it records, per
 //! file, the revision that was fetched and a hash of what arrived. A file
@@ -7,7 +6,7 @@
 //! request; one that differs is a local edit, and it goes up **guarded by
 //! the revision it was based on**. The provider rejects the write if the
 //! remote has moved since - which is the whole reason an API backend was
-//! chosen over a synced folder (ROADMAP.md's Spike A verdict). A
+//! chosen over a synced folder (the verdict of an early spike). A
 //! rejection is reported, never overwritten: the other device's edit is
 //! not this device's to discard.
 #![allow(dead_code)]
@@ -77,7 +76,7 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<()> {
 /// is indistinguishable from one this device never pulled (a failed
 /// fetch, an interrupted pull), and guessing wrong deletes the user's
 /// note on every device. That needs the tombstone half of the merge
-/// design before it is safe - ROADMAP.md Phase 3.
+/// design before it is safe.
 pub fn push_vault<P: SyncProvider>(
     provider: &P,
     local_root: &Path,

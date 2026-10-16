@@ -1,7 +1,6 @@
 //! Merging the JSONL state snapshot record by record - the step that
 //! turns `sync_merge.rs`'s generic field merge into something that
 //! actually runs over this app's tasks and lists.
-//! docs/android/ROADMAP.md Phase 1/3, REQUIREMENTS.md §3.
 //!
 //! Why these files and not the database: `state/*.jsonl` is the
 //! authoritative text form of everything app.db holds (`state_export.rs`),

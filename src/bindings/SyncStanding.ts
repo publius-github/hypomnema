@@ -4,7 +4,7 @@
  * The answer to "am I up to date?", available with no network at all.
  *
  * This is what makes offline editing legible rather than merely
- * possible (REQUIREMENTS.md §7): every edit already applies locally the
+ * possible: every edit already applies locally the
  * moment it is made, and the queue of things waiting to go up is just
  * the set of files whose content no longer matches what the manifest
  * recorded. Counting them costs a directory walk, not a request, so a

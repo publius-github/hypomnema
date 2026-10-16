@@ -14,8 +14,7 @@
 //! encrypting it is a whole-product decision (end-to-end encryption of
 //! what goes to Drive is the optional last phase of the Google sync
 //! plan). That trade-off
-//! belongs to a whole-product decision, not to this module - see
-//! ROADMAP.md Phase 4 for what is and is not covered.
+//! belongs to a whole-product decision, not to this module.
 //!
 //! The envelope carries its own salt and nonce, so a file encrypted by an
 //! older build stays readable and no separate parameter store has to be

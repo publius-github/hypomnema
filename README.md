@@ -1,5 +1,9 @@
 # Hypomnema
 
+[![ci](https://github.com/publius-github/app-hypomnema/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/publius-github/app-hypomnema/actions/workflows/ci.yml)
+[![latest release](https://img.shields.io/github/v/release/publius-github/app-hypomnema)](https://github.com/publius-github/app-hypomnema/releases/latest)
+[![license: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+
 A local-first personal productivity app: a weekly task planner, a daily journal and a Markdown knowledge base in one window. Windows first, with an Android companion. Everything lives in a folder you choose, as plain files and a local database - no account, no server, no telemetry. Sync between your devices is optional and goes through your own Google Drive.
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
@@ -99,7 +103,7 @@ Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-rem
 ## Engine rules
 
 - Generation runs at startup, on Sync, when the day changes and when configs change. Duplicates are impossible: the `rule_runs` ledger remembers every generated (rule, period) pair, so restarts and config edits never repeat a task.
-- Your edits and statuses are never overwritten: regeneration only creates what is missing, and a deleted instance does not come back.
+- Your edits and statuses are never overwritten: regeneration only creates what is missing. Deleting an instance a later firing has already replaced removes it for good; deleting the rule's current one (today's, or the latest still-due weekly or monthly firing) brings it back on the next run - to stop a rule, edit or remove it in its file.
 - Overdue open tasks move to today marked overdue (at most one open copy per rule); daily tasks never count as overdue.
 - Missed occurrences within the catch-up window collapse into one (a week away gives one task, not seven).
 - Removing a rule removes its future and today's open instances; completed ones stay in history. Completed tasks are cleaned up by the retention setting.
@@ -129,7 +133,7 @@ The `VERSION` file at the root is the single source of truth for the version; ne
 ./scripts/windows/release.sh [major|minor|patch]   # bump + commit + tag v<version> + push (release.ps1 for PowerShell)
 ```
 
-The `release.yml` workflow, on a `v*` tag, checks the tag against `VERSION`, builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend and fmt/clippy/test for the Rust core on pull requests and pushes to `main` and `development`; `release.yml` runs the same gates on the tagged commit before it builds anything.
+The `release.yml` workflow, on a `v*` tag, checks the tag against `VERSION`, builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend, fmt/clippy/test for the Rust core on Linux and clippy/test again on Windows (the shipped platform), plus an audit job - `cargo-deny` (advisories and licenses, policy in `src-tauri/deny.toml`), `npm audit` of the runtime dependencies and a `gitleaks` secret scan - on pull requests and pushes to `main` and `development`; `release.yml` runs the same gates on the tagged commit before it builds anything. Third-party actions and the Rust toolchain are pinned to exact commits and versions; Dependabot proposes the updates.
 
 ### Third-party licenses
 

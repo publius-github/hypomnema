@@ -39,8 +39,7 @@ type Panel =
  * most visits never need to open a panel at all.
  *
  * The desktop's layout tabs are deliberately absent - they
- * describe a window, and this does not have one (ROADMAP.md Phase 5
- * revisits them).
+ * describe a window, and this does not have one.
  */
 export default function MobileSettings() {
   const vaultPath = useAppStore((s) => s.vaultPath);

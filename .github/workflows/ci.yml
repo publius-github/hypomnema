@@ -7,13 +7,22 @@ on:
   # release.yml runs these same gates before it builds an installer
   workflow_call:
 
+# Read-only by default: nothing here publishes or writes to the repo.
+permissions:
+  contents: read
+
+# Third-party actions are pinned to a commit (the tag is in the comment);
+# Dependabot keeps both up to date. The Rust toolchain is pinned the same
+# way - dtolnay/rust-toolchain's `1.98.0` branch - so a new stable clippy
+# lint lands as a deliberate bump, not as a red CI on an unrelated PR.
+
 jobs:
   frontend:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: actions/setup-node@v4.4.0
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22.14.0
           cache: npm
@@ -27,15 +36,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Tauri system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2.7.8
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
           workspaces: src-tauri
       # tauri-build requires the frontendDist path to exist at compile time
@@ -49,3 +58,50 @@ jobs:
       - name: tests
         run: cargo test
         working-directory: src-tauri
+
+  # The shipped platform: the tray, the capture window and the other
+  # cfg(windows) code only compile here, so a break in them shows up on
+  # the pull request instead of on the release tag.
+  rust-windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          workspaces: src-tauri
+      - run: mkdir dist
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+      - name: tests
+        run: cargo test
+        working-directory: src-tauri
+
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # gitleaks lists a pull request's commits through the API
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # gitleaks scans the history of the pushed range
+          fetch-depth: 0
+      # Known vulnerabilities and license compatibility of every crate;
+      # the policy is src-tauri/deny.toml.
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          manifest-path: src-tauri/Cargo.toml
+      # Only what ships inside the app; dev tooling advisories are
+      # Dependabot's to raise.
+      - name: npm audit (runtime dependencies)
+        run: npm audit --omit=dev --audit-level=moderate
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

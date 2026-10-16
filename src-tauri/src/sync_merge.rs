@@ -1,7 +1,7 @@
 //! Generalizes `tasks_mirror.rs`'s proven three-way merge (a field applies
 //! only if it differs from the last-common base) from "one app catching up
 //! with a human's text-editor edits" to "two independent app instances
-//! both writing the same record" - `docs/android/REQUIREMENTS.md` §3.
+//! both writing the same record".
 //!
 //! Deliberately dumb regardless of record shape: every task/list/config/
 //! note/journal record synced between desktop and mobile is treated as a
@@ -74,8 +74,8 @@ pub fn merge_record(
 /// One side kept a record, the other has none (deleted it, or never saw
 /// it). A field-level edit on the surviving side since `base` wins over
 /// the deletion - a delete never silently discards a change the other
-/// side just made (REQUIREMENTS.md §3: "optimize for never silently
-/// losing data").
+/// side just made (the rule: "optimize for never silently losing
+/// data").
 fn merge_against_deletion(
     base: Option<&Record>,
     survivor: &Record,
@@ -181,7 +181,7 @@ fn record_is_newer(a: &Record, b: &Record) -> bool {
 }
 
 /// `rule_runs`' dedup ledger merges as a plain set union of
-/// `(rule_key, period_key)` pairs (REQUIREMENTS.md §3) - it's inherently
+/// `(rule_key, period_key)` pairs - it's inherently
 /// conflict-free, since both sides regenerating the same period
 /// independently must collapse to one row.
 pub fn merge_rule_runs(

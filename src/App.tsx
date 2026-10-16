@@ -55,7 +55,7 @@ export default function App() {
     root.style.setProperty("--safe-bottom", `${safeBottom}px`);
   }, [safeTop, safeBottom]);
 
-  // Desktop-only: there is no updater on Android (ROADMAP.md §6). Once
+  // Desktop-only: there is no updater on Android. Once
   // per start, after the config is known, unless switched off in Settings.
   const updateCheck = useAppStore((s) => s.config?.update_check);
   const updateChecked = useRef(false);

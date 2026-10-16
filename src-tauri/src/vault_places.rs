@@ -4,7 +4,7 @@
 //! Android has no folder picker to hand off to. Tauri's dialog plugin
 //! picks files, not directories, and the Storage Access Framework returns
 //! an opaque `content://` tree rather than a path the Rust core could
-//! open (`docs/android/SPIKES.md`, Spike A hit the same wall from the
+//! open (an early SAF spike, since retired, hit the same wall from the
 //! other side). So the app browses the filesystem itself: this module is
 //! the listing behind that browser.
 //!

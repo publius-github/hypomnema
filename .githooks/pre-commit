@@ -1,0 +1,24 @@
+#!/bin/sh
+# Fast checks on what is being committed; CI runs the full gates.
+# Enable once per clone:  git config core.hooksPath .githooks
+# Skip for one commit:    git commit --no-verify
+set -e
+
+staged() {
+  git diff --cached --name-only --diff-filter=ACMR -- "$@"
+}
+
+if [ -n "$(staged 'src-tauri/*.rs')" ]; then
+  echo "pre-commit: cargo fmt --check"
+  (cd src-tauri && cargo fmt --check) || {
+    echo "pre-commit: run 'cargo fmt' in src-tauri/ and stage the result" >&2
+    exit 1
+  }
+fi
+
+ts=$(staged 'src/*.ts' 'src/*.tsx')
+if [ -n "$ts" ]; then
+  echo "pre-commit: eslint (staged files)"
+  # shellcheck disable=SC2086
+  npx --no-install eslint $ts
+fi

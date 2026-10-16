@@ -20,3 +20,8 @@ Of particular interest:
 - script execution through note, journal or task content (Markdown rendering, wiki links).
 
 Out of scope: attacks that need full control of an already unlocked device or user account, and data the user chooses to put in a shared or synced folder outside the app's control.
+
+## Known limitations
+
+- The vault is a plain folder and the app follows the operating system's view of it: a symbolic link or junction the user places inside the vault is followed like any other folder, including one that points outside it. The app itself never creates links, and paths arriving through Google Drive sync are checked to stay inside the vault (`sync_paths.rs`).
+- The Google desktop OAuth client secret is compiled into the installer, as Google's installed-app flow expects; it identifies the app, it does not protect anything. The Drive scope is limited to the app's own hidden folder (`drive.appdata`).
