@@ -31,10 +31,9 @@ pub(crate) fn export_files(
     written: &Arc<Mutex<HashMap<PathBuf, String>>>,
 ) {
     // the state snapshot rides the same triggers as the mirror but is
-    // independent of it: it backs the db-less restore, not bulk editing
-    if config.state_snapshot {
-        let _ = state_export::export(conn, &vault::state_dir(root));
-    }
+    // independent of it, and always on: it is what sync ships and what
+    // a db-less vault is rebuilt from
+    let _ = state_export::export(conn, &vault::state_dir(root));
     if !config.tasks_mirror {
         return;
     }
@@ -81,9 +80,6 @@ pub(crate) fn start_export_worker(app: AppHandle) {
             let Some((root, config)) = snapshot else {
                 continue;
             };
-            if !config.state_snapshot && !config.tasks_mirror {
-                continue;
-            }
             let engine_lock = state.engine_lock.clone();
             let _pass = engine_lock.lock_or_recover();
             // A vault being rebuilt from its snapshot has no app.db for a

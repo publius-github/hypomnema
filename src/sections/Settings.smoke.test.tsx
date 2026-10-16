@@ -5,7 +5,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -38,24 +37,13 @@ import { useAppStore } from "../store";
 import { baseHandlers, defaultConfig } from "../test/fixtures";
 import { dispatchCommands } from "../test/tauriMocks";
 
-/** A vault is open, defaults are known, and the profile scope arrived. */
+/** A vault is open and the defaults are known. */
 function seed(patch: Partial<typeof defaultConfig> = {}) {
   dispatchCommands(invokeMock, baseHandlers({ config_set: () => undefined }));
   useAppStore.setState({
     vaultPath: "/test/vault",
     config: { ...defaultConfig, ...patch },
     defaults: defaultConfig,
-    profileKeys: [
-      "theme",
-      "accent_color",
-      "surface_color",
-      "surface_alt_color",
-      "line_color",
-      "color_min_contrast",
-      "content_color",
-      "content_muted_color",
-    ],
-    profiles: [],
   });
 }
 
@@ -67,16 +55,15 @@ describe("Settings smoke", () => {
   // calls it on the group it lands on
   Element.prototype.scrollIntoView = vi.fn();
 
-  it("opens on Appearance and switches to another tab", async () => {
+  it("opens on General and switches to another tab", async () => {
     seed();
     render(<Settings />);
 
     expect(screen.getByText("Fonts & sizes")).toBeTruthy();
-    // the per-object tabs replaced the look/geometry/behavior split
-    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
-    expect(screen.getByText("Postponed and done tasks")).toBeTruthy();
-    expect(screen.getByText("Day columns")).toBeTruthy();
-    expect(screen.getByText("List columns")).toBeTruthy();
+    expect(screen.getByText("Left bar")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(screen.getByText("Task cards")).toBeTruthy();
+    expect(screen.getByText("Day and list columns")).toBeTruthy();
   });
 
   it("offers Google sign-in on the Sync tab and signs in", async () => {
@@ -108,8 +95,6 @@ describe("Settings smoke", () => {
       vaultPath: "C:\\Users\\me\\Dropbox\\vault",
       config: defaultConfig,
       defaults: defaultConfig,
-      profileKeys: [],
-      profiles: [],
     });
     render(<Settings />);
 
@@ -129,15 +114,15 @@ describe("Settings smoke", () => {
     render(<Settings />);
 
     fireEvent.change(screen.getByPlaceholderText("Search settings..."), {
-      target: { value: "snooze" },
+      target: { value: "remind ahead" },
     });
-    const hit = await screen.findByText("Snooze length");
+    const hit = await screen.findByText("Remind ahead of a timed task");
     fireEvent.click(hit);
 
     // the jump landed on the tab the hit named, with the group open
     expect(screen.getByText("Due-task notifications")).toBeTruthy();
     expect(
-      screen.getByText("Snooze length of the due-task toast, minutes"),
+      screen.getByText("Remind ahead of a timed task, minutes (0 = at its time)"),
     ).toBeTruthy();
     // and the query is cleared, so the dropdown no longer covers the page
     expect(
@@ -157,11 +142,11 @@ describe("Settings smoke", () => {
   });
 
   it("offers a reset only for a group that left its defaults", async () => {
-    // a changed done display lives in the postponed-and-done group; the
-    // day and list groups are untouched
+    // a changed done display lives in the columns group; the cards
+    // group is untouched
     seed({ done_display: "inline" });
     render(<Settings />);
-    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
 
     const resets = screen.getAllByTitle(
       "Put every field in this group back to its factory default",
@@ -198,24 +183,5 @@ describe("Settings smoke", () => {
     }) as HTMLInputElement;
     expect(buckets.checked).toBe(false);
     expect(screen.queryByText("Minimum firings per year")).toBeNull();
-  });
-
-  it("marks the groups a profile covers", () => {
-    seed();
-    render(<Settings />);
-
-    // Theme is fully inside the scope seeded above
-    expect(screen.getByText("in profiles")).toBeTruthy();
-    // and the Profiles tab lists that same group
-    fireEvent.click(screen.getByRole("button", { name: "Profiles" }));
-    expect(screen.getByText("A profile covers")).toBeTruthy();
-    // the covered groups are folded under their tab's name, which shows
-    // once per row instead of on every chip (the tab strip above has an
-    // "Appearance" of its own, hence the scope)
-    const scope = screen.getByText("A profile covers").parentElement;
-    const row = within(scope as HTMLElement)
-      .getByText("Appearance")
-      .closest("div");
-    expect(row?.querySelector("button")?.textContent).toBe("Theme");
   });
 });

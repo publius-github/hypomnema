@@ -87,21 +87,8 @@ interface AppState {
   selectVault: (path: string) => Promise<void>;
   updateConfig: (patch: Partial<AppConfig>) => Promise<void>;
   /// factory defaults, fetched once - drives "is this at its default?"
-  /// (settings group disclosure, the per-group Reset) and the Profiles
-  /// tab
+  /// (settings group disclosure, the per-group Reset)
   defaults: AppConfig | null;
-  /// config keys a settings profile covers (Rust PROFILE_KEYS, fetched
-  /// once beside the defaults): the Settings page marks each group with
-  /// what a profile does to it, and the list is authoritative on the
-  /// Rust side, so the frontend never keeps a second copy of the scope
-  profileKeys: (keyof AppConfig)[] | null;
-  /// saved settings-profile names (the built-in Default is not listed)
-  profiles: string[];
-  loadProfiles: () => Promise<void>;
-  saveProfile: (name: string) => Promise<boolean>;
-  deleteProfile: (name: string) => Promise<void>;
-  /// applies a saved profile (or "Default") over the live config
-  applyProfile: (name: string) => Promise<void>;
   setSection: (section: Section) => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
@@ -110,9 +97,8 @@ interface AppState {
   /// section until the hold expires (done_hold_seconds)
   statusHold: { id: number; status: TaskStatus }[];
   holdStatus: (id: number, shownStatus: TaskStatus) => void;
-  /// section folds the user clicked this session, by section key
-  /// (shared by every column); absent = the configured default
-  sectionFolds: Record<string, boolean>;
+  /// folds or opens a section by its key in every column, remembered
+  /// in `config.folded_sections`
   setSectionFold: (key: string, folded: boolean) => void;
   /// last destructive action, offered back through the Undo toast until
   /// the hold (undo_toast_seconds) expires or another delete replaces it
@@ -275,11 +261,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ loaded: true, vaultPath, config });
       invoke("config_default")
         .then((defaults) => set({ defaults }))
-        .catch((e) => set({ error: errorMessage(e) }));
-      invoke("profile_scope")
-        .then((keys) =>
-          set({ profileKeys: keys as (keyof AppConfig)[] }),
-        )
         .catch((e) => set({ error: errorMessage(e) }));
       if (vaultPath) {
         await get().runEngine();
@@ -705,55 +686,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   defaults: null,
-  profileKeys: null,
-  profiles: [],
-
-  loadProfiles: async () => {
-    try {
-      set({ profiles: await invoke("profiles_list") });
-    } catch {
-      set({ profiles: [] });
-    }
-  },
-
-  saveProfile: async (name: string) => {
-    try {
-      const profiles = await invoke("profile_save", { name });
-      set({ profiles });
-      return true;
-    } catch (e) {
-      set({ error: errorMessage(e) });
-      return false;
-    }
-  },
-
-  deleteProfile: async (name: string) => {
-    try {
-      const profiles = await invoke("profile_delete", { name });
-      set({ profiles });
-    } catch (e) {
-      set({ error: errorMessage(e) });
-    }
-  },
-
-  applyProfile: async (name: string) => {
-    const current = get().config;
-    try {
-      const next = await invoke("profile_apply", { name });
-      applyTheme(next);
-      set({ config: next });
-      // same contract as updateConfig: a changed day-grid width needs an
-      // engine pass and a refetch, not a wait for the settings watcher
-      if (
-        current &&
-        WINDOW_KEYS.some((key) => current[key] !== next[key])
-      ) {
-        await get().runEngine();
-      }
-    } catch (e) {
-      set({ error: errorMessage(e) });
-    }
-  },
 
   setSection: (section) => set({ section }),
   gridOffset: 0,
@@ -817,9 +749,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   undoEntry: null,
   statusHold: [],
-  sectionFolds: {},
-  setSectionFold: (key, folded) =>
-    set((s) => ({ sectionFolds: { ...s.sectionFolds, [key]: folded } })),
+  setSectionFold: (key, folded) => {
+    const current = get().config?.folded_sections ?? [];
+    const rest = current.filter((k) => k !== key);
+    void get().updateConfig({
+      folded_sections: folded ? [...rest, key] : rest,
+    });
+  },
   holdStatus: (id, shownStatus) => {
     const seconds = get().config?.done_hold_seconds ?? 0;
     if (seconds <= 0) return;

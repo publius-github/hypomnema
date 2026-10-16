@@ -1,6 +1,8 @@
 import type { KbNode } from "../../types";
 
-// Vault config files editable right in the KB editor (validated on save)
+// Vault config files editable right in the KB editor (validated on save).
+// app.yml is this device's settings - everything Settings does not show
+// is tuned there; colors.yml is the synced color scheme.
 export const CONFIG_FILES = [
   "recurring.yml",
   "scheduled.yml",
@@ -9,8 +11,13 @@ export const CONFIG_FILES = [
   "day-reminders.yml",
   "day-schedule.yml",
   "colors.yml",
+  "app.yml",
   "templates/journal.md",
 ];
+
+/** Where a config file sits under .hypomnema/ (app.yml is not in config/). */
+export const configFilePath = (file: string) =>
+  file === "app.yml" ? `settings/${file}` : `config/${file}`;
 
 export interface OpenDoc {
   kind: "note" | "config";

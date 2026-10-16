@@ -5,9 +5,6 @@ import {
   SETTINGS_GROUPS,
   SETTINGS_TABS,
   groupKeys,
-  profileCoverage,
-  profileGroups,
-  profileGroupsByTab,
   searchSettings,
   type SettingsGroupId,
 } from "./settingsCatalog";
@@ -53,11 +50,14 @@ describe("the settings catalog", () => {
   it("leaves no tab without groups", () => {
     const used = new Set(Object.values(SETTINGS_GROUPS).map((g) => g.tab));
     for (const tab of SETTINGS_TABS) {
-      // Profiles is the one tab that is a screen rather than a set of
-      // fields
-      if (tab.id === "profiles") continue;
       expect(used.has(tab.id)).toBe(true);
     }
+  });
+
+  it("shows no color: the scheme is colors.yml's", () => {
+    // the field names a color, or tunes how colors are picked
+    const colorish = SETTINGS_CATALOG.filter((e) => /color/.test(e.key));
+    expect(colorish).toEqual([]);
   });
 });
 
@@ -74,98 +74,32 @@ describe("knobs groups", () => {
 });
 
 describe("searchSettings", () => {
-  it("finds a setting by its label", () => {
-    expect(searchSettings("snooze").map((h) => h.key)).toContain(
-      "notify_snooze_minutes",
-    );
+  it("finds a setting by its label, and nothing that lives in the files", () => {
+    expect(searchSettings("snooze").map((h) => h.key)).toEqual([]);
+    expect(searchSettings("tray").map((h) => h.key)).toContain("tray_icon");
   });
 
   it("finds a setting by its raw config key", () => {
-    expect(searchSettings("tasks_mirror_ids").map((h) => h.key)).toEqual([
-      "tasks_mirror_ids",
+    expect(searchSettings("tasks_mirror_today").map((h) => h.key)).toEqual([
+      "tasks_mirror_today",
     ]);
   });
 
   it("requires every term to match, in any order", () => {
-    const hits = searchSettings("waiting fold").map((h) => h.key);
-    expect(hits).toEqual(["fold_waiting"]);
-    expect(searchSettings("fold waiting").map((h) => h.key)).toEqual(hits);
+    const hits = searchSettings("lists alphabetically").map((h) => h.key);
+    expect(hits).toEqual(["lists_sort_alpha"]);
+    expect(searchSettings("alphabetically lists").map((h) => h.key)).toEqual(
+      hits,
+    );
   });
 
   it("reports the tab and group a hit lives on", () => {
     const [hit] = searchSettings("theme palette");
-    expect(hit.tab).toBe("appearance");
+    expect(hit.tab).toBe("general");
     expect(hit.groupTitle).toBe("Theme");
   });
 
   it("is empty for a blank query", () => {
     expect(searchSettings("   ")).toEqual([]);
-  });
-});
-
-describe("profileCoverage", () => {
-  const keys: (keyof AppConfig)[] = [
-    "cron_weekday_labels",
-    "cron_everyday_label",
-    "habit_rate_chip",
-    "habit_rate_alert_color",
-    "theme",
-  ];
-
-  it("reports a fully covered group", () => {
-    expect(
-      profileCoverage("appearance.theme", [
-        "theme",
-        "accent_color",
-        "surface_color",
-        "surface_alt_color",
-        "line_color",
-        "color_min_contrast",
-        "content_color",
-        "content_muted_color",
-      ]),
-    ).toBe("all");
-  });
-
-  it("reports a partly covered group", () => {
-    // completion rate: the chip toggle travels with a profile, the
-    // threshold and window do not
-    expect(profileCoverage("cards.rate", keys)).toBe("some");
-  });
-
-  it("reports an untouched group", () => {
-    expect(profileCoverage("data.mirror", keys)).toBe("none");
-  });
-
-  it("says nothing before the scope has loaded", () => {
-    expect(profileCoverage("appearance.theme", null)).toBe("unknown");
-  });
-
-  it("folds the covered groups by tab, in page order", () => {
-    const rows = profileGroupsByTab([
-      ...keys,
-      "closed_sections_sort_alpha",
-      "lists_page_align_rows",
-    ]);
-    expect(rows.map((r) => r.tab)).toEqual([
-      "appearance",
-      "views",
-      "cards",
-      "columns",
-    ]);
-    expect(rows[1].groups.map((g) => g.title)).toEqual(["Lists page"]);
-    // a tab a profile never touches does not get an empty row
-    expect(rows.some((r) => r.tab === "data")).toBe(false);
-  });
-
-  it("lists the covered groups for the Profiles tab", () => {
-    const groups = profileGroups(keys);
-    expect(groups.map((g) => g.id)).toEqual([
-      "appearance.theme",
-      "cards.markers",
-      "cards.rate",
-    ]);
-    expect(groups.find((g) => g.id === "cards.markers")?.partial).toBe(false);
-    expect(groups.find((g) => g.id === "cards.rate")?.partial).toBe(true);
   });
 });

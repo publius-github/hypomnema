@@ -7,7 +7,12 @@ import TaskModal from "../../components/TaskModal";
 import { useAppStore } from "../../store";
 import { splitCategory } from "../../lib/tasks";
 import type { BacklinksResult, KbSearchHit, Task } from "../../types";
-import { noteBodyOffset, type OpenDoc, type SaveState } from "./util";
+import {
+  configFilePath,
+  noteBodyOffset,
+  type OpenDoc,
+  type SaveState,
+} from "./util";
 import SaveIndicator from "../../components/SaveIndicator";
 import { errorMessage } from "../../lib/ipc";
 
@@ -167,7 +172,7 @@ export default function EditorPane({
     <>
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-sm">
         <span className="truncate text-base font-semibold">
-          {current.kind === "config" ? `config/${current.path}` : current.path}
+          {current.kind === "config" ? configFilePath(current.path) : current.path}
         </span>
         {configErrors.length > 0 ? (
           <span className="text-xs text-danger">Invalid, not saved</span>

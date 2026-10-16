@@ -13,7 +13,6 @@ mod ids;
 mod journal;
 mod kb;
 mod oauth;
-mod profiles;
 mod reminders;
 mod secret_store;
 mod state_export;
@@ -173,11 +172,8 @@ pub fn run() {
                         let guard = state.vault.lock_or_recover();
                         guard
                             .as_ref()
-                            .map(|v| v.config.tray_icon && v.config.close_to_tray)
-                            .unwrap_or_else(|| {
-                                let d = AppConfig::default();
-                                d.tray_icon && d.close_to_tray
-                            })
+                            .map(|v| v.config.tray_icon)
+                            .unwrap_or_else(|| AppConfig::default().tray_icon)
                     };
                     if hide {
                         api.prevent_close();
@@ -201,11 +197,6 @@ pub fn run() {
             cmd_vault::config_get,
             cmd_vault::config_set,
             cmd_vault::config_default,
-            cmd_vault::profile_scope,
-            cmd_vault::profiles_list,
-            cmd_vault::profile_save,
-            cmd_vault::profile_apply,
-            cmd_vault::profile_delete,
             cmd_tasks::lists_all,
             cmd_tasks::list_create,
             cmd_tasks::list_rename,

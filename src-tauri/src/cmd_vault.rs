@@ -1,4 +1,4 @@
-//! Commands: vault selection, app settings and settings profiles, backups,
+//! Commands: vault selection, app settings, backups,
 //! and the About dialog's third-party notices.
 
 use std::path::{Path, PathBuf};
@@ -10,7 +10,7 @@ use crate::desktop::*;
 use crate::error::{Error, Result};
 use crate::state::*;
 use crate::watchers::*;
-use crate::{android_storage, backup, config_files, profiles, vault, vault_places};
+use crate::{android_storage, backup, config_files, vault, vault_places};
 
 #[tauri::command]
 pub(crate) async fn vault_status(
@@ -222,66 +222,6 @@ pub(crate) async fn config_set(
 #[tauri::command]
 pub(crate) async fn config_default() -> Result<AppConfig> {
     Ok(AppConfig::default())
-}
-
-/// The keys a profile covers (`PROFILE_KEYS`). The Rust list stays the
-/// single source of truth: the Settings page reads it to say, per
-/// group, whether a profile captures it - a question the tab layout
-/// alone cannot answer, since the scope cuts across groups.
-#[tauri::command]
-pub(crate) async fn profile_scope() -> Result<Vec<String>> {
-    Ok(crate::config::PROFILE_KEYS
-        .iter()
-        .map(|k| (*k).to_string())
-        .collect())
-}
-
-#[tauri::command]
-pub(crate) async fn profiles_list(state: State<'_, AppState>) -> Result<Vec<String>> {
-    let guard = state.vault.lock_or_recover();
-    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    profiles::list(&vault.root)
-}
-
-/// Snapshots the live config under the given name; returns the fresh
-/// profile list so the UI updates in one round trip.
-#[tauri::command]
-pub(crate) async fn profile_save(state: State<'_, AppState>, name: String) -> Result<Vec<String>> {
-    let guard = state.vault.lock_or_recover();
-    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    profiles::save(&vault.root, &vault.config, &name)?;
-    profiles::list(&vault.root)
-}
-
-/// Applies a profile (or the built-in "Default") over the live config
-/// and saves it. app.yml is backed up first - unlike a field edit, a
-/// profile apply rewrites the whole visual surface in one move.
-#[tauri::command]
-pub(crate) async fn profile_apply(state: State<'_, AppState>, name: String) -> Result<AppConfig> {
-    let mut guard = state.vault.lock_or_recover();
-    let vault = guard.as_mut().ok_or_else(|| Error::NoVault)?;
-    let next = profiles::apply(&vault.root, &vault.config, &name)?;
-    if let Some(settings_dir) = vault::settings_file(&vault.root).parent() {
-        let _ = backup::backup_config_file(
-            settings_dir,
-            "app.yml",
-            vault.config.backup_keep,
-            chrono::Local::now(),
-        );
-    }
-    vault.save_config(next)?;
-    Ok(vault.config.clone())
-}
-
-#[tauri::command]
-pub(crate) async fn profile_delete(
-    state: State<'_, AppState>,
-    name: String,
-) -> Result<Vec<String>> {
-    let guard = state.vault.lock_or_recover();
-    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    profiles::delete(&vault.root, &name)?;
-    profiles::list(&vault.root)
 }
 
 #[tauri::command]

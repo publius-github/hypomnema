@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.102.0 - 2026-10-16
+
+Settings made short for publishing: from 86 controls on 9 tabs to 44 on 6 (General, Tasks, Recurring & calendar, Capture & alerts, Data, Sync). Fine-tuning keeps its defaults and moves to app.yml - column spacing and plates, opacities, chip size, done-hold and undo timings, snooze and toast lengths, sync interval/debounce/focus/quit/guard, mirror ids/agenda/today days, the streak strip - and app.yml is now editable in Notes > Config next to colors.yml; the bottom of Settings links both. Removed: the invisible gap band and its four knobs (breaks are plain space), the database snapshot switch (always on - sync depends on it), settings profiles. Merged: weekday + [EVERYDAY] markers into one switch, the rate chip and its alert-only switch into Off / Below threshold / Always, bold category headers into category headers, tray icon + close to tray into Keep running in the tray, list and list-task sorting into one; the four fold-by-default switches are gone - a fold clicked on a plate is now remembered across restarts. An app.yml from an older version is rewritten once without colors and retired fields
+
 ## 0.101.0 - 2026-10-16
 
 The color scheme syncs: every color setting moves out of the per-device settings/app.yml into .hypomnema/config/colors.yml, which travels with the vault like the other user configs, so the phone shows the same colors as the desktop. A missing colors.yml means the default colors; colors left in an old app.yml are ignored. colors.yml is edited in Notes > Config (it opens on the colors in use) or written by a profile apply, and is backed up before every rewrite. The phone's Settings drop the cadence color pickers and the screen-edge inset fields (still settable in app.yml)

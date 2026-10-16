@@ -1,5 +1,6 @@
-import { Field, NumberInput, Toggle } from "../../components/form";
+import { Field, NumberInput, TextInput } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
+import type { Theme } from "../../types";
 import { useAppStore } from "../../store";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -16,12 +17,12 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 /**
- * The pages themselves: which of them the left bar carries, and what
- * each page shows beyond its columns. Column counts and view modes sit
- * on the page headers; what is inside a day or list column is under
- * Columns; what a card looks like is under Task cards.
+ * What makes the app look and feel like yours before any task is in
+ * it: the theme, the fonts, and which pages the left bar carries.
+ * Colors have no controls here or anywhere in Settings: they live in
+ * the synced config/colors.yml, edited in Notes > Config.
  */
-export default function ViewsTab() {
+export default function GeneralTab() {
   const config = useAppStore((s) => s.config);
   const updateConfig = useAppStore((s) => s.updateConfig);
   const move = (index: number, delta: number) => {
@@ -36,7 +37,57 @@ export default function ViewsTab() {
 
   return (
     <>
-      <SettingsGroup id="views.navigation">
+      <SettingsGroup id="general.theme">
+        <Field label="Theme">
+          <select
+            className="input"
+            value={config.theme}
+            onChange={(e) =>
+              void updateConfig({ theme: e.target.value as Theme })
+            }
+          >
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </Field>
+      </SettingsGroup>
+
+      <SettingsGroup id="general.fonts">
+        <Field label="UI font (empty = system default)">
+          <TextInput
+            value={config.ui_font}
+            placeholder="e.g. Segoe UI"
+            onCommit={(v) => void updateConfig({ ui_font: v })}
+          />
+        </Field>
+
+        <Field label="Editor font (Journal, Notes, config files)">
+          <TextInput
+            value={config.editor_font}
+            placeholder="Consolas"
+            onCommit={(v) => void updateConfig({ editor_font: v })}
+          />
+        </Field>
+
+        <Field label="Base font size, px (16 = default; every text size scales from it)">
+          <NumberInput
+            value={config.ui_font_size}
+            min={10}
+            onCommit={(n) => void updateConfig({ ui_font_size: Math.min(28, n) })}
+          />
+        </Field>
+
+        <Field label="Editor font size (Journal, Notes, config files; same scale as the base size - equal values match the main text)">
+          <NumberInput
+            value={config.editor_font_size}
+            min={10}
+            onCommit={(n) =>
+              void updateConfig({ editor_font_size: Math.min(28, n) })
+            }
+          />
+        </Field>
+      </SettingsGroup>
+      <SettingsGroup id="general.navigation">
         <span className="text-xs text-content-muted">
           Order of the pages in the left bar, and which of them it shows at
           all - an app half of whose features you never open should not spend a
@@ -90,46 +141,6 @@ export default function ViewsTab() {
             );
           })}
         </div>
-      </SettingsGroup>
-      <SettingsGroup id="views.dashboard">
-        {/* column counts, the group shape and the today-only switches
-            are set on the page headers themselves, where the grid they
-            reshape is visible; a second copy here would only invite the
-            two to disagree */}
-        <Field label="Dashboard split: day grid height, % (also draggable on the dashboard)">
-          <NumberInput
-            value={config.dashboard_split}
-            min={20}
-            onCommit={(n) =>
-              void updateConfig({ dashboard_split: Math.min(80, n) })
-            }
-          />
-        </Field>
-      </SettingsGroup>
-
-      <SettingsGroup id="views.lists">
-        <Toggle
-          checked={config.lists_page_align_rows}
-          label="Align list rows on the Lists page"
-          hint="Every list column stretches to its grid row's height, so the rows line up instead of forming a ragged mosaic. Off = each column takes its natural height."
-          onChange={(v) => void updateConfig({ lists_page_align_rows: v })}
-        />
-      </SettingsGroup>
-
-      <SettingsGroup id="views.history">
-        <Field label="Marks per daily streak (0 = hide the strip)">
-          <NumberInput
-            value={config.streak_strip_days}
-            min={0}
-            onCommit={(n) =>
-              void updateConfig({ streak_strip_days: Math.min(180, n) })
-            }
-          />
-        </Field>
-        <span className="-mt-1 text-xs text-content-muted">
-          Each daily streak in History carries a strip of its newest
-          instances, one mark per day.
-        </span>
       </SettingsGroup>
     </>
   );

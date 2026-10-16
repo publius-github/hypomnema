@@ -187,12 +187,6 @@ notify_lead_minutes: number,
  */
 notify_toast_seconds: number, 
 /**
- * Keep a full text snapshot of the database under
- * <vault>/.hypomnema/state/ (tasks, lists, engine ledgers), so a
- * vault synced without its .db rebuilds the database on open.
- */
-state_snapshot: boolean, 
-/**
  * Run sync passes on their own, without the user pressing Sync now
  * (on the phone from the shell's triggers; on the desktop through
  * `sync_scheduler.rs`), while signed in to Google. Off leaves sync entirely manual.
@@ -276,23 +270,16 @@ tasks_mirror_today: boolean,
 tasks_mirror_today_days: number, 
 /**
  * Show a [SAT#1]-style marker before recurring tasks whose cron
- * pins concrete weekdays.
+ * pins concrete weekdays, and an [EVERYDAY] one on rules free on
+ * both day fields.
  */
 cron_weekday_labels: boolean, 
 /**
- * With cron_weekday_labels on, rules free on both day fields wear
- * an [EVERYDAY] marker instead of going unlabeled.
+ * Recurring task cards wear a `Rate: 82%` chip - the share of the
+ * rule item's settled instances that were done: "off", "alert" =
+ * only once it falls below its threshold, "always".
  */
-cron_everyday_label: boolean, 
-/**
- * Recurring task cards wear a `Rate: 82%` chip: the share of the
- * rule item's settled instances that were done.
- */
-habit_rate_chip: boolean, 
-/**
- * Show the rate chip only once it falls below its threshold.
- */
-habit_rate_alert_only: boolean, 
+habit_rate_display: "off" | "alert" | "always", 
 /**
  * Default alert threshold, percent: below it the rate chip turns
  * loud. A rule's own `threshold:` in recurring.yml wins over it.
@@ -313,8 +300,9 @@ habit_rate_min_instances: number,
  */
 habit_rate_alert_color: string, 
 /**
- * Order the dashboard list columns alphabetically (favorites still
- * come first); off = manual creation order.
+ * Order the list columns alphabetically (favorites still come
+ * first), and the tasks inside each list too (timed tasks still pin
+ * to the top); off = manual creation and drag order.
  */
 lists_sort_alpha: boolean, 
 /**
@@ -332,31 +320,10 @@ lists_page_align_rows: boolean,
  */
 list_view_plate_scale: number, 
 /**
- * Separator stripes between list rows: the band's color, hex
- * (empty = the border color), and how soft its edges are - the
- * share of each half of the band that fades out to nothing, %
- * (0 = hard edges, 100 = solid only along its middle line).
- */
-gap_fill_color: string, gap_fill_fade: number, 
-/**
- * Empty space the band leaves above and below itself, % of the
- * gap's height (0..=45), so it does not touch the rows' hairlines.
- */
-gap_fill_inset: number, 
-/**
- * Thickest the band gets, px (1..=64): a tall gap keeps a thin
- * line-like band centered in it instead of a wide smudge.
- */
-gap_fill_max_thickness: number, 
-/**
- * Opacity of the band, % (0..=100).
- */
-gap_fill_opacity: number, 
-/**
- * Breaks between list rows come in fixed stripes: one stripe is
- * this % of a single-line row's height (25..=150). A category break
- * is one stripe, a section break two, the Postponed / Done,
- * waiting / Done breaks three.
+ * Breaks between list rows are plain space in fixed stripes: one
+ * stripe is this % of a single-line row's height (25..=150). A
+ * category break is one stripe, a section break two, the break
+ * into the closed blocks three.
  */
 list_gap_stripe: number, 
 /**
@@ -364,15 +331,10 @@ list_gap_stripe: number,
  */
 row_hairlines: boolean, 
 /**
- * A category block names its category once, as a small header over
+ * A category block names its category once, as a bold header over
  * its rows, instead of a chip on every row.
  */
 category_headers: boolean, 
-/**
- * The category block header is bold, so it reads apart from the
- * task titles under it.
- */
-category_header_bold: boolean, 
 /**
  * Section plates show how many tasks the section holds (done/total
  * when closed tasks stay inline).
@@ -384,10 +346,12 @@ section_plate_count: boolean,
  */
 section_plate_sticky: boolean, 
 /**
- * Which closed sections start folded to their plate, one switch
- * each; a click on any plate opens or folds it.
+ * Sections folded to their plate (cadence keys, "priority",
+ * "postponed", "waiting", "done", "dropped"): a click on a plate
+ * folds or opens that section in every column, and the choice is
+ * remembered here instead of being a setting.
  */
-fold_postponed: boolean, fold_waiting: boolean, fold_done: boolean, fold_dropped: boolean, 
+folded_sections: Array<string>, 
 /**
  * Opacity of a closed (done, dropped) row's text and chips, %
  * (20..=100); the status box keeps full strength.
@@ -420,11 +384,6 @@ closed_sections_sort_alpha: boolean,
  * colors, so a chip never matches the section plate it sits under.
  */
 category_avoid_cadence_colors: boolean, 
-/**
- * Order the tasks inside a list column alphabetically (timed tasks
- * still pin to the top); off = manual drag order.
- */
-list_tasks_sort_alpha: boolean, 
 /**
  * How many lines a task title may take on a card in a list column
  * before it is cut off (1 = the old single truncated line).
@@ -519,12 +478,8 @@ capture_list: string,
  */
 capture_shortcut: string, 
 /**
- * Tray icon with Show / Quick capture / Quit.
+ * Keep running in the tray: a tray icon with Show / Quick capture /
+ * Quit, and closing the main window hides it there instead of
+ * quitting, keeping the capture shortcut and notifications alive.
  */
-tray_icon: boolean, 
-/**
- * Closing the main window hides it to the tray instead of quitting,
- * keeping the capture shortcut and notifications alive. Forced off
- * without the tray icon - a hidden window must stay reachable.
- */
-close_to_tray: boolean, };
+tray_icon: boolean, };

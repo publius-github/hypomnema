@@ -123,9 +123,6 @@ export default function Calendar() {
   const lists = useAppStore((s) => s.lists);
   const config = useAppStore((s) => s.config);
   const dowLabels = useAppStore((s) => s.config?.cron_weekday_labels ?? true);
-  const everydayLabel = useAppStore(
-    (s) => s.config?.cron_everyday_label ?? true,
-  );
   const today = todayISO();
   const [year, setYear] = useState(() => Number(today.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(today.slice(5, 7)) - 1);
@@ -432,7 +429,6 @@ export default function Calendar() {
             >
               {task.dow_label &&
                 dowLabels &&
-                (task.dow_label !== "EVERYDAY" || everydayLabel) &&
                 `[${task.dow_label}] `}
               {splitCategory(task.title).text}
             </span>

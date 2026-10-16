@@ -39,7 +39,7 @@ type Panel =
  * row can carry its live state (linked or not, passphrase on or off) so
  * most visits never need to open a panel at all.
  *
- * The desktop's layout and profile tabs are deliberately absent - they
+ * The desktop's layout tabs are deliberately absent - they
  * describe a window, and this does not have one (ROADMAP.md Phase 5
  * revisits them).
  */

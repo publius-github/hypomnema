@@ -225,7 +225,7 @@ pub(crate) fn weekday_label(schedule: &str) -> Option<String> {
         true
     };
     // a rule free on both day fields fires every day: the EVERYDAY
-    // marker (display gated by config.cron_everyday_label)
+    // marker (display gated by config.cron_weekday_labels)
     if unrestricted(field) {
         return dom_unrestricted.then(|| "EVERYDAY".to_string());
     }
@@ -311,7 +311,6 @@ pub fn calendar_outlook(
             // marker so a projected entry says which weekday rule it is
             let dow = if config.cron_weekday_labels {
                 weekday_label(&rule.schedule)
-                    .filter(|l| l != "EVERYDAY" || config.cron_everyday_label)
             } else {
                 None
             };

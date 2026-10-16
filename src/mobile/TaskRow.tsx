@@ -140,23 +140,19 @@ export default function TaskRow({
   // Scheduled events and birthdays carry the date they came from.
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
 
-  const dowLabel =
-    (config?.cron_weekday_labels ?? true) &&
-    (task.dow_label !== "EVERYDAY" || (config?.cron_everyday_label ?? true))
-      ? task.dow_label
-      : null;
+  const dowLabel = (config?.cron_weekday_labels ?? true) ? task.dow_label : null;
   const dowColor = config?.dow_label_color || "";
 
   // the habit-tracker rate of a recurring item, loud below its threshold
   const habitRate = useAppStore((s) =>
-    (s.config?.habit_rate_chip ?? true) &&
+    (s.config?.habit_rate_display ?? "alert") !== "off" &&
     task.origin === "recurring" &&
     task.rule_key
       ? (s.habitRates[task.rule_key] ?? null)
       : null,
   );
   const rateAlertColor = config?.habit_rate_alert_color || "#c95e05";
-  const rateAlertOnly = config?.habit_rate_alert_only ?? true;
+  const rateAlertOnly = (config?.habit_rate_display ?? "alert") === "alert";
   // a closed row fades everything but its status box
   const dim = closed ? (config?.closed_row_opacity ?? 50) / 100 : 1;
 

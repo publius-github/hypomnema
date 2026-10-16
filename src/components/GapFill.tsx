@@ -3,64 +3,11 @@ import { listGapStripe } from "../lib/tasks";
 
 /**
  * The break between two category blocks (or two sections) in a day or
- * list column: `stripes` stripes of `listGapStripe` px each, filled with a soft band of color so the break
- * reads apart from the hairline between two rows. The band floats
- * clear of the rows: `gap_fill_inset` % of the gap stays empty above
- * and below it, and it never grows thicker than
- * `gap_fill_max_thickness` px - a tall gap keeps a thin centered band.
- * Its edges do not cut off but fade out to nothing on all four sides,
- * `gap_fill_fade` % of each half of the band being the ramp - the same
- * ramp length vertically and horizontally, so the corners soften
- * evenly. Color: `gap_fill_color`, empty = the border color, at
- * `gap_fill_opacity` %. One look for every column (Settings > Columns >
- * Column layout).
- *
- * `stripes` draws that many bands (1 = category, 2 = section, 3 = into
- * the closed sections - see `listGapStripe`), each sized as if it had its
- * own `height / stripes` slot, but the empty space is spread evenly:
- * row-to-band and band-to-band distances are all the same, so a
- * multi-stripe gap reads as one rhythm instead of tight pairs where
- * two slots' paddings would have added up.
+ * list column: plain space, `stripes` stripes of `listGapStripe` px
+ * each (1 = category, 2 = section, 3 = into the closed blocks - see
+ * `LIST_GAP_STRIPES`).
  */
 export default function GapFill({ stripes }: { stripes: number }) {
   const height = useAppStore((s) => stripes * listGapStripe(s.config));
-  const color = useAppStore((s) => s.config?.gap_fill_color ?? "");
-  const fade = useAppStore((s) => s.config?.gap_fill_fade ?? 50);
-  const inset = useAppStore((s) => s.config?.gap_fill_inset ?? 15);
-  const maxBand = useAppStore((s) => s.config?.gap_fill_max_thickness ?? 20);
-  const opacity = useAppStore((s) => s.config?.gap_fill_opacity ?? 100);
-  // the inset sets the band for a small slot; past maxBand the band
-  // stops growing and the extra height goes to the empty space around
-  // it, so a tall gap gets a thin band rather than a smudge
-  const slot = height / stripes;
-  const band = Math.min(
-    maxBand,
-    Math.max(0, slot - 2 * Math.round((slot * inset) / 100)),
-  );
-  const ramp = ((band / 2) * fade) / 100;
-  const edgeMask = `linear-gradient(to right, transparent 0, #000 ${ramp}px, #000 calc(100% - ${ramp}px), transparent 100%)`;
-  return (
-    <div
-      className={`flex flex-col justify-evenly ${color ? "" : "text-line"}`}
-      style={{
-        height,
-        color: color || undefined,
-        opacity: opacity / 100,
-      }}
-    >
-      {Array.from({ length: stripes }, (_, i) => (
-        <div
-          key={i}
-          style={{
-            height: band,
-            // top and bottom edges fade in the fill itself...
-            backgroundImage: `linear-gradient(to bottom, transparent 0, currentColor ${ramp}px, currentColor calc(100% - ${ramp}px), transparent 100%)`,
-            // ...the left and right ones through a mask over the band
-            maskImage: edgeMask,
-            WebkitMaskImage: edgeMask,
-          }}
-        />
-      ))}
-    </div>
-  );
+  return <div aria-hidden style={{ height }} />;
 }

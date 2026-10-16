@@ -83,7 +83,7 @@ pub fn is_synced_with(path: &str, user_ignore: &[String]) -> bool {
         // app.db and its -wal/-shm siblings. The whole reason this
         // module is a whitelist.
         "app.db" => false,
-        // Per-device: window layout, theme, profiles. A phone inheriting
+        // Per-device: window layout, theme. A phone inheriting
         // a desktop's column counts would be a bug, not a feature.
         "settings" => false,
         // A local safety net, per device, and large. Restoring one

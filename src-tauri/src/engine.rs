@@ -1190,7 +1190,7 @@ mod tests {
             )
             .unwrap();
         // both day fields free = the EVERYDAY marker (display is gated
-        // by config.cron_everyday_label on the frontend)
+        // by config.cron_weekday_labels on the frontend)
         assert_eq!(daily.as_deref(), Some("EVERYDAY"));
     }
 

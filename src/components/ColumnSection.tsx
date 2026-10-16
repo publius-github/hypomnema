@@ -11,13 +11,8 @@ import type { ColumnRow, ColumnSection } from "../hooks/useColumnSections";
 import type { AppConfig } from "../types";
 import GapFill from "./GapFill";
 
-/** The closed sections, each with its own fold-by-default switch. */
-const CLOSED_FOLD: Record<string, keyof AppConfig> = {
-  postponed: "fold_postponed",
-  waiting: "fold_waiting",
-  done: "fold_done",
-  dropped: "fold_dropped",
-};
+/** The closed sections: their count is a plain total, never done/total. */
+const CLOSED_KEYS = new Set(["postponed", "waiting", "done", "dropped"]);
 
 /**
  * One column section, shared by the desktop columns and the phone's day
@@ -28,8 +23,9 @@ const CLOSED_FOLD: Record<string, keyof AppConfig> = {
  *
  * The plate can carry the section's count (`section_plate_count`) and
  * stick to the top of the scrolling column (`section_plate_sticky`); a
- * click on it folds the section to the plate - each closed section
- * starts folded under its own `fold_*` switch.
+ * click on it folds the section to the plate, in every column, and the
+ * fold is remembered (`folded_sections`) - Done and Dropped start
+ * folded.
  */
 export default function SectionBlock({
   section,
@@ -39,16 +35,16 @@ export default function SectionBlock({
   children: ReactNode;
 }) {
   const config = useAppStore((s) => s.config);
-  const fold = useAppStore((s) => s.sectionFolds[section.key]);
+  const folded = useAppStore(
+    (s) =>
+      section.label !== null &&
+      (s.config?.folded_sections ?? []).includes(section.key),
+  );
   const setSectionFold = useAppStore((s) => s.setSectionFold);
   const { label, color, tone, stripes, rows } = section;
-  const foldKey = CLOSED_FOLD[section.key] ?? null;
-  const folded =
-    label !== null &&
-    (fold ?? (foldKey !== null && config?.[foldKey] === true));
   const closedCount = rows.filter((r) => isClosed(r.task.status)).length;
   const count =
-    closedCount > 0 && foldKey === null
+    closedCount > 0 && !CLOSED_KEYS.has(section.key)
       ? `${closedCount}/${rows.length}`
       : `${rows.length}`;
 
@@ -110,7 +106,6 @@ export function RowLead({ row }: { row: ColumnRow }) {
       : null,
   );
   const headers = config?.category_headers ?? true;
-  const bold = config?.category_header_bold ?? true;
   return (
     <>
       {row.gapBefore && (
@@ -118,9 +113,7 @@ export function RowLead({ row }: { row: ColumnRow }) {
       )}
       {headers && row.header && hue && (
         <div
-          className={`truncate px-2 pt-1 ${
-            bold ? "text-sm font-bold" : "text-xs font-medium"
-          }`}
+          className="truncate px-2 pt-1 text-sm font-bold"
           style={{ color: hue }}
         >
           {row.header}

@@ -78,11 +78,6 @@ pub fn colors_file(root: &Path) -> PathBuf {
     config_dir(root).join("colors.yml")
 }
 
-/// Saved settings profiles (profiles.rs), one YAML file per profile.
-pub fn profiles_dir(root: &Path) -> PathBuf {
-    work_dir(root).join("settings").join("profiles")
-}
-
 pub fn db_path(root: &Path) -> PathBuf {
     work_dir(root).join("app.db")
 }

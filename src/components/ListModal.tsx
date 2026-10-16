@@ -68,7 +68,7 @@ export default function ListModal({
   const held = new Map(hold.map((h) => [h.id, h.status]));
   const shown = (t: Task) => held.get(t.id) ?? t.status;
   // same order as the list column: optional alphabetical, done sinks
-  const alpha = config?.list_tasks_sort_alpha ?? false;
+  const alpha = config?.lists_sort_alpha ?? false;
   const sorted = [...listTasks].sort((a, b) => {
     const aDone = isClosed(shown(a));
     const bDone = isClosed(shown(b));

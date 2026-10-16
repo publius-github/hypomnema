@@ -151,11 +151,6 @@ export interface Commands {
   lists_archived: { args: void; result: List[] };
   open_external: { args: { url: string }; result: void };
   platform_is_mobile: { args: void; result: boolean };
-  profile_apply: { args: { name: string }; result: AppConfig };
-  profile_delete: { args: { name: string }; result: string[] };
-  profile_save: { args: { name: string }; result: string[] };
-  profile_scope: { args: void; result: string[] };
-  profiles_list: { args: void; result: string[] };
   recurring_add: { args: { rule: RecurringRule }; result: void };
   recurring_edit: {
     args: { index: number; replacement: RecurringRule | null };

@@ -4,12 +4,13 @@ import type { AppConfig } from "../types";
  * The map of the Settings page: which tab and group every config field
  * lives in, and the words that find it.
  *
- * Settings are filed by the thing on screen they change - the task
- * card, the day column, the list column, the vault - and inside a group
- * look, geometry and behavior sit together, because that is how a
- * question arrives ("make the Done block quieter"), not split across a
- * look tab and a behavior tab. Chrome that belongs to no single object
- * (theme, fonts) stays global under Appearance.
+ * Settings is deliberately short: it holds what a person sets up once
+ * to make the app theirs - theme and fonts, which pages show, how tasks
+ * are grouped and sorted, recurring rules, capture, data and sync. Fine
+ * tuning (spacing, opacities, timings, sync cadence, file-mirror
+ * details) and every color stay at sane defaults and are edited in the
+ * files instead: app.yml for the per-device knobs and the synced
+ * colors.yml for the color scheme, both open in Notes > Config.
  *
  * This file is the single source of truth: a group's title and its
  * fields are read from here by `SettingsGroup` (so a tab never repeats
@@ -20,11 +21,8 @@ import type { AppConfig } from "../types";
  */
 
 export const SETTINGS_TABS = [
-  { id: "profiles", label: "Profiles" },
-  { id: "appearance", label: "Appearance" },
-  { id: "views", label: "Pages" },
-  { id: "cards", label: "Task cards" },
-  { id: "columns", label: "Columns" },
+  { id: "general", label: "General" },
+  { id: "tasks", label: "Tasks" },
   { id: "recurring", label: "Recurring & calendar" },
   { id: "capture", label: "Capture & alerts" },
   { id: "data", label: "Data" },
@@ -34,25 +32,15 @@ export const SETTINGS_TABS = [
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];
 
 export type SettingsGroupId =
-  | "appearance.theme"
-  | "appearance.fonts"
-  | "views.navigation"
-  | "views.dashboard"
-  | "views.lists"
-  | "views.history"
-  | "cards.chips"
-  | "cards.markers"
-  | "cards.rate"
-  | "cards.behavior"
-  | "columns.sections"
-  | "columns.closed"
-  | "columns.day"
-  | "columns.list"
+  | "general.theme"
+  | "general.fonts"
+  | "general.navigation"
+  | "tasks.cards"
+  | "tasks.columns"
   | "recurring.buckets"
   | "recurring.generation"
   | "recurring.calendar"
   | "capture.capture"
-  | "capture.tray"
   | "capture.alerts"
   | "data.vault"
   | "data.notes"
@@ -79,30 +67,12 @@ type GroupDef = {
 };
 
 export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
-  "appearance.theme": { tab: "appearance", title: "Theme" },
-  "appearance.fonts": { tab: "appearance", title: "Fonts & sizes" },
+  "general.theme": { tab: "general", title: "Theme" },
+  "general.fonts": { tab: "general", title: "Fonts & sizes" },
+  "general.navigation": { tab: "general", title: "Left bar" },
 
-  "views.navigation": { tab: "views", title: "Left bar" },
-  "views.dashboard": { tab: "views", title: "Dashboard" },
-  "views.lists": { tab: "views", title: "Lists page" },
-  "views.history": { tab: "views", title: "History" },
-
-  "cards.chips": { tab: "cards", title: "Chips & categories" },
-  "cards.markers": { tab: "cards", title: "Weekday markers" },
-  "cards.rate": { tab: "cards", title: "Completion rate" },
-  "cards.behavior": { tab: "cards", title: "Card behavior" },
-
-  "columns.sections": {
-    tab: "columns",
-    title: "Column layout: sections and separators",
-    knobs: true,
-  },
-  "columns.closed": {
-    tab: "columns",
-    title: "Postponed and done tasks",
-  },
-  "columns.day": { tab: "columns", title: "Day columns" },
-  "columns.list": { tab: "columns", title: "List columns" },
+  "tasks.cards": { tab: "tasks", title: "Task cards" },
+  "tasks.columns": { tab: "tasks", title: "Day and list columns" },
 
   "recurring.buckets": { tab: "recurring", title: "Cadence buckets", knobs: true },
   "recurring.generation": { tab: "recurring", title: "Generation" },
@@ -112,8 +82,7 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
     knobs: true,
   },
 
-  "capture.capture": { tab: "capture", title: "Quick capture" },
-  "capture.tray": { tab: "capture", title: "Tray" },
+  "capture.capture": { tab: "capture", title: "Quick capture & tray" },
   "capture.alerts": { tab: "capture", title: "Due-task notifications" },
 
   "data.vault": {
@@ -123,7 +92,7 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
     noReset: true,
   },
   "data.notes": { tab: "data", title: "Journal & notes" },
-  "data.mirror": { tab: "data", title: "Snapshots & mirror" },
+  "data.mirror": { tab: "data", title: "Markdown mirror" },
   "data.backups": { tab: "data", title: "Backups", always: true },
   "data.cleanup": {
     tab: "data",
@@ -150,71 +119,31 @@ export type CatalogEntry = {
 };
 
 export const SETTINGS_CATALOG: CatalogEntry[] = [
-  // --- Appearance ----------------------------------------------
-  { key: "theme", label: "Theme", group: "appearance.theme", terms: "dark light vscode palette" },
+  // --- General -------------------------------------------------
+  { key: "theme", label: "Theme", group: "general.theme", terms: "dark light vscode palette" },
 
-  { key: "ui_font", label: "UI font", group: "appearance.fonts", terms: "typeface family" },
-  { key: "editor_font", label: "Editor font", group: "appearance.fonts", terms: "journal notes monospace" },
-  { key: "ui_font_size", label: "Base font size", group: "appearance.fonts", terms: "text size scale" },
-  { key: "editor_font_size", label: "Editor font size", group: "appearance.fonts" },
+  { key: "ui_font", label: "UI font", group: "general.fonts", terms: "typeface family" },
+  { key: "editor_font", label: "Editor font", group: "general.fonts", terms: "journal notes monospace" },
+  { key: "ui_font_size", label: "Base font size", group: "general.fonts", terms: "text size scale" },
+  { key: "editor_font_size", label: "Editor font size", group: "general.fonts" },
 
-  // --- Pages ---------------------------------------------------
-  { key: "section_order", label: "Page order in the left bar", group: "views.navigation", terms: "rail sidebar sections" },
-  { key: "section_hidden", label: "Hidden pages", group: "views.navigation", terms: "rail sidebar hide sections" },
+  { key: "section_order", label: "Page order in the left bar", group: "general.navigation", terms: "rail sidebar sections" },
+  { key: "section_hidden", label: "Hidden pages", group: "general.navigation", terms: "rail sidebar hide sections" },
 
-  { key: "dashboard_split", label: "Dashboard split", group: "views.dashboard", terms: "day grid height divider" },
+  // --- Tasks ---------------------------------------------------
+  { key: "category_headers", label: "Category as a block header", group: "tasks.cards", terms: "chip label group bold" },
+  { key: "cron_weekday_labels", label: "Weekday markers", group: "tasks.cards", terms: "sat#1 cron everyday label" },
+  { key: "habit_rate_display", label: "Completion rate chip", group: "tasks.cards", terms: "habit rate percent alert" },
+  { key: "habit_rate_threshold", label: "Rate alert threshold", group: "tasks.cards", terms: "habit percent" },
+  { key: "subtasks_done_last", label: "Done subtasks sink to the bottom", group: "tasks.cards" },
+  { key: "priority_overdue", label: "Priority tasks get the overdue mark", group: "tasks.cards", terms: "star" },
 
-  { key: "lists_page_align_rows", label: "Align list rows", group: "views.lists" },
-
-  { key: "streak_strip_days", label: "Daily streak marks in History", group: "views.history", terms: "habit heatmap strip history" },
-
-  // --- Task cards ----------------------------------------------
-
-  { key: "category_headers", label: "Category as a block header", group: "cards.chips", terms: "chip label group" },
-  { key: "category_header_bold", label: "Bold category header", group: "cards.chips", terms: "chip label group weight" },
-  { key: "chip_font_scale", label: "Chip text size", group: "cards.chips", terms: "category list date chip" },
-
-  { key: "cron_weekday_labels", label: "Weekday marker from cron", group: "cards.markers", terms: "sat#1" },
-  { key: "cron_everyday_label", label: "[EVERYDAY] marker", group: "cards.markers" },
-
-  { key: "habit_rate_chip", label: "Completion rate chip", group: "cards.rate", terms: "habit rate percent" },
-  { key: "habit_rate_alert_only", label: "Rate chip only below the threshold", group: "cards.rate", terms: "habit rate percent alert" },
-  { key: "habit_rate_threshold", label: "Rate alert threshold", group: "cards.rate", terms: "habit percent" },
-  { key: "habit_rate_window", label: "Rate window", group: "cards.rate", terms: "habit last instances" },
-  { key: "habit_rate_min_instances", label: "Rate minimum instances", group: "cards.rate", terms: "habit" },
-
-  { key: "undo_toast_seconds", label: "Undo toast length", group: "cards.behavior", terms: "delete archive" },
-  { key: "subtasks_done_last", label: "Done subtasks sink to the bottom", group: "cards.behavior" },
-  { key: "priority_overdue", label: "Priority tasks get the overdue mark", group: "cards.behavior", terms: "star" },
-
-  // --- Columns -------------------------------------------------
-  { key: "list_view_plate_scale", label: "Section plate height in list view", group: "columns.sections", terms: "header daily monthly done percent font text size" },
-  { key: "gap_fill_fade", label: "Gap fill edge softness", group: "columns.sections", terms: "hatch glow fade blur gradient" },
-  { key: "gap_fill_max_thickness", label: "Gap fill maximum thickness", group: "columns.sections", terms: "hatch glow band height tall" },
-  { key: "list_gap_stripe", label: "Separator stripe height, % of a row", group: "columns.sections", terms: "gap spacing glow band stripe category section" },
-  { key: "gap_fill_opacity", label: "Gap fill opacity", group: "columns.sections", terms: "hatch glow band transparency alpha" },
-  { key: "gap_fill_inset", label: "Gap fill inset from the row lines", group: "columns.sections", terms: "hatch glow margin padding" },
-  { key: "row_hairlines", label: "Hairlines between rows", group: "columns.sections", terms: "border line separator" },
-  { key: "section_plate_count", label: "Task count on section plates", group: "columns.sections", terms: "counter number" },
-  { key: "section_plate_sticky", label: "Sticky section plates", group: "columns.sections", terms: "header pin scroll" },
-
-  { key: "fold_postponed", label: "Fold Postponed by default", group: "columns.closed", terms: "closed collapse hide" },
-  { key: "fold_waiting", label: "Fold Done, waiting by default", group: "columns.closed", terms: "closed collapse hide" },
-  { key: "fold_done", label: "Fold Done by default", group: "columns.closed", terms: "closed collapse hide" },
-  { key: "fold_dropped", label: "Fold Not done, dropped by default", group: "columns.closed", terms: "closed collapse hide" },
-  { key: "closed_row_opacity", label: "Closed row opacity", group: "columns.closed", terms: "done dropped dim fade" },
-  { key: "done_hold_seconds", label: "Hold before a done task moves", group: "columns.closed", terms: "misclick postponed" },
-  { key: "done_display", label: "Done tasks display", group: "columns.closed", terms: "inline separate block" },
-  { key: "closed_sections_sort_alpha", label: "Sort Postponed and Done alphabetically", group: "columns.closed", terms: "waiting order abc" },
-
-  { key: "day_header_centered", label: "Center day headers", group: "columns.day" },
-  { key: "daily_tasks_today_only", label: "Daily tasks only on today", group: "columns.day" },
-  { key: "cadence_group_order", label: "Day column section order", group: "columns.day", terms: "cadence groups" },
-
-  { key: "lists_sort_alpha", label: "Sort lists alphabetically", group: "columns.list" },
-  { key: "list_tasks_sort_alpha", label: "Sort tasks inside lists alphabetically", group: "columns.list" },
-  { key: "list_task_lines", label: "Task title lines in a list column", group: "columns.list", terms: "truncate clamp" },
-  { key: "list_dialog_task_lines", label: "Task title lines in the list dialog", group: "columns.list", terms: "truncate clamp" },
+  { key: "done_display", label: "Done tasks display", group: "tasks.columns", terms: "inline separate block postponed" },
+  { key: "closed_sections_sort_alpha", label: "Sort Postponed and Done alphabetically", group: "tasks.columns", terms: "waiting order abc" },
+  { key: "cadence_group_order", label: "Day column section order", group: "tasks.columns", terms: "cadence groups" },
+  { key: "daily_tasks_today_only", label: "Daily tasks only on today", group: "tasks.columns" },
+  { key: "lists_sort_alpha", label: "Sort lists and their tasks alphabetically", group: "tasks.columns", terms: "order abc" },
+  { key: "list_task_lines", label: "Task title lines in a list column", group: "tasks.columns", terms: "truncate clamp" },
 
   // --- Recurring & calendar ------------------------------------
   { key: "cadence_daily_min_per_year", label: "Daily bucket threshold", group: "recurring.buckets", terms: "firings per year" },
@@ -235,14 +164,10 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   // desktop-only (see docs/windows/ARCHITECTURE.md): the global
   // shortcut and the tray need a window manager the phone has not got
   { key: "capture_shortcut", label: "Global capture shortcut", group: "capture.capture", terms: "hotkey" },
-
-  { key: "tray_icon", label: "Tray icon", group: "capture.tray", terms: "system tray notification area" },
-  { key: "close_to_tray", label: "Close to tray", group: "capture.tray", terms: "minimize hide quit" },
+  { key: "tray_icon", label: "Keep running in the tray", group: "capture.capture", terms: "system tray close minimize hide" },
 
   { key: "notify_system", label: "System notifications for due tasks", group: "capture.alerts", terms: "os toast" },
-  { key: "notify_snooze_minutes", label: "Snooze length", group: "capture.alerts", terms: "toast due" },
   { key: "notify_lead_minutes", label: "Remind ahead of a timed task", group: "capture.alerts", terms: "reminder early before minutes notification" },
-  { key: "notify_toast_seconds", label: "Due-task toast duration", group: "capture.alerts", terms: "reminder notification seconds hide" },
 
   // --- Data ----------------------------------------------------
   { key: "kb_path", label: "Notes folder", group: "data.vault", terms: "kb vault path" },
@@ -251,12 +176,8 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "notes_timestamps", label: "Created and Last edited lines", group: "data.notes", terms: "timestamps frontmatter" },
   { key: "journal_day_tasks", label: "Tasks of the day in the Journal", group: "data.notes", terms: "journal entry done open strip" },
 
-  { key: "state_snapshot", label: "Text snapshot of the database", group: "data.mirror", terms: "jsonl rebuild sync" },
   { key: "tasks_mirror", label: "Mirror tasks to Markdown files", group: "data.mirror", terms: "bulk edit files" },
-  { key: "tasks_mirror_agenda", label: "Agenda file with generated tasks", group: "data.mirror" },
-  { key: "tasks_mirror_ids", label: "Write the ^id sync key", group: "data.mirror" },
   { key: "tasks_mirror_today", label: "today.md day sheet", group: "data.mirror" },
-  { key: "tasks_mirror_today_days", label: "Days covered by today.md", group: "data.mirror" },
 
   { key: "backup_keep", label: "Backups to keep", group: "data.backups", terms: "snapshots restore" },
 
@@ -265,15 +186,13 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   // --- Sync ----------------------------------------------------
   { key: "sync_auto", label: "Sync automatically", group: "sync.schedule", terms: "google drive auto" },
-  { key: "sync_interval_minutes", label: "Minutes between passes", group: "sync.schedule", terms: "interval period" },
-  { key: "sync_debounce_seconds", label: "Seconds after an edit", group: "sync.schedule", terms: "debounce delay" },
-  { key: "sync_on_focus", label: "Sync when the window comes to the front", group: "sync.schedule", terms: "focus" },
-  { key: "sync_on_leave", label: "Sync on quit", group: "sync.schedule", terms: "exit close background" },
-  { key: "sync_mass_delete_guard_percent", label: "Mass-deletion guard", group: "sync.schedule", terms: "wiped remote safety percent" },
 ];
 
-const COLOR_ONLY_IN_YAML =
-  "a color (or a switch that only picks or tunes colors): edited in the synced config/colors.yml (Notes > Config) or set by a profile, not here";
+const IN_COLORS_YML =
+  "a color (or a switch that only picks or tunes colors): lives in the synced config/colors.yml, edited in Notes > Config";
+
+const IN_APP_YML =
+  "fine-tuning with a sane default: edited in app.yml (Notes > Config) rather than shown here, so Settings stays short";
 
 /**
  * Fields with no control on this page, each for a reason - the test
@@ -308,45 +227,77 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
     key: "lists_group_display",
     why: "the Groups Folded/Flat switch on the dashboard and Lists page headers",
   },
-  // Colors live in config/colors.yml (or a profile) only: a picker per object
-  // made Settings the longest page in the app for values set once.
-  { key: "accent_color", why: COLOR_ONLY_IN_YAML },
-  { key: "color_min_contrast", why: COLOR_ONLY_IN_YAML },
-  { key: "surface_color", why: COLOR_ONLY_IN_YAML },
-  { key: "surface_alt_color", why: COLOR_ONLY_IN_YAML },
-  { key: "line_color", why: COLOR_ONLY_IN_YAML },
-  { key: "content_color", why: COLOR_ONLY_IN_YAML },
-  { key: "content_muted_color", why: COLOR_ONLY_IN_YAML },
-  { key: "weekly_focus_color", why: COLOR_ONLY_IN_YAML },
-  { key: "cadence_colors", why: COLOR_ONLY_IN_YAML },
-  { key: "cadence_color_general", why: COLOR_ONLY_IN_YAML },
-  { key: "cadence_color_daily", why: COLOR_ONLY_IN_YAML },
-  { key: "cadence_color_weekly", why: COLOR_ONLY_IN_YAML },
-  { key: "cadence_color_monthly", why: COLOR_ONLY_IN_YAML },
-  { key: "cadence_color_yearly", why: COLOR_ONLY_IN_YAML },
-  { key: "cadence_color_exact", why: COLOR_ONLY_IN_YAML },
-  { key: "done_color", why: COLOR_ONLY_IN_YAML },
-  { key: "waiting_color", why: COLOR_ONLY_IN_YAML },
-  { key: "dropped_color", why: COLOR_ONLY_IN_YAML },
-  { key: "category_color", why: COLOR_ONLY_IN_YAML },
-  { key: "category_color_mode", why: COLOR_ONLY_IN_YAML },
-  { key: "category_avoid_cadence_colors", why: COLOR_ONLY_IN_YAML },
-  { key: "category_color_a", why: COLOR_ONLY_IN_YAML },
-  { key: "category_color_b", why: COLOR_ONLY_IN_YAML },
-  { key: "dow_label_color", why: COLOR_ONLY_IN_YAML },
-  { key: "dow_label_opacity", why: COLOR_ONLY_IN_YAML },
-  { key: "habit_rate_alert_color", why: COLOR_ONLY_IN_YAML },
-  { key: "gap_fill_color", why: COLOR_ONLY_IN_YAML },
-  { key: "postponed_plate_color", why: COLOR_ONLY_IN_YAML },
-  { key: "waiting_plate_color", why: COLOR_ONLY_IN_YAML },
-  { key: "done_plate_color", why: COLOR_ONLY_IN_YAML },
-  { key: "dropped_plate_color", why: COLOR_ONLY_IN_YAML },
-  { key: "reminder_color", why: COLOR_ONLY_IN_YAML },
-  { key: "day_header_color", why: COLOR_ONLY_IN_YAML },
-  { key: "list_exact_stripe", why: COLOR_ONLY_IN_YAML },
-  { key: "list_date_chip_color", why: COLOR_ONLY_IN_YAML },
-  { key: "mobile_safe_area_top", why: "mobile only - status bar inset floor" },
-  { key: "mobile_safe_area_bottom", why: "mobile only - gesture bar inset floor" },
+  {
+    key: "dashboard_split",
+    why: "dragged on the dashboard's divider",
+  },
+  {
+    key: "folded_sections",
+    why: "a click on a section plate folds or opens it, and the app remembers",
+  },
+  { key: "mobile_safe_area_top", why: "mobile only - status bar inset floor, app.yml" },
+  { key: "mobile_safe_area_bottom", why: "mobile only - gesture bar inset floor, app.yml" },
+  // the color scheme
+  { key: "accent_color", why: IN_COLORS_YML },
+  { key: "color_min_contrast", why: IN_COLORS_YML },
+  { key: "surface_color", why: IN_COLORS_YML },
+  { key: "surface_alt_color", why: IN_COLORS_YML },
+  { key: "line_color", why: IN_COLORS_YML },
+  { key: "content_color", why: IN_COLORS_YML },
+  { key: "content_muted_color", why: IN_COLORS_YML },
+  { key: "weekly_focus_color", why: IN_COLORS_YML },
+  { key: "cadence_colors", why: IN_COLORS_YML },
+  { key: "cadence_color_general", why: IN_COLORS_YML },
+  { key: "cadence_color_daily", why: IN_COLORS_YML },
+  { key: "cadence_color_weekly", why: IN_COLORS_YML },
+  { key: "cadence_color_monthly", why: IN_COLORS_YML },
+  { key: "cadence_color_yearly", why: IN_COLORS_YML },
+  { key: "cadence_color_exact", why: IN_COLORS_YML },
+  { key: "done_color", why: IN_COLORS_YML },
+  { key: "waiting_color", why: IN_COLORS_YML },
+  { key: "dropped_color", why: IN_COLORS_YML },
+  { key: "category_color", why: IN_COLORS_YML },
+  { key: "category_color_mode", why: IN_COLORS_YML },
+  { key: "category_avoid_cadence_colors", why: IN_COLORS_YML },
+  { key: "category_color_a", why: IN_COLORS_YML },
+  { key: "category_color_b", why: IN_COLORS_YML },
+  { key: "dow_label_color", why: IN_COLORS_YML },
+  { key: "dow_label_opacity", why: IN_COLORS_YML },
+  { key: "habit_rate_alert_color", why: IN_COLORS_YML },
+  { key: "postponed_plate_color", why: IN_COLORS_YML },
+  { key: "waiting_plate_color", why: IN_COLORS_YML },
+  { key: "done_plate_color", why: IN_COLORS_YML },
+  { key: "dropped_plate_color", why: IN_COLORS_YML },
+  { key: "reminder_color", why: IN_COLORS_YML },
+  { key: "day_header_color", why: IN_COLORS_YML },
+  { key: "list_exact_stripe", why: IN_COLORS_YML },
+  { key: "list_date_chip_color", why: IN_COLORS_YML },
+  // fine-tuning
+  { key: "list_view_plate_scale", why: IN_APP_YML },
+  { key: "list_gap_stripe", why: IN_APP_YML },
+  { key: "row_hairlines", why: IN_APP_YML },
+  { key: "section_plate_count", why: IN_APP_YML },
+  { key: "section_plate_sticky", why: IN_APP_YML },
+  { key: "closed_row_opacity", why: IN_APP_YML },
+  { key: "day_header_centered", why: IN_APP_YML },
+  { key: "lists_page_align_rows", why: IN_APP_YML },
+  { key: "chip_font_scale", why: IN_APP_YML },
+  { key: "done_hold_seconds", why: IN_APP_YML },
+  { key: "undo_toast_seconds", why: IN_APP_YML },
+  { key: "list_dialog_task_lines", why: IN_APP_YML },
+  { key: "habit_rate_window", why: IN_APP_YML },
+  { key: "habit_rate_min_instances", why: IN_APP_YML },
+  { key: "notify_snooze_minutes", why: IN_APP_YML },
+  { key: "notify_toast_seconds", why: IN_APP_YML },
+  { key: "sync_interval_minutes", why: IN_APP_YML },
+  { key: "sync_debounce_seconds", why: IN_APP_YML },
+  { key: "sync_on_focus", why: IN_APP_YML },
+  { key: "sync_on_leave", why: IN_APP_YML },
+  { key: "sync_mass_delete_guard_percent", why: IN_APP_YML },
+  { key: "tasks_mirror_ids", why: IN_APP_YML },
+  { key: "tasks_mirror_agenda", why: IN_APP_YML },
+  { key: "tasks_mirror_today_days", why: IN_APP_YML },
+  { key: "streak_strip_days", why: IN_APP_YML },
 ];
 
 const BY_GROUP = SETTINGS_CATALOG.reduce<
@@ -385,65 +336,4 @@ export function searchSettings(query: string): SearchHit[] {
     tab: SETTINGS_GROUPS[entry.group].tab,
     groupTitle: SETTINGS_GROUPS[entry.group].title,
   }));
-}
-
-/**
- * What a settings profile does to a group: `all` = every field is
- * captured and reset by an apply, `some` = part of it, `none` = the
- * group is untouched. Computed from the Rust PROFILE_KEYS, so the page
- * can never claim a scope the backend does not honor.
- */
-export function profileCoverage(
-  id: SettingsGroupId,
-  profileKeys: (keyof AppConfig)[] | null,
-): "all" | "some" | "none" | "unknown" {
-  if (!profileKeys) return "unknown";
-  const keys = groupKeys(id);
-  if (keys.length === 0) return "none";
-  const covered = keys.filter((key) => profileKeys.includes(key)).length;
-  if (covered === 0) return "none";
-  return covered === keys.length ? "all" : "some";
-}
-
-/**
- * The same list folded by tab - what the Profiles tab renders. A flat
- * run of chips repeats "Appearance >" four times in a row; the tab name
- * belongs on the line, once, with its groups behind it. Tabs come in
- * page order, and a tab a profile never touches is simply absent.
- */
-export function profileGroupsByTab(
-  profileKeys: (keyof AppConfig)[] | null,
-): {
-  tab: SettingsTab;
-  label: string;
-  groups: { id: SettingsGroupId; title: string; partial: boolean }[];
-}[] {
-  const covered = profileGroups(profileKeys);
-  return SETTINGS_TABS.map(({ id, label }) => ({
-    tab: id,
-    label,
-    groups: covered
-      .filter((group) => group.tab === id)
-      .map(({ id: groupId, title, partial }) => ({
-        id: groupId,
-        title,
-        partial,
-      })),
-  })).filter((row) => row.groups.length > 0);
-}
-
-/** Groups a profile covers, fully or partly - the flat list behind it. */
-export function profileGroups(
-  profileKeys: (keyof AppConfig)[] | null,
-): { id: SettingsGroupId; title: string; tab: SettingsTab; partial: boolean }[] {
-  if (!profileKeys) return [];
-  return (Object.keys(SETTINGS_GROUPS) as SettingsGroupId[])
-    .map((id) => ({ id, coverage: profileCoverage(id, profileKeys) }))
-    .filter(({ coverage }) => coverage === "all" || coverage === "some")
-    .map(({ id, coverage }) => ({
-      id,
-      title: SETTINGS_GROUPS[id].title,
-      tab: SETTINGS_GROUPS[id].tab,
-      partial: coverage === "some",
-    }));
 }

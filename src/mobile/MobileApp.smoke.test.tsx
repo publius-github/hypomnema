@@ -74,7 +74,7 @@ describe("MobileApp smoke", () => {
       config: {
         ...defaultConfig,
         done_display: "separate",
-        fold_postponed: true,
+        folded_sections: ["postponed"],
         sync_auto: false,
       },
       vaultPath: "/vault",

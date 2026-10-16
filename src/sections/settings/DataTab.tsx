@@ -231,13 +231,6 @@ export default function DataTab() {
 
       <SettingsGroup id="data.mirror">
         <Toggle
-          checked={config.state_snapshot}
-          label="Text snapshot of the database"
-          hint="Keeps vault/.hypomnema/state/ up to date with everything the database holds (tasks, lists, engine ledgers) as plain JSONL files. A vault opened without its app.db - a fresh sync copy, or after deleting the cache - rebuilds the database from them automatically."
-          onChange={(v) => void updateConfig({ state_snapshot: v })}
-        />
-
-        <Toggle
           checked={config.tasks_mirror}
           label="Mirror tasks to Markdown files"
           hint="Keeps vault/.hypomnema/tasks/ in two-way sync: one file per list plus scheduled.md with the dated tasks. Edit them in any editor for bulk changes; lines without a ^id become new tasks, deleting a line deletes the task. Imports merge against the last exported state, so a file arriving from a file sync (Dropbox etc.) never rolls back newer app-side edits or deletes tasks it did not know about."
@@ -247,41 +240,12 @@ export default function DataTab() {
         {config.tasks_mirror && (
           <div className="flex flex-col gap-3 pl-6">
             <Toggle
-              checked={config.tasks_mirror_agenda}
-              label="Agenda file with generated tasks"
-              hint="agenda.md lists recurring/scheduled/birthday instances from today onward, grouped by day. Checking a box, setting a time or the ! priority mark syncs back; title and date edits do not (the YAML rules own them), and deleting lines changes nothing. A new line without an id becomes a manual task on that day - handy as the phone-editing surface over a file sync."
-              onChange={(v) => void updateConfig({ tasks_mirror_agenda: v })}
-            />
-
-            <Toggle
-              checked={config.tasks_mirror_ids}
-              label="Write the ^id sync key on every line"
-              hint="The trailing number is what ties a line to its task across edits. Turning it off keeps the files clean to read, and a line is then matched by its text instead: retyping a title replaces the task rather than renaming it."
-              onChange={(v) => void updateConfig({ tasks_mirror_ids: v })}
-            />
-
-            <Toggle
               checked={config.tasks_mirror_today}
               label="Read-only today.md day sheet"
               hint="A phone-readable summary of the day next to the other mirror files: focus phrase, reminders, schedule blocks, overdue and today's tasks grouped by category. Regenerated on every change; edits to it are ignored."
               onChange={(v) => void updateConfig({ tasks_mirror_today: v })}
             />
 
-            {config.tasks_mirror_today && (
-              <div className="pl-6">
-                <Field label="Days covered by today.md (1-7)">
-                  <NumberInput
-                    value={config.tasks_mirror_today_days}
-                    min={1}
-                    onCommit={(n) =>
-                      void updateConfig({
-                        tasks_mirror_today_days: Math.min(7, n),
-                      })
-                    }
-                  />
-                </Field>
-              </div>
-            )}
           </div>
         )}
       </SettingsGroup>

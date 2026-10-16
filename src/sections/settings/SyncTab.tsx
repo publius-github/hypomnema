@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Field, NumberInput, Toggle } from "../../components/form";
+import { Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import ConflictList from "../../components/ConflictList";
 import { errorKind, errorMessage, invoke } from "../../lib/ipc";
@@ -287,54 +287,9 @@ export default function SyncTab() {
         <Toggle
           checked={config.sync_auto}
           label="Sync automatically"
-          hint="Passes run on their own while signed in: at start, on the interval below, shortly after edits, and when the window comes to the front. Off leaves only Sync now."
+          hint="Passes run on their own while signed in: at start, every few minutes, shortly after edits, when the window comes to the front and on quit. Off leaves only Sync now. The timings are in app.yml (Notes > Config)."
           onChange={(v) => void updateConfig({ sync_auto: v })}
         />
-        {config.sync_auto && (
-          <div className="flex flex-col gap-3 pl-6">
-            <Field label="Minutes between passes (1-720)">
-              <NumberInput
-                value={config.sync_interval_minutes}
-                min={1}
-                onCommit={(n) =>
-                  void updateConfig({ sync_interval_minutes: Math.min(720, n) })
-                }
-              />
-            </Field>
-            <Field label="Seconds after an edit before it goes up (5-3600)">
-              <NumberInput
-                value={config.sync_debounce_seconds}
-                min={5}
-                onCommit={(n) =>
-                  void updateConfig({ sync_debounce_seconds: Math.min(3600, n) })
-                }
-              />
-            </Field>
-            <Toggle
-              checked={config.sync_on_focus}
-              label="Sync when the window comes to the front"
-              hint="Brings down what the other device did while this one was in the background - at most once a minute."
-              onChange={(v) => void updateConfig({ sync_on_focus: v })}
-            />
-            <Toggle
-              checked={config.sync_on_leave}
-              label="Sync on quit"
-              hint="Sends edits still waiting to go up when the app quits, waiting up to 20 seconds."
-              onChange={(v) => void updateConfig({ sync_on_leave: v })}
-            />
-          </div>
-        )}
-        <Field label="Stop a pass when this share of synced files vanishes at once (%, 5-100)">
-          <NumberInput
-            value={config.sync_mass_delete_guard_percent}
-            min={5}
-            onCommit={(n) =>
-              void updateConfig({
-                sync_mass_delete_guard_percent: Math.min(100, n),
-              })
-            }
-          />
-        </Field>
       </SettingsGroup>
     </>
   );

@@ -164,6 +164,10 @@ pub(crate) const EDITABLE_CONFIG_FILES: &[&str] = &[
     "day-reminders.yml",
     "day-schedule.yml",
     "colors.yml",
+    // the per-device settings: everything Settings does not show is
+    // tuned here (it lives in settings/, not config/ - see
+    // editable_config_path)
+    "app.yml",
     "templates/journal.md",
 ];
 
@@ -177,7 +181,11 @@ pub(crate) fn editable_config_path(state: &State<'_, AppState>, file: &str) -> R
     }
     let guard = state.vault.lock_or_recover();
     let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    Ok(vault.config_dir().join(file))
+    Ok(if file == "app.yml" {
+        vault::settings_file(&vault.root)
+    } else {
+        vault.config_dir().join(file)
+    })
 }
 
 #[tauri::command]
@@ -221,12 +229,13 @@ pub(crate) async fn config_file_set(
 pub(crate) fn backup_config(state: &State<'_, AppState>, file: &str) {
     let guard = state.vault.lock_or_recover();
     if let Some(vault) = guard.as_ref() {
-        let _ = backup::backup_config_file(
-            &vault.config_dir(),
-            file,
-            vault.config.backup_keep,
-            chrono::Local::now(),
-        );
+        let settings_file = vault::settings_file(&vault.root);
+        let dir = match (file, settings_file.parent()) {
+            ("app.yml", Some(settings_dir)) => settings_dir.to_path_buf(),
+            _ => vault.config_dir(),
+        };
+        let _ =
+            backup::backup_config_file(&dir, file, vault.config.backup_keep, chrono::Local::now());
     }
 }
 
@@ -238,8 +247,9 @@ mod tests {
     fn editable_config_allowlist_blocks_everything_else() {
         assert!(is_editable_config_file("recurring.yml"));
         assert!(is_editable_config_file("templates/journal.md"));
-        assert!(!is_editable_config_file("app.yml"));
+        assert!(is_editable_config_file("app.yml"));
         assert!(!is_editable_config_file("../app.yml"));
+        assert!(!is_editable_config_file("settings/app.yml"));
         assert!(!is_editable_config_file("../../etc/passwd"));
         assert!(!is_editable_config_file("recurring.yml/../app.yml"));
         assert!(!is_editable_config_file(""));

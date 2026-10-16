@@ -11,7 +11,6 @@ import { customizedCount, isGroupCustomized } from "../lib/settingsGroups";
 import {
   SETTINGS_GROUPS,
   groupKeys,
-  profileCoverage,
   type SettingsGroupId,
 } from "../lib/settingsCatalog";
 import type { AppConfig } from "../types";
@@ -73,14 +72,12 @@ function useCustomization(keys: (keyof AppConfig)[]) {
 function CustomizeSwitch({
   label,
   hint,
-  note,
   on,
   count,
   onChange,
 }: {
   label: string;
   hint?: string;
-  note?: ReactNode;
   on: boolean;
   count: number;
   onChange: (on: boolean) => void;
@@ -101,7 +98,6 @@ function CustomizeSwitch({
       <span className="flex min-w-0 flex-col">
         <span className="text-sm font-medium">
           {label}
-          {note}
           {count > 0 && (
             <span className="ml-2 text-xs font-normal text-content-muted">
               {count} changed
@@ -111,25 +107,6 @@ function CustomizeSwitch({
         {hint && <span className="text-xs text-content-muted">{hint}</span>}
       </span>
     </label>
-  );
-}
-
-/** Whether a profile's scope is worth naming beside a group title. */
-function ProfileNote({ id }: { id: SettingsGroupId }) {
-  const profileKeys = useAppStore((s) => s.profileKeys);
-  const coverage = profileCoverage(id, profileKeys);
-  if (coverage === "none" || coverage === "unknown") return null;
-  return (
-    <span
-      className="ml-2 text-xs font-normal text-content-muted"
-      title={
-        coverage === "all"
-          ? "Every field here is saved into a settings profile and replaced when one is applied."
-          : "Part of this group is saved into a settings profile; the rest is behavior and stays as it is."
-      }
-    >
-      {coverage === "all" ? "in profiles" : "partly in profiles"}
-    </span>
   );
 }
 
@@ -178,7 +155,6 @@ export default function SettingsGroup({
       >
         <CustomizeSwitch
           label={title}
-          note={<ProfileNote id={id} />}
           on={open}
           count={count}
           onChange={(next) => {
@@ -201,7 +177,6 @@ export default function SettingsGroup({
       <div className="mt-2 flex items-baseline justify-between gap-2 border-b border-line pb-1">
         <span className="text-sm font-semibold">
           {title}
-          <ProfileNote id={id} />
         </span>
         <span className="flex items-baseline gap-3">
           {!noReset && ready && customized && (

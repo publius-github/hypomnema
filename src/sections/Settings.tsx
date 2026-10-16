@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAppStore } from "../store";
 import {
   SettingsFocusContext,
   type SettingsFocus,
@@ -7,31 +8,27 @@ import {
   SETTINGS_TABS,
   searchSettings,
   type SearchHit,
-  type SettingsGroupId,
   type SettingsTab,
 } from "../lib/settingsCatalog";
-import ProfilesTab from "./settings/ProfilesTab";
-import AppearanceTab from "./settings/AppearanceTab";
-import ViewsTab from "./settings/ViewsTab";
-import TaskCardsTab from "./settings/TaskCardsTab";
-import ColumnsTab from "./settings/ColumnsTab";
+import GeneralTab from "./settings/GeneralTab";
+import TasksTab from "./settings/TasksTab";
 import RecurringTab from "./settings/RecurringTab";
 import CaptureTab from "./settings/CaptureTab";
 import DataTab from "./settings/DataTab";
 import SyncTab from "./settings/SyncTab";
 
 /**
- * One tab per thing being configured rather than per kind of setting:
- * the global chrome (Appearance), the pages (Views), the task card, the
- * columns tasks sit in, the recurring machinery, capture and alerts,
- * and the vault's data. Inside a group, look, geometry and behavior sit
- * together - "make the Done block quieter" is one question, not three
- * tabs. The map itself (groups, fields, search terms) lives in
- * `lib/settingsCatalog.ts`; groups sitting fully at their defaults
- * render collapsed behind a Customize affordance (SettingsGroup).
+ * A short page by design: General (theme, fonts, left bar), Tasks,
+ * the recurring machinery, capture and alerts, data and sync - what a
+ * person sets up once. Colors and fine-tuning live in colors.yml and
+ * app.yml (Notes > Config). The map itself (groups, fields, search
+ * terms) lives in `lib/settingsCatalog.ts`; groups sitting fully at
+ * their defaults render collapsed behind a Customize affordance
+ * (SettingsGroup).
  */
 export default function Settings() {
-  const [tab, setTab] = useState<SettingsTab>("appearance");
+  const [tab, setTab] = useState<SettingsTab>("general");
+  const openConfigFile = useAppStore((s) => s.openConfigFile);
   const [query, setQuery] = useState("");
   const [focus, setFocus] = useState<SettingsFocus | null>(null);
   const hits = searchSettings(query);
@@ -41,12 +38,6 @@ export default function Settings() {
     setTab(hit.tab);
     setFocus({ group: hit.group });
     setQuery("");
-  };
-
-  // the Profiles tab points at whole groups, never at one field
-  const jumpToGroup = (target: SettingsTab, group: SettingsGroupId) => {
-    setTab(target);
-    setFocus({ group });
   };
 
   return (
@@ -119,15 +110,31 @@ export default function Settings() {
 
       <SettingsFocusContext.Provider value={focus}>
         <div className="flex min-h-0 w-0 min-w-full flex-1 flex-col gap-5 overflow-y-auto pb-10">
-          {tab === "profiles" && <ProfilesTab onJump={jumpToGroup} />}
-          {tab === "appearance" && <AppearanceTab />}
-          {tab === "views" && <ViewsTab />}
-          {tab === "cards" && <TaskCardsTab />}
-          {tab === "columns" && <ColumnsTab />}
+          {tab === "general" && <GeneralTab />}
+          {tab === "tasks" && <TasksTab />}
           {tab === "recurring" && <RecurringTab />}
           {tab === "capture" && <CaptureTab />}
           {tab === "data" && <DataTab />}
           {tab === "sync" && <SyncTab />}
+          {/* the rest is in the files: say where, one click away */}
+          <p className="border-t border-line pt-3 text-xs text-content-muted">
+            Colors and fine-tuning (spacing, timings, sync cadence) live in
+            the config files:{" "}
+            <button
+              className="text-accent hover:underline"
+              onClick={() => openConfigFile("colors.yml")}
+            >
+              colors.yml
+            </button>{" "}
+            (shared by your devices) and{" "}
+            <button
+              className="text-accent hover:underline"
+              onClick={() => openConfigFile("app.yml")}
+            >
+              app.yml
+            </button>{" "}
+            (this device).
+          </p>
         </div>
       </SettingsFocusContext.Provider>
     </div>

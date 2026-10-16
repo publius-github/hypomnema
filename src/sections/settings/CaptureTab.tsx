@@ -36,30 +36,13 @@ export default function CaptureTab() {
           combination another app already holds fails at registration and
           shows in the error banner; the setting still saves.
         </span>
-      </SettingsGroup>
 
-      <SettingsGroup id="capture.tray">
         <Toggle
           checked={config.tray_icon}
-          label="Tray icon"
-          hint="Show / Quick capture / Quit in the system tray; a left click brings the main window up."
-          onChange={(v) =>
-            void updateConfig(
-              v ? { tray_icon: v } : { tray_icon: v, close_to_tray: false },
-            )
-          }
+          label="Keep running in the tray"
+          hint="A tray icon with Show / Quick capture / Quit, and closing the main window hides it there instead of quitting - the capture shortcut and due-task notifications keep working. Quit from the tray menu."
+          onChange={(v) => void updateConfig({ tray_icon: v })}
         />
-
-        {config.tray_icon && (
-          <div className="pl-6">
-            <Toggle
-              checked={config.close_to_tray}
-              label="Close to tray"
-              hint="Closing the main window hides it instead of quitting, so the capture shortcut and due-task notifications keep working. Quit from the tray menu."
-              onChange={(v) => void updateConfig({ close_to_tray: v })}
-            />
-          </div>
-        )}
       </SettingsGroup>
 
       <SettingsGroup id="capture.alerts">
@@ -75,18 +58,6 @@ export default function CaptureTab() {
           onChange={(v) => void updateConfig({ notify_system: v })}
         />
 
-        <Field label="Snooze length of the due-task toast, minutes">
-          <NumberInput
-            value={config.notify_snooze_minutes}
-            min={1}
-            onCommit={(n) =>
-              void updateConfig({
-                notify_snooze_minutes: Math.min(180, Math.max(1, n)),
-              })
-            }
-          />
-        </Field>
-
         <Field label="Remind ahead of a timed task, minutes (0 = at its time)">
           <NumberInput
             value={config.notify_lead_minutes}
@@ -94,18 +65,6 @@ export default function CaptureTab() {
             onCommit={(n) =>
               void updateConfig({
                 notify_lead_minutes: Math.min(240, Math.max(0, n)),
-              })
-            }
-          />
-        </Field>
-
-        <Field label="Due-task toast stays on screen, seconds">
-          <NumberInput
-            value={config.notify_toast_seconds}
-            min={3}
-            onCommit={(n) =>
-              void updateConfig({
-                notify_toast_seconds: Math.min(600, Math.max(3, n)),
               })
             }
           />

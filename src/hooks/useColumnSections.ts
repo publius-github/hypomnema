@@ -194,7 +194,7 @@ export function useDaySections(date: string): ColumnSection[] {
  * section a drag or Up/Down reorders), then the closed sections. The
  * backlog holds unscheduled tasks, priority pins and manual tasks
  * whatever their date; a generated task that already has its day lives
- * on that day. `list_tasks_sort_alpha` sorts by title, timed tasks first.
+ * on that day. `lists_sort_alpha` sorts by title, timed tasks first.
  * No list (a phone screen with none open) gives no sections.
  */
 export function useListSections(list: List | null): ColumnSection[] {
@@ -211,7 +211,7 @@ export function useListSections(list: List | null): ColumnSection[] {
       ),
     ),
   );
-  const alpha = config?.list_tasks_sort_alpha ?? false;
+  const alpha = config?.lists_sort_alpha ?? false;
   const sorted = [...listTasks].sort((a, b) => {
     if (alpha) {
       if ((a.time === null) !== (b.time === null))

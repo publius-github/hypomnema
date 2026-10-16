@@ -141,10 +141,6 @@ pub struct AppConfig {
     /// How long a due-task toast stays on screen before it hides itself,
     /// seconds.
     pub notify_toast_seconds: u32,
-    /// Keep a full text snapshot of the database under
-    /// <vault>/.hypomnema/state/ (tasks, lists, engine ledgers), so a
-    /// vault synced without its .db rebuilds the database on open.
-    pub state_snapshot: bool,
     /// Run sync passes on their own, without the user pressing Sync now
     /// (on the phone from the shell's triggers; on the desktop through
     /// `sync_scheduler.rs`), while signed in to Google. Off leaves sync entirely manual.
@@ -202,16 +198,14 @@ pub struct AppConfig {
     /// adds its own section).
     pub tasks_mirror_today_days: u32,
     /// Show a [SAT#1]-style marker before recurring tasks whose cron
-    /// pins concrete weekdays.
+    /// pins concrete weekdays, and an [EVERYDAY] one on rules free on
+    /// both day fields.
     pub cron_weekday_labels: bool,
-    /// With cron_weekday_labels on, rules free on both day fields wear
-    /// an [EVERYDAY] marker instead of going unlabeled.
-    pub cron_everyday_label: bool,
-    /// Recurring task cards wear a `Rate: 82%` chip: the share of the
-    /// rule item's settled instances that were done.
-    pub habit_rate_chip: bool,
-    /// Show the rate chip only once it falls below its threshold.
-    pub habit_rate_alert_only: bool,
+    /// Recurring task cards wear a `Rate: 82%` chip - the share of the
+    /// rule item's settled instances that were done: "off", "alert" =
+    /// only once it falls below its threshold, "always".
+    #[ts(type = "\"off\" | \"alert\" | \"always\"")]
+    pub habit_rate_display: String,
     /// Default alert threshold, percent: below it the rate chip turns
     /// loud. A rule's own `threshold:` in recurring.yml wins over it.
     pub habit_rate_threshold: u32,
@@ -223,8 +217,9 @@ pub struct AppConfig {
     pub habit_rate_min_instances: u32,
     /// Color of the rate chip once it falls below its threshold.
     pub habit_rate_alert_color: String,
-    /// Order the dashboard list columns alphabetically (favorites still
-    /// come first); off = manual creation order.
+    /// Order the list columns alphabetically (favorites still come
+    /// first), and the tasks inside each list too (timed tasks still pin
+    /// to the top); off = manual creation and drag order.
     pub lists_sort_alpha: bool,
     /// Grid columns on the dedicated Lists page.
     pub lists_page_columns: u32,
@@ -234,45 +229,27 @@ pub struct AppConfig {
     /// Section plate height in the day and list columns, % of the
     /// plate's normal height (100..=400); the plate text scales with it.
     pub list_view_plate_scale: u32,
-    /// Separator stripes between list rows: the band's color, hex
-    /// (empty = the border color), and how soft its edges are - the
-    /// share of each half of the band that fades out to nothing, %
-    /// (0 = hard edges, 100 = solid only along its middle line).
-    pub gap_fill_color: String,
-    pub gap_fill_fade: u32,
-    /// Empty space the band leaves above and below itself, % of the
-    /// gap's height (0..=45), so it does not touch the rows' hairlines.
-    pub gap_fill_inset: u32,
-    /// Thickest the band gets, px (1..=64): a tall gap keeps a thin
-    /// line-like band centered in it instead of a wide smudge.
-    pub gap_fill_max_thickness: u32,
-    /// Opacity of the band, % (0..=100).
-    pub gap_fill_opacity: u32,
-    /// Breaks between list rows come in fixed stripes: one stripe is
-    /// this % of a single-line row's height (25..=150). A category break
-    /// is one stripe, a section break two, the Postponed / Done,
-    /// waiting / Done breaks three.
+    /// Breaks between list rows are plain space in fixed stripes: one
+    /// stripe is this % of a single-line row's height (25..=150). A
+    /// category break is one stripe, a section break two, the break
+    /// into the closed blocks three.
     pub list_gap_stripe: u32,
     /// Hairlines between the rows of a column.
     pub row_hairlines: bool,
-    /// A category block names its category once, as a small header over
+    /// A category block names its category once, as a bold header over
     /// its rows, instead of a chip on every row.
     pub category_headers: bool,
-    /// The category block header is bold, so it reads apart from the
-    /// task titles under it.
-    pub category_header_bold: bool,
     /// Section plates show how many tasks the section holds (done/total
     /// when closed tasks stay inline).
     pub section_plate_count: bool,
     /// Section plates stick to the top of the column while its rows
     /// scroll under them.
     pub section_plate_sticky: bool,
-    /// Which closed sections start folded to their plate, one switch
-    /// each; a click on any plate opens or folds it.
-    pub fold_postponed: bool,
-    pub fold_waiting: bool,
-    pub fold_done: bool,
-    pub fold_dropped: bool,
+    /// Sections folded to their plate (cadence keys, "priority",
+    /// "postponed", "waiting", "done", "dropped"): a click on a plate
+    /// folds or opens that section in every column, and the choice is
+    /// remembered here instead of being a setting.
+    pub folded_sections: Vec<String>,
     /// Opacity of a closed (done, dropped) row's text and chips, %
     /// (20..=100); the status box keeps full strength.
     pub closed_row_opacity: u32,
@@ -294,9 +271,6 @@ pub struct AppConfig {
     /// "varied" category chips skip palette hues close to the cadence
     /// colors, so a chip never matches the section plate it sits under.
     pub category_avoid_cadence_colors: bool,
-    /// Order the tasks inside a list column alphabetically (timed tasks
-    /// still pin to the top); off = manual drag order.
-    pub list_tasks_sort_alpha: bool,
     /// How many lines a task title may take on a card in a list column
     /// before it is cut off (1 = the old single truncated line).
     pub list_task_lines: u32,
@@ -360,12 +334,10 @@ pub struct AppConfig {
     /// unparseable or taken combination fails at registration and shows
     /// in the error banner, never blocks saving.
     pub capture_shortcut: String,
-    /// Tray icon with Show / Quick capture / Quit.
+    /// Keep running in the tray: a tray icon with Show / Quick capture /
+    /// Quit, and closing the main window hides it there instead of
+    /// quitting, keeping the capture shortcut and notifications alive.
     pub tray_icon: bool,
-    /// Closing the main window hides it to the tray instead of quitting,
-    /// keeping the capture shortcut and notifications alive. Forced off
-    /// without the tray icon - a hidden window must stay reachable.
-    pub close_to_tray: bool,
 }
 
 pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
@@ -377,7 +349,7 @@ pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
 /// never carries them: a copy left there by an older version is ignored
 /// on load and dropped on the next save. A missing colors.yml means the
 /// defaults. Settings has no controls for these; colors.yml is edited by
-/// hand (Notes > Config) or written by a profile apply.
+/// hand (Notes > Config).
 pub const COLOR_KEYS: &[&str] = &[
     "accent_color",
     "surface_color",
@@ -407,7 +379,6 @@ pub const COLOR_KEYS: &[&str] = &[
     "category_color_a",
     "category_color_b",
     "habit_rate_alert_color",
-    "gap_fill_color",
     "postponed_plate_color",
     "done_plate_color",
     "waiting_plate_color",
@@ -436,108 +407,6 @@ pub const SECTIONS: &[&str] = &[
 ];
 
 pub const CADENCE_GROUPS: &[&str] = &["exact", "general", "daily", "weekly", "monthly", "yearly"];
-
-/// Fields a settings profile snapshots: the visual customization - the
-/// look of the chrome, the cards and the columns - and nothing
-/// behavioral. In Settings terms it is all of Appearance, the geometry
-/// of Views, the colors and markers of Task cards, and the whole of
-/// Columns; the Settings page marks each group with what a profile does
-/// to it, reading this very list through `profile_scope`. Deliberately
-/// out: paths and data handling (kb_path, mirror, snapshots, backups),
-/// recurring/calendar parameters, notifications, capture/tray, the
-/// view-mode toggles (*_today_only - flipped live on the pages, a
-/// profile changing them would be surprising), section_order, the list
-/// sorting rules, and the interaction timings (done_hold_seconds,
-/// undo_toast_seconds - the undo window is a safety net, not a look).
-/// Applying a profile resets every key here to its default and overlays
-/// the profile's values; keys outside this list in a profile file are
-/// ignored.
-pub const PROFILE_KEYS: &[&str] = &[
-    // theme and chrome
-    "theme",
-    "accent_color",
-    "surface_color",
-    "surface_alt_color",
-    "line_color",
-    "color_min_contrast",
-    // fonts
-    "ui_font",
-    "ui_font_size",
-    "editor_font",
-    "editor_font_size",
-    // text colors
-    "content_color",
-    "content_muted_color",
-    "weekly_focus_color",
-    "reminder_color",
-    "day_header_color",
-    "dow_label_color",
-    "dow_label_opacity",
-    // task colors
-    "cadence_colors",
-    "cadence_color_daily",
-    "cadence_color_weekly",
-    "cadence_color_monthly",
-    "cadence_color_yearly",
-    "cadence_color_exact",
-    "done_color",
-    "waiting_color",
-    "dropped_color",
-    // category chips
-    "category_color",
-    "category_color_mode",
-    "category_avoid_cadence_colors",
-    "category_color_a",
-    "category_color_b",
-    "chip_font_scale",
-    // section plates
-    "cadence_color_general",
-    "postponed_plate_color",
-    "done_plate_color",
-    "waiting_plate_color",
-    "dropped_plate_color",
-    // dated list tasks
-    "list_date_chip_color",
-    "list_exact_stripe",
-    // editor look
-    "kb_line_numbers",
-    // layout
-    "grid_columns",
-    "list_columns",
-    "dashboard_split",
-    "days_page_columns",
-    "lists_page_columns",
-    "lists_page_align_rows",
-    "list_view_plate_scale",
-    "gap_fill_color",
-    "gap_fill_fade",
-    "gap_fill_inset",
-    "gap_fill_max_thickness",
-    "gap_fill_opacity",
-    "list_gap_stripe",
-    "row_hairlines",
-    "category_headers",
-    "category_header_bold",
-    "section_plate_count",
-    "section_plate_sticky",
-    "fold_postponed",
-    "fold_waiting",
-    "fold_done",
-    "fold_dropped",
-    "closed_row_opacity",
-    "lists_group_display",
-    "day_header_centered",
-    "cadence_group_order",
-    "done_display",
-    "list_task_lines",
-    "list_dialog_task_lines",
-    // card markers
-    "cron_weekday_labels",
-    "cron_everyday_label",
-    "habit_rate_chip",
-    "habit_rate_alert_only",
-    "habit_rate_alert_color",
-];
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -596,7 +465,6 @@ impl Default for AppConfig {
             notify_snooze_minutes: 10,
             notify_lead_minutes: 0,
             notify_toast_seconds: 15,
-            state_snapshot: true,
             sync_auto: true,
             sync_interval_minutes: 15,
             sync_on_leave: true,
@@ -615,9 +483,7 @@ impl Default for AppConfig {
             tasks_mirror_today: false,
             tasks_mirror_today_days: 1,
             cron_weekday_labels: true,
-            cron_everyday_label: true,
-            habit_rate_chip: true,
-            habit_rate_alert_only: true,
+            habit_rate_display: "alert".into(),
             habit_rate_threshold: 80,
             habit_rate_window: 30,
             habit_rate_min_instances: 3,
@@ -626,28 +492,18 @@ impl Default for AppConfig {
             lists_page_columns: 4,
             lists_page_align_rows: true,
             list_view_plate_scale: 100,
-            gap_fill_color: String::new(),
-            gap_fill_fade: 50,
-            gap_fill_inset: 15,
-            gap_fill_max_thickness: 20,
-            gap_fill_opacity: 0,
             list_gap_stripe: 60,
+            folded_sections: vec!["done".into(), "dropped".into()],
             row_hairlines: true,
             category_headers: true,
-            category_header_bold: true,
             section_plate_count: true,
             section_plate_sticky: true,
-            fold_postponed: false,
-            fold_waiting: false,
-            fold_done: true,
-            fold_dropped: true,
             closed_row_opacity: 50,
             lists_group_display: "flat".into(),
             days_page_columns: 7,
             days_today_only: false,
             closed_sections_sort_alpha: true,
             category_avoid_cadence_colors: true,
-            list_tasks_sort_alpha: false,
             list_task_lines: 1,
             list_dialog_task_lines: 3,
             clear_done_list_tasks: true,
@@ -674,7 +530,6 @@ impl Default for AppConfig {
             capture_list: "Inbox".into(),
             capture_shortcut: "Ctrl+Alt+Space".into(),
             tray_icon: true,
-            close_to_tray: true,
         }
     }
 }
@@ -700,7 +555,15 @@ impl AppConfig {
             }
         }
         match Self::read(settings, colors) {
-            Ok(loaded) => loaded,
+            Ok((config, error)) => {
+                // an app.yml from an older version carries colors and
+                // retired fields; rewrite it once so what the Notes >
+                // Config editor shows is exactly what is in effect
+                if config.has_stale_keys(settings) {
+                    let _ = config.save(settings);
+                }
+                (config, error)
+            }
             Err(e) => (
                 Self::default(),
                 Some(format!("invalid app.yml, defaults are active: {e}")),
@@ -751,6 +614,22 @@ impl AppConfig {
                 )),
             ),
         })
+    }
+
+    /// app.yml holds a key `save` would not write: a color, or a field
+    /// this version no longer has.
+    fn has_stale_keys(&self, settings: &Path) -> bool {
+        let Ok(raw) = fs::read_to_string(settings) else {
+            return false;
+        };
+        let Ok(Some(file)) = serde_yaml::from_str::<Option<serde_yaml::Mapping>>(&raw) else {
+            return false;
+        };
+        let Ok(known) = self.to_mapping() else {
+            return false;
+        };
+        file.keys()
+            .any(|key| is_color_key(key) || !known.contains_key(key))
     }
 
     fn to_mapping(&self) -> Result<serde_yaml::Mapping> {
@@ -818,10 +697,6 @@ impl AppConfig {
         }
         self.days_page_columns = self.days_page_columns.clamp(1, 14);
         self.list_view_plate_scale = self.list_view_plate_scale.clamp(100, 400);
-        self.gap_fill_fade = self.gap_fill_fade.min(100);
-        self.gap_fill_inset = self.gap_fill_inset.min(45);
-        self.gap_fill_max_thickness = self.gap_fill_max_thickness.clamp(1, 64);
-        self.gap_fill_opacity = self.gap_fill_opacity.min(100);
         self.list_gap_stripe = self.list_gap_stripe.clamp(25, 150);
         self.closed_row_opacity = self.closed_row_opacity.clamp(20, 100);
         self.dow_label_opacity = self.dow_label_opacity.clamp(20, 100);
@@ -934,7 +809,6 @@ impl AppConfig {
         sanitize_optional_color(&mut self.dow_label_color);
         sanitize_optional_color(&mut self.list_date_chip_color);
         sanitize_optional_color(&mut self.cadence_color_general);
-        sanitize_optional_color(&mut self.gap_fill_color);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -970,9 +844,19 @@ impl AppConfig {
         }
         self.tasks_mirror_today_days = self.tasks_mirror_today_days.clamp(1, 7);
         self.capture_shortcut = self.capture_shortcut.trim().to_string();
-        if !self.tray_icon {
-            self.close_to_tray = false;
+        if !["off", "alert", "always"].contains(&self.habit_rate_display.as_str()) {
+            self.habit_rate_display = defaults.habit_rate_display;
         }
+        // a fold is a section key: keep each once, and only short plain
+        // keys - the list lands in app.yml, not in the DOM
+        let mut folded: Vec<String> = Vec::new();
+        for key in &self.folded_sections {
+            let key = key.trim();
+            if !key.is_empty() && key.len() <= 32 && !folded.iter().any(|k| k == key) {
+                folded.push(key.to_string());
+            }
+        }
+        self.folded_sections = folded;
         self
     }
 
@@ -995,21 +879,6 @@ impl AppConfig {
         }
         crate::vault::write_atomic(path, &serde_yaml::to_string(&self.colors_mapping()?)?)?;
         Ok(())
-    }
-
-    /// The profile-scope subset as a YAML mapping with native value
-    /// types - the settings-profile file format.
-    pub fn profile_subset(&self) -> Result<serde_yaml::Mapping> {
-        let value = serde_yaml::to_value(self)?;
-        let mapping = value.as_mapping().cloned().unwrap_or_default();
-        Ok(mapping
-            .into_iter()
-            .filter(|(key, _)| {
-                key.as_str()
-                    .map(|key| PROFILE_KEYS.contains(&key))
-                    .unwrap_or(false)
-            })
-            .collect())
     }
 
     pub fn settings_pairs(&self) -> Vec<(&'static str, String)> {
@@ -1092,7 +961,6 @@ impl AppConfig {
                 "notify_toast_seconds",
                 self.notify_toast_seconds.to_string(),
             ),
-            ("state_snapshot", self.state_snapshot.to_string()),
             ("sync_auto", self.sync_auto.to_string()),
             (
                 "sync_interval_minutes",
@@ -1125,12 +993,7 @@ impl AppConfig {
                 self.tasks_mirror_today_days.to_string(),
             ),
             ("cron_weekday_labels", self.cron_weekday_labels.to_string()),
-            ("cron_everyday_label", self.cron_everyday_label.to_string()),
-            ("habit_rate_chip", self.habit_rate_chip.to_string()),
-            (
-                "habit_rate_alert_only",
-                self.habit_rate_alert_only.to_string(),
-            ),
+            ("habit_rate_display", self.habit_rate_display.clone()),
             (
                 "habit_rate_threshold",
                 self.habit_rate_threshold.to_string(),
@@ -1154,30 +1017,15 @@ impl AppConfig {
                 "list_view_plate_scale",
                 self.list_view_plate_scale.to_string(),
             ),
-            ("gap_fill_color", self.gap_fill_color.clone()),
-            ("gap_fill_fade", self.gap_fill_fade.to_string()),
-            ("gap_fill_inset", self.gap_fill_inset.to_string()),
-            (
-                "gap_fill_max_thickness",
-                self.gap_fill_max_thickness.to_string(),
-            ),
-            ("gap_fill_opacity", self.gap_fill_opacity.to_string()),
             ("list_gap_stripe", self.list_gap_stripe.to_string()),
+            ("folded_sections", self.folded_sections.join(",")),
             ("row_hairlines", self.row_hairlines.to_string()),
             ("category_headers", self.category_headers.to_string()),
-            (
-                "category_header_bold",
-                self.category_header_bold.to_string(),
-            ),
             ("section_plate_count", self.section_plate_count.to_string()),
             (
                 "section_plate_sticky",
                 self.section_plate_sticky.to_string(),
             ),
-            ("fold_postponed", self.fold_postponed.to_string()),
-            ("fold_waiting", self.fold_waiting.to_string()),
-            ("fold_done", self.fold_done.to_string()),
-            ("fold_dropped", self.fold_dropped.to_string()),
             ("closed_row_opacity", self.closed_row_opacity.to_string()),
             ("lists_group_display", self.lists_group_display.clone()),
             ("days_page_columns", self.days_page_columns.to_string()),
@@ -1189,10 +1037,6 @@ impl AppConfig {
             (
                 "category_avoid_cadence_colors",
                 self.category_avoid_cadence_colors.to_string(),
-            ),
-            (
-                "list_tasks_sort_alpha",
-                self.list_tasks_sort_alpha.to_string(),
             ),
             (
                 "clear_done_list_tasks",
@@ -1234,7 +1078,6 @@ impl AppConfig {
             ("capture_list", self.capture_list.clone()),
             ("capture_shortcut", self.capture_shortcut.clone()),
             ("tray_icon", self.tray_icon.to_string()),
-            ("close_to_tray", self.close_to_tray.to_string()),
         ]
     }
 }
@@ -1298,6 +1141,26 @@ mod tests {
         let (loaded, error) = AppConfig::load_or_default(&settings, &colors);
         assert!(error.is_none());
         assert_eq!(loaded, config);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stale_keys_are_dropped_from_app_yml_on_load() {
+        let dir = std::env::temp_dir().join("app-pkb-test-config-stale");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let settings = dir.join("app.yml");
+        fs::write(
+            &settings,
+            "grid_columns: 5\ndone_color: '#123456'\nsection_cards: true\n",
+        )
+        .unwrap();
+        let (loaded, _) = AppConfig::load_or_default(&settings, &dir.join("colors.yml"));
+        assert_eq!(loaded.grid_columns, 5);
+        let raw = fs::read_to_string(&settings).unwrap();
+        assert!(raw.contains("grid_columns: 5"));
+        assert!(!raw.contains("done_color"));
+        assert!(!raw.contains("section_cards"));
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -1411,26 +1274,6 @@ mod tests {
             );
         }
         assert_eq!(pairs.len(), mapping.len());
-    }
-
-    /// PROFILE_KEYS is a hand-maintained whitelist over the serde field
-    /// names; a typo or a renamed field must fail loudly, not silently
-    /// drop the key from every profile.
-    #[test]
-    fn profile_keys_are_real_fields() {
-        let yaml = serde_yaml::to_value(AppConfig::default()).unwrap();
-        let mapping = yaml.as_mapping().unwrap();
-        for key in PROFILE_KEYS {
-            assert!(
-                mapping.contains_key(serde_yaml::Value::from(*key)),
-                "PROFILE_KEYS names unknown field '{key}'"
-            );
-        }
-        // no duplicates
-        let unique: std::collections::HashSet<_> = PROFILE_KEYS.iter().collect();
-        assert_eq!(unique.len(), PROFILE_KEYS.len());
-        let subset = AppConfig::default().profile_subset().unwrap();
-        assert_eq!(subset.len(), PROFILE_KEYS.len());
     }
 
     #[test]

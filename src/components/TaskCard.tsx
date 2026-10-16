@@ -132,19 +132,16 @@ function TaskCard({
   // chips read at the size of the text they sit next to; 100% is
   // exactly the card's own text size (Settings > Task cards)
   const chipSize = useAppStore((s) => `${s.config?.chip_font_scale ?? 100}%`);
-  // [SAT#1]-style marker for weekday-pinned recurring rules; rules
-  // firing every day carry [EVERYDAY] behind its own toggle
+  // [SAT#1]-style marker for weekday-pinned recurring rules, and
+  // [EVERYDAY] for rules firing every day
   const dowLabel = useAppStore((s) =>
-    (s.config?.cron_weekday_labels ?? true) &&
-    (task.dow_label !== "EVERYDAY" || (s.config?.cron_everyday_label ?? true))
-      ? task.dow_label
-      : null,
+    (s.config?.cron_weekday_labels ?? true) ? task.dow_label : null,
   );
   const dowColor = useAppStore((s) => s.config?.dow_label_color || "");
   // habit-tracker view of a recurring item: its completion rate, loud
   // once it falls below the rule's threshold
   const habitRate = useAppStore((s) =>
-    (s.config?.habit_rate_chip ?? true) &&
+    (s.config?.habit_rate_display ?? "alert") !== "off" &&
     task.origin === "recurring" &&
     task.rule_key
       ? (s.habitRates[task.rule_key] ?? null)
@@ -154,7 +151,7 @@ function TaskCard({
     (s) => s.config?.habit_rate_alert_color || "#c95e05",
   );
   const rateAlertOnly = useAppStore(
-    (s) => s.config?.habit_rate_alert_only ?? true,
+    (s) => (s.config?.habit_rate_display ?? "alert") === "alert",
   );
   const dowOpacity = useAppStore((s) => (s.config?.dow_label_opacity ?? 60) / 100);
   const hairlines = useAppStore((s) => s.config?.row_hairlines ?? false);

@@ -923,6 +923,31 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
                 Err(e) => push_yaml_error(e),
             }
         }
+        "app.yml" => match serde_yaml::from_str::<Option<serde_yaml::Mapping>>(content) {
+            Ok(map) => {
+                let map = map.unwrap_or_default();
+                for key in map.keys() {
+                    let name = key.as_str().unwrap_or("?");
+                    if crate::config::COLOR_KEYS.contains(&name) {
+                        errors.push(ConfigError {
+                            file: file.into(),
+                            line: None,
+                            message: format!("'{name}' is a color: it belongs in colors.yml"),
+                        });
+                    }
+                }
+                if let Err(e) = serde_yaml::from_value::<crate::config::AppConfig>(
+                    serde_yaml::Value::Mapping(map),
+                ) {
+                    errors.push(ConfigError {
+                        file: file.into(),
+                        line: None,
+                        message: e.to_string(),
+                    });
+                }
+            }
+            Err(e) => push_yaml_error(e),
+        },
         "colors.yml" => match serde_yaml::from_str::<Option<serde_yaml::Mapping>>(content) {
             Ok(map) => {
                 let map = map.unwrap_or_default();
