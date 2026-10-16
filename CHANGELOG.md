@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.100.5 - 2026-10-16
+
+Journal: the entry header gets the same day stepper as the Dashboard and Days headers - ‹ ›, the date picker and Back to today when away from it - and the sidebar drops its own Today button and date field, keeping only the list of entries
+
 ## 0.100.4 - 2026-10-16
 
 One ‹ / › arrow button for stepping a view by a period - the Dashboard and Days day grid, the Journal day, the Calendar and History month and the Review week now share the same look (the last three used < > before); the Notes editor header drops its "Ctrl/Cmd+click a link to open it" hint

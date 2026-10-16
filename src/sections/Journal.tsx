@@ -8,6 +8,7 @@ import DayTasks from "./journal/DayTasks";
 import { serialSaves, settleSave, type SaveState } from "./kb/util";
 import { lazy, Suspense } from "react";
 import NavArrow from "../components/NavArrow";
+import { DatePick } from "../components/DateJump";
 
 // CodeMirror and its language packs are the biggest thing in the bundle
 // and only two sections need them; the chunk loads on first use
@@ -203,24 +204,10 @@ export default function Journal() {
   return (
     <div className="flex h-full">
       <aside className="flex w-52 shrink-0 flex-col border-r border-line bg-surface-alt/50">
-        <div className="flex flex-col gap-1 p-3">
-          <button
-            className="btn-primary px-3 text-left"
-            onClick={() => void openEntry(today)}
-          >
-            Today
-          </button>
-          <input
-            type="date"
-            className="input px-2 py-1 text-xs"
-            title="Open the entry for any date"
-            value={doc?.date ?? ""}
-            onChange={(e) => {
-              if (e.target.value) void openEntry(e.target.value);
-            }}
-          />
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        {/* the day stepper (arrows, date picker, back to today) lives
+            in the entry header, like the day grid's; the rail is only
+            the list of written entries */}
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <EntryList
             dates={dates}
             current={doc?.date ?? null}
@@ -234,19 +221,35 @@ export default function Journal() {
         {doc ? (
           <>
             <div className="flex items-center gap-2 border-b border-line px-4 py-2 text-sm">
-              <NavArrow
-                dir={-1}
-                title="Previous day (Alt+←)"
-                onClick={() => void openEntry(addDaysISO(doc.date, -1))}
-              />
-              <span className="text-base font-semibold">
+              {/* the same day stepper as the Dashboard and Days headers:
+                  arrows, the date picker, a way back to today */}
+              <div className="flex items-center gap-1">
+                <NavArrow
+                  dir={-1}
+                  title="Previous day (Alt+←)"
+                  onClick={() => void openEntry(addDaysISO(doc.date, -1))}
+                />
+                <NavArrow
+                  dir={1}
+                  title="Next day (Alt+→)"
+                  onClick={() => void openEntry(addDaysISO(doc.date, 1))}
+                />
+                <DatePick
+                  value={doc.date}
+                  onPick={(date) => void openEntry(date)}
+                />
+                {doc.date !== today && (
+                  <button
+                    className="btn-ghost px-2 py-0.5 text-xs"
+                    onClick={() => void openEntry(today)}
+                  >
+                    Back to today
+                  </button>
+                )}
+              </div>
+              <span className="ml-2 text-base font-semibold">
                 {dayLabel(doc.date, today)}
               </span>
-              <NavArrow
-                dir={1}
-                title="Next day (Alt+→)"
-                onClick={() => void openEntry(addDaysISO(doc.date, 1))}
-              />
               <span className="ml-auto">
                 <SaveIndicator
                   state={saveState}
