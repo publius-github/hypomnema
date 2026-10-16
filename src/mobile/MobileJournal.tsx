@@ -239,7 +239,7 @@ export default function MobileJournal() {
         value={content}
         onChange={(e) => edit(e.target.value)}
         spellCheck
-        className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 leading-relaxed outline-none"
+        className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 leading-relaxed outline-hidden"
         placeholder="Write about today..."
       />
     </div>

@@ -84,14 +84,14 @@ export function ConfirmModal({
         {/* focus lands on Cancel: Enter must never confirm a destructive
             action by accident */}
         <button
-          className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-content-muted focus:border-accent focus:outline-none focus-visible:border-accent"
+          className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-content-muted focus:border-accent focus:outline-hidden focus-visible:border-accent"
           onClick={onCancel}
           autoFocus
         >
           Cancel
         </button>
         <button
-          className="btn-danger px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-danger/50"
+          className="btn-danger px-3 py-1.5 text-sm focus:outline-hidden focus:ring-2 focus:ring-danger/50"
           onClick={onConfirm}
         >
           {confirmLabel}

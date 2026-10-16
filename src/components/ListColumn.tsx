@@ -132,7 +132,7 @@ function ListColumn({
           >
             {list.color && (
               <span
-                className="h-3 w-1 shrink-0 rounded"
+                className="h-3 w-1 shrink-0 rounded-sm"
                 style={{ backgroundColor: readable(list.color, "mark") }}
               />
             )}
@@ -141,7 +141,7 @@ function ListColumn({
         )}
         {group && (
           <button
-            className="max-w-[45%] shrink-0 truncate rounded border border-line px-1 py-px text-[10px] uppercase tracking-wide text-content-muted hover:border-accent hover:text-accent"
+            className="max-w-[45%] shrink-0 truncate rounded-sm border border-line px-1 py-px text-[10px] uppercase tracking-wide text-content-muted hover:border-accent hover:text-accent"
             title={`In group "${group.name}"${onOpenGroup ? " - click to open it" : ""}`}
             onClick={() => onOpenGroup?.(group.id)}
           >

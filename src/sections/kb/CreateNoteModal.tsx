@@ -68,7 +68,7 @@ export default function CreateNoteModal({
         </form>
         {suggestion ? (
           <button
-            className="self-start rounded bg-accent/15 px-2 py-0.5 text-xs text-accent hover:bg-accent/25"
+            className="self-start rounded-sm bg-accent/15 px-2 py-0.5 text-xs text-accent hover:bg-accent/25"
             title="Tab or click to accept"
             onClick={() => setValue(suggestion)}
           >

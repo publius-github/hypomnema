@@ -30,7 +30,7 @@ import { readable } from "../lib/color";
 /** A status badge in the row's right-hand column: small enough not to
  * outweigh the title, narrow enough for the column's fixed width. */
 const BADGE =
-  "whitespace-nowrap rounded px-1 text-[9px] font-semibold uppercase leading-4";
+  "whitespace-nowrap rounded-sm px-1 text-[9px] font-semibold uppercase leading-4";
 
 /**
  * One task, sized for a thumb and legible at a glance.
@@ -223,7 +223,7 @@ export default function TaskRow({
                 // the list IS the category for engine-generated tasks,
                 // so it reads as loud as the {Category} chip
                 <span
-                  className="shrink-0 rounded px-1 font-semibold"
+                  className="shrink-0 rounded-sm px-1 font-semibold"
                   style={{ ...tintStyle(listHue), fontSize: chipSize }}
                 >
                   {list.name}
@@ -231,7 +231,7 @@ export default function TaskRow({
               )}
               {category && categoryHue && !labelInHeader && (
                 <span
-                  className="shrink-0 rounded px-1 font-semibold"
+                  className="shrink-0 rounded-sm px-1 font-semibold"
                   style={{ ...tintStyle(categoryHue), fontSize: chipSize }}
                 >
                   {category}
@@ -241,7 +241,7 @@ export default function TaskRow({
                 task.origin_date &&
                 dateChip(task.origin_date, cadence)}
               <span
-                className={`min-w-0 break-words ${
+                className={`min-w-0 wrap-break-word ${
                   closed ? "text-content-muted line-through" : ""
                 }`}
               >
@@ -276,7 +276,7 @@ export default function TaskRow({
               wrapped under some titles and not others, so rows of the
               same list read differently */}
           <span
-            className="ml-auto flex w-[3.25rem] shrink-0 flex-col items-end gap-0.5 pt-0.5"
+            className="ml-auto flex w-13 shrink-0 flex-col items-end gap-0.5 pt-0.5"
             style={{ opacity: dim }}
           >
             {task.priority && showList && (
@@ -339,7 +339,7 @@ export default function TaskRow({
                   <StatusIcon status={sub.status} />
                 </span>
                 <span
-                  className={`min-w-0 break-words ${
+                  className={`min-w-0 wrap-break-word ${
                     isClosed(sub.status)
                       ? "text-content-muted line-through"
                       : sub.status === "postponed"

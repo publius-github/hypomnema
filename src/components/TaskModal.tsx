@@ -348,7 +348,7 @@ export default function TaskModal({
           </div>
           {preview ? (
             <div
-              className="prose-sm min-h-[80px] max-w-none select-text rounded-md border border-line bg-surface-alt px-3 py-2 text-sm [&_a]:text-accent [&_code]:rounded [&_code]:bg-line/50 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-4 [&_ol_li]:list-decimal [&_p]:my-1 [&_ul_li]:list-disc"
+              className="prose-sm min-h-[80px] max-w-none select-text rounded-md border border-line bg-surface-alt px-3 py-2 text-sm [&_a]:text-accent [&_code]:rounded-sm [&_code]:bg-line/50 [&_code]:px-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-4 [&_ol_li]:list-decimal [&_p]:my-1 [&_ul_li]:list-disc"
               onDoubleClick={() => !generated && setPreview(false)}
             >
               <Suspense fallback={null}>
@@ -485,7 +485,7 @@ function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
       <input
         type="checkbox"
         className="mt-1"
-        style={{ accentColor: "var(--color-done)" }}
+        style={{ accentColor: "var(--hex-done)" }}
         checked={sub.status === "done"}
         onChange={() =>
           void updateTask(sub.id, {
@@ -510,7 +510,7 @@ function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
         />
       ) : (
         <span
-          className={`flex-1 cursor-text whitespace-pre-wrap break-words ${
+          className={`flex-1 cursor-text whitespace-pre-wrap wrap-break-word ${
             isClosed(sub.status)
               ? "text-content-muted line-through"
               : sub.status === "postponed"

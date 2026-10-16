@@ -8,7 +8,7 @@ export function DeleteRowButton({
 }) {
   return (
     <button
-      className="shrink-0 self-center rounded px-2 py-1 text-lg leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+      className="shrink-0 self-center rounded-sm px-2 py-1 text-lg leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
       title="Delete"
       onClick={onDelete}
     >

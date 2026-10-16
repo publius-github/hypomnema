@@ -139,7 +139,7 @@ export default function Lists() {
             <GroupBackBar
               group={openGroup}
               onBack={() => setOpenGroupId(null)}
-              className="flex items-center gap-2 rounded px-1 text-sm font-semibold"
+              className="flex items-center gap-2 rounded-sm px-1 text-sm font-semibold"
             />
           ) : (
             <span className="text-sm font-semibold">Lists</span>

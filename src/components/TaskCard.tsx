@@ -215,7 +215,7 @@ function TaskCard({
       >
         {stripe && (
           <span
-            className={`h-4 w-1 shrink-0 rounded ${multiline ? "mt-0.5" : ""}`}
+            className={`h-4 w-1 shrink-0 rounded-sm ${multiline ? "mt-0.5" : ""}`}
             style={{ backgroundColor: readable(stripe, "mark") }}
           />
         )}
@@ -252,7 +252,7 @@ function TaskCard({
           // the list IS the category for engine-generated tasks, so it
           // reads as loud as the {Category} chip
           <span
-            className="shrink-0 rounded px-1 font-semibold"
+            className="shrink-0 rounded-sm px-1 font-semibold"
             style={{ ...tintStyle(listHue!), fontSize: chipSize }}
           >
             {listName}
@@ -260,7 +260,7 @@ function TaskCard({
         )}
         {showCategoryChip && !multiline && (
           <span
-            className="shrink-0 rounded px-1 font-semibold"
+            className="shrink-0 rounded-sm px-1 font-semibold"
             style={{ ...tintStyle(categoryHue!), fontSize: chipSize }}
             title={`Category: ${category}`}
           >
@@ -285,7 +285,7 @@ function TaskCard({
         )}
         <div
           className={`min-w-0 flex-1 cursor-pointer leading-snug ${
-            multiline ? "break-words" : "truncate"
+            multiline ? "wrap-break-word" : "truncate"
           } ${closed ? "text-content-muted line-through" : ""}`}
           // multi-line titles clamp at the configured line count
           // instead of truncating on the first line
@@ -312,7 +312,7 @@ function TaskCard({
           {listExact && task.scheduled_date && multiline && " "}
           {showCategoryChip && multiline && (
             <span
-              className="inline-block rounded px-1 font-semibold"
+              className="inline-block rounded-sm px-1 font-semibold"
               style={{ ...tintStyle(categoryHue!), fontSize: chipSize }}
               title={`Category: ${category}`}
             >
@@ -351,7 +351,7 @@ function TaskCard({
             // a list column it stays a star toggle
             (task.priority && showList ? (
               <button
-                className="rounded bg-warn/15 px-1 font-semibold uppercase text-warn"
+                className="rounded-sm bg-warn/15 px-1 font-semibold uppercase text-warn"
                 title="Remove priority"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -392,7 +392,7 @@ function TaskCard({
             ))}
           {task.time && <span>{task.time}</span>}
           {task.overdue && !closed && (
-            <span className="rounded bg-danger/15 px-1 font-semibold uppercase text-danger">
+            <span className="rounded-sm bg-danger/15 px-1 font-semibold uppercase text-danger">
               overdue
             </span>
           )}
@@ -462,7 +462,7 @@ function TaskCard({
               <input
                 type="checkbox"
                 className="mt-0.5"
-                style={{ accentColor: "var(--color-done)" }}
+                style={{ accentColor: "var(--hex-done)" }}
                 checked={sub.status === "done"}
                 onChange={() =>
                   void updateTask(sub.id, {

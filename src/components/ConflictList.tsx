@@ -58,7 +58,7 @@ export default function ConflictList({
                 {entry.path}
               </div>
               {entry.open && (
-                <span className="shrink-0 rounded bg-warn/15 px-1 text-[10px] font-semibold uppercase leading-4 text-warn">
+                <span className="shrink-0 rounded-sm bg-warn/15 px-1 text-[10px] font-semibold uppercase leading-4 text-warn">
                   to review
                 </span>
               )}
@@ -67,7 +67,7 @@ export default function ConflictList({
               {subject(entry.field)} · {when(entry.at)}
             </div>
             {entry.open && entry.copy ? (
-              <p className="mt-2 break-words">
+              <p className="mt-2 wrap-break-word">
                 Both devices changed the same lines, so they could not be
                 merged:{" "}
                 {entry.discarded_by === "this device"
@@ -87,12 +87,12 @@ export default function ConflictList({
               </p>
             ) : (
               <>
-                <div className="mt-2 break-words">
+                <div className="mt-2 wrap-break-word">
                   <span className="text-content-muted">Kept: </span>
                   {entry.kept}
                   {entry.kept_by && ` (${entry.kept_by})`}
                 </div>
-                <div className="break-words text-content-muted">
+                <div className="wrap-break-word text-content-muted">
                   <span>{entry.copy ? "Set aside: " : "Replaced: "}</span>
                   {entry.discarded}
                   {entry.discarded_by && ` (${entry.discarded_by})`}

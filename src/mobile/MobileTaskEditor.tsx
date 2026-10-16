@@ -276,7 +276,7 @@ export default function MobileTaskEditor({
                     ✓
                   </span>
                   <span
-                    className={`min-w-0 break-words ${
+                    className={`min-w-0 wrap-break-word ${
                       sub.status === "done"
                         ? "text-content-muted line-through"
                         : ""

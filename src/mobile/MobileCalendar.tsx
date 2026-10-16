@@ -209,7 +209,7 @@ export default function MobileCalendar() {
               {dayProjections.map((event, index) => (
                 <li
                   key={`${event.title}-${index}`}
-                  className="break-words py-1 text-sm text-content-muted"
+                  className="wrap-break-word py-1 text-sm text-content-muted"
                 >
                   {event.title}
                   <span className="ml-2 text-xs">{event.kind}</span>

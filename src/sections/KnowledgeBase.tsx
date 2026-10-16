@@ -665,7 +665,7 @@ export default function KnowledgeBase() {
             {/* focusable so the tree takes IDE keys: F2 rename, Delete,
                 Ctrl+C/X/V copy-cut-paste, Ctrl+A select all */}
             <div
-              className={`min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-none ${
+              className={`min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-hidden ${
                 dropTarget === "" ? "bg-accent/10" : ""
               }`}
               tabIndex={0}
@@ -702,7 +702,7 @@ export default function KnowledgeBase() {
                   {extraContentHits.map((hit) => (
                     <button
                       key={hit.path}
-                      className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
+                      className="block w-full rounded-sm px-2 py-1 text-left hover:bg-line/40"
                       onClick={() => void openFile(hit.path)}
                     >
                       <span className="block truncate text-sm text-content">

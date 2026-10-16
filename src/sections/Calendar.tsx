@@ -416,7 +416,7 @@ export default function Calendar() {
               className={STATUS_GLYPH_CLASS[task.status]}
               style={
                 task.status === "done"
-                  ? { color: "var(--color-done)" }
+                  ? { color: "var(--hex-done)" }
                   : undefined
               }
             >
@@ -439,7 +439,7 @@ export default function Calendar() {
             )}
             {categoryOfTask(task) && (
               <span
-                className="shrink-0 rounded px-1.5 py-0.5 font-semibold"
+                className="shrink-0 rounded-sm px-1.5 py-0.5 font-semibold"
                 style={{
                   ...tintStyle(
                     chipHue(categoryOfTask(task)!, blockIndex.get(task.id)),
@@ -465,7 +465,7 @@ export default function Calendar() {
                 title="Not generated yet; appears as a task when the date nears"
               >
                 <span
-                  className="w-16 shrink-0 rounded bg-line/40 px-1.5 py-0.5 text-center"
+                  className="w-16 shrink-0 rounded-sm bg-line/40 px-1.5 py-0.5 text-center"
                   style={{ fontSize: chipSize }}
                 >
                   {event.kind}

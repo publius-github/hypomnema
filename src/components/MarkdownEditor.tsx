@@ -70,7 +70,7 @@ const markdownHighlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "700", color: "var(--md-heading)" },
   { tag: tags.strong, fontWeight: "700", color: "var(--md-bold)" },
   { tag: tags.emphasis, fontStyle: "italic", color: "var(--md-italic)" },
-  { tag: tags.strikethrough, textDecoration: "line-through", color: "rgb(var(--color-content-muted))" },
+  { tag: tags.strikethrough, textDecoration: "line-through", color: "rgb(var(--rgb-content-muted))" },
   // link/checkbox text takes the string color per the VS Code spec;
   // the URL itself has no color rule there, only the underline
   { tag: tags.link, color: "var(--md-link)" },
@@ -114,7 +114,7 @@ const markdownHighlight = HighlightStyle.define([
 // and nothing can restyle it. Guarded by markdownBrackets.test.ts.
 const bracketMark = Decoration.mark({
   class: "cm-md-bracket",
-  attributes: { style: "color: rgb(var(--color-content))" },
+  attributes: { style: "color: rgb(var(--rgb-content))" },
 });
 
 function bracketDecorations(view: EditorView): DecorationSet {
@@ -215,7 +215,7 @@ const yamlHighlight = HighlightStyle.define([
   { tag: tags.null, color: "var(--yaml-keyword)" },
   { tag: tags.keyword, color: "var(--yaml-keyword)" },
   { tag: tags.comment, color: "var(--yaml-comment)", fontStyle: "italic" },
-  { tag: tags.punctuation, color: "rgb(var(--color-content-muted))" },
+  { tag: tags.punctuation, color: "rgb(var(--rgb-content-muted))" },
 ]);
 
 // the editor font is config-driven (Settings > Appearance) and arrives
@@ -225,17 +225,17 @@ const editorTheme = EditorView.theme({
     height: "100%",
     fontSize: "var(--editor-font-size, 14px)",
     backgroundColor: "transparent",
-    color: "rgb(var(--color-content))",
+    color: "rgb(var(--rgb-content))",
   },
   ".cm-content": {
     fontFamily: "var(--editor-font)",
-    caretColor: "rgb(var(--color-accent))",
+    caretColor: "rgb(var(--rgb-accent))",
     padding: "12px 0",
   },
-  ".cm-cursor": { borderLeftColor: "rgb(var(--color-accent))" },
+  ".cm-cursor": { borderLeftColor: "rgb(var(--rgb-accent))" },
   // the two-class selector outweighs the single-class token color the
   // highlighter puts on the same span
-  ".cm-content .cm-md-bracket": { color: "rgb(var(--color-content))" },
+  ".cm-content .cm-md-bracket": { color: "rgb(var(--rgb-content))" },
   ".cm-content .cm-md-table": {
     fontFamily: 'ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace',
   },
@@ -250,29 +250,29 @@ const editorTheme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-line": { padding: "0 12px" },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
-    backgroundColor: "rgb(var(--color-accent) / 0.25) !important",
+    backgroundColor: "rgb(var(--rgb-accent) / 0.25) !important",
   },
   ".cm-selectionMatch": {
-    backgroundColor: "rgb(var(--color-accent) / 0.15)",
+    backgroundColor: "rgb(var(--rgb-accent) / 0.15)",
   },
   ".cm-gutters": {
     backgroundColor: "transparent",
-    color: "rgb(var(--color-content-muted) / 0.7)",
+    color: "rgb(var(--rgb-content-muted) / 0.7)",
     border: "none",
   },
   ".cm-activeLineGutter": {
     backgroundColor: "transparent",
-    color: "rgb(var(--color-content))",
+    color: "rgb(var(--rgb-content))",
   },
   ".cm-tooltip": {
-    backgroundColor: "rgb(var(--color-surface-alt))",
-    color: "rgb(var(--color-content))",
-    border: "1px solid rgb(var(--color-line))",
+    backgroundColor: "rgb(var(--rgb-surface-alt))",
+    color: "rgb(var(--rgb-content))",
+    border: "1px solid rgb(var(--rgb-line))",
   },
   ".cm-panels": {
-    backgroundColor: "rgb(var(--color-surface-alt))",
-    color: "rgb(var(--color-content))",
-    borderColor: "rgb(var(--color-line))",
+    backgroundColor: "rgb(var(--rgb-surface-alt))",
+    color: "rgb(var(--rgb-content))",
+    borderColor: "rgb(var(--rgb-line))",
   },
   // CodeMirror sizes the search panel's own controls at 70-80% of the
   // editor font, which at a comfortable editor size leaves buttons a
@@ -282,9 +282,9 @@ const editorTheme = EditorView.theme({
     padding: "6px 8px 8px",
   },
   ".cm-panels input": {
-    backgroundColor: "rgb(var(--color-surface))",
-    color: "rgb(var(--color-content))",
-    border: "1px solid rgb(var(--color-line))",
+    backgroundColor: "rgb(var(--rgb-surface))",
+    color: "rgb(var(--rgb-content))",
+    border: "1px solid rgb(var(--rgb-line))",
     borderRadius: "4px",
     fontSize: "inherit",
     padding: "3px 6px",
@@ -293,18 +293,18 @@ const editorTheme = EditorView.theme({
   // unreadable next to light text on the dark theme
   ".cm-panels button": {
     backgroundImage: "none",
-    backgroundColor: "rgb(var(--color-line) / 0.35)",
-    color: "rgb(var(--color-content))",
-    border: "1px solid rgb(var(--color-line))",
+    backgroundColor: "rgb(var(--rgb-line) / 0.35)",
+    color: "rgb(var(--rgb-content))",
+    border: "1px solid rgb(var(--rgb-line))",
     borderRadius: "4px",
     fontSize: "inherit",
     padding: "3px 10px",
   },
   ".cm-panels button:hover": {
-    backgroundColor: "rgb(var(--color-line) / 0.6)",
+    backgroundColor: "rgb(var(--rgb-line) / 0.6)",
   },
   ".cm-panels label": {
-    color: "rgb(var(--color-content-muted))",
+    color: "rgb(var(--rgb-content-muted))",
   },
   // the stock rule is `.cm-panel.cm-search label { font-size: 80% }`,
   // which outweighs a plain `.cm-panels label`
@@ -319,7 +319,7 @@ const editorTheme = EditorView.theme({
     fontSize: "1.4em",
     lineHeight: "1",
     padding: "0 4px",
-    color: "rgb(var(--color-content-muted))",
+    color: "rgb(var(--rgb-content-muted))",
   },
 });
 

@@ -57,7 +57,7 @@ export const STATUS_GLYPH: Record<TaskStatus, string> = {
   dropped: "✕",
 };
 
-/** Text color of those marks; done takes --color-done inline. */
+/** Text color of those marks; done takes --hex-done inline. */
 export const STATUS_GLYPH_CLASS: Record<TaskStatus, string> = {
   todo: "text-content-muted",
   done: "",

@@ -130,7 +130,7 @@ export function ColorPicker({
             <label className="mt-2 flex cursor-pointer items-center gap-2 border-t border-line pt-2 text-xs text-content-muted hover:text-content">
               <input
                 type="color"
-                className="h-6 w-8 cursor-pointer rounded border border-line bg-transparent p-0"
+                className="h-6 w-8 cursor-pointer rounded-sm border border-line bg-transparent p-0"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
               />

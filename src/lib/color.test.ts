@@ -51,8 +51,8 @@ describe("readable", () => {
   });
 
   it("passes non-hex values through", () => {
-    expect(readable("rgb(var(--color-line))", "mark")).toBe(
-      "rgb(var(--color-line))",
+    expect(readable("rgb(var(--rgb-line))", "mark")).toBe(
+      "rgb(var(--rgb-line))",
     );
   });
 

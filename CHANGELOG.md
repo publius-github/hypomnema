@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.105.3 - 2026-10-16
+
+Tailwind CSS 3 -> 4, with no visible change: all 41 screens of `npm run e2e:visual` (every section and Settings tab in both themes, the task dialog, the vault picker, the phone tabs) are pixel-identical before and after. The JS config is gone - the palette lives in src/styles.css as `@theme inline` over runtime variables renamed to `--rgb-*` (RGB triplets) and `--hex-*` (done/waiting/dropped marks), `.input`/`.btn-*` are `@utility` classes, and a few base rules keep Tailwind 3's rem line heights, border and placeholder colors, button cursor and date-field height. PostCSS runs @tailwindcss/postcss; autoprefixer is no longer needed. `npm audit` is now clean across all dependencies, dev tooling included
+
 ## 0.105.2 - 2026-10-16
 
 Dependencies and tests. React 18 -> 19, notify 6 -> 8, rusqlite 0.32 -> 0.40 (bundled SQLite), ureq 2 -> 3 (both HTTP transports ported: every status comes back as a reply, bodies are read without a size cap, rustls with the bundled webpki roots as before). End-to-end tests: Playwright drives the production bundle in Chromium against an in-memory fake of the core (e2e/app/backend.ts, through Tauri's mockIPC) - boot, every section, adding, completing, deleting and undoing a task, the task editor, search, settings search, notes, journal, the vault picker, the light theme - and `npm run e2e:visual` keeps per-machine pixel baselines of every screen, both themes and the phone tabs. Coverage reports: `npm run coverage` (v8) and cargo llvm-cov, both uploaded by CI, which also runs the e2e suite; e2e and the configs are type-checked (tsconfig.node.json) and linted

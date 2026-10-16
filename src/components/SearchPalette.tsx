@@ -130,7 +130,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
           <Icon name="search" className="h-4 w-4 text-content-muted" />
           <input
             ref={inputRef}
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-hidden"
             placeholder="Search tasks, notes and journal..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}

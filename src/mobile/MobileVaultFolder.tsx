@@ -193,7 +193,7 @@ export default function MobileVaultFolder({
                 <span aria-hidden className="text-content-muted">
                   ▸
                 </span>
-                <span className="min-w-0 break-words">{entry.name}</span>
+                <span className="min-w-0 wrap-break-word">{entry.name}</span>
               </span>
               {entry.has_vault && (
                 <span className="shrink-0 text-xs text-accent">vault</span>
@@ -205,7 +205,7 @@ export default function MobileVaultFolder({
 
       <div className="shrink-0 border-t border-line p-3">
         {error && (
-          <p className="mb-2 break-words text-sm text-danger">{error}</p>
+          <p className="mb-2 wrap-break-word text-sm text-danger">{error}</p>
         )}
         {listing && !listing.writable && (
           <p className="mb-2 text-sm text-warn">

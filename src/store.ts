@@ -163,12 +163,12 @@ let undoTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** The chrome tokens Settings > Appearance can override, by config key. */
 const THEME_OVERRIDES = [
-  ["--color-surface", "surface_color"],
-  ["--color-surface-alt", "surface_alt_color"],
-  ["--color-content", "content_color"],
-  ["--color-content-muted", "content_muted_color"],
-  ["--color-accent", "accent_color"],
-  ["--color-line", "line_color"],
+  ["--rgb-surface", "surface_color"],
+  ["--rgb-surface-alt", "surface_alt_color"],
+  ["--rgb-content", "content_color"],
+  ["--rgb-content-muted", "content_muted_color"],
+  ["--rgb-accent", "accent_color"],
+  ["--rgb-line", "line_color"],
 ] as const;
 
 function applyTheme(config: AppConfig | null) {
@@ -205,20 +205,20 @@ function applyTheme(config: AppConfig | null) {
   }
   // done checkboxes (cards, subtasks, calendar status marks)
   if (config?.done_color) {
-    root.style.setProperty("--color-done", readable(config.done_color, "mark"));
-  } else root.style.removeProperty("--color-done");
+    root.style.setProperty("--hex-done", readable(config.done_color, "mark"));
+  } else root.style.removeProperty("--hex-done");
   if (config?.waiting_color) {
     root.style.setProperty(
-      "--color-waiting",
+      "--hex-waiting",
       readable(config.waiting_color, "mark"),
     );
-  } else root.style.removeProperty("--color-waiting");
+  } else root.style.removeProperty("--hex-waiting");
   if (config?.dropped_color) {
     root.style.setProperty(
-      "--color-dropped",
+      "--hex-dropped",
       readable(config.dropped_color, "mark"),
     );
-  } else root.style.removeProperty("--color-dropped");
+  } else root.style.removeProperty("--hex-dropped");
 }
 
 let refreshSeq = 0;

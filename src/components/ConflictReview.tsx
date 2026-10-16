@@ -84,10 +84,10 @@ export default function ConflictReview({
           </span>
         </div>
         <div className="flex flex-wrap gap-3 text-xs">
-          <span className="rounded bg-danger/10 px-1.5 text-danger">
+          <span className="rounded-sm bg-danger/10 px-1.5 text-danger">
             − {fileLabel}
           </span>
-          <span className="rounded bg-accent/10 px-1.5 text-accent">
+          <span className="rounded-sm bg-accent/10 px-1.5 text-accent">
             + {copyLabel}
           </span>
           {diff && (
@@ -103,7 +103,7 @@ export default function ConflictReview({
             diff.lines.map((line, i) => (
               <div
                 key={i}
-                className={`whitespace-pre-wrap break-words px-2 ${
+                className={`whitespace-pre-wrap wrap-break-word px-2 ${
                   line.kind === "file"
                     ? "bg-danger/10 text-danger"
                     : line.kind === "copy"

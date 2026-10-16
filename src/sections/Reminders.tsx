@@ -264,9 +264,9 @@ function FocusTab({
               <span className="w-8 shrink-0 font-mono text-content-muted">
                 {i + 1}
               </span>
-              <span className="min-w-0 flex-1 break-words">{text}</span>
+              <span className="min-w-0 flex-1 wrap-break-word">{text}</span>
               {text === current && (
-                <span className="shrink-0 rounded bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent">
+                <span className="shrink-0 rounded-sm bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent">
                   this week
                 </span>
               )}
@@ -376,7 +376,7 @@ function DayRemindersTab({
               <span className="w-36 shrink-0 text-content-muted">
                 {DAY_TYPE_LABELS[entry.day_type] ?? entry.day_type}
               </span>
-              <span className="min-w-0 flex-1 break-words">{entry.text}</span>
+              <span className="min-w-0 flex-1 wrap-break-word">{entry.text}</span>
               <DeleteRowButton
                 onDelete={(e) => {
                   e.stopPropagation();
@@ -560,7 +560,7 @@ function ScheduleTab({
               <span className="w-28 shrink-0 font-mono text-content-muted">
                 {block.from}-{block.to}
               </span>
-              <span className="min-w-0 flex-1 break-words">{block.label}</span>
+              <span className="min-w-0 flex-1 wrap-break-word">{block.label}</span>
               <DeleteRowButton
                 onDelete={(e) => {
                   e.stopPropagation();

@@ -137,7 +137,7 @@ function GroupColumn({
           >
             {list.color && (
               <span
-                className="h-3 w-1 shrink-0 rounded"
+                className="h-3 w-1 shrink-0 rounded-sm"
                 style={{ backgroundColor: readable(list.color, "mark") }}
               />
             )}

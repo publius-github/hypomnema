@@ -336,7 +336,7 @@ function ListTaskRow({
       {/* the same status cycle the task cards use, so a postponed or
           waiting task is visible here too, not just done/not-done */}
       <button
-        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${statusBoxClass(task.status)}`}
+        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${statusBoxClass(task.status)}`}
         style={statusBoxStyle(task.status)}
         title={`Status: ${STATUS_LABEL[task.status]} (click: ${STATUS_LABEL[nextStatus(task.status, checklist)]})`}
         onClick={() => {
@@ -350,7 +350,7 @@ function ListTaskRow({
       </button>
       <button
         className={`min-w-0 flex-1 text-left ${
-          titleLines > 1 ? "break-words" : "truncate"
+          titleLines > 1 ? "wrap-break-word" : "truncate"
         } ${
           closed
             ? "text-content-muted line-through"

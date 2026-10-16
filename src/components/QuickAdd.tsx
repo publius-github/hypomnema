@@ -10,7 +10,7 @@ export default function QuickAdd({ target }: { target: Partial<NewTask> }) {
   if (!open) {
     return (
       <button
-        className="rounded px-1 py-0.5 text-left text-xs text-content-muted hover:text-content"
+        className="rounded-sm px-1 py-0.5 text-left text-xs text-content-muted hover:text-content"
         onClick={() => setOpen(true)}
       >
         + Add task

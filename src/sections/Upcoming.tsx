@@ -219,7 +219,7 @@ function ScheduledTab({
                 </span>
               )}
               {!editable && (
-                <span className="max-w-[140px] truncate rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                <span className="max-w-[140px] truncate rounded-sm bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
                   {event.source}
                 </span>
               )}
@@ -423,7 +423,7 @@ function BirthdaysTab({
                 {b.days_until === 0 ? "today" : `in ${b.days_until}d`}
               </span>
               {!editable && (
-                <span className="max-w-[140px] truncate rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                <span className="max-w-[140px] truncate rounded-sm bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
                   {b.source}
                 </span>
               )}

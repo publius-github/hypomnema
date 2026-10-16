@@ -213,7 +213,7 @@ export default function History() {
                     <span
                       key={d.date}
                       title={`${d.date}: ${d.date === today && d.status === "todo" ? "open" : d.status === "todo" ? "not done" : d.status}`}
-                      className={`h-3 w-2 rounded-sm ${
+                      className={`h-3 w-2 rounded-xs ${
                         d.status === "done"
                           ? "bg-accent"
                           : d.status === "waiting"
@@ -267,7 +267,7 @@ export default function History() {
                 className="flex items-center gap-2 rounded-md border border-line bg-surface-alt px-3 py-1.5 text-left text-sm hover:border-accent/60"
                 onClick={() => setOpenTask(task)}
               >
-                <span style={{ color: "var(--color-done)" }}>✓</span>
+                <span style={{ color: "var(--hex-done)" }}>✓</span>
                 <span className="min-w-0 flex-1 truncate text-content-muted line-through">
                   {task.title}
                 </span>
@@ -277,7 +277,7 @@ export default function History() {
                   </span>
                 )}
                 {listName(task.list_id) && (
-                  <span className="rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                  <span className="rounded-sm bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
                     {listName(task.list_id)}
                   </span>
                 )}

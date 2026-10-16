@@ -111,7 +111,7 @@ function LegalNotice() {
           {error ? "Could not load - retry" : "Third-party licenses"}
         </button>
       ) : (
-        <pre className="mt-2 max-h-64 select-text overflow-auto whitespace-pre-wrap break-words rounded border border-line p-2 text-[10px] leading-snug">
+        <pre className="mt-2 max-h-64 select-text overflow-auto whitespace-pre-wrap wrap-break-word rounded-sm border border-line p-2 text-[10px] leading-snug">
           {licenses}
         </pre>
       )}

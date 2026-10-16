@@ -179,10 +179,10 @@ export default function MobileReview() {
                   key={`${event.title}-${i}`}
                   className="flex items-center gap-2 px-4 py-1 text-sm text-content-muted"
                 >
-                  <span className="shrink-0 rounded bg-line/40 px-1.5 py-0.5 text-[11px]">
+                  <span className="shrink-0 rounded-sm bg-line/40 px-1.5 py-0.5 text-[11px]">
                     {event.kind}
                   </span>
-                  <span className="min-w-0 break-words">{event.title}</span>
+                  <span className="min-w-0 wrap-break-word">{event.title}</span>
                 </p>
               ))}
             </div>

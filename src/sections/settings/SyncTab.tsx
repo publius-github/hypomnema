@@ -180,7 +180,7 @@ export default function SyncTab() {
         )}
 
         {otherClient && (
-          <p className="rounded border border-warn/40 bg-warn/10 p-2 text-xs">
+          <p className="rounded-sm border border-warn/40 bg-warn/10 p-2 text-xs">
             This vault sits inside a {otherClient} folder. With Google sync on
             as well, two programs would sync the same files and fight over
             them - move the vault out of that folder first.
@@ -202,7 +202,7 @@ export default function SyncTab() {
                   </span>
                 )}
                 {standing.last_error && (
-                  <span className="block break-words text-xs text-warn">
+                  <span className="block wrap-break-word text-xs text-warn">
                     {standing.last_error}
                   </span>
                 )}
@@ -216,7 +216,7 @@ export default function SyncTab() {
               {running ? "Syncing..." : "Sync now"}
             </button>
             {wiped && (
-              <div className="flex flex-col gap-2 rounded border border-warn/40 bg-warn/10 p-2 text-xs">
+              <div className="flex flex-col gap-2 rounded-sm border border-warn/40 bg-warn/10 p-2 text-xs">
                 <p>
                   Most of what this device had synced is gone from Google
                   Drive at once, so nothing was deleted here. If the Drive

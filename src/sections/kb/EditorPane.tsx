@@ -59,7 +59,7 @@ function BacklinksPanel({ path }: { path: string }) {
   const hitRow = (hit: KbSearchHit) => (
     <button
       key={hit.path}
-      className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
+      className="block w-full rounded-sm px-2 py-1 text-left hover:bg-line/40"
       onClick={() => useAppStore.getState().openKbNote(hit.path)}
     >
       <span className="block truncate text-sm text-content">{hit.name}</span>
@@ -102,7 +102,7 @@ function BacklinksPanel({ path }: { path: string }) {
               {data.journal.map((hit) => (
                 <button
                   key={hit.date}
-                  className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
+                  className="block w-full rounded-sm px-2 py-1 text-left hover:bg-line/40"
                   onClick={() =>
                     useAppStore.getState().openJournalDate(hit.date)
                   }
@@ -129,7 +129,7 @@ function BacklinksPanel({ path }: { path: string }) {
               {data.tasks.map((hit) => (
                 <button
                   key={hit.task.id}
-                  className="block w-full rounded px-2 py-1 text-left hover:bg-line/40"
+                  className="block w-full rounded-sm px-2 py-1 text-left hover:bg-line/40"
                   onClick={() => setOpenTask(hit.task)}
                 >
                   <span className="block truncate text-sm text-content">

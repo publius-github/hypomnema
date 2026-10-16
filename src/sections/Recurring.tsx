@@ -123,7 +123,7 @@ export default function Recurring() {
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="shrink-0 rounded bg-line/40 px-2 py-0.5 font-mono text-xs">
+                  <span className="shrink-0 rounded-sm bg-line/40 px-2 py-0.5 font-mono text-xs">
                     {rule.schedule}
                   </span>
                   <span className="min-w-0 flex-1 truncate font-medium">
@@ -145,7 +145,7 @@ export default function Recurring() {
                 </ul>
               </div>
               {!editable && (
-                <span className="max-w-[140px] shrink-0 truncate rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                <span className="max-w-[140px] shrink-0 truncate rounded-sm bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
                   {rule.source}
                 </span>
               )}

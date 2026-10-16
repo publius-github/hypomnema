@@ -1,6 +1,94 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme inline {
+  /* the app's palette, read per element from the runtime variables
+     below (the .dark class and Settings > Appearance set those): RGB
+     triplets under --rgb-*, so opacity modifiers like bg-accent/15
+     still work */
+  --color-surface: rgb(var(--rgb-surface));
+  --color-surface-alt: rgb(var(--rgb-surface-alt));
+  --color-content: rgb(var(--rgb-content));
+  --color-content-muted: rgb(var(--rgb-content-muted));
+  --color-accent: rgb(var(--rgb-accent));
+  --color-line: rgb(var(--rgb-line));
+  --color-danger: rgb(var(--rgb-danger));
+  --color-warn: rgb(var(--rgb-warn));
+  --color-info: rgb(var(--rgb-info));
+  /* plain hex (configurable, like --hex-done): no opacity modifiers */
+  --color-waiting: var(--hex-waiting);
+  --color-dropped: var(--hex-dropped);
+}
+
+/* Tailwind 3's line heights: absolute (rem) rather than Tailwind 4's
+   unitless ratios, so a smaller text-[11px] label inside a text-sm block
+   keeps the block's line height, as the layout was drawn */
+@theme {
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+}
+
+/* Tailwind 3's preflight defaults the layout was drawn against: a light
+   grey border where only a width is given, and the hand cursor on
+   buttons, a grey placeholder, date fields at the browser's height
+   (Tailwind 4 uses currentColor and its own resets) */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    opacity: 1;
+    color: var(--color-gray-400);
+  }
+  /* date and time fields at the browser's own height (Tailwind 4's
+     preflight trims their inner padding) */
+  ::-webkit-date-and-time-value,
+  ::-webkit-datetime-edit,
+  ::-webkit-datetime-edit-fields-wrapper,
+  ::-webkit-datetime-edit-year-field,
+  ::-webkit-datetime-edit-month-field,
+  ::-webkit-datetime-edit-day-field,
+  ::-webkit-datetime-edit-hour-field,
+  ::-webkit-datetime-edit-minute-field,
+  ::-webkit-datetime-edit-second-field,
+  ::-webkit-datetime-edit-millisecond-field,
+  ::-webkit-datetime-edit-meridiem-field {
+    display: revert;
+    min-height: revert;
+    padding: revert;
+    text-align: revert;
+  }
+}
+
+/* shared form controls; utilities beside them (py-1, text-xs) win */
+@utility input {
+  @apply rounded-md border border-line bg-surface-alt px-3 py-1.5 text-sm text-content outline-hidden focus:border-accent;
+}
+@utility btn-primary {
+  @apply rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90;
+}
+@utility btn-ghost {
+  @apply rounded-md border border-line px-3 py-1.5 text-sm hover:border-accent hover:text-accent;
+}
+@utility btn-danger {
+  @apply rounded-md border border-danger/50 px-3 py-1.5 text-sm text-danger hover:bg-danger/10;
+}
 
 :root {
   /* native widgets (scrollbars, pickers) follow the app theme */
@@ -8,25 +96,25 @@
   /* chrome palette: VS Code Light+ (editor background, side bar,
      borders and the classic blue accent); Settings > Appearance
      overrides any of the six individually */
-  --color-surface: 255 255 255;
-  --color-surface-alt: 243 243 243;
-  --color-content: 51 51 51;
+  --rgb-surface: 255 255 255;
+  --rgb-surface-alt: 243 243 243;
+  --rgb-content: 51 51 51;
   /* the single secondary text tone: readable, just quieter than
-     --color-content; never dim it further with opacity modifiers */
-  --color-content-muted: 111 111 111;
-  --color-accent: 0 95 184;
-  --color-line: 224 224 224;
+     --rgb-content; never dim it further with opacity modifiers */
+  --rgb-content-muted: 111 111 111;
+  --rgb-accent: 0 95 184;
+  --rgb-line: 224 224 224;
   /* semantic roles: overdue/errors, postponed/warnings, exact-date/info */
-  --color-danger: 220 38 38;
-  --color-warn: 217 119 6;
-  --color-info: 2 132 199;
+  --rgb-danger: 220 38 38;
+  --rgb-warn: 217 119 6;
+  --rgb-info: 2 132 199;
   /* checked (done) checkboxes; config-driven via done_color, this is
      only the pre-config fallback */
-  --color-done: #079042;
+  --hex-done: #079042;
   /* waiting (done, waiting) marks; config-driven via waiting_color */
-  --color-waiting: #0a88a5;
+  --hex-waiting: #0a88a5;
   /* not done, dropped marks; config-driven via dropped_color */
-  --color-dropped: #797d85;
+  --hex-dropped: #797d85;
   /* markdown token colors per the VS Code Light+ spec (light_vs.json):
      heading #800000, bold #000080, italic #800080, inline raw #800000,
      link/checkbox text = string #a31515, quote/comment #008000,
@@ -51,15 +139,15 @@
 .dark {
   color-scheme: dark;
   /* VS Code Dark+ chrome */
-  --color-surface: 30 30 30;
-  --color-surface-alt: 37 37 38;
-  --color-content: 212 212 212;
-  --color-content-muted: 191 191 191;
-  --color-accent: 55 148 255;
-  --color-line: 60 60 60;
-  --color-danger: 248 113 113;
-  --color-warn: 251 191 36;
-  --color-info: 56 189 248;
+  --rgb-surface: 30 30 30;
+  --rgb-surface-alt: 37 37 38;
+  --rgb-content: 212 212 212;
+  --rgb-content-muted: 191 191 191;
+  --rgb-accent: 55 148 255;
+  --rgb-line: 60 60 60;
+  --rgb-danger: 248 113 113;
+  --rgb-warn: 251 191 36;
+  --rgb-info: 56 189 248;
   /* markdown token colors per the VS Code Dark+ spec (dark_vs.json):
      heading/bold #569cd6, italic #c586c0, inline raw #ce9178,
      link/checkbox text = string #ce9178, quote/comment #6a9955,
@@ -113,6 +201,16 @@ body {
 }
 
 /*
+ * The phone reads at one text size, the platform's 16px: no setting -
+ * the system's own font scaling already serves whoever needs bigger
+ * text. !important wins over the inline root size applyTheme sets from
+ * this device's ui_font_size, which only the desktop honours.
+ */
+html.mobile {
+  font-size: 16px !important;
+}
+
+/*
  * Keeps a full-screen phone layout out from under the system bars.
  *
  * Android has drawn apps edge to edge since API 35 and this build
@@ -135,16 +233,6 @@ body {
  * which is how the welcome screen ended up running edge to edge under
  * the system bars while every other screen behaved. Pad a child instead.
  */
-/*
- * The phone reads at one text size, the platform's 16px: no setting -
- * the system's own font scaling already serves whoever needs bigger
- * text. !important wins over the inline root size applyTheme sets from
- * this device's ui_font_size, which only the desktop honours.
- */
-html.mobile {
-  font-size: 16px !important;
-}
-
 .safe-area {
   padding-top: max(env(safe-area-inset-top, 0px), var(--safe-top, 0px));
   padding-bottom: max(
@@ -157,25 +245,10 @@ html.mobile {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-@layer components {
-  .input {
-    @apply rounded-md border border-line bg-surface-alt px-3 py-1.5 text-sm text-content outline-none focus:border-accent;
-  }
-  .btn-primary {
-    @apply rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90;
-  }
-  .btn-ghost {
-    @apply rounded-md border border-line px-3 py-1.5 text-sm hover:border-accent hover:text-accent;
-  }
-  .btn-danger {
-    @apply rounded-md border border-danger/50 px-3 py-1.5 text-sm text-danger hover:bg-danger/10;
-  }
-}
-
 /* keyboard focus must be visible outside .input fields too */
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid rgb(var(--color-accent) / 0.7);
+  outline: 2px solid rgb(var(--rgb-accent) / 0.7);
   outline-offset: 1px;
 }
 

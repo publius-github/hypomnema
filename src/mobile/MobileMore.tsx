@@ -71,7 +71,7 @@ export default function MobileMore() {
           >
             <span className="min-w-0">
               <span className="block">{entry.label}</span>
-              <span className="block break-words text-xs text-content-muted">
+              <span className="block wrap-break-word text-xs text-content-muted">
                 {entry.hint}
               </span>
             </span>

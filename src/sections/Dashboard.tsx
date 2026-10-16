@@ -455,7 +455,7 @@ function ListZone({
             setOpenGroupId(null);
             setOffset(0);
           }}
-          className="flex items-center gap-1.5 self-start rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-content-muted"
+          className="flex items-center gap-1.5 self-start rounded-sm px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-content-muted"
         />
       )}
       <div className="flex items-stretch gap-2">

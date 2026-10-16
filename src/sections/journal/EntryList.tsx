@@ -90,7 +90,7 @@ export default function EntryList({
         return (
           <div key={year}>
             <button
-              className="flex w-full items-center gap-1 rounded px-1 py-1 text-left text-sm font-semibold hover:bg-line/40"
+              className="flex w-full items-center gap-1 rounded-sm px-1 py-1 text-left text-sm font-semibold hover:bg-line/40"
               aria-expanded={open}
               onClick={() =>
                 setExpanded((prev) => {

@@ -69,7 +69,7 @@ export default function DayTasks({ date }: { date: string }) {
           {tasks.map((task) => (
             <li key={task.id}>
               <button
-                className="flex w-full items-baseline gap-2 rounded px-2 py-0.5 text-left hover:bg-line/40"
+                className="flex w-full items-baseline gap-2 rounded-sm px-2 py-0.5 text-left hover:bg-line/40"
                 onClick={() => setEditing(task)}
               >
                 <span className="w-3 shrink-0 text-center text-content-muted">

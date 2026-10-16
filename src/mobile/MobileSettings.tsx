@@ -300,7 +300,7 @@ function SyncPanel({
               </span>
             )}
             {standing.last_error && (
-              <span className="block break-words text-xs text-warn">
+              <span className="block wrap-break-word text-xs text-warn">
                 {standing.last_error}
               </span>
             )}
@@ -694,7 +694,7 @@ function MaintenancePanel() {
             <button
               disabled={busy}
               onClick={() => onRestore(entry)}
-              className="shrink-0 rounded border border-line px-2 py-1 text-xs disabled:opacity-50"
+              className="shrink-0 rounded-sm border border-line px-2 py-1 text-xs disabled:opacity-50"
             >
               Restore
             </button>
@@ -737,7 +737,7 @@ function MaintenancePanel() {
               <button
                 disabled={busy}
                 onClick={() => restoreList(list.id)}
-                className="shrink-0 rounded border border-line px-2 py-1 text-xs disabled:opacity-50"
+                className="shrink-0 rounded-sm border border-line px-2 py-1 text-xs disabled:opacity-50"
               >
                 Restore
               </button>

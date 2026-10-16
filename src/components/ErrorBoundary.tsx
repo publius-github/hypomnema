@@ -41,7 +41,7 @@ function CrashScreen({ error }: { error: unknown }) {
           not affected - it is saved by the app core, not this screen.
           Reloading usually brings everything back.
         </p>
-        <pre className="mt-3 max-h-32 select-text overflow-auto whitespace-pre-wrap break-words rounded border border-line p-2 text-xs">
+        <pre className="mt-3 max-h-32 select-text overflow-auto whitespace-pre-wrap wrap-break-word rounded-sm border border-line p-2 text-xs">
           {errorMessage(error)}
         </pre>
         <button

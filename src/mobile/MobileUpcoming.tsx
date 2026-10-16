@@ -128,7 +128,7 @@ function Scheduled({
           <li key={key} className="border-b border-line/60 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <span className="min-w-0">
-                <span className="block break-words">{event.title}</span>
+                <span className="block wrap-break-word">{event.title}</span>
                 <span className="text-xs text-content-muted">
                   {event.date}
                   {event.time && ` · ${event.time}`}
@@ -287,7 +287,7 @@ function Birthdays({
           <li key={key} className="border-b border-line/60 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <span className="min-w-0">
-                <span className="block break-words">{entry.name}</span>
+                <span className="block wrap-break-word">{entry.name}</span>
                 <span className="text-xs text-content-muted">
                   {entry.next_occurrence} · in {entry.days_until} d
                   {entry.turns !== null && ` · turns ${entry.turns}`}
@@ -453,15 +453,15 @@ function Recurring({
           >
             <div className="flex items-start justify-between gap-3">
               <span className="min-w-0">
-                <span className="block break-words">
+                <span className="block wrap-break-word">
                   {rule.description || rule.items.join(", ")}
                 </span>
-                <span className="block break-words text-xs text-content-muted">
+                <span className="block wrap-break-word text-xs text-content-muted">
                   {rule.schedule}
                   {rule.source !== "recurring.yml" && ` · ${rule.source}`}
                 </span>
                 {rule.description && (
-                  <span className="block break-words text-xs text-content-muted">
+                  <span className="block wrap-break-word text-xs text-content-muted">
                     {rule.items.join(", ")}
                   </span>
                 )}

@@ -181,7 +181,7 @@ export default function DueToasts({
           >
             <span className="font-medium text-accent">{toast.label}</span>
             <br />
-            <span className="break-words">{toast.text}</span>
+            <span className="wrap-break-word">{toast.text}</span>
           </button>
           {/* the summary covers several tasks: nothing single to snooze */}
           {toast.id !== SUMMARY_ID && (

@@ -111,7 +111,7 @@ export default function MobileLists() {
                 className="h-3 w-3 shrink-0 rounded-full"
               />
             )}
-            <span className="min-w-0 break-words">
+            <span className="min-w-0 wrap-break-word">
               {list.favorite && <span className="text-accent">★ </span>}
               {list.name}
             </span>
@@ -359,7 +359,7 @@ export default function MobileLists() {
                         className="h-3 w-3 shrink-0 rounded-full"
                       />
                     )}
-                    <span className="min-w-0 break-words font-medium">
+                    <span className="min-w-0 wrap-break-word font-medium">
                       {group.name}
                     </span>
                     <span className="ml-auto shrink-0 pl-3 text-sm text-content-muted">

@@ -179,7 +179,7 @@ export default function MobileNotes() {
             {status.configured}) does not exist on this device.
           </span>
           <button
-            className="shrink-0 rounded border border-warn/50 px-2 py-1 font-medium"
+            className="shrink-0 rounded-sm border border-warn/50 px-2 py-1 font-medium"
             onClick={() => {
               void useAppStore
                 .getState()
@@ -210,8 +210,8 @@ export default function MobileNotes() {
                 onClick={() => openPath(hit.path)}
                 className="w-full px-4 py-3 text-left"
               >
-                <span className="block break-words">{hit.name}</span>
-                <span className="block break-words text-xs text-content-muted">
+                <span className="block wrap-break-word">{hit.name}</span>
+                <span className="block wrap-break-word text-xs text-content-muted">
                   {hit.preview}
                 </span>
               </button>
@@ -252,7 +252,7 @@ export default function MobileNotes() {
                   <span aria-hidden className="text-content-muted">
                     {node.is_dir ? "▸" : "·"}
                   </span>
-                  <span className="min-w-0 break-words">{node.name}</span>
+                  <span className="min-w-0 wrap-break-word">{node.name}</span>
                   {!node.is_dir && isConflictedCopy(node.name) && (
                     <ConflictBadge />
                   )}
@@ -275,7 +275,7 @@ export default function MobileNotes() {
                       <span aria-hidden className="text-content-muted">
                         ·
                       </span>
-                      <span className="min-w-0 break-words">{file}</span>
+                      <span className="min-w-0 wrap-break-word">{file}</span>
                     </button>
                   </li>
                 ))}
@@ -543,7 +543,7 @@ function NoteEditor({
           value={content}
           onChange={(e) => edit(e.target.value)}
           spellCheck
-          className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 font-mono text-sm leading-relaxed outline-none"
+          className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 font-mono text-sm leading-relaxed outline-hidden"
         />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
@@ -618,23 +618,23 @@ function NoteEditor({
                 onClick={() => onOpen(hit.path)}
                 className="block w-full border-b border-line/60 py-2 text-left"
               >
-                <span className="block break-words">{hit.name}</span>
-                <span className="block break-words text-xs text-content-muted">
+                <span className="block wrap-break-word">{hit.name}</span>
+                <span className="block wrap-break-word text-xs text-content-muted">
                   {hit.preview}
                 </span>
               </button>
             ))}
             {backlinks.journal.map((hit, i) => (
               <p key={`j-${i}`} className="border-b border-line/60 py-2">
-                <span className="block break-words">Journal {hit.date}</span>
-                <span className="block break-words text-xs text-content-muted">
+                <span className="block wrap-break-word">Journal {hit.date}</span>
+                <span className="block wrap-break-word text-xs text-content-muted">
                   {hit.preview}
                 </span>
               </p>
             ))}
             {backlinks.tasks.map((hit, i) => (
               <p key={`t-${i}`} className="border-b border-line/60 py-2">
-                <span className="block break-words">{hit.task.title}</span>
+                <span className="block wrap-break-word">{hit.task.title}</span>
               </p>
             ))}
           </div>
@@ -681,7 +681,7 @@ function ReadView({
 }) {
   const parts = content.split(/(\[\[[^\]]+\]\])/g);
   return (
-    <pre className="whitespace-pre-wrap break-words font-sans leading-relaxed">
+    <pre className="whitespace-pre-wrap wrap-break-word font-sans leading-relaxed">
       {parts.map((part, index) => {
         const match = /^\[\[([^\]]+)\]\]$/.exec(part);
         if (!match) return <span key={index}>{part}</span>;

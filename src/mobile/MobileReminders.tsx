@@ -87,7 +87,7 @@ export default function MobileReminders() {
               key={`${text}-${index}`}
               className="flex items-start justify-between gap-3 border-b border-line/60 py-2"
             >
-              <span className="min-w-0 break-words text-sm">{text}</span>
+              <span className="min-w-0 wrap-break-word text-sm">{text}</span>
               <button
                 onClick={() =>
                   void act(() =>
@@ -123,7 +123,7 @@ export default function MobileReminders() {
               className="flex items-start justify-between gap-3 border-b border-line/60 py-2"
             >
               <span className="min-w-0 text-sm">
-                <span className="block break-words">{reminder.text}</span>
+                <span className="block wrap-break-word">{reminder.text}</span>
                 <span className="text-xs text-content-muted">
                   {reminder.day_type}
                 </span>
@@ -178,7 +178,7 @@ export default function MobileReminders() {
               className="flex items-start justify-between gap-3 border-b border-line/60 py-2"
             >
               <span className="min-w-0 text-sm">
-                <span className="block break-words">{block.label}</span>
+                <span className="block wrap-break-word">{block.label}</span>
                 <span className="text-xs text-content-muted">
                   {block.from}–{block.to}
                 </span>
