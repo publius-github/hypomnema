@@ -253,15 +253,6 @@ pub struct AppConfig {
     /// is one stripe, a section break two, the Postponed / Done,
     /// waiting / Done breaks three.
     pub list_gap_stripe: u32,
-    /// Each column section is a framed panel with one continuous rail
-    /// in its plate color down the left edge; the breaks between
-    /// sections become plain space (`section_gap`) instead of stripes.
-    pub section_cards: bool,
-    /// Space between two section panels, px (0..=64).
-    pub section_gap: u32,
-    /// Category breaks inside a section draw the gap band; off = the
-    /// break is empty space of the same height.
-    pub category_gap_bands: bool,
     /// Hairlines between the rows of a column.
     pub row_hairlines: bool,
     /// A category block names its category once, as a small header over
@@ -472,9 +463,6 @@ pub const PROFILE_KEYS: &[&str] = &[
     "gap_fill_max_thickness",
     "gap_fill_opacity",
     "list_gap_stripe",
-    "section_cards",
-    "section_gap",
-    "category_gap_bands",
     "row_hairlines",
     "category_headers",
     "category_header_bold",
@@ -537,18 +525,18 @@ impl Default for AppConfig {
             day_header_centered: false,
             cadence_colors: true,
             cadence_color_daily: "#0a8c81".into(),
-            cadence_color_weekly: "#2f7dda".into(),
+            cadence_color_weekly: "#d8ac5f".into(),
             cadence_color_monthly: "#8b68db".into(),
             cadence_color_yearly: "#cb5092".into(),
             cadence_color_exact: "#df4645".into(),
-            category_color: "#6b7f98".into(),
+            category_color: "#5194e6".into(),
             chip_font_scale: 100,
             category_color_mode: "single".into(),
             category_color_a: "#5a8a05".into(),
             category_color_b: "#c95e05".into(),
             done_color: "#079042".into(),
             waiting_color: "#0a88a5".into(),
-            dropped_color: "#797d85".into(),
+            dropped_color: "#b76262".into(),
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
@@ -592,9 +580,6 @@ impl Default for AppConfig {
             gap_fill_max_thickness: 20,
             gap_fill_opacity: 0,
             list_gap_stripe: 60,
-            section_cards: false,
-            section_gap: 16,
-            category_gap_bands: false,
             row_hairlines: true,
             category_headers: true,
             category_header_bold: true,
@@ -603,7 +588,7 @@ impl Default for AppConfig {
             fold_postponed: false,
             fold_waiting: false,
             fold_done: true,
-            fold_dropped: false,
+            fold_dropped: true,
             closed_row_opacity: 50,
             lists_group_display: "flat".into(),
             days_page_columns: 7,
@@ -625,7 +610,7 @@ impl Default for AppConfig {
             weekly_focus_color: String::new(),
             reminder_color: String::new(),
             day_header_color: String::new(),
-            dow_label_color: String::new(),
+            dow_label_color: "#bb9dc8".into(),
             dow_label_opacity: 60,
             list_date_chip_color: String::new(),
             cadence_color_general: String::new(),
@@ -633,7 +618,7 @@ impl Default for AppConfig {
             done_plate_color: "#079042".into(),
             waiting_plate_color: "#0a88a5".into(),
             dropped_plate_color: "#797d85".into(),
-            list_exact_stripe: false,
+            list_exact_stripe: true,
             capture_list: "Inbox".into(),
             capture_shortcut: "Ctrl+Alt+Space".into(),
             tray_icon: true,
@@ -711,7 +696,6 @@ impl AppConfig {
         self.gap_fill_max_thickness = self.gap_fill_max_thickness.clamp(1, 64);
         self.gap_fill_opacity = self.gap_fill_opacity.min(100);
         self.list_gap_stripe = self.list_gap_stripe.clamp(25, 150);
-        self.section_gap = self.section_gap.min(64);
         self.closed_row_opacity = self.closed_row_opacity.clamp(20, 100);
         self.dow_label_opacity = self.dow_label_opacity.clamp(20, 100);
         self.calendar_daily_days = self.calendar_daily_days.min(366);
@@ -1039,9 +1023,6 @@ impl AppConfig {
             ),
             ("gap_fill_opacity", self.gap_fill_opacity.to_string()),
             ("list_gap_stripe", self.list_gap_stripe.to_string()),
-            ("section_cards", self.section_cards.to_string()),
-            ("section_gap", self.section_gap.to_string()),
-            ("category_gap_bands", self.category_gap_bands.to_string()),
             ("row_hairlines", self.row_hairlines.to_string()),
             ("category_headers", self.category_headers.to_string()),
             (

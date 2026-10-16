@@ -7,7 +7,6 @@ import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import SectionBlock, {
   labelInHeader,
-  railColor,
   RowLead,
 } from "./ColumnSection";
 import { readable } from "../lib/color";
@@ -110,7 +109,6 @@ function DayColumn({
                   // the line above, not only the one below
                   lineAbove={row.lineAbove}
                   labelInHeader={labelInHeader(config, row)}
-                  sectionColor={railColor(config, section)}
                 />
               </div>
             ))}

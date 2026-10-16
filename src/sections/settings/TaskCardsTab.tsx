@@ -1,17 +1,10 @@
-import {
-  ColorPicker,
-  Field,
-  NumberInput,
-  Toggle,
-} from "../../components/form";
+import { Field, NumberInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
-import type { AppConfig } from "../../types";
 import { useAppStore } from "../../store";
-import ColorRow from "./ColorRow";
 
 /**
- * The task card itself, wherever it shows up: its colors, the chips,
- * category headers and markers it wears, its completion-rate chip and
+ * The task card itself, wherever it shows up: the chips, category
+ * headers and markers it wears, its completion-rate chip and
  * what it does when acted on. The column a card sits in - including
  * the Postponed/Done blocks it lands in - is under Columns.
  */
@@ -22,142 +15,7 @@ export default function TaskCardsTab() {
 
   return (
     <>
-      <SettingsGroup id="cards.colors">
-        <Toggle
-          checked={config.cadence_colors}
-          label="Color tasks by cadence"
-          hint="Daily, weekly, monthly, yearly and exact-date tasks get a color stripe on the card (the same stripe a manual task color uses; a manual color wins). The same palette colors the section plates inside a column."
-          onChange={(v) => void updateConfig({ cadence_colors: v })}
-        />
-        {config.cadence_colors && (
-          <div className="flex flex-col gap-2 pl-6">
-            {(
-              [
-                ["Daily", "cadence_color_daily"],
-                ["Weekly", "cadence_color_weekly"],
-                ["Monthly", "cadence_color_monthly"],
-                ["Yearly", "cadence_color_yearly"],
-                ["Exact date", "cadence_color_exact"],
-              ] as const
-            ).map(([label, key]) => (
-              <div key={key} className="flex items-center gap-2">
-                <span className="w-24 text-xs text-content-muted">
-                  {label}
-                </span>
-                <ColorPicker
-                  value={config[key]}
-                  onChange={(color) => void updateConfig({ [key]: color })}
-                />
-              </div>
-            ))}
-            <div className="flex items-center gap-2">
-              <span className="w-24 text-xs text-content-muted">General</span>
-              <ColorPicker
-                value={config.cadence_color_general || "#6b7280"}
-                onChange={(color) =>
-                  void updateConfig({ cadence_color_general: color })
-                }
-              />
-              {config.cadence_color_general ? (
-                <button
-                  className="text-xs text-content-muted hover:text-content"
-                  onClick={() => void updateConfig({ cadence_color_general: "" })}
-                >
-                  reset to neutral
-                </button>
-              ) : (
-                <span className="text-xs text-content-muted">
-                  neutral - manual tasks carry no cadence
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Done checkbox color</span>
-          <ColorPicker
-            value={config.done_color}
-            onChange={(color) => void updateConfig({ done_color: color })}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Done, waiting mark color</span>
-          <ColorPicker
-            value={config.waiting_color}
-            onChange={(color) => void updateConfig({ waiting_color: color })}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Not done, dropped mark color</span>
-          <ColorPicker
-            value={config.dropped_color}
-            onChange={(color) => void updateConfig({ dropped_color: color })}
-          />
-        </div>
-      </SettingsGroup>
-
       <SettingsGroup id="cards.chips">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Category label color</span>
-          <ColorPicker
-            value={config.category_color}
-            onChange={(color) => void updateConfig({ category_color: color })}
-          />
-          <span className="text-xs text-content-muted">
-            Used when the mode below is &quot;One color for all&quot;.
-          </span>
-        </div>
-        <Field label="Category chip colors">
-          <select
-            className="input"
-            value={config.category_color_mode}
-            onChange={(e) =>
-              void updateConfig({
-                category_color_mode: e.target
-                  .value as AppConfig["category_color_mode"],
-              })
-            }
-          >
-            <option value="single">One color for all (above)</option>
-            <option value="varied">A color per category</option>
-            <option value="alternate">Alternate between two colors</option>
-          </select>
-        </Field>
-        <span className="-mt-1 text-xs text-content-muted">
-          {config.category_color_mode === "varied"
-            ? "Each category takes its own hue: a list keeps the color of its own column, any other {Category} gets a palette color picked from its name."
-            : config.category_color_mode === "alternate"
-              ? "The two colors below take turns, one category block after the next, running down a whole column - the turn carries on across the Daily/Weekly/Monthly sections and into Postponed and Done instead of restarting."
-              : "Every category label wears the single color above."}
-        </span>
-        {config.category_color_mode === "varied" && (
-          <Toggle
-            checked={config.category_avoid_cadence_colors}
-            label="Avoid the cadence colors"
-            hint="A palette color close to one of the cadence colors (the Weekly/Monthly/... plates) is skipped, so a chip never blends into the section it sits under. A list's own hand-picked color is kept either way."
-            onChange={(v) =>
-              void updateConfig({ category_avoid_cadence_colors: v })
-            }
-          />
-        )}
-        {config.category_color_mode === "alternate" && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Alternating colors</span>
-            <ColorPicker
-              value={config.category_color_a}
-              onChange={(color) =>
-                void updateConfig({ category_color_a: color })
-              }
-            />
-            <ColorPicker
-              value={config.category_color_b}
-              onChange={(color) =>
-                void updateConfig({ category_color_b: color })
-              }
-            />
-          </div>
-        )}
         <Toggle
           checked={config.category_headers}
           label="Category as a block header"
@@ -203,22 +61,6 @@ export default function TaskCardsTab() {
               hint="Rules free on both day fields (e.g. 0 9 * * *) wear an [EVERYDAY] marker instead of going unlabeled."
               onChange={(v) => void updateConfig({ cron_everyday_label: v })}
             />
-            <ColorRow
-              label="Marker color"
-              field="dow_label_color"
-              dark="#8c8c8c"
-              light="#6f6f6f"
-              fallbackName="secondary text"
-            />
-            <Field label="Marker opacity, % (default color only; a picked color shows as picked)">
-              <NumberInput
-                value={config.dow_label_opacity}
-                min={20}
-                onCommit={(n) =>
-                  void updateConfig({ dow_label_opacity: Math.min(100, n) })
-                }
-              />
-            </Field>
           </div>
         )}
       </SettingsGroup>
@@ -270,16 +112,6 @@ export default function TaskCardsTab() {
                 }
               />
             </Field>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Alert chip color</span>
-              <ColorPicker
-                value={config.habit_rate_alert_color}
-                onChange={(color) =>
-                  void updateConfig({ habit_rate_alert_color: color })
-                }
-              />
-            </div>
           </div>
         )}
       </SettingsGroup>

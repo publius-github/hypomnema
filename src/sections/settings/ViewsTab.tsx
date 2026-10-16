@@ -1,7 +1,6 @@
 import { Field, NumberInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import { useAppStore } from "../../store";
-import ColorRow from "./ColorRow";
 
 const SECTION_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
@@ -106,12 +105,6 @@ export default function ViewsTab() {
             }
           />
         </Field>
-        <ColorRow
-          label="Weekly focus phrase"
-          field="weekly_focus_color"
-          dark="#3794ff"
-          light="#005fb8"
-        />
       </SettingsGroup>
 
       <SettingsGroup id="views.lists">

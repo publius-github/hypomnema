@@ -360,21 +360,6 @@ gap_fill_opacity: number,
  */
 list_gap_stripe: number, 
 /**
- * Each column section is a framed panel with one continuous rail
- * in its plate color down the left edge; the breaks between
- * sections become plain space (`section_gap`) instead of stripes.
- */
-section_cards: boolean, 
-/**
- * Space between two section panels, px (0..=64).
- */
-section_gap: number, 
-/**
- * Category breaks inside a section draw the gap band; off = the
- * break is empty space of the same height.
- */
-category_gap_bands: boolean, 
-/**
  * Hairlines between the rows of a column.
  */
 row_hairlines: boolean, 

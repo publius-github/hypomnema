@@ -59,7 +59,6 @@ export default function TaskRow({
   blockIndex,
   lineAbove = false,
   labelInHeader = false,
-  sectionColor = null,
 }: {
   task: Task;
   /**
@@ -83,8 +82,6 @@ export default function TaskRow({
   lineAbove?: boolean;
   /** the block header already names the row's category: no chip */
   labelInHeader?: boolean;
-  /** rail color of the section panel: a same-color stripe is left out */
-  sectionColor?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -195,9 +192,7 @@ export default function TaskRow({
           className="w-1 shrink-0"
           style={{
             background:
-              stripe && stripe !== sectionColor
-                ? readable(stripe, "mark")
-                : "transparent",
+              stripe ? readable(stripe, "mark") : "transparent",
             opacity: dim,
           }}
         />

@@ -1,9 +1,8 @@
-import { ColorPicker, Field, NumberInput, Toggle } from "../../components/form";
+import { Field, NumberInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import { CADENCE_GROUP_LABELS } from "../../lib/tasks";
 import type { DoneDisplay } from "../../types";
 import { useAppStore } from "../../store";
-import ColorRow from "./ColorRow";
 
 /**
  * The columns tasks live in. What every column shares comes first - its
@@ -28,35 +27,10 @@ export default function ColumnsTab() {
     <>
       <SettingsGroup id="columns.sections">
         <span className="text-xs text-content-muted">
-          How a column is laid out inside - section panels, plates, the
-          lines between rows and the bands between blocks. One set for
+          How a column is laid out inside - plates, the lines between
+          rows and the bands between blocks. One set for
           every day and list column, so all pages read the same.
         </span>
-        <Toggle
-          checked={config.section_cards}
-          label="Sections as framed panels"
-          hint="Each section (Daily, Weekly, Done...) is a framed panel with one rail in its color down the left edge; the breaks between sections are plain space instead of stripes, and a row's stripe in the section's own color is left to the rail."
-          onChange={(v) => void updateConfig({ section_cards: v })}
-        />
-        {config.section_cards && (
-          <div className="flex flex-col gap-3 pl-6">
-            <Field label="Space between section panels, px">
-              <NumberInput
-                value={config.section_gap}
-                min={0}
-                onCommit={(n) =>
-                  void updateConfig({ section_gap: Math.min(64, n) })
-                }
-              />
-            </Field>
-            <Toggle
-              checked={config.category_gap_bands}
-              label="Bands in category breaks"
-              hint="Off = the break between two category blocks inside a section is empty space of the same height."
-              onChange={(v) => void updateConfig({ category_gap_bands: v })}
-            />
-          </div>
-        )}
         <Toggle
           checked={config.row_hairlines}
           label="Hairlines between rows"
@@ -99,28 +73,9 @@ export default function ColumnsTab() {
         </Field>
         <span className="-mt-1 text-xs text-content-muted">
           Gaps between rows are whole stripes: 1 between category blocks, 2
-          between sections, 3 before Postponed / Done, waiting / Done / Dropped.
+          between sections and between the Postponed / Done, waiting / Done /
+          Dropped blocks, 3 before the first of those blocks.
         </span>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Gap fill color</span>
-          <ColorPicker
-            value={
-              config.gap_fill_color ||
-              (config.theme === "light" ? "#e0e0e0" : "#3c3c3c")
-            }
-            onChange={(color) => void updateConfig({ gap_fill_color: color })}
-          />
-          {config.gap_fill_color ? (
-            <button
-              className="text-xs text-content-muted hover:text-content"
-              onClick={() => void updateConfig({ gap_fill_color: "" })}
-            >
-              reset to border color
-            </button>
-          ) : (
-            <span className="text-xs text-content-muted">border color</span>
-          )}
-        </div>
         <Field label="Edge softness, % (0 = hard edges, 100 = fades from the middle line)">
           <NumberInput
             value={config.gap_fill_fade}
@@ -216,33 +171,6 @@ export default function ColumnsTab() {
           </div>
         )}
 
-        <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Closed section plates</span>
-          <span className="-mt-1 text-xs text-content-muted">
-            The Postponed, Done-waiting, Done and Not-done-dropped headers,
-            each in a color of its own.
-          </span>
-          <div className="flex flex-col gap-2 pl-6">
-            {(
-              [
-                ["Postponed", "postponed_plate_color"],
-                ["Done, waiting", "waiting_plate_color"],
-                ["Done", "done_plate_color"],
-                ["Dropped", "dropped_plate_color"],
-              ] as const
-            ).map(([label, key]) => (
-              <div key={key} className="flex items-center gap-2">
-                <span className="w-24 text-xs text-content-muted">
-                  {label}
-                </span>
-                <ColorPicker
-                  value={config[key]}
-                  onChange={(color) => void updateConfig({ [key]: color })}
-                />
-              </div>
-            ))}
-          </div>
-        </section>
         <span className="text-sm font-medium">Folded by default</span>
         <span className="-mt-2 text-xs text-content-muted">
           A folded section shows only its plate and count; a click on any
@@ -285,19 +213,6 @@ export default function ColumnsTab() {
           hint="Weekday and date centered on top of each day column."
           onChange={(v) => void updateConfig({ day_header_centered: v })}
         />
-        <ColorRow
-          label="Day header (weekday, date)"
-          field="day_header_color"
-          dark="#d4d4d4"
-          light="#333333"
-        />
-        <ColorRow
-          label="Day reminders"
-          field="reminder_color"
-          dark="#8c8c8c"
-          light="#6f6f6f"
-        />
-
         <Toggle
           checked={config.daily_tasks_today_only}
           label="Show daily tasks only on today"
@@ -375,44 +290,6 @@ export default function ColumnsTab() {
             }
           />
         </Field>
-
-        <section className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Dated tasks</span>
-          <span className="text-xs text-content-muted">
-            A list task with a date also shows on its day column, where it
-            always wears the exact-date look. These two control how loud it is
-            inside its own list before the date arrives.
-          </span>
-
-          <Toggle
-            checked={config.list_exact_stripe}
-            label="Exact-date stripe inside the list"
-            hint="On: the card stripe takes the exact-date color in the list too. Off: the list color rules there and only the date chip marks the task."
-            onChange={(v) => void updateConfig({ list_exact_stripe: v })}
-          />
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Date chip color</span>
-            <ColorPicker
-              value={config.list_date_chip_color || config.cadence_color_exact}
-              onChange={(color) =>
-                void updateConfig({ list_date_chip_color: color })
-              }
-            />
-            {config.list_date_chip_color ? (
-              <button
-                className="text-xs text-content-muted hover:text-content"
-                onClick={() => void updateConfig({ list_date_chip_color: "" })}
-              >
-                reset to exact-date color
-              </button>
-            ) : (
-              <span className="text-xs text-content-muted">
-                exact-date color
-              </span>
-            )}
-          </div>
-        </section>
       </SettingsGroup>
     </>
   );

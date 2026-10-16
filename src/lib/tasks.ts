@@ -487,8 +487,9 @@ export function listViewPlateStyle(config: AppConfig | null): {
  * Height of one separator stripe between list rows, px - `list_gap_stripe`
  * % of a single-line row (text-sm line + py-1 padding, 1.75rem, plus its
  * 1px hairline), so the stripes follow `ui_font_size` like the rows do.
- * Category breaks take one stripe, sections two, Postponed / Done,
- * waiting / Done three (`LIST_GAP_STRIPES`).
+ * Category breaks take one stripe, sections two, the break into the
+ * closed blocks (Postponed / Done, waiting / Done / Dropped) three - and
+ * two between those blocks (`LIST_GAP_STRIPES`).
  */
 export function listGapStripe(config: AppConfig | null): number {
   const row = (config?.ui_font_size ?? 16) * 1.75 + 1;

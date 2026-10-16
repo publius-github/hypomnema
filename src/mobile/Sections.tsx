@@ -2,7 +2,6 @@ import { Fragment, type ComponentProps } from "react";
 import type { ColumnSection } from "../hooks/useColumnSections";
 import SectionBlock, {
   labelInHeader,
-  railColor,
   RowLead,
 } from "../components/ColumnSection";
 import { useAppStore } from "../store";
@@ -10,7 +9,7 @@ import TaskRow from "./TaskRow";
 
 type RowExtras = Omit<
   ComponentProps<typeof TaskRow>,
-  "task" | "blockIndex" | "lineAbove" | "labelInHeader" | "sectionColor"
+  "task" | "blockIndex" | "lineAbove" | "labelInHeader"
 >;
 
 /**
@@ -44,7 +43,6 @@ export default function Sections({
                   blockIndex={row.blockIndex}
                   lineAbove={row.lineAbove}
                   labelInHeader={labelInHeader(config, row)}
-                  sectionColor={railColor(config, section)}
                   {...extras?.(section, i)}
                 />
               </Fragment>

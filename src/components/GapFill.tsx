@@ -12,26 +12,17 @@ import { listGapStripe } from "../lib/tasks";
  * `gap_fill_fade` % of each half of the band being the ramp - the same
  * ramp length vertically and horizontally, so the corners soften
  * evenly. Color: `gap_fill_color`, empty = the border color, at
- * `gap_fill_opacity` %. One look for every column (Settings > Views >
- * List view).
+ * `gap_fill_opacity` %. One look for every column (Settings > Columns >
+ * Column layout).
  *
- * `stripes` draws that many bands (1 = category, 2 = section, 3 = the
- * closed sections - see `listGapStripe`), each sized as if it had its
+ * `stripes` draws that many bands (1 = category, 2 = section, 3 = into
+ * the closed sections - see `listGapStripe`), each sized as if it had its
  * own `height / stripes` slot, but the empty space is spread evenly:
  * row-to-band and band-to-band distances are all the same, so a
  * multi-stripe gap reads as one rhythm instead of tight pairs where
  * two slots' paddings would have added up.
- *
- * `bands={false}` keeps the height and drops the bands: a break made of
- * empty space alone (`category_gap_bands` off).
  */
-export default function GapFill({
-  stripes,
-  bands = true,
-}: {
-  stripes: number;
-  bands?: boolean;
-}) {
+export default function GapFill({ stripes }: { stripes: number }) {
   const height = useAppStore((s) => stripes * listGapStripe(s.config));
   const color = useAppStore((s) => s.config?.gap_fill_color ?? "");
   const fade = useAppStore((s) => s.config?.gap_fill_fade ?? 50);
@@ -47,7 +38,6 @@ export default function GapFill({
     Math.max(0, slot - 2 * Math.round((slot * inset) / 100)),
   );
   const ramp = ((band / 2) * fade) / 100;
-  if (!bands) return <div style={{ height }} />;
   const edgeMask = `linear-gradient(to right, transparent 0, #000 ${ramp}px, #000 calc(100% - ${ramp}px), transparent 100%)`;
   return (
     <div

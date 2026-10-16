@@ -87,16 +87,15 @@ describe("searchSettings", () => {
   });
 
   it("requires every term to match, in any order", () => {
-    const hits = searchSettings("color mark").map((h) => h.key);
-    expect(hits).toContain("waiting_color");
-    expect(hits).toContain("dropped_color");
-    expect(hits).not.toContain("done_color");
+    const hits = searchSettings("waiting fold").map((h) => h.key);
+    expect(hits).toEqual(["fold_waiting"]);
+    expect(searchSettings("fold waiting").map((h) => h.key)).toEqual(hits);
   });
 
   it("reports the tab and group a hit lives on", () => {
     const [hit] = searchSettings("theme palette");
     expect(hit.tab).toBe("appearance");
-    expect(hit.groupTitle).toBe("Theme & colors");
+    expect(hit.groupTitle).toBe("Theme");
   });
 
   it("is empty for a blank query", () => {
@@ -129,9 +128,9 @@ describe("profileCoverage", () => {
   });
 
   it("reports a partly covered group", () => {
-    // weekday markers: the toggles travel with a profile, the opacity
-    // and color do not
-    expect(profileCoverage("cards.markers", keys)).toBe("some");
+    // completion rate: the chip toggle travels with a profile, the
+    // threshold and window do not
+    expect(profileCoverage("cards.rate", keys)).toBe("some");
   });
 
   it("reports an untouched group", () => {
@@ -166,7 +165,7 @@ describe("profileCoverage", () => {
       "cards.markers",
       "cards.rate",
     ]);
-    expect(groups.find((g) => g.id === "cards.markers")?.partial).toBe(true);
-    expect(groups.find((g) => g.id === "appearance.theme")?.partial).toBe(true);
+    expect(groups.find((g) => g.id === "cards.markers")?.partial).toBe(false);
+    expect(groups.find((g) => g.id === "cards.rate")?.partial).toBe(true);
   });
 });

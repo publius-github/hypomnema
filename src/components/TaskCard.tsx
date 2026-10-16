@@ -31,7 +31,6 @@ function TaskCard({
   blockIndex,
   lineAbove = false,
   labelInHeader = false,
-  sectionColor = null,
 }: {
   task: Task;
   overlay?: boolean;
@@ -55,11 +54,6 @@ function TaskCard({
    * (its {Category}, else its list), so the row drops that chip.
    */
   labelInHeader?: boolean;
-  /**
-   * Rail color of the section panel the row sits in: a stripe of the
-   * same color would only repeat it, so the row leaves it out.
-   */
-  sectionColor?: string | null;
 }) {
   // selector subscriptions: with a whole-store subscribe, every toast or
   // banner change re-rendered every card on the grid
@@ -169,7 +163,6 @@ function TaskCard({
   const closedOpacity = useAppStore((s) =>
     closed ? (s.config?.closed_row_opacity ?? 50) / 100 : 1,
   );
-  const showStripe = stripe && stripe !== sectionColor;
   const showListChip = showList && listName && !(labelInHeader && !category);
   const showCategoryChip = category && !labelInHeader;
 
@@ -223,10 +216,10 @@ function TaskCard({
         style={{ "--closed-opacity": closedOpacity } as CSSProperties}
         title={tooltip}
       >
-        {showStripe && (
+        {stripe && (
           <span
             className={`h-4 w-1 shrink-0 rounded ${multiline ? "mt-0.5" : ""}`}
-            style={{ backgroundColor: stripe && readable(stripe, "mark") }}
+            style={{ backgroundColor: readable(stripe, "mark") }}
           />
         )}
         <button

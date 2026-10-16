@@ -10,7 +10,6 @@ import {
 import type { ColumnRow, ColumnSection } from "../hooks/useColumnSections";
 import type { AppConfig } from "../types";
 import GapFill from "./GapFill";
-import { readable } from "../lib/color";
 
 /** The closed sections, each with its own fold-by-default switch. */
 const CLOSED_FOLD: Record<string, keyof AppConfig> = {
@@ -21,29 +20,16 @@ const CLOSED_FOLD: Record<string, keyof AppConfig> = {
 };
 
 /**
- * The color a section is marked with: its plate tint, the warn tone for
- * Priority, else the border color - the rail of a section panel, and
- * the stripe color its rows can leave to the rail.
- */
-export function sectionColor(section: Pick<ColumnSection, "color" | "tone">) {
-  if (section.tone === "warn") return "rgb(var(--color-warn))";
-  return section.color ?? "rgb(var(--color-line))";
-}
-
-/**
  * One column section, shared by the desktop columns and the phone's day
  * and list screens: the break before it, the plate - its cadence /
  * closed-section color, the warn tone for Priority, else the neutral
- * fill - grown to `list_view_plate_scale` %, then its rows. A
- * plateless section (a list's backlog) gets only the break.
+ * fill, its label bold - grown to `list_view_plate_scale` %, then its
+ * rows. A plateless section (a list's backlog) gets only the break.
  *
- * With `section_cards` the section is a framed panel with one rail in
- * its color down the left edge, and the break before it is plain space
- * (`section_gap`) instead of separator stripes. The plate can carry the
- * section's count (`section_plate_count`) and stick to the top of the
- * scrolling column (`section_plate_sticky`); a click on it folds the
- * section to the plate - each closed section starts folded under its
- * own `fold_*` switch.
+ * The plate can carry the section's count (`section_plate_count`) and
+ * stick to the top of the scrolling column (`section_plate_sticky`); a
+ * click on it folds the section to the plate - each closed section
+ * starts folded under its own `fold_*` switch.
  */
 export default function SectionBlock({
   section,
@@ -56,7 +42,6 @@ export default function SectionBlock({
   const fold = useAppStore((s) => s.sectionFolds[section.key]);
   const setSectionFold = useAppStore((s) => s.setSectionFold);
   const { label, color, tone, stripes, rows } = section;
-  const cards = config?.section_cards ?? true;
   const foldKey = CLOSED_FOLD[section.key] ?? null;
   const folded =
     label !== null &&
@@ -75,9 +60,7 @@ export default function SectionBlock({
     >
       <button
         type="button"
-        className={`flex w-full items-center gap-1.5 px-1.5 py-0.5 text-left font-semibold uppercase tracking-wider ${
-          cards ? "" : "rounded"
-        } ${
+        className={`flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left font-bold uppercase tracking-wider ${
           tone === "warn"
             ? "bg-warn/15 text-warn"
             : color
@@ -105,23 +88,9 @@ export default function SectionBlock({
     </div>
   );
 
-  if (!cards) {
-    return (
-      <div className="flex flex-col">
-        {stripes > 0 && <GapFill stripes={stripes} />}
-        {plate}
-        {!folded && children}
-      </div>
-    );
-  }
   return (
-    <div
-      className="flex flex-col overflow-clip rounded-md border border-line/70"
-      style={{
-        marginTop: stripes > 0 ? (config?.section_gap ?? 16) : 0,
-        borderLeft: `3px solid ${readable(sectionColor(section), "mark")}`,
-      }}
-    >
+    <div className="flex flex-col">
+      {stripes > 0 && <GapFill stripes={stripes} />}
       {plate}
       {!folded && children}
     </div>
@@ -129,9 +98,8 @@ export default function SectionBlock({
 }
 
 /**
- * What goes ahead of a row inside a section: the category break (the
- * gap band, or empty space without `category_gap_bands` under
- * `section_cards`), and under `category_headers` the block's category
+ * What goes ahead of a row inside a section: the category break, and
+ * under `category_headers` the block's category
  * named once over its first row.
  */
 export function RowLead({ row }: { row: ColumnRow }) {
@@ -141,14 +109,12 @@ export function RowLead({ row }: { row: ColumnRow }) {
       ? categoryChipColor(row.header, s.lists, s.config, row.blockIndex)
       : null,
   );
-  const cards = config?.section_cards ?? true;
-  const bands = !cards || (config?.category_gap_bands ?? false);
   const headers = config?.category_headers ?? true;
   const bold = config?.category_header_bold ?? true;
   return (
     <>
       {row.gapBefore && (
-        <GapFill stripes={LIST_GAP_STRIPES.category} bands={bands} />
+        <GapFill stripes={LIST_GAP_STRIPES.category} />
       )}
       {headers && row.header && hue && (
         <div
@@ -173,12 +139,4 @@ export function labelInHeader(
   row: Pick<ColumnRow, "blocks" | "label">,
 ): boolean {
   return (config?.category_headers ?? true) && row.blocks && row.label !== null;
-}
-
-/** The rail a section panel draws, or null outside `section_cards`. */
-export function railColor(
-  config: AppConfig | null,
-  section: Pick<ColumnSection, "color" | "tone">,
-): string | null {
-  return (config?.section_cards ?? true) ? sectionColor(section) : null;
 }

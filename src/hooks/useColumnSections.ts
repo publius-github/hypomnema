@@ -51,10 +51,12 @@ export interface ColumnSection {
   rows: ColumnRow[];
 }
 
-type SectionInput = Omit<ColumnSection, "rows"> & {
+export type SectionInput = Omit<ColumnSection, "rows"> & {
   tasks: Task[];
   /** category stripes inside the section (a day's closed ones have none) */
   gaps?: boolean;
+  /** a Postponed / Done, waiting / Done / Dropped block */
+  closed?: boolean;
 };
 
 /**
@@ -62,7 +64,7 @@ type SectionInput = Omit<ColumnSection, "rows"> & {
  * hairlines and the column-wide block counter worked out - the one
  * place that decides where a List view break goes.
  */
-function layout(
+export function layout(
   inputs: SectionInput[],
   labelOf: (task: Task) => string | null,
 ): ColumnSection[] {
@@ -71,8 +73,12 @@ function layout(
     shown.flatMap((s) => s.tasks),
     labelOf,
   );
-  return shown.map(({ tasks, gaps = true, ...section }) => ({
+  return shown.map(({ tasks, gaps = true, closed = false, ...section }, i) => ({
     ...section,
+    // the wide break opens the closed blocks once; between two of them
+    // it is an ordinary section break
+    stripes:
+      closed && shown[i - 1]?.closed ? LIST_GAP_STRIPES.section : section.stripes,
     rows: tasks.map((task, i) => {
       const label = labelOf(task);
       const opens = i === 0 || label !== labelOf(tasks[i - 1]);
@@ -109,6 +115,7 @@ function closedSections(
     stripes: LIST_GAP_STRIPES.closed,
     tasks: order(items),
     gaps,
+    closed: true,
   });
   return [
     closed("postponed", "Postponed", split.postponed, config?.postponed_plate_color),
@@ -124,7 +131,8 @@ function closedSections(
  * top-level tasks (future days without the dailies under
  * `daily_tasks_today_only`), then the closed sections, with the List
  * view's stripes - none before the first section, two between
- * sections, three before Postponed / Done, waiting / Done / Dropped.
+ * sections, three before the first of Postponed / Done, waiting / Done /
+ * Dropped and two between those.
  *
  * A task's "category" is its {X} title prefix, else its list's name
  * (engine-generated tasks carry their category as a list).

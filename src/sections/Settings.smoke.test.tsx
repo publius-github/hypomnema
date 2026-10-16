@@ -71,7 +71,7 @@ describe("Settings smoke", () => {
     seed();
     render(<Settings />);
 
-    expect(screen.getByText("Theme & colors")).toBeTruthy();
+    expect(screen.getByText("Fonts & sizes")).toBeTruthy();
     // the per-object tabs replaced the look/geometry/behavior split
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     expect(screen.getByText("Postponed and done tasks")).toBeTruthy();
@@ -204,7 +204,7 @@ describe("Settings smoke", () => {
     seed();
     render(<Settings />);
 
-    // Theme & colors is fully inside the scope seeded above
+    // Theme is fully inside the scope seeded above
     expect(screen.getByText("in profiles")).toBeTruthy();
     // and the Profiles tab lists that same group
     fireEvent.click(screen.getByRole("button", { name: "Profiles" }));
@@ -216,6 +216,6 @@ describe("Settings smoke", () => {
     const row = within(scope as HTMLElement)
       .getByText("Appearance")
       .closest("div");
-    expect(row?.querySelector("button")?.textContent).toBe("Theme & colors");
+    expect(row?.querySelector("button")?.textContent).toBe("Theme");
   });
 });

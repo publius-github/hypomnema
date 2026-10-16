@@ -10,13 +10,11 @@ import { useAppStore } from "../store";
 import {
   useListSections,
   type ColumnRow,
-  type ColumnSection,
 } from "../hooks/useColumnSections";
 import TaskCard from "./TaskCard";
 import QuickAdd from "./QuickAdd";
 import SectionBlock, {
   labelInHeader,
-  railColor,
   RowLead,
 } from "./ColumnSection";
 import ListModal from "./ListModal";
@@ -69,7 +67,7 @@ function ListColumn({
   const sections = useListSections(list);
   const titleLines = config?.list_task_lines ?? 1;
 
-  const card = (section: ColumnSection, row: ColumnRow) => (
+  const card = (row: ColumnRow) => (
     <div key={row.task.id}>
       <RowLead row={row} />
       <TaskCard
@@ -80,7 +78,6 @@ function ListColumn({
         blockIndex={row.blockIndex}
         lineAbove={row.lineAbove}
         labelInHeader={labelInHeader(config, row)}
-        sectionColor={railColor(config, section)}
       />
     </div>
   );
@@ -234,12 +231,11 @@ function ListColumn({
                     onOpenTask={onOpenTask}
                     titleLines={titleLines}
                     labelInHeader={labelInHeader(config, row)}
-                    sectionColor={railColor(config, section)}
                   />
                 ))}
               </SortableContext>
             ) : (
-              section.rows.map((row) => card(section, row))
+              section.rows.map(card)
             )}
           </SectionBlock>
         ))}
@@ -259,13 +255,11 @@ function SortableCard({
   onOpenTask,
   titleLines,
   labelInHeader,
-  sectionColor,
 }: {
   row: ColumnRow;
   onOpenTask: (id: number) => void;
   titleLines: number;
   labelInHeader: boolean;
-  sectionColor: string | null;
 }) {
   const { task, blockIndex, lineAbove } = row;
   const {
@@ -300,7 +294,6 @@ function SortableCard({
         blockIndex={blockIndex}
         lineAbove={lineAbove}
         labelInHeader={labelInHeader}
-        sectionColor={sectionColor}
       />
     </div>
   );
