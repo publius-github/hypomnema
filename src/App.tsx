@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "./lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -55,12 +55,17 @@ export default function App() {
     root.style.setProperty("--safe-bottom", `${safeBottom}px`);
   }, [safeTop, safeBottom]);
 
-  // Desktop-only: there is no updater on Android (ROADMAP.md §6).
+  // Desktop-only: there is no updater on Android (ROADMAP.md §6). Once
+  // per start, after the config is known, unless switched off in Settings.
+  const updateCheck = useAppStore((s) => s.config?.update_check);
+  const updateChecked = useRef(false);
   useEffect(() => {
-    if (isMobile === false) {
+    if (isMobile !== false || updateCheck === undefined || updateChecked.current) return;
+    updateChecked.current = true;
+    if (updateCheck) {
       void import("./lib/updater").then((m) => m.checkForUpdates());
     }
-  }, [isMobile]);
+  }, [isMobile, updateCheck]);
 
   // keep the native titlebar (traffic lights / min-max-close strip) in
   // sync with the app theme

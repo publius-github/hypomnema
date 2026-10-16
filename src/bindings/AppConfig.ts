@@ -482,4 +482,10 @@ capture_shortcut: string,
  * Quit, and closing the main window hides it there instead of
  * quitting, keeping the capture shortcut and notifications alive.
  */
-tray_icon: boolean, };
+tray_icon: boolean, 
+/**
+ * Desktop: at startup ask the project's GitHub releases whether a
+ * newer version exists (the only network request the app makes on
+ * its own; installing still asks first). Off = never ask.
+ */
+update_check: boolean, };

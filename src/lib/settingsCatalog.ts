@@ -35,6 +35,7 @@ export type SettingsGroupId =
   | "general.theme"
   | "general.fonts"
   | "general.navigation"
+  | "general.updates"
   | "tasks.cards"
   | "tasks.columns"
   | "recurring.buckets"
@@ -70,6 +71,7 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
   "general.theme": { tab: "general", title: "Theme" },
   "general.fonts": { tab: "general", title: "Fonts & sizes" },
   "general.navigation": { tab: "general", title: "Left bar" },
+  "general.updates": { tab: "general", title: "Updates" },
 
   "tasks.cards": { tab: "tasks", title: "Task cards" },
   "tasks.columns": { tab: "tasks", title: "Day and list columns" },
@@ -129,6 +131,8 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   { key: "section_order", label: "Page order in the left bar", group: "general.navigation", terms: "rail sidebar sections" },
   { key: "section_hidden", label: "Hidden pages", group: "general.navigation", terms: "rail sidebar hide sections" },
+  // desktop-only: the phone has no updater
+  { key: "update_check", label: "Check for updates at startup", group: "general.updates", terms: "updater new version github network" },
 
   // --- Tasks ---------------------------------------------------
   { key: "category_headers", label: "Category as a block header", group: "tasks.cards", terms: "chip label group bold" },

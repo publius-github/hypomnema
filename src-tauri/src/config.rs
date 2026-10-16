@@ -338,6 +338,10 @@ pub struct AppConfig {
     /// Quit, and closing the main window hides it there instead of
     /// quitting, keeping the capture shortcut and notifications alive.
     pub tray_icon: bool,
+    /// Desktop: at startup ask the project's GitHub releases whether a
+    /// newer version exists (the only network request the app makes on
+    /// its own; installing still asks first). Off = never ask.
+    pub update_check: bool,
 }
 
 pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
@@ -588,6 +592,7 @@ impl Default for AppConfig {
             capture_list: "Inbox".into(),
             capture_shortcut: "Ctrl+Alt+Space".into(),
             tray_icon: true,
+            update_check: true,
         }
     }
 }
@@ -1172,6 +1177,7 @@ impl AppConfig {
             ("capture_list", self.capture_list.clone()),
             ("capture_shortcut", self.capture_shortcut.clone()),
             ("tray_icon", self.tray_icon.to_string()),
+            ("update_check", self.update_check.to_string()),
         ]
     }
 }

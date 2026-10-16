@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds an Android APK and copies it into releases/android/ (and into the
-# Dropbox folder the test phone installs from).
+# Builds an Android APK and copies it into releases/android/ (and, when
+# APK_COPY_DIR is set, into that folder too - e.g. a synced folder a test
+# phone installs from).
 #
 # Artifacts are named Hypomnema-<version>-b<build>-<variant>-<abi>.apk. The
 # build number comes from releases/android/.build-number and increments per
@@ -23,6 +24,8 @@
 #   ANDROID_KEYSTORE_PASS  store password
 #   ANDROID_KEY_ALIAS      key alias inside the store
 #   ANDROID_KEY_PASS       key password (defaults to the store password)
+#   APK_COPY_DIR           optional extra folder every produced APK is
+#                          copied to (created if missing)
 #
 # Make a keystore once, and keep it somewhere backed up that is not this
 # repo - losing it means never being able to update an installed app:
@@ -431,9 +434,11 @@ function collect_artifacts() {
   local version
   version="$(tr -d '[:space:]' < "$REPO_ROOT/VERSION" 2>/dev/null || printf 'dev')"
   local out_dir="$REPO_ROOT/releases/android"
-  local dropbox_dir="/mnt/c/Users/user/Dropbox/apk/hypomnema"
+  local copy_dir="${APK_COPY_DIR:-}"
   mkdir -p "$out_dir"
-  mkdir -p "$dropbox_dir"
+  if [ -n "$copy_dir" ]; then
+    mkdir -p "$copy_dir"
+  fi
 
   # Build counter, so two APKs of the same VERSION are still tellable
   # apart on the phone: VERSION only moves on a release-worthy change,
@@ -446,7 +451,7 @@ function collect_artifacts() {
 
   local apk_dir="$REPO_ROOT/src-tauri/gen/android/app/build/outputs/apk"
   local found=0
-  local apk abi_dir variant_dir dest dropbox_dest apk_mtime
+  local apk abi_dir variant_dir dest apk_mtime
   # Gradle keeps every variant it has ever built side by side under
   # outputs/apk/<abi>/<variant>/, so an unfiltered search picks up APKs
   # this run did not produce. Both guards below exist because that once
@@ -464,11 +469,12 @@ function collect_artifacts() {
     # Named from the file's own path, never from the requested variant.
     local name="Hypomnema-${version}-b${build_no}-${variant_dir}-${abi_dir}.apk"
     dest="$out_dir/$name"
-    dropbox_dest="$dropbox_dir/$name"
     cp "$apk" "$dest"
-    cp "$apk" "$dropbox_dest"
     log_info "artifact: $dest"
-    log_info "Dropbox artifact: $dropbox_dest"
+    if [ -n "$copy_dir" ]; then
+      cp "$apk" "$copy_dir/$name"
+      log_info "copied to: $copy_dir/$name"
+    fi
   done < <(find "$apk_dir" -type f -name "*.apk" -path "*/${BUILD_VARIANT}/*" 2>/dev/null)
 
   if [ "$found" -eq 0 ]; then

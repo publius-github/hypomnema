@@ -1,4 +1,4 @@
-import { Field, NumberInput, TextInput } from "../../components/form";
+import { Field, NumberInput, TextInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import type { Theme } from "../../types";
 import { useAppStore } from "../../store";
@@ -141,6 +141,15 @@ export default function GeneralTab() {
             );
           })}
         </div>
+      </SettingsGroup>
+
+      <SettingsGroup id="general.updates">
+        <Toggle
+          checked={config.update_check}
+          label="Check for updates at startup"
+          hint="Asks the project's GitHub releases whether a newer version exists - the only request the app makes on its own. A found update is installed only after you agree. Takes effect at the next start."
+          onChange={(v) => void updateConfig({ update_check: v })}
+        />
       </SettingsGroup>
     </>
   );

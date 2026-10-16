@@ -9,7 +9,7 @@ Supplement to `docs/general/ARCHITECTURE.md` (the shared Rust core + React front
   - `sync_launcher_icons` copies the committed mipmaps from `src-tauri/icons/android/` (see Icons in the general map);
   - `configure_storage_permission` declares `MANAGE_EXTERNAL_STORAGE`, so the in-app vault folder browser can leave the app's own folders;
   - `configure_signing` signs a release with the keystore named by `ANDROID_KEYSTORE` (+ `ANDROID_KEYSTORE_PASS`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASS`), writing `keystore.properties` and a `signingConfigs` block. Without the variable a release is signed with the debug key - installable for testing, not publishable - and the script says so.
-- APKs are named `Hypomnema-<version>-b<build>-<variant>-<abi>.apk`; the build number lives in `releases/android/.build-number` and increments per run, so a test device can tell two builds of one version apart. `collect_artifacts` copies them into `releases/android/` and into the Dropbox folder the test phone installs from. The script header lists the remaining environment overrides (`ANDROID_ABIS`, default `aarch64`; SDK/NDK/JDK roots; `CARGO_TARGET_DIR`).
+- APKs are named `Hypomnema-<version>-b<build>-<variant>-<abi>.apk`; the build number lives in `releases/android/.build-number` and increments per run, so a test device can tell two builds of one version apart. `collect_artifacts` copies them into `releases/android/` and, when `APK_COPY_DIR` is set, into that folder too (say a synced folder a test phone installs from). The script header lists the remaining environment overrides (`ANDROID_ABIS`, default `aarch64`; SDK/NDK/JDK roots; `CARGO_TARGET_DIR`; the release keystore).
 - There is no Android CI job: `release.yml` builds the Windows installer only.
 
 ## Native code

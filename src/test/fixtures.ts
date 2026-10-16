@@ -129,6 +129,7 @@ export const defaultConfig: AppConfig = {
   capture_list: "Inbox",
   capture_shortcut: "Ctrl+Alt+Space",
   tray_icon: true,
+  update_check: true,
 };
 
 let nextId = 1;

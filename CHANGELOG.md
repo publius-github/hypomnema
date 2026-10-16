@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.104.0 - 2026-10-16
+
+The startup update check can be turned off: Settings > General > Updates (update_check, default on, desktop only; the privacy policy says so). README gains a code signing policy section (build only in CI, roles, privacy statement) for a SignPath Foundation application. build-android.sh copies APKs to an extra folder only when APK_COPY_DIR is set instead of a hardcoded personal path, and the per-machine notes leave CLAUDE.md
+
 ## 0.103.1 - 2026-10-16
 
 Open-source readiness: the updater checks the renamed repository (publius-github/app-hypomnema) instead of relying on GitHub's redirect from app-pkb; the release workflow passes HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET (and an optional HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_ID variable) so CI-built installers can sign in to Google; the desktop OAuth client id can be overridden at build time for self-builds; release.ps1 syncs Cargo.lock for the right crate name; the window title and leftover app-pkb names are gone; README gains an Install section, plus CONTRIBUTING, a code of conduct, issue and PR templates and license metadata in the manifests

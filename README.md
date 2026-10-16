@@ -4,7 +4,7 @@ A local-first personal productivity app: a weekly task planner, a daily journal 
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
 
-- [Install](#install) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
+- [Install](#install) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
 Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
 
@@ -131,6 +131,21 @@ node scripts/general/third-party-licenses.mjs
 ### Auto-updates
 
 At startup the desktop app checks `releases/latest/download/latest.json` of the release repository and offers to update. The manifest is signed: GitHub Secrets need `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/app-pkb.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is in `src-tauri/tauri.conf.json`. Without the secrets the release workflow fails at signing. A local `scripts/windows/build.sh` signs the updater artifacts only when the key is at `~/.tauri/app-pkb.key`. Updates reach users only once the draft release is published - `latest.json` is served from published releases only.
+
+## Code signing policy
+
+<!-- TODO(owner): once SignPath Foundation approves the project, uncomment:
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+-->
+
+Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. Every release is approved by hand before it is signed and published.
+
+Team roles:
+
+- Committers and reviewers: [@publius-github](https://github.com/publius-github)
+- Approvers: [@publius-github](https://github.com/publius-github)
+
+Privacy: this program does not transfer any information to other networked systems unless the user asks it to - Google Drive sync runs only after the user signs in. The one exception is the update check at startup, which downloads a version file from GitHub, sends no personal data or app content, and can be turned off in Settings > General > Updates. Details in the [privacy policy](site/privacy.html).
 
 ## Website
 
