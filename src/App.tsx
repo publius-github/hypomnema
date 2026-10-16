@@ -177,7 +177,11 @@ export default function App() {
   return (
     <div className="flex h-full">
       <TabBar />
-      <main className="min-w-0 flex-1 overflow-auto">
+      {/* the scrollbar's lane is always reserved: a page that grows a
+          scrollbar (a long list zone on the dashboard) must not push its
+          header controls left, or they stop lining up with the same
+          controls on the Days and Lists pages */}
+      <main className="min-w-0 flex-1 overflow-auto [scrollbar-gutter:stable]">
         {error && (
           <div className="flex items-center justify-between border-b border-danger/40 bg-danger/15 px-4 py-2 text-sm text-danger">
             <span>{error}</span>

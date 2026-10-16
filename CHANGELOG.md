@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.100.3 - 2026-10-16
+
+The page area always keeps room for its scrollbar, so the header controls (Days, + Task) stand in the same spot on Dashboard, Days and Lists whether or not the page scrolls
+
 ## 0.100.2 - 2026-10-16
 
 All-lists index never opens a group view any more: with flat groups a group's row scrolls (Lists page) or pages (dashboard) to its first member list instead; the group view is entered from the group chip on a list header or a group tile
