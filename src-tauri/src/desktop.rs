@@ -106,7 +106,7 @@ pub(crate) fn sync_tray(app: &AppHandle, config: &AppConfig) {
         Ok(())
     };
     if let Err(e) = build() {
-        eprintln!("tray icon failed: {e}");
+        crate::applog::warn(format!("tray icon failed: {e}"));
     }
 }
 

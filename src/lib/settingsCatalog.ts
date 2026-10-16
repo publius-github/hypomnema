@@ -293,6 +293,7 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
   { key: "habit_rate_min_instances", why: IN_APP_YML },
   { key: "notify_snooze_minutes", why: IN_APP_YML },
   { key: "notify_toast_seconds", why: IN_APP_YML },
+  { key: "log_max_kb", why: IN_APP_YML },
   { key: "sync_interval_minutes", why: IN_APP_YML },
   { key: "sync_debounce_seconds", why: IN_APP_YML },
   { key: "sync_on_focus", why: IN_APP_YML },

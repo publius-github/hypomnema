@@ -1,4 +1,5 @@
 mod android_storage;
+mod applog;
 mod backup;
 mod config;
 mod config_files;
@@ -44,8 +45,6 @@ mod desktop;
 mod state;
 mod watchers;
 
-use std::path::PathBuf;
-
 use tauri::Manager;
 
 use config::AppConfig;
@@ -54,27 +53,6 @@ use desktop::show_main;
 use desktop::{sync_global_shortcut, sync_tray};
 use state::{AppState, LockOrRecover};
 use watchers::start_export_worker;
-
-/// Panics land in <app-config-dir>/hypomnema.log so field errors are
-/// diagnosable without a console (M7 error reporting).
-pub(crate) fn install_panic_logger(log_path: PathBuf) {
-    std::panic::set_hook(Box::new(move |info| {
-        let line = format!(
-            "{} PANIC {}\n",
-            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-            info
-        );
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path)
-        {
-            use std::io::Write;
-            let _ = file.write_all(line.as_bytes());
-        }
-        eprintln!("{line}");
-    }));
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -106,7 +84,7 @@ pub fn run() {
         .setup(|app| {
             if let Ok(dir) = app.path().app_config_dir() {
                 let _ = std::fs::create_dir_all(&dir);
-                install_panic_logger(dir.join("hypomnema.log"));
+                applog::init(dir.join(applog::FILE_NAME));
             }
             start_export_worker(app.handle().clone());
             sync_scheduler::start(app.handle().clone());
@@ -130,7 +108,7 @@ pub fn run() {
             .visible(false)
             .build()
             {
-                eprintln!("quick-capture window failed to open: {e}");
+                applog::warn(format!("quick-capture window failed to open: {e}"));
             }
             // the vault (and its config) opens later, via vault_status
             // from the frontend; until then the defaults keep the
@@ -138,7 +116,7 @@ pub fn run() {
             // (no-op on mobile, see the stubs above)
             let defaults = AppConfig::default();
             if let Some(msg) = sync_global_shortcut(app.handle(), &defaults) {
-                eprintln!("{msg}");
+                applog::warn(msg);
             }
             sync_tray(app.handle(), &defaults);
             Ok(())
@@ -193,6 +171,9 @@ pub fn run() {
             cmd_vault::storage_access,
             cmd_vault::storage_access_request,
             cmd_vault::third_party_licenses,
+            cmd_vault::log_write,
+            cmd_vault::diagnostics,
+            cmd_vault::log_reveal,
             cmd_vault::vault_use_path,
             cmd_vault::config_get,
             cmd_vault::config_set,

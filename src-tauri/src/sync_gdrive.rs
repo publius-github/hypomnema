@@ -41,6 +41,7 @@ use std::time::Duration;
 use serde_json::{json, Value};
 
 use crate::error::{Error, Result};
+use crate::state::LockOrRecover;
 use crate::sync_provider::{ChangeMarker, ChangedFile, Duplicate, SyncCursor, SyncProvider};
 
 const API: &str = "https://www.googleapis.com/drive/v3";
@@ -141,7 +142,7 @@ impl<T: GdriveTransport> GdriveApiSyncProvider<T> {
     }
 
     fn cached(&self, path: &str) -> Option<Entry> {
-        self.entries.lock().unwrap().get(path).cloned()
+        self.entries.lock_or_recover().get(path).cloned()
     }
 
     /// The canonical file for `path`: from the last listing when there was
@@ -150,7 +151,7 @@ impl<T: GdriveTransport> GdriveApiSyncProvider<T> {
         if let Some(entry) = self.cached(path) {
             return Ok(Some(entry));
         }
-        if *self.listed.lock().unwrap() {
+        if *self.listed.lock_or_recover() {
             return Ok(None);
         }
         let query = format!(
@@ -165,8 +166,7 @@ impl<T: GdriveTransport> GdriveApiSyncProvider<T> {
                 rev: f.rev,
             };
             self.entries
-                .lock()
-                .unwrap()
+                .lock_or_recover()
                 .insert(path.to_string(), entry.clone());
             entry
         }))
@@ -323,9 +323,9 @@ impl<T: GdriveTransport> SyncProvider for GdriveApiSyncProvider<T> {
         }
         changes.sort_by(|a, b| a.path.cmp(&b.path));
         duplicates.sort();
-        *self.entries.lock().unwrap() = entries;
-        *self.duplicates.lock().unwrap() = duplicates;
-        *self.listed.lock().unwrap() = true;
+        *self.entries.lock_or_recover() = entries;
+        *self.duplicates.lock_or_recover() = duplicates;
+        *self.listed.lock_or_recover() = true;
         Ok((changes, SyncCursor::default()))
     }
 
@@ -366,7 +366,9 @@ impl<T: GdriveTransport> SyncProvider for GdriveApiSyncProvider<T> {
             }
             let entry = self.create(path, contents)?;
             let marker = ChangeMarker::Rev(entry.rev.clone());
-            self.entries.lock().unwrap().insert(path.to_string(), entry);
+            self.entries
+                .lock_or_recover()
+                .insert(path.to_string(), entry);
             return Ok(marker);
         };
 
@@ -388,8 +390,7 @@ impl<T: GdriveTransport> SyncProvider for GdriveApiSyncProvider<T> {
         self.rescue_overwritten(path, &written.id, expected, &written.rev)?;
         let marker = ChangeMarker::Rev(written.rev.clone());
         self.entries
-            .lock()
-            .unwrap()
+            .lock_or_recover()
             .insert(path.to_string(), written);
         Ok(marker)
     }
@@ -399,7 +400,7 @@ impl<T: GdriveTransport> SyncProvider for GdriveApiSyncProvider<T> {
             return Ok(());
         };
         let Some(head) = self.head_revision(&entry.id)? else {
-            self.entries.lock().unwrap().remove(path);
+            self.entries.lock_or_recover().remove(path);
             return Ok(());
         };
         match expected_marker {
@@ -422,12 +423,12 @@ impl<T: GdriveTransport> SyncProvider for GdriveApiSyncProvider<T> {
         if !(200..300).contains(&reply.status) && reply.status != 404 {
             return Err(error_from(&reply));
         }
-        self.entries.lock().unwrap().remove(path);
+        self.entries.lock_or_recover().remove(path);
         Ok(())
     }
 
     fn take_duplicates(&self) -> Result<Vec<Duplicate>> {
-        let extras = std::mem::take(&mut *self.duplicates.lock().unwrap());
+        let extras = std::mem::take(&mut *self.duplicates.lock_or_recover());
         let mut out = Vec::new();
         for (path, id) in extras {
             // One that fails to download is still there next pass.

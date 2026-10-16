@@ -2,8 +2,10 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   pull_request:
+  # release.yml runs these same gates before it builds an installer
+  workflow_call:
 
 jobs:
   frontend:

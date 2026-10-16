@@ -363,7 +363,10 @@ fn splice_item<T: serde::Serialize>(
     let mut new_lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
     match at {
         None => {
-            let block = to_item_block(replacement.expect("append needs a value"), &section.indent)?;
+            let replacement = replacement.ok_or_else(|| {
+                crate::error::Error::State(format!("cannot edit {file}: nothing to append"))
+            })?;
+            let block = to_item_block(replacement, &section.indent)?;
             let insert: Vec<String> = block.lines().map(str::to_string).collect();
             new_lines.splice(section.insert_at..section.insert_at, insert);
         }

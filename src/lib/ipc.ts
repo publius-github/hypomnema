@@ -77,6 +77,7 @@ export interface Commands {
   config_set: { args: { config: AppConfig }; result: void };
   daily_streaks: { args: void; result: DailyStreak[] };
   dashboard_context: { args: { dates: string[] }; result: DashboardContext };
+  diagnostics: { args: void; result: string };
   day_reminder_add: { args: { entry: DayReminder }; result: void };
   day_reminder_edit: {
     args: { index: number; replacement: DayReminder | null };
@@ -149,6 +150,8 @@ export interface Commands {
   list_unarchive: { args: { id: number }; result: void };
   lists_all: { args: void; result: List[] };
   lists_archived: { args: void; result: List[] };
+  log_reveal: { args: void; result: void };
+  log_write: { args: { level: LogLevel; message: string }; result: void };
   open_external: { args: { url: string }; result: void };
   platform_is_mobile: { args: void; result: boolean };
   recurring_add: { args: { rule: RecurringRule }; result: void };
@@ -216,7 +219,26 @@ export type CommandName = keyof Commands;
 
 type ArgsOf<K extends CommandName> = Commands[K]["args"];
 
-/** Typed `invoke`: `invoke("task_get", { id })` resolves to a `Task`. */
+export type LogLevel = "error" | "warn" | "info";
+
+/**
+ * Appends a line to this device's diagnostic log (hypomnema.log, see
+ * src-tauri/src/applog.rs). Fire and forget: a log write that fails must
+ * never turn into a second error.
+ */
+export function logToFile(level: LogLevel, message: string): void {
+  try {
+    void Promise.resolve(tauriInvoke("log_write", { level, message })).catch(
+      () => {},
+    );
+  } catch {
+    // no IPC at all (a test without the mock) - nothing to log to
+  }
+}
+
+/** Typed `invoke`: `invoke("task_get", { id })` resolves to a `Task`.
+ * Every rejection but "no vault yet" also lands in the diagnostic log, so
+ * a bug report can show what failed even when the banner was dismissed. */
 export function invoke<K extends CommandName>(
   cmd: K,
   ...args: ArgsOf<K> extends void ? [] : [ArgsOf<K>]
@@ -224,7 +246,12 @@ export function invoke<K extends CommandName>(
   return tauriInvoke<Commands[K]["result"]>(
     cmd,
     args[0] as Record<string, unknown> | undefined,
-  );
+  ).catch((e: unknown) => {
+    if (cmd !== "log_write" && errorKind(e) !== "no_vault") {
+      logToFile("warn", `${cmd} failed: ${errorMessage(e)}`);
+    }
+    throw e;
+  });
 }
 
 /// What a rejected command carries: the Rust `Error` serializes itself as

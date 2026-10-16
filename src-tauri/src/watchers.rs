@@ -13,7 +13,7 @@ use crate::desktop::*;
 use crate::error::{Error, Result};
 use crate::state::*;
 use crate::vault::Vault;
-use crate::{config_files, db, device, engine, journal, state_export, tasks_mirror, vault};
+use crate::{applog, config_files, db, device, engine, journal, state_export, tasks_mirror, vault};
 
 /// Rewrites the state snapshot and the task mirror files from `conn`,
 /// as the config asks. Best effort by design: a failing export must not
@@ -33,7 +33,9 @@ pub(crate) fn export_files(
     // the state snapshot rides the same triggers as the mirror but is
     // independent of it, and always on: it is what sync ships and what
     // a db-less vault is rebuilt from
-    let _ = state_export::export(conn, &vault::state_dir(root));
+    if let Err(e) = state_export::export(conn, &vault::state_dir(root)) {
+        applog::error(format!("state snapshot export failed: {e}"));
+    }
     if !config.tasks_mirror {
         return;
     }
@@ -220,6 +222,7 @@ pub(crate) fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
                 });
             }
             sync_tray(&app, &config);
+            applog::set_max_kb(config.log_max_kb);
             let _ = app.emit("vault-updated", errors);
         }
     });
@@ -334,8 +337,7 @@ pub(crate) fn start_tasks_watcher(app: AppHandle, tasks_dir: &Path) -> Result<()
                         continue;
                     };
                     let same = written
-                        .lock()
-                        .unwrap()
+                        .lock_or_recover()
                         .get(&path)
                         .map(|c| *c == content)
                         .unwrap_or(false);
@@ -391,19 +393,22 @@ pub(crate) fn open_vault(
     match app_config_dir(app).and_then(|dir| device::ensure(&dir)) {
         Ok(id) => {
             if let Err(e) = db::set_device_id(&vault.conn, &id) {
-                eprintln!("could not record this device's id in the vault: {e}");
+                applog::warn(format!(
+                    "could not record this device's id in the vault: {e}"
+                ));
             }
         }
-        Err(e) => eprintln!("could not determine this device's id: {e}"),
+        Err(e) => applog::warn(format!("could not determine this device's id: {e}")),
     }
     journal::ensure_template_location(root);
     let config = vault.config.clone();
     *state.vault.lock_or_recover() = Some(vault);
     // the vault's config replaces the defaults the app started with
     if let Some(msg) = sync_global_shortcut(app, &config) {
-        eprintln!("{msg}");
+        applog::warn(msg);
     }
     sync_tray(app, &config);
+    applog::set_max_kb(config.log_max_kb);
     // Always rebind: re-selecting a vault must watch the NEW config dir.
     // Replacing the watcher drops the old one, which closes its channel
     // and lets the old debounce thread exit.

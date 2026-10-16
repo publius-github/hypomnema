@@ -167,6 +167,12 @@ subtasks_done_last: boolean,
  */
 backup_keep: number, 
 /**
+ * Size in KiB at which the per-device diagnostic log
+ * (<app-config-dir>/hypomnema.log) rotates to hypomnema.log.1; at
+ * most twice this much is kept.
+ */
+log_max_kb: number, 
+/**
  * OS notifications for timed tasks coming due (in-app toasts always
  * show); useful when the window is minimized or behind others.
  */

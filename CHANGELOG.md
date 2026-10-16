@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.105.0 - 2026-10-16
+
+Readiness for other users. A diagnostic log, hypomnema.log in the app's config folder: panics, failed commands, render crashes, unhandled rejections and background failures (state export, daily backup, automatic sync), rotated at log_max_kb (app.yml, 1 MiB). About gains Copy diagnostics (version, platform, the log's tail - copied for the user to read and paste, never sent), Show log file and Report a problem (the GitHub bug form, prefilled with the version; the form gains a Diagnostics field). A render crash shows a "Something went wrong" screen with Reload instead of a blank window. Before a schema upgrade the database is snapshotted to backups/db/pre-upgrade-*.db (listed in the restore list; if the copy fails the upgrade does not run). Poisoned-lock unwraps in the Drive provider use lock_or_recover. CI runs on development too, and release.yml runs the full CI before building an installer. README: Troubleshooting and uninstall notes; the privacy policy mentions the log
+
 ## 0.104.1 - 2026-10-16
 
 The updater signing key's local file is ~/.tauri/hypomnema.key (was app-pkb.key) in build.sh, build.ps1 and the docs - rename the file to match

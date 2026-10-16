@@ -55,3 +55,9 @@ body:
       description: Error banners, screenshots, the relevant YAML snippet.
     validations:
       required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: About > Copy diagnostics puts the version, platform and the end of the app's log on the clipboard. Read it before pasting and remove anything private (note or list names, paths).
+      render: text

@@ -129,6 +129,10 @@ pub struct AppConfig {
     /// per-file config copies made before programmatic rewrites, under
     /// <vault>/backups/. 0 disables backups entirely.
     pub backup_keep: u32,
+    /// Size in KiB at which the per-device diagnostic log
+    /// (<app-config-dir>/hypomnema.log) rotates to hypomnema.log.1; at
+    /// most twice this much is kept.
+    pub log_max_kb: u32,
     /// OS notifications for timed tasks coming due (in-app toasts always
     /// show); useful when the window is minimized or behind others.
     pub notify_system: bool,
@@ -523,6 +527,7 @@ impl Default for AppConfig {
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
+            log_max_kb: 1024,
             notify_system: true,
             notify_snooze_minutes: 10,
             notify_lead_minutes: 0,
@@ -811,6 +816,7 @@ impl AppConfig {
         self.streak_strip_days = self.streak_strip_days.min(180);
         self.notify_toast_seconds = self.notify_toast_seconds.clamp(3, 600);
         self.backup_keep = self.backup_keep.min(365);
+        self.log_max_kb = self.log_max_kb.clamp(64, 65536);
         self.ui_font_size = self.ui_font_size.clamp(10, 28);
         self.editor_font_size = self.editor_font_size.clamp(10, 28);
         // bucket thresholds must stay strictly ordered or every rule
@@ -1050,6 +1056,7 @@ impl AppConfig {
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
+            ("log_max_kb", self.log_max_kb.to_string()),
             ("notify_system", self.notify_system.to_string()),
             (
                 "notify_snooze_minutes",

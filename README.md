@@ -4,7 +4,7 @@ A local-first personal productivity app: a weekly task planner, a daily journal 
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
 
-- [Install](#install) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
+- [Install](#install) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Troubleshooting](#troubleshooting) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
 Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
 
@@ -19,6 +19,8 @@ Technical map of the shared core (modules, config schemas, engine invariants): `
 - **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run tauri dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
 
 On first start the app asks for a vault folder - pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place.
+
+Uninstalling (Windows *Apps & features*) removes the program; your vault folder is never touched. The uninstaller's optional "Delete the application data" box clears only the per-device files under `%APPDATA%\com.hypomnema.app` (the remembered vault path, the Google sign-in, the diagnostic log).
 
 ## Sections
 
@@ -85,6 +87,15 @@ birthdays:
 
 Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-reminders.yml` (reminders by day type: workday / weekend / weekday), `day-schedule.yml` (blocks of the daily schedule) and `templates/journal.md` (the journal template, supports `{{date}}`).
 
+## Troubleshooting
+
+- **Something failed or looks wrong** - About > *Copy diagnostics* puts the app version, the platform and the end of the diagnostic log on the clipboard; read it, remove anything private, and paste it into a [bug report](https://github.com/publius-github/app-hypomnema/issues/new?template=bug_report.yml) (About > *Report a problem* opens the form). The app never sends the log anywhere by itself.
+- **Where the log is** - `%APPDATA%\com.hypomnema.app\hypomnema.log` on Windows (About > *Show log file*); it rotates to `hypomnema.log.1` at `log_max_kb` (app.yml, 1 MiB by default).
+- **Tasks or lists went missing** - Settings > Data > Backups restores a daily database snapshot; the database being replaced is copied aside first, so a restore can itself be undone. Before an app update changes the database format, a `before upgrade` snapshot is taken as well.
+- **A config edit broke something** - the same list restores the copies of config files the app took before rewriting them.
+- **A `(conflicted copy ...)` file appeared** - two devices changed the same lines before syncing; Settings > Sync shows both versions side by side and keeps the one you pick.
+- **The window went blank or shows "Something went wrong"** - press Reload; your data lives in the app core and the vault, not in the window.
+
 ## Engine rules
 
 - Generation runs at startup, on Sync, when the day changes and when configs change. Duplicates are impossible: the `rule_runs` ledger remembers every generated (rule, period) pair, so restarts and config edits never repeat a task.
@@ -118,7 +129,7 @@ The `VERSION` file at the root is the single source of truth for the version; ne
 ./scripts/windows/release.sh [major|minor|patch]   # bump + commit + tag v<version> + push (release.ps1 for PowerShell)
 ```
 
-The `release.yml` workflow, on a `v*` tag, checks the tag against `VERSION`, builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend and fmt/clippy/test for the Rust core on pull requests and pushes to main.
+The `release.yml` workflow, on a `v*` tag, checks the tag against `VERSION`, builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend and fmt/clippy/test for the Rust core on pull requests and pushes to `main` and `development`; `release.yml` runs the same gates on the tagged commit before it builds anything.
 
 ### Third-party licenses
 

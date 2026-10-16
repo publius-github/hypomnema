@@ -69,6 +69,34 @@ pub fn backup_config_file(
     Ok(())
 }
 
+/// Snapshots app.db to backups/db/pre-upgrade-<ts>-v<from>.db right
+/// before a schema migration: the daily snapshot may be most of a day
+/// old, and a migration is the one write that cannot be undone by
+/// opening the file with the build that wrote it. Rotated by `keep`
+/// among its own kind, so upgrades never push out daily snapshots.
+pub fn backup_db_before_migration(
+    conn: &Connection,
+    root: &Path,
+    from_version: i64,
+    keep: u32,
+    now: DateTime<Local>,
+) -> Result<Option<PathBuf>> {
+    if keep == 0 {
+        return Ok(None);
+    }
+    let dir = crate::vault::work_dir(root).join("backups").join("db");
+    fs::create_dir_all(&dir)?;
+    let target = dir.join(format!(
+        "{PRE_UPGRADE_PREFIX}{}-v{from_version}.db",
+        now.format("%Y%m%d-%H%M%S")
+    ));
+    conn.execute("VACUUM INTO ?1", [target.to_string_lossy().as_ref()])?;
+    rotate(&dir, PRE_UPGRADE_PREFIX, keep as usize)?;
+    Ok(Some(target))
+}
+
+const PRE_UPGRADE_PREFIX: &str = "pre-upgrade-";
+
 /// Deletes all but the newest `keep` files whose name starts with
 /// `prefix`. Names embed the timestamp, so lexicographic order is
 /// chronological.
@@ -157,12 +185,18 @@ pub fn list_db_backups(root: &Path) -> Result<Vec<BackupEntry>> {
     list_entries(
         &dir,
         |name| {
-            (name.starts_with("app-") || name.starts_with("pre-restore-app-"))
+            (name.starts_with("app-")
+                || name.starts_with("pre-restore-app-")
+                || name.starts_with(PRE_UPGRADE_PREFIX))
                 && name.ends_with(".db")
         },
         |name| {
             name.strip_prefix("pre-restore-app-")
                 .map(|s| format!("pre-restore {s}"))
+                .or_else(|| {
+                    name.strip_prefix(PRE_UPGRADE_PREFIX)
+                        .map(|s| format!("before upgrade {s}"))
+                })
                 .or_else(|| name.strip_prefix("app-").map(str::to_string))
                 .map(|s| s.trim_end_matches(".db").to_string())
                 .unwrap_or_else(|| name.to_string())
@@ -321,6 +355,44 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert!(version > 0);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn pre_upgrade_backup_rotates_apart_from_the_dailies_and_is_listed() {
+        let root = vault("pre-upgrade");
+        let conn = db::open(&root.join("app.db")).unwrap();
+        db::migrate(&conn).unwrap();
+        backup_db_daily(&conn, &root, 2, local("2026-08-29 09:00:00")).unwrap();
+        for (i, at) in [
+            "2026-08-29 10:00:00",
+            "2026-08-30 10:00:00",
+            "2026-08-31 10:00:00",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let made =
+                backup_db_before_migration(&conn, &root, 18 + i as i64, 2, local(at)).unwrap();
+            assert!(made.unwrap().exists());
+        }
+        let listed = list_db_backups(&root).unwrap();
+        let mut labels: Vec<&str> = listed.iter().map(|e| e.label.as_str()).collect();
+        labels.sort();
+        // two upgrade copies survive their own rotation; the daily is untouched
+        assert_eq!(
+            labels,
+            vec![
+                "2026-08-29",
+                "before upgrade 20260830-100000-v19",
+                "before upgrade 20260831-100000-v20",
+            ]
+        );
+        assert!(
+            backup_db_before_migration(&conn, &root, 1, 0, local("2026-09-01 10:00:00"))
+                .unwrap()
+                .is_none()
+        );
         let _ = fs::remove_dir_all(&root);
     }
 

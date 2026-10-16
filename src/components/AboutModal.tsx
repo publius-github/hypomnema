@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "../lib/ipc";
 import { COPYRIGHT, LICENSE_URL } from "../lib/legal";
 import AppLogo from "./AppLogo";
+import ProblemReport from "./ProblemReport";
 
 export default function AboutModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
@@ -75,6 +76,9 @@ export function AboutContent() {
         between your own devices through your own Drive; the desktop app
         also asks GitHub whether an update is out.
       </p>
+      <div className="mt-3 border-t border-line pt-3">
+        <ProblemReport version={version} />
+      </div>
       <LegalNotice />
     </>
   );

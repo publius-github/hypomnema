@@ -63,6 +63,7 @@ export const defaultConfig: AppConfig = {
   cadence_group_order: ["exact", "general", "daily", "weekly", "monthly", "yearly"],
   subtasks_done_last: true,
   backup_keep: 14,
+  log_max_kb: 1024,
   notify_system: true,
   sync_auto: true,
   sync_interval_minutes: 15,

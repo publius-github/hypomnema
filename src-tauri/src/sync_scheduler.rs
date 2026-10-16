@@ -133,10 +133,18 @@ pub fn start(app: AppHandle) {
             };
             if due.interval || due.focus || (due.edit && pending(&root) > 0) {
                 last_pass = Some(now);
-                let _ = cmd_sync::google_pass(&app);
+                log_pass(cmd_sync::google_pass(&app));
             }
         }
     });
+}
+
+/// An automatic pass has no banner to fail into (the Sync tab shows
+/// only the latest standing), so its failure goes to the log.
+fn log_pass<T>(result: crate::error::Result<T>) {
+    if let Err(e) = result {
+        crate::applog::warn(format!("automatic sync pass failed: {e}"));
+    }
 }
 
 /// Quitting: send what is waiting, if anything, within a time limit.
@@ -150,7 +158,7 @@ pub fn on_exit(app: &AppHandle) {
     let (tx, rx) = std::sync::mpsc::channel();
     let app = app.clone();
     std::thread::spawn(move || {
-        let _ = cmd_sync::google_pass(&app);
+        log_pass(cmd_sync::google_pass(&app));
         let _ = tx.send(());
     });
     let _ = rx.recv_timeout(EXIT_TIMEOUT);

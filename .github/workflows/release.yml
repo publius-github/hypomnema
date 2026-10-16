@@ -9,7 +9,13 @@ permissions:
   contents: write
 
 jobs:
+  # The full CI gates on the tagged commit: an installer is only built,
+  # signed and offered to every user's updater from code that passes them.
+  checks:
+    uses: ./.github/workflows/ci.yml
+
   build-windows:
+    needs: checks
     runs-on: windows-2022
     timeout-minutes: 45
     steps:

@@ -168,6 +168,24 @@ impl Vault {
         // the same reason
         let fresh_db = !db_path(root).exists();
         let conn = db::open(&db_path(root))?;
+        if let Some(from) = db::pending_upgrade_from(&conn)? {
+            // Not best effort, unlike the daily snapshot: a schema
+            // upgrade is not undoable, so without a copy it does not run.
+            crate::backup::backup_db_before_migration(
+                &conn,
+                root,
+                from,
+                config.backup_keep,
+                Local::now(),
+            )
+            .map_err(|e| {
+                Error::State(format!(
+                    "could not back up the database before upgrading it \
+                     (schema {from}); nothing was changed: {e}"
+                ))
+            })?;
+            crate::applog::info(format!("database schema upgrade from version {from}"));
+        }
         db::migrate(&conn)?;
         if fresh_db {
             crate::state_export::restore(&conn, &state_dir(root))?;
@@ -176,7 +194,11 @@ impl Vault {
         // Daily snapshot before the first engine pass of the day, so it
         // captures yesterday's end state. Best effort: a failed backup
         // must not make the vault unopenable.
-        let _ = crate::backup::backup_db_daily(&conn, root, config.backup_keep, Local::now());
+        if let Err(e) =
+            crate::backup::backup_db_daily(&conn, root, config.backup_keep, Local::now())
+        {
+            crate::applog::warn(format!("daily database backup failed: {e}"));
+        }
 
         Ok(Self {
             root: root.to_path_buf(),

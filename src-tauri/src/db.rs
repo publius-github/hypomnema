@@ -381,6 +381,15 @@ pub fn set_device_id(conn: &Connection, device_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// The schema version of an existing database that `migrate` is about
+/// to upgrade, or None when there is nothing to do (current, newer - which
+/// `migrate` refuses - or a brand-new empty file at version 0).
+pub fn pending_upgrade_from(conn: &Connection) -> Result<Option<i64>> {
+    let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    let latest = MIGRATIONS.len() as i64;
+    Ok((version > 0 && version < latest).then_some(version))
+}
+
 pub fn migrate(conn: &Connection) -> Result<()> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     // A vault touched by a newer build would otherwise open here and
@@ -680,6 +689,18 @@ mod tests {
             .unwrap();
         let clash = conn.execute("INSERT INTO lists (name) VALUES ('Work')", []);
         assert!(clash.is_err(), "two active lists cannot share a name");
+    }
+
+    #[test]
+    fn pending_upgrade_is_reported_only_for_an_older_populated_schema() {
+        let conn = Connection::open_in_memory().unwrap();
+        // a brand-new file has nothing to back up
+        assert_eq!(pending_upgrade_from(&conn).unwrap(), None);
+        conn.execute_batch(MIGRATIONS[0]).unwrap();
+        conn.pragma_update(None, "user_version", 1).unwrap();
+        assert_eq!(pending_upgrade_from(&conn).unwrap(), Some(1));
+        migrate(&conn).unwrap();
+        assert_eq!(pending_upgrade_from(&conn).unwrap(), None);
     }
 
     #[test]

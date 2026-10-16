@@ -1,5 +1,5 @@
-//! Commands: vault selection, app settings, backups,
-//! and the About dialog's third-party notices.
+//! Commands: vault selection, app settings, backups, the About
+//! dialog's third-party notices, and the diagnostic log.
 
 use std::path::{Path, PathBuf};
 
@@ -10,7 +10,7 @@ use crate::desktop::*;
 use crate::error::{Error, Result};
 use crate::state::*;
 use crate::watchers::*;
-use crate::{android_storage, backup, config_files, vault, vault_places};
+use crate::{android_storage, applog, backup, config_files, vault, vault_places};
 
 #[tauri::command]
 pub(crate) async fn vault_status(
@@ -205,6 +205,7 @@ pub(crate) async fn config_set(
         );
     }
     sync_tray(&app, &saved);
+    applog::set_max_kb(saved.log_max_kb);
     // the task mirror toggle takes effect immediately
     if mirror_now && !mirror_was {
         state.request_export();
@@ -280,4 +281,44 @@ pub(crate) async fn backup_restore_config(state: State<'_, AppState>, id: String
 #[tauri::command]
 pub(crate) async fn third_party_licenses() -> Result<&'static str> {
     Ok(include_str!("../../THIRD_PARTY_LICENSES.txt"))
+}
+
+/// How much of the log "Copy diagnostics" hands over: enough for the
+/// lead-up to a failure, short enough to read before sharing.
+const DIAGNOSTICS_LOG_BYTES: u64 = 16 * 1024;
+
+/// A frontend failure for the diagnostic log: a rejected command, a
+/// render crash caught by the error boundary, an unhandled rejection.
+#[tauri::command]
+pub(crate) async fn log_write(level: String, message: String) -> Result<()> {
+    applog::write(applog::Level::parse(&level), &message);
+    Ok(())
+}
+
+/// Version, platform and the log's tail, as plain text the user reads
+/// and then pastes into a bug report themselves - nothing leaves the
+/// device on its own.
+#[tauri::command]
+pub(crate) async fn diagnostics(app: AppHandle) -> Result<String> {
+    let log = applog::tail(DIAGNOSTICS_LOG_BYTES);
+    Ok(format!(
+        "Hypomnema {}\nOS: {} {}\n\nRecent log:\n{}",
+        app.package_info().version,
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        if log.is_empty() { "(empty)\n" } else { &log },
+    ))
+}
+
+/// Shows the log file in the system file manager (desktop only; the
+/// phone has none to show it in).
+#[tauri::command]
+pub(crate) async fn log_reveal() -> Result<()> {
+    let path = applog::path().ok_or_else(|| Error::State("the log is not set up".into()))?;
+    if !path.exists() {
+        // nothing logged yet: create it so there is something to point at
+        applog::info("log opened from the app");
+    }
+    tauri_plugin_opener::reveal_item_in_dir(path)
+        .map_err(|e| Error::State(format!("could not show the log: {e}")))
 }
