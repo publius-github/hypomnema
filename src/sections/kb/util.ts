@@ -8,6 +8,7 @@ export const CONFIG_FILES = [
   "weekly-focus.yml",
   "day-reminders.yml",
   "day-schedule.yml",
+  "colors.yml",
   "templates/journal.md",
 ];
 

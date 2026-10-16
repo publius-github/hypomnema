@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.101.0 - 2026-10-16
+
+The color scheme syncs: every color setting moves out of the per-device settings/app.yml into .hypomnema/config/colors.yml, which travels with the vault like the other user configs, so the phone shows the same colors as the desktop. A missing colors.yml means the default colors; colors left in an old app.yml are ignored. colors.yml is edited in Notes > Config (it opens on the colors in use) or written by a profile apply, and is backed up before every rewrite. The phone's Settings drop the cadence color pickers and the screen-edge inset fields (still settable in app.yml)
+
 ## 0.100.5 - 2026-10-16
 
 Journal: the entry header gets the same day stepper as the Dashboard and Days headers - ‹ ›, the date picker and Back to today when away from it - and the sidebar drops its own Today button and date field, keeping only the list of entries

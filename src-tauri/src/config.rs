@@ -370,6 +370,58 @@ pub struct AppConfig {
 
 pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
 
+/// The color scheme: fields kept in the synced `config/colors.yml`
+/// (`vault::colors_file`) instead of the per-device app.yml, so every
+/// device paints the vault the same way - the scheme belongs to the
+/// user, while column counts and the theme belong to the screen. app.yml
+/// never carries them: a copy left there by an older version is ignored
+/// on load and dropped on the next save. A missing colors.yml means the
+/// defaults. Settings has no controls for these; colors.yml is edited by
+/// hand (Notes > Config) or written by a profile apply.
+pub const COLOR_KEYS: &[&str] = &[
+    "accent_color",
+    "surface_color",
+    "surface_alt_color",
+    "line_color",
+    "color_min_contrast",
+    "content_color",
+    "content_muted_color",
+    "weekly_focus_color",
+    "reminder_color",
+    "day_header_color",
+    "dow_label_color",
+    "dow_label_opacity",
+    "cadence_colors",
+    "cadence_color_general",
+    "cadence_color_daily",
+    "cadence_color_weekly",
+    "cadence_color_monthly",
+    "cadence_color_yearly",
+    "cadence_color_exact",
+    "done_color",
+    "waiting_color",
+    "dropped_color",
+    "category_color",
+    "category_color_mode",
+    "category_avoid_cadence_colors",
+    "category_color_a",
+    "category_color_b",
+    "habit_rate_alert_color",
+    "gap_fill_color",
+    "postponed_plate_color",
+    "done_plate_color",
+    "waiting_plate_color",
+    "dropped_plate_color",
+    "list_date_chip_color",
+    "list_exact_stripe",
+];
+
+fn is_color_key(key: &serde_yaml::Value) -> bool {
+    key.as_str()
+        .map(|k| COLOR_KEYS.contains(&k))
+        .unwrap_or(false)
+}
+
 pub const SECTIONS: &[&str] = &[
     "dashboard",
     "lists",
@@ -635,26 +687,101 @@ impl AppConfig {
         self.grid_columns.max(self.days_page_columns).max(1)
     }
 
-    /// Loads app.yml, falling back to defaults when the file is broken
-    /// instead of making the vault unopenable. The parse error comes
-    /// back for the UI banner; the broken file stays on disk untouched
-    /// until the user fixes it or saves a setting.
-    pub fn load_or_default(path: &Path) -> (Self, Option<String>) {
-        if !path.exists() {
+    /// Loads app.yml plus the synced colors.yml, falling back to
+    /// defaults when app.yml is broken instead of making the vault
+    /// unopenable. The parse error comes back for the UI banner; the
+    /// broken file stays on disk untouched until the user fixes it or
+    /// saves a setting.
+    pub fn load_or_default(settings: &Path, colors: &Path) -> (Self, Option<String>) {
+        if !settings.exists() {
             let config = Self::default();
-            let error = config.save(path).err().map(|e| e.to_string());
-            return (config, error);
+            if let Err(e) = config.save(settings) {
+                return (config, Some(e.to_string()));
+            }
         }
-        match fs::read_to_string(path) {
-            Ok(raw) => match serde_yaml::from_str::<Self>(&raw) {
-                Ok(config) => (config.sanitized(), None),
-                Err(e) => (
-                    Self::default(),
-                    Some(format!("invalid app.yml, defaults are active: {e}")),
-                ),
-            },
-            Err(e) => (Self::default(), Some(e.to_string())),
+        match Self::read(settings, colors) {
+            Ok(loaded) => loaded,
+            Err(e) => (
+                Self::default(),
+                Some(format!("invalid app.yml, defaults are active: {e}")),
+            ),
         }
+    }
+
+    /// Reads app.yml (absent = defaults) with colors.yml laid over it.
+    /// Err = app.yml itself is unreadable; a broken colors.yml only
+    /// costs the colors - they fall back to the defaults and the second
+    /// value says why.
+    pub fn read(
+        settings: &Path,
+        colors: &Path,
+    ) -> std::result::Result<(Self, Option<String>), String> {
+        let base = if settings.exists() {
+            let raw = fs::read_to_string(settings).map_err(|e| e.to_string())?;
+            let mut map = serde_yaml::from_str::<Option<serde_yaml::Mapping>>(&raw)
+                .map_err(|e| e.to_string())?
+                .unwrap_or_default();
+            // colors in app.yml are an older version's leftover: the
+            // synced file owns them now
+            map.retain(|key, _| !is_color_key(key));
+            Self::from_mapping(map).map_err(|e| e.to_string())?
+        } else {
+            Self::default()
+        }
+        .sanitized();
+        if !colors.exists() {
+            return Ok((base, None));
+        }
+        let with_colors = fs::read_to_string(colors)
+            .map_err(|e| e.to_string())
+            .and_then(|raw| {
+                serde_yaml::from_str::<Option<serde_yaml::Mapping>>(&raw).map_err(|e| e.to_string())
+            })
+            .and_then(|map| {
+                base.clone()
+                    .with_colors(&map.unwrap_or_default())
+                    .map_err(|e| e.to_string())
+            });
+        Ok(match with_colors {
+            Ok(config) => (config, None),
+            Err(e) => (
+                base,
+                Some(format!(
+                    "invalid colors.yml, default colors are active: {e}"
+                )),
+            ),
+        })
+    }
+
+    fn to_mapping(&self) -> Result<serde_yaml::Mapping> {
+        Ok(serde_yaml::to_value(self)?
+            .as_mapping()
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    fn from_mapping(map: serde_yaml::Mapping) -> Result<Self> {
+        Ok(serde_yaml::from_value(serde_yaml::Value::Mapping(map))?)
+    }
+
+    /// The color-scheme fields (`COLOR_KEYS`) as a mapping - the
+    /// colors.yml file format.
+    pub fn colors_mapping(&self) -> Result<serde_yaml::Mapping> {
+        let mut map = self.to_mapping()?;
+        map.retain(|key, _| is_color_key(key));
+        Ok(map)
+    }
+
+    /// This config with the color-scheme fields of `colors` laid over
+    /// it; any other key in `colors` is ignored.
+    pub fn with_colors(self, colors: &serde_yaml::Mapping) -> Result<Self> {
+        let mut map = self.to_mapping()?;
+        for (key, value) in colors {
+            if is_color_key(key) {
+                map.insert(key.clone(), value.clone());
+            }
+        }
+        Ok(Self::from_mapping(map)?.sanitized())
     }
 
     /// Clamps values a hand-edited app.yml could set to something that
@@ -849,11 +976,24 @@ impl AppConfig {
         self
     }
 
+    /// Writes app.yml: everything but the color scheme, which lives in
+    /// colors.yml (`save_colors`).
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        crate::vault::write_atomic(path, &serde_yaml::to_string(self)?)?;
+        let mut map = self.to_mapping()?;
+        map.retain(|key, _| !is_color_key(key));
+        crate::vault::write_atomic(path, &serde_yaml::to_string(&map)?)?;
+        Ok(())
+    }
+
+    /// Writes the synced colors.yml.
+    pub fn save_colors(&self, path: &Path) -> Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        crate::vault::write_atomic(path, &serde_yaml::to_string(&self.colors_mapping()?)?)?;
         Ok(())
     }
 
@@ -1109,12 +1249,12 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("app.yml");
 
-        let (config, error) = AppConfig::load_or_default(&path);
+        let (config, error) = AppConfig::load_or_default(&path, &dir.join("colors.yml"));
         assert!(error.is_none());
         assert_eq!(config, AppConfig::default());
         assert!(path.exists());
 
-        let (reloaded, _) = AppConfig::load_or_default(&path);
+        let (reloaded, _) = AppConfig::load_or_default(&path, &dir.join("colors.yml"));
         assert_eq!(reloaded, config);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1127,12 +1267,93 @@ mod tests {
         let path = dir.join("app.yml");
         fs::write(&path, "theme: [broken\n").unwrap();
 
-        let (config, error) = AppConfig::load_or_default(&path);
+        let (config, error) = AppConfig::load_or_default(&path, &dir.join("colors.yml"));
         assert_eq!(config, AppConfig::default());
         assert!(error.is_some());
         // the broken file is left untouched for the user to fix
         assert_eq!(fs::read_to_string(&path).unwrap(), "theme: [broken\n");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn colors_live_in_their_own_file() {
+        let dir = std::env::temp_dir().join("app-pkb-test-config-colors");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let (settings, colors) = (dir.join("app.yml"), dir.join("colors.yml"));
+        let config = AppConfig {
+            grid_columns: 5,
+            cadence_color_weekly: "#123456".into(),
+            ..AppConfig::default()
+        };
+        config.save(&settings).unwrap();
+        config.save_colors(&colors).unwrap();
+        let app_yml = fs::read_to_string(&settings).unwrap();
+        assert!(app_yml.contains("grid_columns: 5"));
+        assert!(!app_yml.contains("cadence_color_weekly"));
+        let colors_yml = fs::read_to_string(&colors).unwrap();
+        assert!(colors_yml.contains("cadence_color_weekly: '#123456'"));
+        assert!(!colors_yml.contains("grid_columns"));
+
+        let (loaded, error) = AppConfig::load_or_default(&settings, &colors);
+        assert!(error.is_none());
+        assert_eq!(loaded, config);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn colors_left_in_app_yml_are_ignored() {
+        let dir = std::env::temp_dir().join("app-pkb-test-config-legacy-colors");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let settings = dir.join("app.yml");
+        fs::write(
+            &settings,
+            "grid_columns: 5\ncadence_color_weekly: '#123456'\n",
+        )
+        .unwrap();
+        // no colors.yml yet: the defaults, not the stale per-device copy
+        let (loaded, error) = AppConfig::load_or_default(&settings, &dir.join("colors.yml"));
+        assert!(error.is_none());
+        assert_eq!(loaded.grid_columns, 5);
+        assert_eq!(
+            loaded.cadence_color_weekly,
+            AppConfig::default().cadence_color_weekly
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn broken_colors_yml_costs_only_the_colors() {
+        let dir = std::env::temp_dir().join("app-pkb-test-config-broken-colors");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let (settings, colors) = (dir.join("app.yml"), dir.join("colors.yml"));
+        fs::write(&settings, "grid_columns: 5\n").unwrap();
+        fs::write(&colors, "cadence_colors: [not a bool\n").unwrap();
+        let (loaded, error) = AppConfig::load_or_default(&settings, &colors);
+        assert_eq!(loaded.grid_columns, 5);
+        assert_eq!(loaded.cadence_colors, AppConfig::default().cadence_colors);
+        assert!(error.unwrap().contains("colors.yml"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn colors_yml_ignores_keys_that_are_not_colors() {
+        let colors: serde_yaml::Mapping =
+            serde_yaml::from_str("grid_columns: 9\ndone_color: '#00ff00'\n").unwrap();
+        let config = AppConfig::default().with_colors(&colors).unwrap();
+        assert_eq!(config.grid_columns, AppConfig::default().grid_columns);
+        assert_eq!(config.done_color, "#00ff00");
+    }
+
+    #[test]
+    fn color_keys_are_real_fields() {
+        let yaml = serde_yaml::to_value(AppConfig::default()).unwrap();
+        let mapping = yaml.as_mapping().unwrap();
+        for key in COLOR_KEYS {
+            assert!(mapping.contains_key(*key), "unknown color key '{key}'");
+        }
     }
 
     #[test]

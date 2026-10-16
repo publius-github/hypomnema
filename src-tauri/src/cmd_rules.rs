@@ -163,6 +163,7 @@ pub(crate) const EDITABLE_CONFIG_FILES: &[&str] = &[
     "weekly-focus.yml",
     "day-reminders.yml",
     "day-schedule.yml",
+    "colors.yml",
     "templates/journal.md",
 ];
 
@@ -186,6 +187,13 @@ pub(crate) async fn config_file_get(state: State<'_, AppState>, file: String) ->
     // the next save in the editor overwrite the real content.
     match std::fs::read_to_string(path) {
         Ok(content) => Ok(content),
+        // colors.yml is only written once a color changes; until then
+        // the editor opens on the scheme in use, ready to change
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound && file == "colors.yml" => {
+            let guard = state.vault.lock_or_recover();
+            let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
+            Ok(serde_yaml::to_string(&vault.config.colors_mapping()?)?)
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
         Err(e) => Err(Error::State(format!("cannot read {file}: {e}"))),
     }

@@ -273,7 +273,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 ];
 
 const COLOR_ONLY_IN_YAML =
-  "a color (or a switch that only picks or tunes colors): edited in app.yml or a profile, not here";
+  "a color (or a switch that only picks or tunes colors): edited in the synced config/colors.yml (Notes > Config) or set by a profile, not here";
 
 /**
  * Fields with no control on this page, each for a reason - the test
@@ -308,7 +308,7 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
     key: "lists_group_display",
     why: "the Groups Folded/Flat switch on the dashboard and Lists page headers",
   },
-  // Colors are set in app.yml (or a profile) only: a picker per object
+  // Colors live in config/colors.yml (or a profile) only: a picker per object
   // made Settings the longest page in the app for values set once.
   { key: "accent_color", why: COLOR_ONLY_IN_YAML },
   { key: "color_min_contrast", why: COLOR_ONLY_IN_YAML },

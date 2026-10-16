@@ -72,6 +72,12 @@ pub fn settings_file(root: &Path) -> PathBuf {
     work_dir(root).join("settings").join("app.yml")
 }
 
+/// The color scheme (`config::COLOR_KEYS`): a user config, so it syncs
+/// and every device shows the same colors, unlike app.yml.
+pub fn colors_file(root: &Path) -> PathBuf {
+    config_dir(root).join("colors.yml")
+}
+
 /// Saved settings profiles (profiles.rs), one YAML file per profile.
 pub fn profiles_dir(root: &Path) -> PathBuf {
     work_dir(root).join("settings").join("profiles")
@@ -158,7 +164,8 @@ impl Vault {
             }
         }
 
-        let (config, config_error) = AppConfig::load_or_default(&settings_file(root));
+        let (config, config_error) =
+            AppConfig::load_or_default(&settings_file(root), &colors_file(root));
 
         // a vault without its .db (fresh sync copy, deleted cache) is
         // rebuilt from the state snapshot BEFORE anything can export the
@@ -187,6 +194,20 @@ impl Vault {
     pub fn save_config(&mut self, config: AppConfig) -> Result<()> {
         let config = config.sanitized();
         config.save(&settings_file(&self.root))?;
+        // only a real color change writes colors.yml: rewriting it on
+        // every setting would push this device's copy over a newer one
+        // another device synced in meanwhile
+        if config.colors_mapping()? != self.config.colors_mapping()? {
+            // best effort, like every config backup: a failed copy must
+            // not block the change
+            let _ = crate::backup::backup_config_file(
+                &config_dir(&self.root),
+                "colors.yml",
+                config.backup_keep,
+                Local::now(),
+            );
+            config.save_colors(&colors_file(&self.root))?;
+        }
         db::mirror_settings(&self.conn, &config)?;
         self.config = config;
         self.config_error = None;
@@ -197,22 +218,25 @@ impl Vault {
         config_dir(&self.root)
     }
 
-    /// Re-reads app.yml (e.g. after an external edit) and refreshes the
-    /// settings mirror. app.yml is the source of truth (req. 23).
+    /// Re-reads app.yml and colors.yml (e.g. after an external edit or a
+    /// synced colors.yml) and refreshes the settings mirror. The files
+    /// are the source of truth (req. 23).
     pub fn reload_config(&mut self) -> Result<()> {
         let path = settings_file(&self.root);
         if !path.exists() {
             return Ok(());
         }
-        let parsed = fs::read_to_string(&path)
-            .map_err(|e| e.to_string())
-            .and_then(|raw| serde_yaml::from_str::<AppConfig>(&raw).map_err(|e| e.to_string()));
-        match parsed {
-            Ok(config) => {
-                let config = config.sanitized();
+        match AppConfig::read(&path, &colors_file(&self.root)) {
+            Ok((config, colors_error)) => {
+                // a colors.yml broken mid-session keeps the colors in use
+                let config = match colors_error {
+                    Some(_) => config.with_colors(&self.config.colors_mapping()?)?,
+                    None => config,
+                };
                 db::mirror_settings(&self.conn, &config)?;
                 self.config = config;
-                self.config_error = None;
+                self.config_error = colors_error
+                    .map(|e| e.replace("default colors are active", "previous colors stay active"));
             }
             // A broken file mid-session keeps the last valid settings
             // active (req. 19) and only raises the banner.
@@ -361,6 +385,24 @@ mod tests {
     }
 
     #[test]
+    fn only_a_color_change_writes_colors_yml() {
+        let root = temp_dir("vault-colors");
+        let mut vault = Vault::open(&root).unwrap();
+        let mut config = vault.config.clone();
+        config.grid_columns = 10;
+        vault.save_config(config).unwrap();
+        assert!(!colors_file(&root).exists());
+
+        let mut config = vault.config.clone();
+        config.done_color = "#00ff00".into();
+        vault.save_config(config).unwrap();
+        assert!(fs::read_to_string(colors_file(&root))
+            .unwrap()
+            .contains("done_color: '#00ff00'"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn save_config_round_trips_to_yaml_and_mirror() {
         let root = temp_dir("vault-save");
         let mut vault = Vault::open(&root).unwrap();
@@ -369,7 +411,7 @@ mod tests {
         config.grid_columns = 10;
         vault.save_config(config).unwrap();
 
-        let (reloaded, _) = AppConfig::load_or_default(&settings_file(&root));
+        let (reloaded, _) = AppConfig::load_or_default(&settings_file(&root), &colors_file(&root));
         assert_eq!(reloaded.grid_columns, 10);
 
         let mirrored: String = vault

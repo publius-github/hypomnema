@@ -538,75 +538,10 @@ function AppearancePanel({ config }: { config: AppConfig }) {
           onCommit={(next) => void updateConfig({ ui_font_size: next })}
         />
       </label>
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm">Cadence colours</span>
-        <Toggle
-          checked={config.cadence_colors}
-          onChange={(next) => void updateConfig({ cadence_colors: next })}
-          label="Cadence colours"
-        />
-      </div>
-      {config.cadence_colors && (
-        <div className="flex flex-wrap gap-3">
-          {(
-            [
-              ["Daily", "cadence_color_daily"],
-              ["Weekly", "cadence_color_weekly"],
-              ["Monthly", "cadence_color_monthly"],
-              ["Yearly", "cadence_color_yearly"],
-              ["Exact", "cadence_color_exact"],
-            ] as const
-          ).map(([label, key]) => (
-            <label key={key} className="flex items-center gap-2 text-sm">
-              <input
-                type="color"
-                value={config[key]}
-                onChange={(e) => void updateConfig({ [key]: e.target.value })}
-                className="h-8 w-10 rounded border border-line bg-surface-alt"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-      )}
-      {/* Column counts, pane splits and saved profiles are absent on
-          purpose: they describe a window, and this app's window on a
-          phone is the phone. A layout tab here would be a list of
-          settings that change nothing visible. */}
-      <div className="flex flex-col gap-2 border-t border-line pt-3">
-        <span className="text-sm">Screen edges</span>
-        <p className="text-xs text-content-muted">
-          Android draws this app under the status bar and the navigation
-          bar, and the layout normally learns where they are from the
-          system. If the header still sits under the clock, or the tabs
-          under the gesture bar, raise these until it clears. 0 means "trust
-          the system".
-        </p>
-        <div className="flex gap-3">
-          <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
-            <span className="text-sm">Top</span>
-            <NumberField
-              value={config.mobile_safe_area_top}
-              min={0}
-              max={200}
-              onCommit={(next) =>
-                void updateConfig({ mobile_safe_area_top: next })
-              }
-            />
-          </label>
-          <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
-            <span className="text-sm">Bottom</span>
-            <NumberField
-              value={config.mobile_safe_area_bottom}
-              min={0}
-              max={200}
-              onCommit={(next) =>
-                void updateConfig({ mobile_safe_area_bottom: next })
-              }
-            />
-          </label>
-        </div>
-      </div>
+      {/* No colors and no screen-edge insets here: the color scheme
+          comes from the synced config/colors.yml, shared with the
+          desktop, and the insets (mobile_safe_area_*) are app.yml-only
+          fine-tuning for a device whose WebView reports none */}
     </div>
   );
 }

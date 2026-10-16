@@ -6,7 +6,8 @@ import { useAppStore } from "../../store";
 /**
  * The app's global look: the chrome that belongs to no single object on
  * screen - theme and fonts. Colors have no controls here or anywhere
- * in Settings: they are set in app.yml (or a profile) by hand.
+ * in Settings: they live in the synced config/colors.yml, edited by
+ * hand (Notes > Config) or set by a profile.
  */
 export default function AppearanceTab() {
   const config = useAppStore((s) => s.config);
