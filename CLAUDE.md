@@ -24,6 +24,6 @@ Any behavior that can reasonably be parameterized must be exposed through Settin
 
 - After adding, removing or upgrading a dependency (Cargo, npm, Android Gradle): `node scripts/general/third-party-licenses.mjs` and commit the regenerated `THIRD_PARTY_LICENSES.txt`.
 
-- Frontend: `npm run lint && npm run typecheck && npm test && npm run build`.
+- Frontend: `npm run lint && npm run typecheck && npm test && npm run build && npm run e2e` (Playwright against the fake core in `e2e/`; `npm run e2e:visual` compares pixel baselines when a change could move the layout).
 - Rust (from `src-tauri/`): `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test`.
 - CI mirrors exactly these gates; clippy warnings are errors.

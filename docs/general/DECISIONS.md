@@ -41,11 +41,17 @@ reasoning no longer holds.
   beside the file when the same lines changed) with every decision it had
   to make kept in a readable log. What stays out of scope is *other
   people*: no sharing, no permissions, no presence.
-- **No automated UI/e2e tests.** The logic is covered by Rust unit tests on
-  the engine and business logic and by Vitest component smoke tests with a
-  mocked Tauri IPC; the platform surfaces (tray, global capture hotkey,
-  autoupdate on Windows; the Android build) get a manual smoke pass before
-  a release instead of a driver-based suite.
+- **Browser e2e against a fake core, no driver-based suite.** Playwright
+  runs the real production bundle in Chromium with the Rust core replaced
+  by an in-memory fake (`e2e/app/backend.ts`, answering through Tauri's
+  `mockIPC`): navigation, task flows, dialogs, plus local pixel baselines
+  of every screen. The core's logic stays with the Rust tests. A
+  `tauri-driver` suite against the built app was weighed and left out: it
+  needs a native driver per platform, a built installer per run and a
+  real vault, for little the fake-core suite and the Rust tests do not
+  already cover; the platform surfaces (tray, global capture hotkey,
+  autoupdate on Windows; the Android build) get a manual smoke pass
+  before a release instead.
 - **UI is English-only.** No i18n layer. Single user, no localization need
   today; would need to be designed in rather than bolted on if that changes.
 - **No binary attachments in tasks/journal/notes.** Everything is Markdown

@@ -29,10 +29,6 @@
 //!   `sync_cycle` reads "in the manifest, absent from a full listing" as
 //!   that deletion, so no tombstones are needed.
 #![allow(dead_code)]
-// ureq's error type carries a whole Response, so anything handing one
-// back trips `result_large_err`. Boxing it would only move the cost and
-// obscure the retry logic; these errors are per-request, not per-row.
-#![allow(clippy::result_large_err)]
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -626,8 +622,9 @@ fn retryable(status: u16, body: &[u8]) -> bool {
     }
 }
 
-/// Real `GdriveTransport` over `ureq` (rustls - no native TLS, so the
-/// Android cross-compile stays clean).
+/// Real `GdriveTransport` over `ureq` (rustls with the bundled
+/// webpki roots - no native TLS, so the Android cross-compile stays
+/// clean).
 pub struct HttpGdriveTransport {
     access_token: String,
     agent: ureq::Agent,
@@ -637,34 +634,61 @@ impl HttpGdriveTransport {
     pub fn new(access_token: String) -> Self {
         Self {
             access_token,
-            agent: ureq::Agent::new(),
+            agent: http_agent(),
         }
     }
 
-    fn attempt(&self, request: &Request) -> std::result::Result<ureq::Response, ureq::Error> {
-        let mut call = self
-            .agent
-            .request(request.method, &request.url)
-            .set("Authorization", &format!("Bearer {}", self.access_token));
+    /// The reply, plus how long the server asked to wait (`Retry-After`).
+    fn attempt(&self, request: &Request) -> std::result::Result<(Reply, Option<u64>), ureq::Error> {
+        let mut builder = ureq::http::Request::builder()
+            .method(request.method)
+            .uri(&request.url)
+            .header("Authorization", format!("Bearer {}", self.access_token));
         if let Some(content_type) = &request.content_type {
-            call = call.set("Content-Type", content_type);
+            builder = builder.header("Content-Type", content_type);
         }
-        if request.body.is_empty() && request.method != "POST" && request.method != "PATCH" {
-            call.call()
-        } else {
-            call.send_bytes(&request.body)
-        }
+        let response =
+            if request.body.is_empty() && request.method != "POST" && request.method != "PATCH" {
+                self.agent.run(builder.body(())?)?
+            } else {
+                self.agent.run(builder.body(request.body.clone())?)?
+            };
+        read_reply(response)
     }
 }
 
-fn read_body(response: ureq::Response) -> Result<Vec<u8>> {
-    use std::io::Read;
-    let mut body = Vec::new();
+/// An agent that hands every HTTP status back as a response: the
+/// callers read Drive's and Google's error bodies themselves.
+pub(crate) fn http_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .build()
+        .new_agent()
+}
+
+/// The whole body, however large: a vault file is not capped at the
+/// client's default read limit.
+pub(crate) fn read_body(
+    mut response: ureq::http::Response<ureq::Body>,
+) -> std::result::Result<Vec<u8>, ureq::Error> {
     response
-        .into_reader()
-        .read_to_end(&mut body)
-        .map_err(|e| Error::State(format!("reading Google Drive response: {e}")))?;
-    Ok(body)
+        .body_mut()
+        .with_config()
+        .limit(u64::MAX)
+        .read_to_vec()
+}
+
+fn read_reply(
+    response: ureq::http::Response<ureq::Body>,
+) -> std::result::Result<(Reply, Option<u64>), ureq::Error> {
+    let status = response.status().as_u16();
+    let retry_after = response
+        .headers()
+        .get("Retry-After")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok());
+    let body = read_body(response)?;
+    Ok((Reply { status, body }, retry_after))
 }
 
 impl GdriveTransport for HttpGdriveTransport {
@@ -673,25 +697,13 @@ impl GdriveTransport for HttpGdriveTransport {
         let mut attempt = 1;
         loop {
             let wait = match self.attempt(request) {
-                Ok(response) => {
-                    let status = response.status();
-                    return Ok(Reply {
-                        status,
-                        body: read_body(response)?,
-                    });
-                }
-                Err(ureq::Error::Status(status, response)) => {
-                    let retry_after = response
-                        .header("Retry-After")
-                        .and_then(|v| v.parse::<u64>().ok())
-                        .map(Duration::from_secs);
-                    let body = read_body(response)?;
-                    if attempt >= MAX_ATTEMPTS || !retryable(status, &body) {
-                        return Ok(Reply { status, body });
+                Ok((reply, retry_after)) => {
+                    if attempt >= MAX_ATTEMPTS || !retryable(reply.status, &reply.body) {
+                        return Ok(reply);
                     }
-                    retry_after.unwrap_or(delay)
+                    retry_after.map(Duration::from_secs).unwrap_or(delay)
                 }
-                Err(e @ ureq::Error::Transport(_)) => {
+                Err(e) => {
                     if attempt >= MAX_ATTEMPTS {
                         return Err(Error::State(format!("Google Drive request failed: {e}")));
                     }

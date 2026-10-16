@@ -3,6 +3,11 @@ node_modules/
 
 # Build outputs
 dist/
+dist-e2e/
+test-results/
+playwright-report/
+# visual baselines are per machine (e2e/tests/sections.visual.spec.ts)
+e2e/tests/*-snapshots/
 src-tauri/target/
 releases/
 *.log
@@ -33,6 +38,7 @@ keystore.properties
 
 # Test coverage
 coverage/
+lcov.info
 
 # Editors and OS
 .vscode/*

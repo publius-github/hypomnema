@@ -161,22 +161,27 @@ impl Default for GoogleOauthTransport {
 impl GoogleOauthTransport {
     pub fn new() -> Self {
         Self {
-            agent: ureq::Agent::new(),
+            agent: crate::sync_gdrive::http_agent(),
         }
     }
 }
 
 impl OauthTransport for GoogleOauthTransport {
     fn post_form(&self, url: &str, form: &[(&str, &str)]) -> Result<Value> {
-        match self.agent.post(url).send_form(form) {
-            // The revoke endpoint answers with an empty body.
-            Ok(response) => Ok(response.into_json::<Value>().unwrap_or(Value::Null)),
-            Err(ureq::Error::Status(code, response)) => {
-                let body = response.into_string().unwrap_or_default();
-                Err(oauth_error(code, &body))
-            }
-            Err(e) => Err(Error::State(format!("Google sign-in request failed: {e}"))),
+        let request_failed =
+            |e: ureq::Error| Error::State(format!("Google sign-in request failed: {e}"));
+        let response = self
+            .agent
+            .post(url)
+            .send_form(form.iter().copied())
+            .map_err(request_failed)?;
+        let code = response.status().as_u16();
+        let body = crate::sync_gdrive::read_body(response).map_err(request_failed)?;
+        if !(200..300).contains(&code) {
+            return Err(oauth_error(code, &String::from_utf8_lossy(&body)));
         }
+        // The revoke endpoint answers with an empty body.
+        Ok(serde_json::from_slice(&body).unwrap_or(Value::Null))
     }
 }
 

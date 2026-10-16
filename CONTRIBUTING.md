@@ -43,6 +43,7 @@ CI runs exactly these, and clippy warnings are errors:
 
 ```bash
 npm run lint && npm run typecheck && npm test && npm run build
+npm run e2e        # first time: npx playwright install chromium
 cd src-tauri && cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 

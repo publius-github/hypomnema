@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.105.1"
+version = "0.105.2"
 description = "Weekly planner, journal, and personal knowledge base"
 license = "GPL-3.0-only"
 repository = "https://github.com/publius-github/app-hypomnema"
@@ -26,13 +26,13 @@ serde_json = "1"
 # continuation of the same 0.9 line (same API, same output), imported
 # under the old name so call sites read as plain serde_yaml.
 serde_yaml = { package = "serde_norway", version = "0.9" }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 croner = "2"
-notify = "6"
+notify = "8"
 ts-rs = "10"
-ureq = { version = "2", features = ["json"] }
+ureq = "3"
 sha2 = "0.10"
 base64 = "0.22"
 getrandom = "0.2"

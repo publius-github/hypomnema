@@ -1,0 +1,9 @@
+{
+  // The Node side: build and test configs, and the Playwright suite with
+  // its in-browser fake core (which imports the app's own types).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"]
+  },
+  "include": ["e2e", "playwright.config.ts", "vite.config.ts", "vitest.config.ts"]
+}
