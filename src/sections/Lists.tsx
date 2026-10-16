@@ -5,6 +5,7 @@ import { indexRows, orderLists, orderPanel } from "../lib/tasks";
 import type { IndexRow } from "../lib/tasks";
 import { useTaskDnd } from "../components/taskDnd";
 import ListColumn from "../components/ListColumn";
+import IndexRowLabel from "../components/IndexRowLabel";
 import GroupColumn from "../components/GroupColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
@@ -191,7 +192,13 @@ export default function Lists() {
             }}
           >
             {visible.map((item) => (
-              <div key={itemKey(item)} id={`lists-page-${itemKey(item)}`}>
+              <div
+                key={itemKey(item)}
+                id={`lists-page-${itemKey(item)}`}
+                // the jump lands the column a page-padding below the top
+                // edge, so its flash ring is not cut off
+                className="scroll-mt-4"
+              >
                 {item.type === "list" ? (
                   <ListColumn
                     list={item.list}
@@ -252,20 +259,7 @@ export default function Lists() {
                           : jumpTo(itemKey(row))
                       }
                     >
-                      {/* the ▸ rides its own fixed column and the nesting
-                          step is its own spacer, so every name lines up
-                          on one axis and a member hangs under its group
-                          instead of beside it */}
-                      {row.type === "list" && row.nested && (
-                        <span aria-hidden className="w-2 shrink-0" />
-                      )}
-                      <span
-                        aria-hidden
-                        className="w-2 shrink-0 text-[10px] leading-none"
-                      >
-                        {row.type === "group" ? "▸" : ""}
-                      </span>
-                      <span className="min-w-0 truncate">{itemName(row)}</span>
+                      <IndexRowLabel row={row} name={itemName(row)} />
                     </button>
                   );
                 })}

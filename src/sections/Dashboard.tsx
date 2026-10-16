@@ -14,6 +14,7 @@ import { useTaskDnd } from "../components/taskDnd";
 import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
 import ListColumn from "../components/ListColumn";
+import IndexRowLabel from "../components/IndexRowLabel";
 import GroupColumn from "../components/GroupColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
@@ -524,20 +525,7 @@ function ListZone({
                       : jumpTo(Math.max(0, slot), itemKey(row))
                   }
                 >
-                  {/* the ▸ rides its own fixed column and the nesting
-                      step is its own spacer, so every name lines up on
-                      one axis and a member hangs under its group
-                      instead of beside it */}
-                  {row.type === "list" && row.nested && (
-                    <span aria-hidden className="w-2 shrink-0" />
-                  )}
-                  <span
-                    aria-hidden
-                    className="w-2 shrink-0 text-[10px] leading-none"
-                  >
-                    {row.type === "group" ? "▸" : ""}
-                  </span>
-                  <span className="min-w-0 truncate">{itemName(row)}</span>
+                  <IndexRowLabel row={row} name={itemName(row)} />
                 </button>
               );
             })}

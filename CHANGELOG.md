@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.100.1 - 2026-10-16
+
+All-lists index: a jump on the Lists page lands the column a little below the top edge, so its highlight ring is no longer cut off; top-level lists start at the left edge, under the groups' ▸ markers, which are a size larger, and group members hang one step past the group's name
+
 ## 0.100.0 - 2026-10-16
 
 Notes: Markdown headings stay bold and colored but no longer grow - every line of a note is the text size. Alt+Z toggles word wrap in the editor (for the session, across notes): off, a long Tab-aligned table keeps its rows on one line and scrolls sideways. Page headers: the view controls on Dashboard, Days and Lists share one component with one spacing - the same gap between controls and before + Task; the Lists page's column count is called Lists, as on the dashboard; the dashboard's Days count moves to the right end, where the Days page has it
