@@ -103,6 +103,13 @@ export default function MobileApp() {
   // steps in reverse order before this one returns to Day.
   useBackStep(tab !== "day", () => setTab("day"));
 
+  // one fixed text size on the phone (html.mobile in styles.css)
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("mobile");
+    return () => root.classList.remove("mobile");
+  }, []);
+
   // The engine runs when the app comes back to the foreground. A phone
   // spends most of its life asleep, so "on launch" alone would leave a
   // day's recurring tasks unmade until the app was killed and reopened.

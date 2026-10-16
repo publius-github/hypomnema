@@ -928,11 +928,17 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
                 let map = map.unwrap_or_default();
                 for key in map.keys() {
                     let name = key.as_str().unwrap_or("?");
-                    if crate::config::COLOR_KEYS.contains(&name) {
+                    if let Some(part) = crate::config::SyncedPart::ALL
+                        .into_iter()
+                        .find(|part| part.keys().contains(&name))
+                    {
                         errors.push(ConfigError {
                             file: file.into(),
                             line: None,
-                            message: format!("'{name}' is a color: it belongs in colors.yml"),
+                            message: format!(
+                                "'{name}' is shared by your devices: it belongs in {}",
+                                part.file()
+                            ),
                         });
                     }
                 }
@@ -948,31 +954,35 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
             }
             Err(e) => push_yaml_error(e),
         },
-        "colors.yml" => match serde_yaml::from_str::<Option<serde_yaml::Mapping>>(content) {
-            Ok(map) => {
-                let map = map.unwrap_or_default();
-                for key in map.keys() {
-                    let name = key.as_str().unwrap_or("?");
-                    if !crate::config::COLOR_KEYS.contains(&name) {
+        "colors.yml" | "shared.yml" => {
+            match serde_yaml::from_str::<Option<serde_yaml::Mapping>>(content) {
+                Ok(map) => {
+                    let map = map.unwrap_or_default();
+                    let part = crate::config::SyncedPart::from_file(file)
+                        .unwrap_or(crate::config::SyncedPart::Colors);
+                    for key in map.keys() {
+                        let name = key.as_str().unwrap_or("?");
+                        if !part.keys().contains(&name) {
+                            errors.push(ConfigError {
+                                file: file.into(),
+                                line: None,
+                                message: format!("'{name}' does not belong in {file}"),
+                            });
+                        }
+                    }
+                    // a wrong type (a list for a color, text for a number)
+                    // would otherwise drop the whole file back to defaults
+                    if let Err(e) = crate::config::AppConfig::default().with_part(part, &map) {
                         errors.push(ConfigError {
                             file: file.into(),
                             line: None,
-                            message: format!("'{name}' is not a color setting"),
+                            message: e.to_string(),
                         });
                     }
                 }
-                // a wrong type (a list for a color, text for a number)
-                // would otherwise drop every color back to its default
-                if let Err(e) = crate::config::AppConfig::default().with_colors(&map) {
-                    errors.push(ConfigError {
-                        file: file.into(),
-                        line: None,
-                        message: e.to_string(),
-                    });
-                }
+                Err(e) => push_yaml_error(e),
             }
-            Err(e) => push_yaml_error(e),
-        },
+        }
         _ => {
             if let Err(e) = serde_yaml::from_str::<serde_yaml::Value>(content) {
                 push_yaml_error(e);

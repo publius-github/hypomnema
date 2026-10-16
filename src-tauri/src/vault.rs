@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use chrono::Local;
 use rusqlite::Connection;
 
-use crate::config::AppConfig;
+use crate::config::{AppConfig, SyncedPart};
 use crate::db;
 use crate::error::{Error, Result};
 
@@ -72,10 +72,11 @@ pub fn settings_file(root: &Path) -> PathBuf {
     work_dir(root).join("settings").join("app.yml")
 }
 
-/// The color scheme (`config::COLOR_KEYS`): a user config, so it syncs
-/// and every device shows the same colors, unlike app.yml.
-pub fn colors_file(root: &Path) -> PathBuf {
-    config_dir(root).join("colors.yml")
+/// A synced slice of the settings (`config::SyncedPart`: the color
+/// scheme in colors.yml, the rules every device must share in
+/// shared.yml): user configs, so they sync, unlike app.yml.
+pub fn synced_file(root: &Path, part: SyncedPart) -> PathBuf {
+    config_dir(root).join(part.file())
 }
 
 pub fn db_path(root: &Path) -> PathBuf {
@@ -159,8 +160,7 @@ impl Vault {
             }
         }
 
-        let (config, config_error) =
-            AppConfig::load_or_default(&settings_file(root), &colors_file(root));
+        let (config, config_error) = AppConfig::load_or_default(&settings_file(root), &config_dir);
 
         // a vault without its .db (fresh sync copy, deleted cache) is
         // rebuilt from the state snapshot BEFORE anything can export the
@@ -189,19 +189,21 @@ impl Vault {
     pub fn save_config(&mut self, config: AppConfig) -> Result<()> {
         let config = config.sanitized();
         config.save(&settings_file(&self.root))?;
-        // only a real color change writes colors.yml: rewriting it on
-        // every setting would push this device's copy over a newer one
-        // another device synced in meanwhile
-        if config.colors_mapping()? != self.config.colors_mapping()? {
-            // best effort, like every config backup: a failed copy must
-            // not block the change
-            let _ = crate::backup::backup_config_file(
-                &config_dir(&self.root),
-                "colors.yml",
-                config.backup_keep,
-                Local::now(),
-            );
-            config.save_colors(&colors_file(&self.root))?;
+        // only a real change writes a synced file: rewriting it on every
+        // setting would push this device's copy over a newer one another
+        // device synced in meanwhile
+        for part in SyncedPart::ALL {
+            if config.part_mapping(part)? != self.config.part_mapping(part)? {
+                // best effort, like every config backup: a failed copy
+                // must not block the change
+                let _ = crate::backup::backup_config_file(
+                    &config_dir(&self.root),
+                    part.file(),
+                    config.backup_keep,
+                    Local::now(),
+                );
+                config.save_part(part, &synced_file(&self.root, part))?;
+            }
         }
         db::mirror_settings(&self.conn, &config)?;
         self.config = config;
@@ -213,25 +215,29 @@ impl Vault {
         config_dir(&self.root)
     }
 
-    /// Re-reads app.yml and colors.yml (e.g. after an external edit or a
-    /// synced colors.yml) and refreshes the settings mirror. The files
+    /// Re-reads app.yml and the synced files (e.g. after an external
+    /// edit or a sync pass) and refreshes the settings mirror. The files
     /// are the source of truth (req. 23).
     pub fn reload_config(&mut self) -> Result<()> {
         let path = settings_file(&self.root);
         if !path.exists() {
             return Ok(());
         }
-        match AppConfig::read(&path, &colors_file(&self.root)) {
-            Ok((config, colors_error)) => {
-                // a colors.yml broken mid-session keeps the colors in use
-                let config = match colors_error {
-                    Some(_) => config.with_colors(&self.config.colors_mapping()?)?,
-                    None => config,
-                };
+        match AppConfig::read(&path, &config_dir(&self.root)) {
+            Ok((mut config, errors)) => {
+                // a synced file broken mid-session keeps its fields as
+                // they were
+                let mut messages = Vec::new();
+                for (part, e) in errors {
+                    config = config.with_part(part, &self.config.part_mapping(part)?)?;
+                    messages.push(format!(
+                        "invalid {}, previous values stay active: {e}",
+                        part.file()
+                    ));
+                }
                 db::mirror_settings(&self.conn, &config)?;
                 self.config = config;
-                self.config_error = colors_error
-                    .map(|e| e.replace("default colors are active", "previous colors stay active"));
+                self.config_error = messages.into_iter().reduce(|a, b| format!("{a}; {b}"));
             }
             // A broken file mid-session keeps the last valid settings
             // active (req. 19) and only raises the banner.
@@ -386,12 +392,12 @@ mod tests {
         let mut config = vault.config.clone();
         config.grid_columns = 10;
         vault.save_config(config).unwrap();
-        assert!(!colors_file(&root).exists());
+        assert!(!synced_file(&root, SyncedPart::Colors).exists());
 
         let mut config = vault.config.clone();
         config.done_color = "#00ff00".into();
         vault.save_config(config).unwrap();
-        assert!(fs::read_to_string(colors_file(&root))
+        assert!(fs::read_to_string(synced_file(&root, SyncedPart::Colors))
             .unwrap()
             .contains("done_color: '#00ff00'"));
         let _ = fs::remove_dir_all(&root);
@@ -406,7 +412,7 @@ mod tests {
         config.grid_columns = 10;
         vault.save_config(config).unwrap();
 
-        let (reloaded, _) = AppConfig::load_or_default(&settings_file(&root), &colors_file(&root));
+        let (reloaded, _) = AppConfig::load_or_default(&settings_file(&root), &config_dir(&root));
         assert_eq!(reloaded.grid_columns, 10);
 
         let mirrored: String = vault

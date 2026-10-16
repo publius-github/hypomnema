@@ -135,6 +135,16 @@ body {
  * which is how the welcome screen ended up running edge to edge under
  * the system bars while every other screen behaved. Pad a child instead.
  */
+/*
+ * The phone reads at one text size, the platform's 16px: no setting -
+ * the system's own font scaling already serves whoever needs bigger
+ * text. !important wins over the inline root size applyTheme sets from
+ * this device's ui_font_size, which only the desktop honours.
+ */
+html.mobile {
+  font-size: 16px !important;
+}
+
 .safe-area {
   padding-top: max(env(safe-area-inset-top, 0px), var(--safe-top, 0px));
   padding-bottom: max(

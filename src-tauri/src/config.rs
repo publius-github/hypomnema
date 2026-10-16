@@ -343,7 +343,7 @@ pub struct AppConfig {
 pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
 
 /// The color scheme: fields kept in the synced `config/colors.yml`
-/// (`vault::colors_file`) instead of the per-device app.yml, so every
+/// (`vault::synced_file`) instead of the per-device app.yml, so every
 /// device paints the vault the same way - the scheme belongs to the
 /// user, while column counts and the theme belong to the screen. app.yml
 /// never carries them: a copy left there by an older version is ignored
@@ -387,10 +387,68 @@ pub const COLOR_KEYS: &[&str] = &[
     "list_exact_stripe",
 ];
 
-fn is_color_key(key: &serde_yaml::Value) -> bool {
-    key.as_str()
-        .map(|k| COLOR_KEYS.contains(&k))
-        .unwrap_or(false)
+/// Rules every device must agree on, kept in the synced
+/// `config/shared.yml`: the engine runs on each device, so a retention
+/// window, catch-up window, cadence threshold or cleanup switch that
+/// differed between them would make two devices clean up and generate
+/// differently. The capture list and the completion-rate inputs ride
+/// along so a task captured or a rate shown means the same everywhere.
+/// These keep their Settings controls - only where they are stored
+/// changes.
+pub const SHARED_KEYS: &[&str] = &[
+    "retention_days",
+    "catchup_days",
+    "cron_ignore_time",
+    "clear_done_list_tasks",
+    "priority_overdue",
+    "cadence_daily_min_per_year",
+    "cadence_weekly_min_per_year",
+    "cadence_monthly_min_per_year",
+    "capture_list",
+    "habit_rate_threshold",
+    "habit_rate_window",
+    "habit_rate_min_instances",
+];
+
+/// A slice of AppConfig that lives in a synced file under config/
+/// instead of the per-device app.yml.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncedPart {
+    Colors,
+    Shared,
+}
+
+impl SyncedPart {
+    pub const ALL: [SyncedPart; 2] = [SyncedPart::Colors, SyncedPart::Shared];
+
+    /// The file under config/.
+    pub fn file(self) -> &'static str {
+        match self {
+            SyncedPart::Colors => "colors.yml",
+            SyncedPart::Shared => "shared.yml",
+        }
+    }
+
+    pub fn keys(self) -> &'static [&'static str] {
+        match self {
+            SyncedPart::Colors => COLOR_KEYS,
+            SyncedPart::Shared => SHARED_KEYS,
+        }
+    }
+
+    pub fn from_file(file: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|part| part.file() == file)
+    }
+
+    fn owns(self, key: &serde_yaml::Value) -> bool {
+        key.as_str()
+            .map(|k| self.keys().contains(&k))
+            .unwrap_or(false)
+    }
+}
+
+fn is_synced_key(key: &serde_yaml::Value) -> bool {
+    SyncedPart::ALL.iter().any(|part| part.owns(key))
 }
 
 pub const SECTIONS: &[&str] = &[
@@ -542,26 +600,33 @@ impl AppConfig {
         self.grid_columns.max(self.days_page_columns).max(1)
     }
 
-    /// Loads app.yml plus the synced colors.yml, falling back to
-    /// defaults when app.yml is broken instead of making the vault
-    /// unopenable. The parse error comes back for the UI banner; the
-    /// broken file stays on disk untouched until the user fixes it or
-    /// saves a setting.
-    pub fn load_or_default(settings: &Path, colors: &Path) -> (Self, Option<String>) {
+    /// Loads app.yml plus the synced files under `config_dir`
+    /// (colors.yml, shared.yml), falling back to defaults when app.yml
+    /// is broken instead of making the vault unopenable. The parse error
+    /// comes back for the UI banner; the broken file stays on disk
+    /// untouched until the user fixes it or saves a setting.
+    pub fn load_or_default(settings: &Path, config_dir: &Path) -> (Self, Option<String>) {
         if !settings.exists() {
             let config = Self::default();
             if let Err(e) = config.save(settings) {
                 return (config, Some(e.to_string()));
             }
         }
-        match Self::read(settings, colors) {
-            Ok((config, error)) => {
-                // an app.yml from an older version carries colors and
-                // retired fields; rewrite it once so what the Notes >
+        Self::seed_shared(settings, config_dir);
+        match Self::read(settings, config_dir) {
+            Ok((config, errors)) => {
+                // an app.yml from an older version carries synced fields
+                // and retired ones; rewrite it once so what the Notes >
                 // Config editor shows is exactly what is in effect
                 if config.has_stale_keys(settings) {
                     let _ = config.save(settings);
                 }
+                let error = errors
+                    .into_iter()
+                    .map(|(part, e)| {
+                        format!("invalid {}, its defaults are active: {e}", part.file())
+                    })
+                    .reduce(|a, b| format!("{a}; {b}"));
                 (config, error)
             }
             Err(e) => (
@@ -571,53 +636,83 @@ impl AppConfig {
         }
     }
 
-    /// Reads app.yml (absent = defaults) with colors.yml laid over it.
-    /// Err = app.yml itself is unreadable; a broken colors.yml only
-    /// costs the colors - they fall back to the defaults and the second
-    /// value says why.
+    /// First open after the rules moved to shared.yml: a device whose
+    /// app.yml still holds non-default values for them writes those into
+    /// shared.yml, so they are not silently lost. A device sitting at
+    /// the defaults writes nothing and waits for the file to sync in.
+    /// (Colors were not seeded: the defaults are the owner's scheme.)
+    fn seed_shared(settings: &Path, config_dir: &Path) {
+        let shared = config_dir.join(SyncedPart::Shared.file());
+        if shared.exists() {
+            return;
+        }
+        let Ok(raw) = fs::read_to_string(settings) else {
+            return;
+        };
+        let Ok(legacy) = serde_yaml::from_str::<Self>(&raw) else {
+            return;
+        };
+        let legacy = legacy.sanitized();
+        let (Ok(mine), Ok(defaults)) = (
+            legacy.part_mapping(SyncedPart::Shared),
+            Self::default().part_mapping(SyncedPart::Shared),
+        ) else {
+            return;
+        };
+        if mine != defaults {
+            let _ = legacy.save_part(SyncedPart::Shared, &shared);
+        }
+    }
+
+    /// Reads app.yml (absent = defaults) with each synced file laid over
+    /// it. Err = app.yml itself is unreadable; a broken synced file only
+    /// costs its own fields - they fall back to the defaults and the
+    /// list says which file and why.
     pub fn read(
         settings: &Path,
-        colors: &Path,
-    ) -> std::result::Result<(Self, Option<String>), String> {
-        let base = if settings.exists() {
+        config_dir: &Path,
+    ) -> std::result::Result<(Self, Vec<(SyncedPart, String)>), String> {
+        let mut config = if settings.exists() {
             let raw = fs::read_to_string(settings).map_err(|e| e.to_string())?;
             let mut map = serde_yaml::from_str::<Option<serde_yaml::Mapping>>(&raw)
                 .map_err(|e| e.to_string())?
                 .unwrap_or_default();
-            // colors in app.yml are an older version's leftover: the
-            // synced file owns them now
-            map.retain(|key, _| !is_color_key(key));
+            // synced fields left in app.yml are an older version's
+            // leftover: the synced files own them now
+            map.retain(|key, _| !is_synced_key(key));
             Self::from_mapping(map).map_err(|e| e.to_string())?
         } else {
             Self::default()
         }
         .sanitized();
-        if !colors.exists() {
-            return Ok((base, None));
+        let mut errors = Vec::new();
+        for part in SyncedPart::ALL {
+            let path = config_dir.join(part.file());
+            if !path.exists() {
+                continue;
+            }
+            let layered = fs::read_to_string(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|raw| {
+                    serde_yaml::from_str::<Option<serde_yaml::Mapping>>(&raw)
+                        .map_err(|e| e.to_string())
+                })
+                .and_then(|map| {
+                    config
+                        .clone()
+                        .with_part(part, &map.unwrap_or_default())
+                        .map_err(|e| e.to_string())
+                });
+            match layered {
+                Ok(next) => config = next,
+                Err(e) => errors.push((part, e)),
+            }
         }
-        let with_colors = fs::read_to_string(colors)
-            .map_err(|e| e.to_string())
-            .and_then(|raw| {
-                serde_yaml::from_str::<Option<serde_yaml::Mapping>>(&raw).map_err(|e| e.to_string())
-            })
-            .and_then(|map| {
-                base.clone()
-                    .with_colors(&map.unwrap_or_default())
-                    .map_err(|e| e.to_string())
-            });
-        Ok(match with_colors {
-            Ok(config) => (config, None),
-            Err(e) => (
-                base,
-                Some(format!(
-                    "invalid colors.yml, default colors are active: {e}"
-                )),
-            ),
-        })
+        Ok((config, errors))
     }
 
-    /// app.yml holds a key `save` would not write: a color, or a field
-    /// this version no longer has.
+    /// app.yml holds a key `save` would not write: a synced field, or a
+    /// field this version no longer has.
     fn has_stale_keys(&self, settings: &Path) -> bool {
         let Ok(raw) = fs::read_to_string(settings) else {
             return false;
@@ -629,7 +724,7 @@ impl AppConfig {
             return false;
         };
         file.keys()
-            .any(|key| is_color_key(key) || !known.contains_key(key))
+            .any(|key| is_synced_key(key) || !known.contains_key(key))
     }
 
     fn to_mapping(&self) -> Result<serde_yaml::Mapping> {
@@ -643,20 +738,19 @@ impl AppConfig {
         Ok(serde_yaml::from_value(serde_yaml::Value::Mapping(map))?)
     }
 
-    /// The color-scheme fields (`COLOR_KEYS`) as a mapping - the
-    /// colors.yml file format.
-    pub fn colors_mapping(&self) -> Result<serde_yaml::Mapping> {
+    /// A synced part's fields as a mapping - its file format.
+    pub fn part_mapping(&self, part: SyncedPart) -> Result<serde_yaml::Mapping> {
         let mut map = self.to_mapping()?;
-        map.retain(|key, _| is_color_key(key));
+        map.retain(|key, _| part.owns(key));
         Ok(map)
     }
 
-    /// This config with the color-scheme fields of `colors` laid over
-    /// it; any other key in `colors` is ignored.
-    pub fn with_colors(self, colors: &serde_yaml::Mapping) -> Result<Self> {
+    /// This config with a synced part's fields from `values` laid over
+    /// it; any other key in `values` is ignored.
+    pub fn with_part(self, part: SyncedPart, values: &serde_yaml::Mapping) -> Result<Self> {
         let mut map = self.to_mapping()?;
-        for (key, value) in colors {
-            if is_color_key(key) {
+        for (key, value) in values {
+            if part.owns(key) {
                 map.insert(key.clone(), value.clone());
             }
         }
@@ -860,24 +954,24 @@ impl AppConfig {
         self
     }
 
-    /// Writes app.yml: everything but the color scheme, which lives in
-    /// colors.yml (`save_colors`).
+    /// Writes app.yml: everything but the synced parts, which live in
+    /// their own files (`save_part`).
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
         let mut map = self.to_mapping()?;
-        map.retain(|key, _| !is_color_key(key));
+        map.retain(|key, _| !is_synced_key(key));
         crate::vault::write_atomic(path, &serde_yaml::to_string(&map)?)?;
         Ok(())
     }
 
-    /// Writes the synced colors.yml.
-    pub fn save_colors(&self, path: &Path) -> Result<()> {
+    /// Writes a synced part's file.
+    pub fn save_part(&self, part: SyncedPart, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        crate::vault::write_atomic(path, &serde_yaml::to_string(&self.colors_mapping()?)?)?;
+        crate::vault::write_atomic(path, &serde_yaml::to_string(&self.part_mapping(part)?)?)?;
         Ok(())
     }
 
@@ -1092,12 +1186,12 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("app.yml");
 
-        let (config, error) = AppConfig::load_or_default(&path, &dir.join("colors.yml"));
+        let (config, error) = AppConfig::load_or_default(&path, &dir);
         assert!(error.is_none());
         assert_eq!(config, AppConfig::default());
         assert!(path.exists());
 
-        let (reloaded, _) = AppConfig::load_or_default(&path, &dir.join("colors.yml"));
+        let (reloaded, _) = AppConfig::load_or_default(&path, &dir);
         assert_eq!(reloaded, config);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1110,7 +1204,7 @@ mod tests {
         let path = dir.join("app.yml");
         fs::write(&path, "theme: [broken\n").unwrap();
 
-        let (config, error) = AppConfig::load_or_default(&path, &dir.join("colors.yml"));
+        let (config, error) = AppConfig::load_or_default(&path, &dir);
         assert_eq!(config, AppConfig::default());
         assert!(error.is_some());
         // the broken file is left untouched for the user to fix
@@ -1130,7 +1224,7 @@ mod tests {
             ..AppConfig::default()
         };
         config.save(&settings).unwrap();
-        config.save_colors(&colors).unwrap();
+        config.save_part(SyncedPart::Colors, &colors).unwrap();
         let app_yml = fs::read_to_string(&settings).unwrap();
         assert!(app_yml.contains("grid_columns: 5"));
         assert!(!app_yml.contains("cadence_color_weekly"));
@@ -1138,7 +1232,7 @@ mod tests {
         assert!(colors_yml.contains("cadence_color_weekly: '#123456'"));
         assert!(!colors_yml.contains("grid_columns"));
 
-        let (loaded, error) = AppConfig::load_or_default(&settings, &colors);
+        let (loaded, error) = AppConfig::load_or_default(&settings, &dir);
         assert!(error.is_none());
         assert_eq!(loaded, config);
         let _ = fs::remove_dir_all(&dir);
@@ -1155,7 +1249,7 @@ mod tests {
             "grid_columns: 5\ndone_color: '#123456'\nsection_cards: true\n",
         )
         .unwrap();
-        let (loaded, _) = AppConfig::load_or_default(&settings, &dir.join("colors.yml"));
+        let (loaded, _) = AppConfig::load_or_default(&settings, &dir);
         assert_eq!(loaded.grid_columns, 5);
         let raw = fs::read_to_string(&settings).unwrap();
         assert!(raw.contains("grid_columns: 5"));
@@ -1176,7 +1270,7 @@ mod tests {
         )
         .unwrap();
         // no colors.yml yet: the defaults, not the stale per-device copy
-        let (loaded, error) = AppConfig::load_or_default(&settings, &dir.join("colors.yml"));
+        let (loaded, error) = AppConfig::load_or_default(&settings, &dir);
         assert!(error.is_none());
         assert_eq!(loaded.grid_columns, 5);
         assert_eq!(
@@ -1194,7 +1288,7 @@ mod tests {
         let (settings, colors) = (dir.join("app.yml"), dir.join("colors.yml"));
         fs::write(&settings, "grid_columns: 5\n").unwrap();
         fs::write(&colors, "cadence_colors: [not a bool\n").unwrap();
-        let (loaded, error) = AppConfig::load_or_default(&settings, &colors);
+        let (loaded, error) = AppConfig::load_or_default(&settings, &dir);
         assert_eq!(loaded.grid_columns, 5);
         assert_eq!(loaded.cadence_colors, AppConfig::default().cadence_colors);
         assert!(error.unwrap().contains("colors.yml"));
@@ -1205,9 +1299,70 @@ mod tests {
     fn colors_yml_ignores_keys_that_are_not_colors() {
         let colors: serde_yaml::Mapping =
             serde_yaml::from_str("grid_columns: 9\ndone_color: '#00ff00'\n").unwrap();
-        let config = AppConfig::default().with_colors(&colors).unwrap();
+        let config = AppConfig::default()
+            .with_part(SyncedPart::Colors, &colors)
+            .unwrap();
         assert_eq!(config.grid_columns, AppConfig::default().grid_columns);
         assert_eq!(config.done_color, "#00ff00");
+    }
+
+    #[test]
+    fn shared_rules_are_seeded_once_from_an_old_app_yml() {
+        let dir = std::env::temp_dir().join("app-pkb-test-config-seed-shared");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let settings = dir.join("app.yml");
+        fs::write(
+            &settings,
+            "grid_columns: 5\nretention_days: 365\ncatchup_days: 30\n",
+        )
+        .unwrap();
+        let (loaded, error) = AppConfig::load_or_default(&settings, &dir);
+        assert!(error.is_none());
+        assert_eq!((loaded.retention_days, loaded.catchup_days), (365, 30));
+        let shared = fs::read_to_string(dir.join("shared.yml")).unwrap();
+        assert!(shared.contains("retention_days: 365"));
+        assert!(!shared.contains("grid_columns"));
+        // and app.yml no longer carries them
+        let app_yml = fs::read_to_string(&settings).unwrap();
+        assert!(!app_yml.contains("retention_days"));
+        assert!(app_yml.contains("grid_columns: 5"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_device_at_the_defaults_does_not_seed_shared_yml() {
+        let dir = std::env::temp_dir().join("app-pkb-test-config-no-seed");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let settings = dir.join("app.yml");
+        fs::write(&settings, "grid_columns: 5\n").unwrap();
+        let _ = AppConfig::load_or_default(&settings, &dir);
+        assert!(!dir.join("shared.yml").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn shared_yml_wins_over_an_old_app_yml() {
+        let dir = std::env::temp_dir().join("app-pkb-test-config-shared-wins");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let settings = dir.join("app.yml");
+        fs::write(&settings, "retention_days: 7\n").unwrap();
+        fs::write(dir.join("shared.yml"), "retention_days: 365\n").unwrap();
+        let (loaded, _) = AppConfig::load_or_default(&settings, &dir);
+        assert_eq!(loaded.retention_days, 365);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn synced_keys_are_real_fields_and_owned_once() {
+        let yaml = serde_yaml::to_value(AppConfig::default()).unwrap();
+        let mapping = yaml.as_mapping().unwrap();
+        for key in SHARED_KEYS {
+            assert!(mapping.contains_key(*key), "unknown shared key '{key}'");
+            assert!(!COLOR_KEYS.contains(key), "'{key}' is in both files");
+        }
     }
 
     #[test]

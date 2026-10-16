@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use tauri::State;
 
+use crate::config::SyncedPart;
 use crate::error::{Error, Result};
 use crate::state::*;
 use crate::{backup, config_files, reminders, vault};
@@ -164,6 +165,7 @@ pub(crate) const EDITABLE_CONFIG_FILES: &[&str] = &[
     "day-reminders.yml",
     "day-schedule.yml",
     "colors.yml",
+    "shared.yml",
     // the per-device settings: everything Settings does not show is
     // tuned here (it lives in settings/, not config/ - see
     // editable_config_path)
@@ -195,12 +197,16 @@ pub(crate) async fn config_file_get(state: State<'_, AppState>, file: String) ->
     // the next save in the editor overwrite the real content.
     match std::fs::read_to_string(path) {
         Ok(content) => Ok(content),
-        // colors.yml is only written once a color changes; until then
-        // the editor opens on the scheme in use, ready to change
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound && file == "colors.yml" => {
+        // a synced file is only written once one of its values changes;
+        // until then the editor opens on the values in use, ready to change
+        Err(e)
+            if e.kind() == std::io::ErrorKind::NotFound
+                && SyncedPart::from_file(&file).is_some() =>
+        {
+            let part = SyncedPart::from_file(&file).ok_or_else(|| Error::NoVault)?;
             let guard = state.vault.lock_or_recover();
             let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-            Ok(serde_yaml::to_string(&vault.config.colors_mapping()?)?)
+            Ok(serde_yaml::to_string(&vault.config.part_mapping(part)?)?)
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
         Err(e) => Err(Error::State(format!("cannot read {file}: {e}"))),

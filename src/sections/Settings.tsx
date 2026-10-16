@@ -118,15 +118,23 @@ export default function Settings() {
           {tab === "sync" && <SyncTab />}
           {/* the rest is in the files: say where, one click away */}
           <p className="border-t border-line pt-3 text-xs text-content-muted">
-            Colors and fine-tuning (spacing, timings, sync cadence) live in
-            the config files:{" "}
+            Shared by your devices:{" "}
             <button
               className="text-accent hover:underline"
               onClick={() => openConfigFile("colors.yml")}
             >
               colors.yml
             </button>{" "}
-            (shared by your devices) and{" "}
+            (the colors) and{" "}
+            <button
+              className="text-accent hover:underline"
+              onClick={() => openConfigFile("shared.yml")}
+            >
+              shared.yml
+            </button>{" "}
+            (retention, catch-up, cadence thresholds, cleanup, capture list,
+            completion rate - set here, kept there). Fine-tuning (spacing,
+            timings, sync cadence) is in{" "}
             <button
               className="text-accent hover:underline"
               onClick={() => openConfigFile("app.yml")}

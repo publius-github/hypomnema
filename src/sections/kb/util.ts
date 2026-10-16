@@ -2,7 +2,8 @@ import type { KbNode } from "../../types";
 
 // Vault config files editable right in the KB editor (validated on save).
 // app.yml is this device's settings - everything Settings does not show
-// is tuned there; colors.yml is the synced color scheme.
+// is tuned there; colors.yml (the color scheme) and shared.yml (the
+// task rules every device must agree on) sync between devices.
 export const CONFIG_FILES = [
   "recurring.yml",
   "scheduled.yml",
@@ -11,6 +12,7 @@ export const CONFIG_FILES = [
   "day-reminders.yml",
   "day-schedule.yml",
   "colors.yml",
+  "shared.yml",
   "app.yml",
   "templates/journal.md",
 ];

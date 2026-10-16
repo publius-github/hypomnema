@@ -25,8 +25,7 @@ import type {
 type Panel =
   | "sync"
   | "lock"
-  | "appearance"
-  | "tasks"
+  | "general"
   | "maintenance"
   | "vault"
   | "about";
@@ -87,16 +86,11 @@ export default function MobileSettings() {
   const panels: { id: Panel; label: string; hint: string }[] = [
     { id: "sync", label: "Sync", hint: syncHint },
     {
-      id: "appearance",
-      label: "Appearance",
+      id: "general",
+      label: "General",
       hint: config
-        ? `${config.theme === "dark" ? "Dark" : "Light"} · ${config.ui_font_size}px`
-        : "Theme, text size",
-    },
-    {
-      id: "tasks",
-      label: "Tasks & engine",
-      hint: "Notifications, snooze, retention",
+        ? `${config.theme === "dark" ? "Dark" : "Light"} theme · notifications`
+        : "Theme, notifications, tasks",
     },
     {
       id: "maintenance",
@@ -142,10 +136,7 @@ export default function MobileSettings() {
           {panel === "lock" && lock && (
             <LockSettings state={lock} onChange={setLock} />
           )}
-          {panel === "appearance" && config && (
-            <AppearancePanel config={config} />
-          )}
-          {panel === "tasks" && config && <TasksPanel config={config} />}
+          {panel === "general" && config && <GeneralPanel config={config} />}
           {panel === "maintenance" && <MaintenancePanel />}
           {panel === "vault" && <VaultPanel vaultPath={vaultPath} />}
           {panel === "about" && <AboutContent />}
@@ -384,71 +375,11 @@ function SyncPanel({
                 label="Sync automatically"
               />
             </div>
-            {config.sync_auto && (
-              <>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 text-sm">
-                    Also when leaving the app
-                    <span className="block text-xs text-content-muted">
-                      Android freezes a backgrounded app; without this the last
-                      thing you did waits here until you come back.
-                    </span>
-                  </span>
-                  <Toggle
-                    checked={config.sync_on_leave}
-                    onChange={(next) =>
-                      void updateConfig({ sync_on_leave: next })
-                    }
-                    label="Sync when leaving the app"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 text-sm">
-                    Seconds after an edit
-                    <span className="block text-xs text-content-muted">
-                      How soon a change goes up. Short keeps the two devices
-                      from editing the same thing apart.
-                    </span>
-                  </span>
-                  <NumberField
-                    value={config.sync_debounce_seconds}
-                    min={5}
-                    max={3600}
-                    onCommit={(next) =>
-                      void updateConfig({ sync_debounce_seconds: next })
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm">Interval (minutes)</span>
-                  <NumberField
-                    value={config.sync_interval_minutes}
-                    min={1}
-                    max={720}
-                    onCommit={(next) =>
-                      void updateConfig({ sync_interval_minutes: next })
-                    }
-                  />
-                </div>
-              </>
-            )}
-            <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 text-sm">
-                Stop if this % vanishes at once
-                <span className="block text-xs text-content-muted">
-                  A wiped Drive folder or another account looks like
-                  everything being deleted. 100 turns the check off.
-                </span>
-              </span>
-              <NumberField
-                value={config.sync_mass_delete_guard_percent}
-                min={5}
-                max={100}
-                onCommit={(next) =>
-                  void updateConfig({ sync_mass_delete_guard_percent: next })
-                }
-              />
-            </div>
+            <p className="text-xs text-content-muted">
+              Passes run on launch, when you come back to the app, when you
+              leave it, shortly after edits and every few minutes. The
+              timings are in app.yml (Notes &gt; Config).
+            </p>
           </>
         )}
         <button
@@ -510,7 +441,13 @@ function SyncPanel({
   );
 }
 
-function AppearancePanel({ config }: { config: AppConfig }) {
+/**
+ * Everything a phone user sets: the theme, how done tasks show, where
+ * a quick capture lands, notifications, and the engine's two windows.
+ * Text size is fixed (html.mobile), colors are the synced colors.yml,
+ * and the rest is fine-tuning in app.yml (Notes > Config).
+ */
+function GeneralPanel({ config }: { config: AppConfig }) {
   const updateConfig = useAppStore((s) => s.updateConfig);
   return (
     <div className="flex flex-col gap-3">
@@ -528,79 +465,6 @@ function AppearancePanel({ config }: { config: AppConfig }) {
           <option value="dark">Dark</option>
           <option value="light">Light</option>
         </select>
-      </label>
-      <label className="flex items-center justify-between gap-3">
-        <span className="text-sm">Text size</span>
-        <NumberField
-          value={config.ui_font_size}
-          min={10}
-          max={24}
-          onCommit={(next) => void updateConfig({ ui_font_size: next })}
-        />
-      </label>
-      {/* No colors and no screen-edge insets here: the color scheme
-          comes from the synced config/colors.yml, shared with the
-          desktop, and the insets (mobile_safe_area_*) are app.yml-only
-          fine-tuning for a device whose WebView reports none */}
-    </div>
-  );
-}
-
-function TasksPanel({ config }: { config: AppConfig }) {
-  const updateConfig = useAppStore((s) => s.updateConfig);
-  const setError = useAppStore((s) => s.setError);
-  const [busy, setBusy] = useState(false);
-
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm text-content-muted">
-        The engine generates recurring, scheduled and birthday tasks. It runs
-        when the app comes to the foreground.
-      </p>
-      <button
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          void useAppStore
-            .getState()
-            .runEngine()
-            .then(() => useAppStore.getState().refresh())
-            .catch((e) => setError(errorMessage(e)))
-            .finally(() => setBusy(false));
-        }}
-        className="rounded-lg border border-line px-4 py-3 disabled:opacity-50"
-      >
-        Run the engine now
-      </button>
-      <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
-        <span className="text-sm">System notifications for due tasks</span>
-        <Toggle
-          checked={config.notify_system}
-          onChange={(next) => void updateConfig({ notify_system: next })}
-          label="System notifications for due tasks"
-        />
-      </div>
-      <label className="flex items-center justify-between gap-3">
-        <span className="text-sm">Snooze reminders for (min)</span>
-        <NumberField
-          value={config.notify_snooze_minutes}
-          min={1}
-          max={240}
-          onCommit={(next) =>
-            void updateConfig({ notify_snooze_minutes: next })
-          }
-        />
-      </label>
-      <label className="flex items-center justify-between gap-3">
-        <span className="text-sm">Remind ahead of a task (min)</span>
-        <NumberField
-          value={config.notify_lead_minutes}
-          min={0}
-          max={240}
-          onCommit={(next) =>
-            void updateConfig({ notify_lead_minutes: next })
-          }
-        />
       </label>
       <label className="flex items-center justify-between gap-3">
         <span className="min-w-0 text-sm">
@@ -633,7 +497,26 @@ function TasksPanel({ config }: { config: AppConfig }) {
           className="w-36 rounded-lg border border-line bg-surface-alt px-3 py-2"
         />
       </label>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm">System notifications for due tasks</span>
+        <Toggle
+          checked={config.notify_system}
+          onChange={(next) => void updateConfig({ notify_system: next })}
+          label="System notifications for due tasks"
+        />
+      </div>
       <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Remind ahead of a task (min)</span>
+        <NumberField
+          value={config.notify_lead_minutes}
+          min={0}
+          max={240}
+          onCommit={(next) =>
+            void updateConfig({ notify_lead_minutes: next })
+          }
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3 border-t border-line pt-3">
         <span className="min-w-0 text-sm">
           Keep done history (days)
           <span className="block text-xs text-content-muted">
