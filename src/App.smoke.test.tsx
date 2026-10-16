@@ -1,13 +1,19 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
+const { invokeMock, listeners } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  listeners: new Map<string, (event: { payload: unknown }) => unknown>(),
+}));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (cmd: string, args?: unknown) => invokeMock(cmd, args),
 }));
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn(async () => () => {}),
+  listen: vi.fn(async (name: string, handler: (event: { payload: unknown }) => unknown) => {
+    listeners.set(name, handler);
+    return () => {};
+  }),
 }));
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
@@ -33,11 +39,13 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 }));
 
 import App from "./App";
-import { baseHandlers, makeTask } from "./test/fixtures";
+import { baseHandlers, emptyOutcome, makeTask } from "./test/fixtures";
 import { dispatchCommands } from "./test/tauriMocks";
 import { todayISO } from "./lib/tasks";
 
 describe("App smoke", () => {
+  afterEach(cleanup);
+
   it("boots into the dashboard and shows a snapshot task", async () => {
     const task = makeTask({
       title: "smoke fixture task",
@@ -51,5 +59,30 @@ describe("App smoke", () => {
     // the vault resolved, so the picker never shows
     expect(invokeMock).toHaveBeenCalledWith("vault_status", undefined);
     expect(invokeMock).toHaveBeenCalledWith("engine_run", undefined);
+  });
+
+  it("keeps a config error banner through a vault-updated without errors", async () => {
+    const broken = { file: "recurring.yml", line: 3, message: "bad indentation" };
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        engine_run: () => ({ ...emptyOutcome, errors: [broken] }),
+      }),
+    );
+
+    render(<App />);
+    const banner = "recurring.yml line 3: bad indentation";
+    expect(await screen.findByText(banner)).toBeTruthy();
+
+    const fire = (payload: unknown) =>
+      act(async () => {
+        await listeners.get("vault-updated")?.({ payload });
+      });
+    // quick capture and a sync pass know nothing about the config files
+    await fire(null);
+    expect(screen.queryByText(banner)).toBeTruthy();
+    // the config watcher does, and an empty list means fixed
+    await fire([]);
+    expect(screen.queryByText(banner)).toBeNull();
   });
 });

@@ -232,14 +232,15 @@ pub(crate) async fn kb_backlinks(
         .unwrap_or("")
         .to_string();
     let kb_root = kb_root(&state)?;
-    let guard = state.vault.lock_or_recover();
-    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
+    let vault_root = vault_root(&state)?;
+    // the two file walks run without the vault lock; only the task
+    // query needs the connection
     let notes = kb::backlinks(&kb_root, &path)?;
-    let journal = journal::backlinks(&vault.root, &stem, &full_name)?;
-    let tasks = tasks::backlinks(&vault.conn, &stem, &full_name)?;
+    let journal = journal::backlinks(&vault_root, &stem, &full_name)?;
+    let tasks = with_conn(&state, |conn| tasks::backlinks(conn, &stem, &full_name))?;
     // with the KB rooted at the vault, journal entries are inside the
     // note tree too; the dedicated journal scan is authoritative there
-    let journal_inside = kb_root == vault.root;
+    let journal_inside = kb_root == vault_root;
     let drop_journal_notes = |hits: Vec<kb::KbSearchHit>| -> Vec<kb::KbSearchHit> {
         if !journal_inside {
             return hits;

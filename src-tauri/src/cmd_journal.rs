@@ -35,7 +35,7 @@ pub(crate) async fn journal_save(
 
 #[tauri::command]
 pub(crate) async fn journal_list(state: State<'_, AppState>) -> Result<Vec<String>> {
-    with_vault_root(&state, journal::list_entries)
+    journal::list_entries(&vault_root(&state)?)
 }
 
 #[tauri::command]
@@ -43,5 +43,5 @@ pub(crate) async fn journal_search(
     state: State<'_, AppState>,
     query: String,
 ) -> Result<Vec<journal::JournalSearchHit>> {
-    with_vault_root(&state, |root| journal::search_entries(root, &query))
+    journal::search_entries(&vault_root(&state)?, &query)
 }

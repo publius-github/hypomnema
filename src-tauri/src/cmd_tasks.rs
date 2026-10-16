@@ -175,7 +175,8 @@ pub(crate) async fn capture_task(
         )?
     };
     state.request_export();
-    let _ = app.emit("vault-updated", Vec::<config_files::ConfigError>::new());
+    // no word on the config files: null leaves the error banner as it is
+    let _ = app.emit("vault-updated", ());
     Ok(task)
 }
 

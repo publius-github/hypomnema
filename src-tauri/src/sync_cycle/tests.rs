@@ -519,6 +519,21 @@ fn what_is_waiting_to_go_up_is_answerable_with_no_network() {
 }
 
 #[test]
+fn what_is_waiting_honours_this_vaults_sync_ignore_before_any_pass() {
+    let local = temp_dir("standing-ignore");
+    write(&local, ".hypomnemasyncignore", "drafts/\n");
+    write(&local, "drafts/one.md", "kept on this device");
+    write(&local, "drafts/two.md", "kept on this device");
+    write(&local, "journal/a.md", "to send");
+
+    // no pass has loaded this vault's patterns: the file is the authority
+    let pending = standing(&local, &root()).unwrap().pending;
+
+    // journal/a.md and the ignore file itself, which is synced
+    assert_eq!(pending, 2);
+}
+
+#[test]
 fn a_failed_pass_is_remembered_so_the_screen_can_say_so() {
     let local = temp_dir("last-pass");
     fs::create_dir_all(local.join(".hypomnema/sync")).unwrap();

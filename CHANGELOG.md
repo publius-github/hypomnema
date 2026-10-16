@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.107.3 - 2026-10-17
+
+Sync and responsiveness fixes from the architecture audit. Google Drive and sign-in requests now time out (30 s to connect, 120 s for a reply, 15 min for a whole file) and a server's `Retry-After` is honoured for at most 60 s: a connection that died mid-pass (a laptop put to sleep, a Wi-Fi switch) used to hang the pass for good, and since a pass holds the engine lock, the day's recurring tasks, the Markdown mirror, the state snapshot and every later sync stopped until restart. The banner for a broken config file no longer disappears after quick capture or a sync pass while the file is still broken (`vault-updated` from an emitter that read no config now carries `null`). Backlinks, journal search and the journal list walk the files without holding the vault lock, so opening a note no longer holds up task edits. The pending-changes count (Sync tab, the after-edit sync trigger) honours the vault's `.hypomnemasyncignore` before the first pass of a session and after switching vaults; the pass and the push share one vault walk.
+
 ## 0.107.2 - 2026-10-17
 
 Build housekeeping, no change to the app. The Cargo target dir no longer grows without bound: the Windows and Android build scripts first run `scripts/general/prune-target.mjs`, which removes build output untouched for 7 days (`PRUNE_DAYS`) whenever a newer build of the same unit exists - every version bump used to leave a full copy of the test binaries and incremental caches behind, 118 GB by now. The dev profile keeps line tables only (none for dependencies), so a test binary is about 10 MB instead of 370 MB, and the lib no longer builds an iOS-only `staticlib` (a 1 GB archive per debug compile)

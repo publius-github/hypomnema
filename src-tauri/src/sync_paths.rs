@@ -37,8 +37,22 @@ static USER_IGNORE: RwLock<Vec<String>> = RwLock::new(Vec::new());
 /// Rereads the vault's `SYNC_IGNORE_FILE`; called by each pass before it
 /// lists anything.
 pub fn load_user_ignore(local_root: &Path) {
-    let patterns = crate::kb::load_patterns(&local_root.join(SYNC_IGNORE_FILE));
-    *USER_IGNORE.write().unwrap_or_else(|e| e.into_inner()) = patterns;
+    *USER_IGNORE.write().unwrap_or_else(|e| e.into_inner()) = read_user_ignore(local_root);
+}
+
+/// This vault's `SYNC_IGNORE_FILE` patterns, read now - for a caller
+/// outside a pass, which cannot rely on what the last pass loaded (none
+/// yet this session, or one over another vault).
+pub fn read_user_ignore(local_root: &Path) -> Vec<String> {
+    crate::kb::load_patterns(&local_root.join(SYNC_IGNORE_FILE))
+}
+
+/// The patterns the running pass loaded.
+pub fn loaded_user_ignore() -> Vec<String> {
+    USER_IGNORE
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
 }
 
 /// Is this vault-relative path part of the shared vault?

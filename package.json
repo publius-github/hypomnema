@@ -2,7 +2,7 @@
   "name": "hypomnema",
   "private": true,
   "license": "GPL-3.0-only",
-  "version": "0.107.2",
+  "version": "0.107.3",
   "type": "module",
   "scripts": {
     "dev": "vite",

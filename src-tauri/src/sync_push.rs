@@ -20,6 +20,7 @@ use crate::error::{Error, Result};
 use crate::sync_bootstrap::{
     load_manifest, save_manifest, FileState, VaultRoot, MANIFEST_FLUSH_EVERY,
 };
+use crate::sync_cycle::local_files;
 use crate::sync_paths;
 use crate::sync_provider::{ChangeMarker, SyncProvider};
 
@@ -44,32 +45,6 @@ pub fn content_hash(bytes: &[u8]) -> String {
     digest.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Every vault file this device holds that belongs to the shared vault.
-fn local_files(local_root: &Path) -> Result<Vec<String>> {
-    let mut found = Vec::new();
-    walk(local_root, local_root, &mut found)?;
-    found.sort();
-    Ok(found)
-}
-
-fn walk(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<()> {
-    for entry in std::fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.is_dir() {
-            walk(root, &path, out)?;
-            continue;
-        }
-        let Ok(relative) = path.strip_prefix(root) else {
-            continue;
-        };
-        let relative = relative.to_string_lossy().replace('\\', "/");
-        if sync_paths::is_synced(&relative) {
-            out.push(relative);
-        }
-    }
-    Ok(())
-}
-
 /// Uploads everything changed here since the last pull or push.
 ///
 /// Deletions are deliberately not propagated yet: a file missing locally
@@ -84,7 +59,7 @@ pub fn push_vault<P: SyncProvider>(
     mut on_progress: impl FnMut(usize, usize),
 ) -> Result<PushReport> {
     crate::sync_paths::load_user_ignore(local_root);
-    let files = local_files(local_root)?;
+    let files = local_files(local_root, &sync_paths::loaded_user_ignore())?;
     let mut manifest = load_manifest(local_root);
     let mut report = PushReport::default();
 
@@ -149,7 +124,7 @@ pub fn push_vault<P: SyncProvider>(
 pub fn adopt_local_baseline(local_root: &Path, root: &VaultRoot) -> Result<usize> {
     let mut manifest: BTreeMap<String, FileState> = load_manifest(local_root);
     let mut adopted = 0;
-    for relative in local_files(local_root)? {
+    for relative in local_files(local_root, &sync_paths::read_user_ignore(local_root))? {
         let remote = root.absolute(&relative);
         let Some(state) = manifest.get(&remote) else {
             continue;

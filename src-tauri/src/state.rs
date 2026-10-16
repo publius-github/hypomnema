@@ -86,6 +86,15 @@ pub(crate) fn with_vault_root<T>(
     f(&vault.root)
 }
 
+/// The open vault's root, with the lock already released: for work that
+/// walks files (search, backlinks) and must not hold every database
+/// command up meanwhile, as `with_vault_root` would.
+pub(crate) fn vault_root(state: &State<'_, AppState>) -> Result<PathBuf> {
+    let guard = state.vault.lock_or_recover();
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
+    Ok(vault.root.clone())
+}
+
 /// True on Android. The frontend shows the phone's first-run screen
 /// (local vault, in-app folder browser, Google sign-in) instead of the
 /// desktop folder picker when this is set.

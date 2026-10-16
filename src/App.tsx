@@ -82,9 +82,12 @@ export default function App() {
 
   // config watcher: backend reloaded YAML and re-ran the engine
   useEffect(() => {
-    const unlisten = listen<ConfigError[]>("vault-updated", async (event) => {
+    // the payload is the config files' current errors, or null from an
+    // emitter that read no config (quick capture, a sync pass) - which
+    // must leave a still-broken file's banner up
+    const unlisten = listen<ConfigError[] | null>("vault-updated", async (event) => {
       const store = useAppStore.getState();
-      store.setConfigErrors(event.payload);
+      if (event.payload) store.setConfigErrors(event.payload);
       // the bump reaches the sections that read YAML-backed views; the
       // task views refetch on the `tasks` reference refresh() replaces
       useAppStore.setState((s) => ({ vaultVersion: s.vaultVersion + 1 }));

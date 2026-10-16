@@ -483,7 +483,10 @@ fn run_pass<P: SyncProvider>(
         }
         state.request_export();
     }
-    let _ = app.emit("vault-updated", Vec::<String>::new());
+    // a pass knows nothing about config errors (a downloaded YAML file
+    // reaches the config watcher, which reports them): null leaves the
+    // banner as it is
+    let _ = app.emit("vault-updated", ());
     Ok(report)
 }
 

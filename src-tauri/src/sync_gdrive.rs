@@ -609,6 +609,31 @@ fn multipart_body(boundary: &str, metadata: &Value, contents: &[u8]) -> Vec<u8> 
 const MAX_ATTEMPTS: usize = 4;
 /// Wait before the second attempt; tripled for each one after.
 const FIRST_RETRY_DELAY: Duration = Duration::from_millis(500);
+/// The longest a `Retry-After` is honoured: a pass holds `engine_lock`
+/// while it waits, so the server does not get to park it for an hour.
+const MAX_RETRY_WAIT: Duration = Duration::from_secs(60);
+
+/// Bounds on each phase of one HTTP call. ureq waits forever by default,
+/// and a connection that dies silently (a laptop put to sleep mid-pass, a
+/// Wi-Fi switch) would then block its read for good - with `engine_lock`
+/// held, so no engine pass, export or later sync would run until restart.
+/// DNS + TCP + TLS handshake.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Sending the request line and headers, then waiting for the response
+/// headers (Drive answers an upload only once it has stored it).
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(120);
+/// Sending or receiving a whole body - a total, not an idle timeout, so
+/// generous enough for a large note attachment over a slow link.
+const BODY_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+
+/// How long to sleep before the next attempt: the server's `Retry-After`
+/// when it sent one, else our own backoff, never more than `MAX_RETRY_WAIT`.
+fn retry_wait(retry_after: Option<u64>, backoff: Duration) -> Duration {
+    retry_after
+        .map(Duration::from_secs)
+        .unwrap_or(backoff)
+        .min(MAX_RETRY_WAIT)
+}
 
 /// Is this status Google asking us to come back later? 429 and 5xx are;
 /// so is a 403 whose reason is a rate limit (Drive uses both).
@@ -660,8 +685,18 @@ impl HttpGdriveTransport {
 /// An agent that hands every HTTP status back as a response: the
 /// callers read Drive's and Google's error bodies themselves.
 pub(crate) fn http_agent() -> ureq::Agent {
+    agent_with_timeouts(CONNECT_TIMEOUT, RESPONSE_TIMEOUT, BODY_TIMEOUT)
+}
+
+fn agent_with_timeouts(connect: Duration, response: Duration, body: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .http_status_as_error(false)
+        .timeout_resolve(Some(connect))
+        .timeout_connect(Some(connect))
+        .timeout_send_request(Some(response))
+        .timeout_recv_response(Some(response))
+        .timeout_send_body(Some(body))
+        .timeout_recv_body(Some(body))
         .build()
         .new_agent()
 }
@@ -701,7 +736,7 @@ impl GdriveTransport for HttpGdriveTransport {
                     if attempt >= MAX_ATTEMPTS || !retryable(reply.status, &reply.body) {
                         return Ok(reply);
                     }
-                    retry_after.map(Duration::from_secs).unwrap_or(delay)
+                    retry_wait(retry_after, delay)
                 }
                 Err(e) => {
                     if attempt >= MAX_ATTEMPTS {

@@ -380,3 +380,42 @@ fn rate_limits_are_retried_and_real_refusals_are_not() {
     ));
     assert!(!retryable(404, b""));
 }
+
+#[test]
+fn a_retry_waits_for_the_server_but_never_past_the_cap() {
+    let backoff = Duration::from_millis(500);
+    assert_eq!(retry_wait(None, backoff), backoff);
+    assert_eq!(retry_wait(Some(7), backoff), Duration::from_secs(7));
+    assert_eq!(retry_wait(Some(3600), backoff), MAX_RETRY_WAIT);
+    assert_eq!(retry_wait(None, Duration::from_secs(600)), MAX_RETRY_WAIT);
+}
+
+#[test]
+fn the_real_agent_has_every_phase_bounded() {
+    let timeouts = http_agent().config().timeouts();
+    assert!(timeouts.connect.is_some());
+    assert!(timeouts.recv_response.is_some());
+    assert!(timeouts.recv_body.is_some());
+    assert!(timeouts.send_body.is_some());
+}
+
+#[test]
+fn a_server_that_never_answers_fails_the_call_instead_of_hanging() {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let url = format!(
+        "http://127.0.0.1:{}/",
+        listener.local_addr().unwrap().port()
+    );
+    // accepts the connection and then says nothing, like a peer that
+    // vanished mid-request
+    std::thread::spawn(move || {
+        let held: Vec<_> = listener.incoming().take(1).collect();
+        std::thread::sleep(Duration::from_secs(30));
+        drop(held);
+    });
+    let short = Duration::from_millis(300);
+    let agent = agent_with_timeouts(short, short, short);
+    let started = std::time::Instant::now();
+    assert!(agent.get(&url).call().is_err());
+    assert!(started.elapsed() < Duration::from_secs(10));
+}

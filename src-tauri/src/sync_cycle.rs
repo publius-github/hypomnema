@@ -119,10 +119,11 @@ pub fn record_pass(local_root: &Path, now: &str, error: Option<String>) {
 /// What this device is holding, without asking the network.
 pub fn standing(local_root: &Path, root: &VaultRoot) -> Result<SyncStanding> {
     let manifest = load_manifest(local_root);
+    let files = local_files(local_root, &sync_paths::read_user_ignore(local_root))?;
     let mut pending = 0;
-    for relative in local_files(local_root)? {
-        let remote = root.absolute(&relative);
-        let Ok(bytes) = fs::read(local_root.join(&relative)) else {
+    for relative in &files {
+        let remote = root.absolute(relative);
+        let Ok(bytes) = fs::read(local_root.join(relative)) else {
             continue;
         };
         let known = manifest
@@ -135,9 +136,9 @@ pub fn standing(local_root: &Path, root: &VaultRoot) -> Result<SyncStanding> {
     // A file this device pulled and then deleted is also waiting to go
     // up, and not counting it would report "nothing to send" while a
     // deletion sat here unsent.
-    let held: std::collections::BTreeSet<String> = local_files(local_root)?
-        .into_iter()
-        .map(|relative| root.absolute(&relative))
+    let held: std::collections::BTreeSet<String> = files
+        .iter()
+        .map(|relative| root.absolute(relative))
         .collect();
     pending += manifest.keys().filter(|key| !held.contains(*key)).count();
 
@@ -251,26 +252,28 @@ pub fn conflicted_copy_path(relative: &str, device: &str, day: &str) -> String {
     format!("{dir}{stem} (conflicted copy {device} {day}){extension}")
 }
 
-/// Everything this device holds that belongs to the shared vault.
-fn local_files(local_root: &Path) -> Result<Vec<String>> {
+/// Everything this device holds that belongs to the shared vault, sorted,
+/// under the given `SYNC_IGNORE_FILE` patterns (the pass's own and the
+/// push both walk the vault through this).
+pub(crate) fn local_files(local_root: &Path, user_ignore: &[String]) -> Result<Vec<String>> {
     let mut found = Vec::new();
-    walk(local_root, local_root, &mut found)?;
+    walk(local_root, local_root, user_ignore, &mut found)?;
     found.sort();
     Ok(found)
 }
 
-fn walk(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<()> {
+fn walk(root: &Path, dir: &Path, user_ignore: &[String], out: &mut Vec<String>) -> Result<()> {
     for entry in fs::read_dir(dir)? {
         let path = entry?.path();
         if path.is_dir() {
-            walk(root, &path, out)?;
+            walk(root, &path, user_ignore, out)?;
             continue;
         }
         let Ok(relative) = path.strip_prefix(root) else {
             continue;
         };
         let relative = relative.to_string_lossy().replace('\\', "/");
-        if sync_paths::is_synced(&relative) {
+        if sync_paths::is_synced_with(&relative, user_ignore) {
             out.push(relative);
         }
     }
@@ -714,10 +717,11 @@ pub fn sync_vault<P: SyncProvider>(
     }
 
     // --- Deletions made here -------------------------------------------
-    let held: std::collections::BTreeSet<String> = local_files(local_root)?
-        .into_iter()
-        .map(|relative| root.absolute(&relative))
-        .collect();
+    let held: std::collections::BTreeSet<String> =
+        local_files(local_root, &sync_paths::loaded_user_ignore())?
+            .into_iter()
+            .map(|relative| root.absolute(&relative))
+            .collect();
     let vanished: Vec<String> = manifest
         .keys()
         .filter(|remote| !held.contains(*remote) && remote_live.contains_key(*remote))
