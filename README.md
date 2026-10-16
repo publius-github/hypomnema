@@ -22,7 +22,7 @@ Technical map of the shared core (modules, config schemas, engine invariants): `
 - **Android** - no published build yet; see [`docs/android/ARCHITECTURE.md`](docs/android/ARCHITECTURE.md) to build the APK yourself.
 - **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run tauri dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
 
-On first start the app asks for a vault folder - pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place.
+On first start the app asks for a vault folder - pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place. *Try it with an example* fills an empty folder with a few lists, tasks, rules, notes and a journal entry to look around in first.
 
 Uninstalling (Windows *Apps & features*) removes the program; your vault folder is never touched. The uninstaller's optional "Delete the application data" box clears only the per-device files under `%APPDATA%\com.hypomnema.app` (the remembered vault path, the Google sign-in, the diagnostic log).
 

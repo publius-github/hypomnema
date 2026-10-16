@@ -10,7 +10,7 @@ use crate::desktop::*;
 use crate::error::{Error, Result};
 use crate::state::*;
 use crate::watchers::*;
-use crate::{android_storage, applog, backup, config_files, vault, vault_places};
+use crate::{android_storage, applog, backup, config_files, example, vault, vault_places};
 
 #[tauri::command]
 pub(crate) async fn vault_status(
@@ -161,6 +161,28 @@ pub(crate) async fn vault_select(
 ) -> Result<AppConfig> {
     let root = PathBuf::from(&path);
     let config = open_vault(&app, &state, &root)?;
+    vault::write_vault_path(&app_config_dir(&app)?, &root)?;
+    Ok(config)
+}
+
+/// Opens a new vault filled with the example content (`example.rs`) in
+/// `path`, which must be empty or not exist yet - the welcome screen's
+/// "Try it with an example" for someone who wants to look around first.
+#[tauri::command]
+pub(crate) async fn vault_create_example(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<AppConfig> {
+    let root = PathBuf::from(&path);
+    example::ensure_empty(&root)?;
+    let config = open_vault(&app, &state, &root)?;
+    {
+        let guard = state.vault.lock_or_recover();
+        let vault = guard.as_ref().ok_or(Error::NoVault)?;
+        example::seed(&vault.root, &vault.conn, chrono::Local::now().date_naive())?;
+    }
+    state.request_export();
     vault::write_vault_path(&app_config_dir(&app)?, &root)?;
     Ok(config)
 }

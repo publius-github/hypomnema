@@ -346,6 +346,11 @@ pub struct AppConfig {
     /// newer version exists (the only network request the app makes on
     /// its own; installing still asks first). Off = never ask.
     pub update_check: bool,
+    /// Settings shows its fine-tuning groups too (cadence buckets,
+    /// generation, calendar projections, the Markdown mirror). Off keeps
+    /// the page to what a person sets up once; a group someone has
+    /// already changed, or one a search lands in, shows either way.
+    pub settings_advanced: bool,
 }
 
 pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
@@ -598,6 +603,7 @@ impl Default for AppConfig {
             capture_shortcut: "Ctrl+Alt+Space".into(),
             tray_icon: true,
             update_check: true,
+            settings_advanced: false,
         }
     }
 }
@@ -1185,6 +1191,7 @@ impl AppConfig {
             ("capture_shortcut", self.capture_shortcut.clone()),
             ("tray_icon", self.tray_icon.to_string()),
             ("update_check", self.update_check.to_string()),
+            ("settings_advanced", self.settings_advanced.to_string()),
         ]
     }
 }

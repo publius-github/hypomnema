@@ -131,7 +131,8 @@ export default function SettingsGroup({
   id: SettingsGroupId;
   children: ReactNode;
 }) {
-  const { title, always, noReset, knobs } = SETTINGS_GROUPS[id];
+  const { title, always, noReset, knobs, advanced } = SETTINGS_GROUPS[id];
+  const showAdvanced = useAppStore((s) => s.config?.settings_advanced ?? false);
   const keys = groupKeys(id);
   const focus = useContext(SettingsFocusContext);
   const focused = focus?.group === id;
@@ -143,6 +144,12 @@ export default function SettingsGroup({
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView({ block: "start" });
   }, [focused]);
+
+  // fine-tuning stays off the page until asked for, unless it is
+  // already in use or a search has landed in it
+  if (advanced && !showAdvanced && !focused && !(ready && customized)) {
+    return null;
+  }
 
   // a knobs group: one switch, no collapse link
   if (knobs && ready) {

@@ -167,7 +167,7 @@ describe("Settings smoke", () => {
   });
 
   it("wears the same checkbox on a group that is only knobs", () => {
-    seed({ calendar_yearly_years: 4 });
+    seed({ calendar_yearly_years: 4, settings_advanced: true });
     render(<Settings />);
     fireEvent.click(
       screen.getByRole("button", { name: "Recurring & calendar" }),

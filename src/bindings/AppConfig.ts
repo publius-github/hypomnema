@@ -494,4 +494,11 @@ tray_icon: boolean,
  * newer version exists (the only network request the app makes on
  * its own; installing still asks first). Off = never ask.
  */
-update_check: boolean, };
+update_check: boolean, 
+/**
+ * Settings shows its fine-tuning groups too (cadence buckets,
+ * generation, calendar projections, the Markdown mirror). Off keeps
+ * the page to what a person sets up once; a group someone has
+ * already changed, or one a search lands in, shows either way.
+ */
+settings_advanced: boolean, };

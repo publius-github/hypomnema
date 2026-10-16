@@ -90,8 +90,10 @@ export default function KnowledgeBase() {
     }
   }, [setError]);
 
+  // with no kb_path the core roots the tree at the vault itself (a vault
+  // always holds notes), so there is always a tree to load
   useEffect(() => {
-    if (kbPath) void loadTree();
+    void loadTree();
   }, [kbPath, loadTree]);
 
   // external edits: refresh the tree; reload the open file only when
@@ -577,7 +579,7 @@ export default function KnowledgeBase() {
 
   // content search runs alongside the filename filter, debounced
   useEffect(() => {
-    if (!query || !kbPath) {
+    if (!query) {
       setContentHits([]);
       return;
     }
@@ -595,7 +597,7 @@ export default function KnowledgeBase() {
       stale = true;
       clearTimeout(timer);
     };
-  }, [query, kbPath]);
+  }, [query]);
 
   const nameMatchPaths = new Set((searchResults ?? []).map((f) => f.path));
   const extraContentHits = contentHits.filter(
@@ -638,106 +640,88 @@ export default function KnowledgeBase() {
         className="flex shrink-0 flex-col border-r border-line bg-surface-alt/50"
         style={{ width: treeWidth }}
       >
-        {kbPath ? (
-          <>
-            <div className="flex items-center gap-1 p-2">
-              <input
-                className="input min-w-0 flex-1 py-1 text-xs"
-                placeholder="Search notes"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <button
-                className="rounded-md border border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
-                title="New note"
-                aria-label="New note"
-                onClick={() => setDialog({ kind: "create" })}
-              >
-                +
-              </button>
-              <button
-                className="rounded-md border border-line px-1.5 py-1 text-content-muted hover:border-accent hover:text-accent"
-                title="New folder"
-                aria-label="New folder"
-                onClick={() => setDialog({ kind: "createFolder" })}
-              >
-                <Icon name="folderPlus" className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            {/* focusable so the tree takes IDE keys: F2 rename, Delete,
-                Ctrl+C/X/V copy-cut-paste, Ctrl+A select all; its rows
-                are buttons of their own */}
-            {/* eslint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions */}
-            <div
-              aria-label="Notes"
-              className={`min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-hidden ${
-                dropTarget === "" ? "bg-accent/10" : ""
-              }`}
-              tabIndex={0}
-              onKeyDown={onTreeKeyDown}
-              // the free space around the rows is the KB root as a drop
-              // target, the way an IDE's tree background is
-              onDragOver={(e) => {
-                if (dragPaths.current.length === 0) return;
-                e.preventDefault();
-                setDropTarget("");
-              }}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                  setDropTarget(null);
-                }
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                dropOnto("");
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setMenu({ x: e.clientX, y: e.clientY, node: null });
-              }}
-            >
-              {/* eslint-enable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions */}
-              {(searchResults ?? tree).map((node) => (
-                <NoteRow key={node.path} node={node} depth={0} ctx={treeCtx} />
+        <div className="flex items-center gap-1 p-2">
+          <input
+            className="input min-w-0 flex-1 py-1 text-xs"
+            placeholder="Search notes"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button
+            className="rounded-md border border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
+            title="New note"
+            aria-label="New note"
+            onClick={() => setDialog({ kind: "create" })}
+          >
+            +
+          </button>
+          <button
+            className="rounded-md border border-line px-1.5 py-1 text-content-muted hover:border-accent hover:text-accent"
+            title="New folder"
+            aria-label="New folder"
+            onClick={() => setDialog({ kind: "createFolder" })}
+          >
+            <Icon name="folderPlus" className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {/* focusable so the tree takes IDE keys: F2 rename, Delete,
+            Ctrl+C/X/V copy-cut-paste, Ctrl+A select all; its rows
+            are buttons of their own */}
+        {/* eslint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions */}
+        <div
+          aria-label="Notes"
+          className={`min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-hidden ${
+            dropTarget === "" ? "bg-accent/10" : ""
+          }`}
+          tabIndex={0}
+          onKeyDown={onTreeKeyDown}
+          // the free space around the rows is the KB root as a drop
+          // target, the way an IDE's tree background is
+          onDragOver={(e) => {
+            if (dragPaths.current.length === 0) return;
+            e.preventDefault();
+            setDropTarget("");
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              setDropTarget(null);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            dropOnto("");
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setMenu({ x: e.clientX, y: e.clientY, node: null });
+          }}
+        >
+          {/* eslint-enable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions */}
+          {(searchResults ?? tree).map((node) => (
+            <NoteRow key={node.path} node={node} depth={0} ctx={treeCtx} />
+          ))}
+          {searchResults && extraContentHits.length > 0 && (
+            <>
+              <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+                In content
+              </div>
+              {extraContentHits.map((hit) => (
+                <button
+                  key={hit.path}
+                  className="block w-full rounded-sm px-2 py-1 text-left hover:bg-line/40"
+                  onClick={() => void openFile(hit.path)}
+                >
+                  <span className="block truncate text-sm text-content">
+                    {hit.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-content-muted">
+                    {hit.line}: {hit.preview}
+                  </span>
+                </button>
               ))}
-              {searchResults && extraContentHits.length > 0 && (
-                <>
-                  <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
-                    In content
-                  </div>
-                  {extraContentHits.map((hit) => (
-                    <button
-                      key={hit.path}
-                      className="block w-full rounded-sm px-2 py-1 text-left hover:bg-line/40"
-                      onClick={() => void openFile(hit.path)}
-                    >
-                      <span className="block truncate text-sm text-content">
-                        {hit.name}
-                      </span>
-                      <span className="block truncate text-[11px] text-content-muted">
-                        {hit.line}: {hit.preview}
-                      </span>
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-3 text-center">
-            <p className="text-xs text-content-muted">
-              Connect a folder with Markdown notes. The app only reads the
-              tree and edits files you open; it never restructures the
-              folder.
-            </p>
-            <button
-              className="btn-primary px-3 text-xs"
-              onClick={() => void pickFolder()}
-            >
-              Select KB folder
-            </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
         <div className="border-t border-line px-1 py-2">
           <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
             Config
@@ -756,31 +740,31 @@ export default function KnowledgeBase() {
             </button>
           ))}
         </div>
-        {kbPath && (
-          <div className="flex items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-content-muted">
-            <button
-              className="min-w-0 flex-1 truncate text-left hover:text-content"
-              title={kbPath}
-              onClick={() => void pickFolder()}
-            >
-              Change folder
-            </button>
-            <button
-              className="shrink-0 hover:text-content"
-              title="Show the notes folder in the file manager"
-              onClick={() => void revealPath("")}
-            >
-              Open
-            </button>
-            <button
-              className="shrink-0 hover:text-content"
-              title="Copy the absolute path of the notes folder"
-              onClick={() => void copyPath("")}
-            >
-              Copy path
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-content-muted">
+          <button
+            className="min-w-0 flex-1 truncate text-left hover:text-content"
+            title={
+            kbPath || "Notes live in the vault folder; pick another folder for them"
+          }
+            onClick={() => void pickFolder()}
+          >
+            {kbPath ? "Change folder" : "Use another folder"}
+          </button>
+          <button
+            className="shrink-0 hover:text-content"
+            title="Show the notes folder in the file manager"
+            onClick={() => void revealPath("")}
+          >
+            Open
+          </button>
+          <button
+            className="shrink-0 hover:text-content"
+            title="Copy the absolute path of the notes folder"
+            onClick={() => void copyPath("")}
+          >
+            Copy path
+          </button>
+        </div>
       </aside>
 
       <div

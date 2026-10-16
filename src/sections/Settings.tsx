@@ -5,11 +5,16 @@ import {
   type SettingsFocus,
 } from "../components/SettingsGroup";
 import {
+  SETTINGS_GROUPS,
   SETTINGS_TABS,
   searchSettings,
+  groupKeys,
+  tabShowsWithoutAdvanced,
   type SearchHit,
+  type SettingsGroupId,
   type SettingsTab,
 } from "../lib/settingsCatalog";
+import { isGroupCustomized } from "../lib/settingsGroups";
 import GeneralTab from "./settings/GeneralTab";
 import TasksTab from "./settings/TasksTab";
 import RecurringTab from "./settings/RecurringTab";
@@ -32,6 +37,22 @@ export default function Settings() {
   const [query, setQuery] = useState("");
   const [focus, setFocus] = useState<SettingsFocus | null>(null);
   const hits = searchSettings(query);
+  const showAdvanced = useAppStore((s) => s.config?.settings_advanced ?? false);
+  const updateConfig = useAppStore((s) => s.updateConfig);
+  const config = useAppStore((s) => s.config);
+  const defaults = useAppStore((s) => s.defaults);
+  // a tab of nothing but advanced groups shows with them, once one of
+  // them is in use, or when a search jumps into it
+  const focusTab = focus ? SETTINGS_GROUPS[focus.group].tab : null;
+  const inUse = (id: SettingsGroupId) =>
+    config !== null &&
+    defaults !== null &&
+    isGroupCustomized(config, defaults, groupKeys(id));
+  const tabs = SETTINGS_TABS.filter(
+    (t) =>
+      showAdvanced || t.id === focusTab || tabShowsWithoutAdvanced(t.id, inUse),
+  );
+  const shownTab = tabs.some((t) => t.id === tab) ? tab : "general";
 
   // a hit names the field, so the jump opens the group holding it
   const jump = (hit: SearchHit) => {
@@ -49,19 +70,31 @@ export default function Settings() {
     // strip wraps.
     <div className="mx-auto flex h-full w-fit min-w-0 max-w-full flex-col gap-4 p-6">
       <div className="relative flex w-0 min-w-full flex-col gap-2">
-        <input
-          className="input w-full max-w-md"
-          placeholder="Search settings..."
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setFocus(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setQuery("");
-            if (e.key === "Enter" && hits.length > 0) jump(hits[0]);
-          }}
-        />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <input
+            className="input w-full max-w-md"
+            placeholder="Search settings..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setFocus(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setQuery("");
+              if (e.key === "Enter" && hits.length > 0) jump(hits[0]);
+            }}
+          />
+          <label className="flex items-center gap-2 text-sm text-content-muted">
+            <input
+              type="checkbox"
+              checked={showAdvanced}
+              onChange={(e) =>
+                void updateConfig({ settings_advanced: e.target.checked })
+              }
+            />
+            Show advanced settings
+          </label>
+        </div>
         {query.trim() !== "" && (
           <div className="absolute top-10 z-20 flex w-full max-w-md flex-col overflow-hidden rounded-md border border-line bg-surface-alt shadow-lg">
             {hits.length === 0 ? (
@@ -90,12 +123,12 @@ export default function Settings() {
       </div>
 
       <div className="flex flex-wrap gap-1 whitespace-nowrap border-b border-line">
-        {SETTINGS_TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
-            aria-current={tab === t.id ? "true" : undefined}
+            aria-current={shownTab === t.id ? "true" : undefined}
             className={`px-3 py-2 text-sm font-medium ${
-              tab === t.id
+              shownTab === t.id
                 ? "border-b-2 border-accent text-accent"
                 : "text-content-muted hover:text-content"
             }`}
@@ -111,12 +144,12 @@ export default function Settings() {
 
       <SettingsFocusContext.Provider value={focus}>
         <div className="flex min-h-0 w-0 min-w-full flex-1 flex-col gap-5 overflow-y-auto pb-10">
-          {tab === "general" && <GeneralTab />}
-          {tab === "tasks" && <TasksTab />}
-          {tab === "recurring" && <RecurringTab />}
-          {tab === "capture" && <CaptureTab />}
-          {tab === "data" && <DataTab />}
-          {tab === "sync" && <SyncTab />}
+          {shownTab === "general" && <GeneralTab />}
+          {shownTab === "tasks" && <TasksTab />}
+          {shownTab === "recurring" && <RecurringTab />}
+          {shownTab === "capture" && <CaptureTab />}
+          {shownTab === "data" && <DataTab />}
+          {shownTab === "sync" && <SyncTab />}
           {/* the rest is in the files: say where, one click away */}
           <p className="border-t border-line pt-3 text-xs text-content-muted">
             Shared by your devices:{" "}

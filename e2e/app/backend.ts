@@ -159,6 +159,11 @@ const handlers: Record<string, (args: Args) => unknown> = {
     seed();
     return state.config;
   },
+  vault_create_example: (a) => {
+    state.vault = String(a.path);
+    seed();
+    return state.config;
+  },
   vault_browse: () => ({
     path: "C:\\Users\\e2e",
     parent: null,
@@ -357,6 +362,8 @@ const handlers: Record<string, (args: Args) => unknown> = {
 function plugin(cmd: string): unknown {
   if (cmd === "plugin:app|version") return "0.0.0-e2e";
   if (cmd === "plugin:notification|is_permission_granted") return false;
+  // the folder picker answers with ?pick=<path>, or as if cancelled
+  if (cmd === "plugin:dialog|open") return params.get("pick");
   return null;
 }
 

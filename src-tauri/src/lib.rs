@@ -8,6 +8,7 @@ mod db;
 mod device;
 mod engine;
 mod error;
+mod example;
 mod google_auth;
 mod google_link;
 mod ids;
@@ -164,6 +165,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             cmd_vault::vault_status,
             cmd_vault::vault_select,
+            cmd_vault::vault_create_example,
             cmd_vault::vault_use_local,
             cmd_vault::vault_local_path,
             cmd_vault::vault_browse,

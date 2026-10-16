@@ -65,6 +65,12 @@ type GroupDef = {
    * collapse link.
    */
   knobs?: boolean;
+  /**
+   * Shown only with "Show advanced settings" (`settings_advanced`), or
+   * once something in it differs from its default, or when a search
+   * lands in it - fine-tuning a first look at the page can do without.
+   */
+  advanced?: boolean;
 };
 
 export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
@@ -76,12 +82,18 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
   "tasks.cards": { tab: "tasks", title: "Task cards" },
   "tasks.columns": { tab: "tasks", title: "Day and list columns" },
 
-  "recurring.buckets": { tab: "recurring", title: "Cadence buckets", knobs: true },
-  "recurring.generation": { tab: "recurring", title: "Generation" },
+  "recurring.buckets": {
+    tab: "recurring",
+    title: "Cadence buckets",
+    knobs: true,
+    advanced: true,
+  },
+  "recurring.generation": { tab: "recurring", title: "Generation", advanced: true },
   "recurring.calendar": {
     tab: "recurring",
     title: "Calendar projections",
     knobs: true,
+    advanced: true,
   },
 
   "capture.capture": { tab: "capture", title: "Quick capture & tray" },
@@ -94,7 +106,7 @@ export const SETTINGS_GROUPS: Record<SettingsGroupId, GroupDef> = {
     noReset: true,
   },
   "data.notes": { tab: "data", title: "Journal & notes" },
-  "data.mirror": { tab: "data", title: "Markdown mirror" },
+  "data.mirror": { tab: "data", title: "Markdown mirror", advanced: true },
   "data.backups": { tab: "data", title: "Backups", always: true },
   "data.cleanup": {
     tab: "data",
@@ -203,6 +215,10 @@ const IN_APP_YML =
  * treats anything else missing from the catalog as an oversight.
  */
 export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
+  {
+    key: "settings_advanced",
+    why: "the page's own Show advanced settings switch, at the top of the page rather than in a group it would hide",
+  },
   {
     key: "grid_columns",
     why: "set by the Days dropdown on the dashboard/Days header, where the grid it resizes is visible",
@@ -315,6 +331,19 @@ const BY_GROUP = SETTINGS_CATALOG.reduce<
 /** The fields a group holds, in catalog order. */
 export function groupKeys(id: SettingsGroupId): (keyof AppConfig)[] {
   return BY_GROUP[id] ?? [];
+}
+
+/**
+ * Whether a tab has anything to show with the advanced groups hidden:
+ * a basic group, or an advanced one `inUse` says is already changed.
+ */
+export function tabShowsWithoutAdvanced(
+  tab: SettingsTab,
+  inUse: (id: SettingsGroupId) => boolean,
+): boolean {
+  return (Object.entries(SETTINGS_GROUPS) as [SettingsGroupId, GroupDef][]).some(
+    ([id, g]) => g.tab === tab && (!g.advanced || inUse(id)),
+  );
 }
 
 export type SearchHit = CatalogEntry & {

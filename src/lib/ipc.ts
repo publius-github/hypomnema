@@ -210,6 +210,7 @@ export interface Commands {
   };
   vault_local_path: { args: void; result: string };
   vault_select: { args: { path: string }; result: AppConfig };
+  vault_create_example: { args: { path: string }; result: AppConfig };
   vault_status: { args: void; result: string | null };
   vault_use_local: { args: void; result: string };
   vault_use_path: { args: { path: string }; result: string };

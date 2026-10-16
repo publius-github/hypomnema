@@ -31,3 +31,33 @@ test("the light theme applies", async ({ app }) => {
   await expect(page.getByText("Plan the week")).toBeVisible();
   await expect(page.locator("html")).not.toHaveClass(/dark/);
 });
+
+test("the welcome screen opens an example vault", async ({ app }) => {
+  const page = await app("novault&pick=C:%5CUsers%5Ce2e%5CExample");
+  await page.getByRole("button", { name: "Try it with an example" }).click();
+  await expect(page.getByText("Plan the week").first()).toBeVisible();
+  const calls = await page.evaluate(() =>
+    (window as unknown as { __e2eCalls: { cmd: string; args: { path?: string } }[] }).__e2eCalls.filter(
+      (c) => c.cmd === "vault_create_example",
+    ),
+  );
+  expect(calls).toEqual([{ cmd: "vault_create_example", args: { path: "C:\\Users\\e2e\\Example" } }]);
+});
+
+test("advanced settings stay off the page until asked for", async ({ app }) => {
+  const page = await app();
+  await rail(page, "Settings").click();
+  const tabs = page.locator("button[aria-current], button").filter({ hasText: "Recurring & calendar" });
+  await expect(tabs).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "Show advanced settings" }).check();
+  await page.getByRole("button", { name: "Recurring & calendar", exact: true }).click();
+  await expect(page.getByText("Cadence buckets").first()).toBeVisible();
+});
+
+test("a search still reaches an advanced setting", async ({ app }) => {
+  const page = await app();
+  await rail(page, "Settings").click();
+  await page.getByPlaceholder("Search settings...").fill("catch-up");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Recurring catch-up window, days")).toBeVisible();
+});

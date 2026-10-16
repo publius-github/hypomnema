@@ -85,6 +85,8 @@ interface AppState {
   runEngine: () => Promise<EngineOutcome | null>;
   setConfigErrors: (errors: ConfigError[]) => void;
   selectVault: (path: string) => Promise<void>;
+  /// opens a new vault in an empty folder, filled with example content
+  createExampleVault: (path: string) => Promise<void>;
   updateConfig: (patch: Partial<AppConfig>) => Promise<void>;
   /// factory defaults, fetched once - drives "is this at its default?"
   /// (settings group disclosure, the per-group Reset)
@@ -273,6 +275,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectVault: async (path: string) => {
     try {
       const config = await invoke("vault_select", { path });
+      applyTheme(config);
+      set({ vaultPath: path, config, error: null });
+      await get().runEngine();
+    } catch (e) {
+      set({ error: errorMessage(e) });
+    }
+  },
+
+  createExampleVault: async (path: string) => {
+    try {
+      const config = await invoke("vault_create_example", { path });
       applyTheme(config);
       set({ vaultPath: path, config, error: null });
       await get().runEngine();

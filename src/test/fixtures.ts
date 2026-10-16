@@ -131,6 +131,7 @@ export const defaultConfig: AppConfig = {
   capture_shortcut: "Ctrl+Alt+Space",
   tray_icon: true,
   update_check: true,
+  settings_advanced: false,
 };
 
 let nextId = 1;

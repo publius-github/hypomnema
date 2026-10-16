@@ -6,6 +6,7 @@ import MobileVaultSetup from "../mobile/MobileVaultSetup";
 
 export default function VaultPicker() {
   const selectVault = useAppStore((s) => s.selectVault);
+  const createExampleVault = useAppStore((s) => s.createExampleVault);
   const error = useAppStore((s) => s.error);
   const clearError = useAppStore((s) => s.clearError);
   // null until the backend answers; the desktop picker below would only
@@ -42,6 +43,21 @@ export default function VaultPicker() {
     }
   };
 
+  const tryExample = async () => {
+    clearError();
+    try {
+      const path = await open({
+        directory: true,
+        title: "Select an empty folder for the example vault",
+      });
+      if (typeof path === "string") {
+        await createExampleVault(path);
+      }
+    } catch (e) {
+      useAppStore.setState({ error: errorMessage(e) });
+    }
+  };
+
   if (isMobile === null) return null;
   if (isMobile) return <MobileVaultSetup />;
 
@@ -53,12 +69,26 @@ export default function VaultPicker() {
         entries, and configuration files. Back up or sync this one folder to
         capture everything.
       </p>
-      <button
-        onClick={() => void pick()}
-        className="rounded-lg bg-accent-fill px-5 py-2.5 font-medium text-white hover:opacity-90"
-      >
-        Select vault folder
-      </button>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          onClick={() => void pick()}
+          className="rounded-lg bg-accent-fill px-5 py-2.5 font-medium text-white hover:opacity-90"
+        >
+          Select vault folder
+        </button>
+        <button
+          onClick={() => void tryExample()}
+          className="rounded-lg border border-line px-5 py-2.5 font-medium hover:border-accent hover:text-accent"
+        >
+          Try it with an example
+        </button>
+      </div>
+      <p className="max-w-md text-xs text-content-muted">
+        An existing folder of Markdown notes works too - the app adds its
+        own files under .hypomnema and leaves yours where they are. The
+        example needs an empty folder and fills it with a few lists, tasks,
+        rules, notes and a journal entry to look around in.
+      </p>
       {probeError && (
         <p className="max-w-md text-sm text-warn">
           Could not ask the backend which platform this is ({probeError}), so

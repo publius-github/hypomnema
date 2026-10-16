@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.107.0 - 2026-10-17
+
+A friendlier first run. The welcome screen offers *Try it with an example* beside *Select vault folder*: it opens an empty folder as a vault with two lists and their tasks (one with a description and subtasks), a daily, a weekly and a monthly rule, a scheduled event, a birthday, a weekly focus, a day reminder, two linked notes and today's journal entry - an ordinary vault made through the same code as your own edits. Notes on the desktop show the vault's own notes from the start instead of asking for a folder first (the phone already did); *Use another folder* in the sidebar still points it elsewhere. Settings keeps fine-tuning off the page until *Show advanced settings* is ticked (cadence buckets, generation, calendar projections, the Markdown mirror; app.yml `settings_advanced`) - a group already changed, or one a search lands in, shows either way
+
 ## 0.106.0 - 2026-10-17
 
 Accessibility. Task cards move with the keyboard: focus a card, Space picks it up, the arrow keys carry it to another day or list, Space or Enter drops it, Escape puts it back - and Enter opens it; the drag instructions are read out. Rows that open an editor on click (Upcoming, Recurring, Reminders) and subtask titles are reachable with Tab and open with Enter. Dialogs are announced as dialogs, icon buttons by what they do, the open section and tab are marked, the editors and every form field are named. Contrast meets WCAG AA on both themes: the light theme's danger, warn, info and muted text and the dark theme's accent and danger are a little deeper or brighter, filled buttons on the dark theme use a darker shade of the accent so their white text stays readable for any accent, category headers adapt like the other object colors, and section counts are no longer dimmed. Checked by eslint-plugin-jsx-a11y and by axe-core over every screen in the e2e suite, which also gains keyboard specs; the visual baselines compare at zero tolerance
