@@ -30,6 +30,7 @@ import NewListForm from "../components/NewListForm";
 import GroupBackBar from "../components/GroupBackBar";
 import type { Task } from "../types";
 import { readable } from "../lib/color";
+import NavArrow from "../components/NavArrow";
 
 export default function Dashboard() {
   const config = useAppStore((s) => s.config);
@@ -112,20 +113,16 @@ export default function Dashboard() {
       <div className="flex min-h-full flex-col gap-3 p-4">
         <div className="relative flex min-h-[24px] items-center">
           <div className="flex items-center gap-1">
-            <button
-              className="btn-ghost px-2 py-0.5 text-sm leading-none"
+            <NavArrow
+              dir={-1}
               title="Earlier days"
               onClick={() => setGridOffset(gridOffset - columns)}
-            >
-              ‹
-            </button>
-            <button
-              className="btn-ghost px-2 py-0.5 text-sm leading-none"
+            />
+            <NavArrow
+              dir={1}
               title="Later days"
               onClick={() => setGridOffset(gridOffset + columns)}
-            >
-              ›
-            </button>
+            />
             <button
               className={`px-2 py-0.5 text-xs rounded-md ${
                 config.dashboard_today_only

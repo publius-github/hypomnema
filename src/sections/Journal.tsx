@@ -7,6 +7,7 @@ import EntryList from "./journal/EntryList";
 import DayTasks from "./journal/DayTasks";
 import { serialSaves, settleSave, type SaveState } from "./kb/util";
 import { lazy, Suspense } from "react";
+import NavArrow from "../components/NavArrow";
 
 // CodeMirror and its language packs are the biggest thing in the bundle
 // and only two sections need them; the chunk loads on first use
@@ -233,25 +234,19 @@ export default function Journal() {
         {doc ? (
           <>
             <div className="flex items-center gap-2 border-b border-line px-4 py-2 text-sm">
-              <button
-                className="btn-ghost px-2 py-0.5"
+              <NavArrow
+                dir={-1}
                 title="Previous day (Alt+←)"
-                aria-label="Previous day"
                 onClick={() => void openEntry(addDaysISO(doc.date, -1))}
-              >
-                ‹
-              </button>
+              />
               <span className="text-base font-semibold">
                 {dayLabel(doc.date, today)}
               </span>
-              <button
-                className="btn-ghost px-2 py-0.5"
+              <NavArrow
+                dir={1}
                 title="Next day (Alt+→)"
-                aria-label="Next day"
                 onClick={() => void openEntry(addDaysISO(doc.date, 1))}
-              >
-                ›
-              </button>
+              />
               <span className="ml-auto">
                 <SaveIndicator
                   state={saveState}

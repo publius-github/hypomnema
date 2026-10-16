@@ -169,11 +169,6 @@ export default function EditorPane({
         <span className="truncate text-base font-semibold">
           {current.kind === "config" ? `config/${current.path}` : current.path}
         </span>
-        {/* the gesture is not guessable, and a link that looks
-            dead is the same as no link */}
-        <span className="ml-auto shrink-0 text-xs text-content-muted">
-          Ctrl/Cmd+click a link to open it
-        </span>
         {configErrors.length > 0 ? (
           <span className="text-xs text-danger">Invalid, not saved</span>
         ) : (

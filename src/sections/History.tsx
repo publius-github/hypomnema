@@ -4,6 +4,7 @@ import { useAppStore } from "../store";
 import { splitCategory, todayISO, weekdayShort } from "../lib/tasks";
 import type { DailyStreak, Task } from "../types";
 import TaskModal from "../components/TaskModal";
+import NavArrow from "../components/NavArrow";
 
 const MONTHS = [
   "January",
@@ -131,15 +132,19 @@ export default function History() {
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-y-auto p-6">
       <div className="flex items-center gap-2">
-        <button className="btn-ghost px-3 py-1" onClick={() => shiftMonth(-1)}>
-          &lt;
-        </button>
+        <NavArrow
+          dir={-1}
+          title="Previous month"
+          onClick={() => shiftMonth(-1)}
+        />
         <span className="w-44 text-center text-sm font-semibold">
           {MONTHS[month]} {year}
         </span>
-        <button className="btn-ghost px-3 py-1" onClick={() => shiftMonth(1)}>
-          &gt;
-        </button>
+        <NavArrow
+          dir={1}
+          title="Next month"
+          onClick={() => shiftMonth(1)}
+        />
         <button
           className="btn-ghost px-2 py-1 text-xs"
           onClick={() => {

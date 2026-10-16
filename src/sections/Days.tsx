@@ -11,6 +11,7 @@ import TaskModal from "../components/TaskModal";
 import QuickAddModal from "../components/QuickAddModal";
 import { counts, HeaderControls, HeaderSelect } from "../components/HeaderControls";
 import type { Task } from "../types";
+import NavArrow from "../components/NavArrow";
 
 /**
  * Dedicated day-grid dashboard: the week columns at full height, no
@@ -69,20 +70,16 @@ export default function Days() {
     >
       <div className="flex h-full flex-col gap-3 p-4">
         <div className="flex min-h-[24px] items-center gap-1">
-          <button
-            className="btn-ghost px-2 py-0.5 text-sm leading-none"
+          <NavArrow
+            dir={-1}
             title="Earlier days"
             onClick={() => setGridOffset(gridOffset - columns)}
-          >
-            ‹
-          </button>
-          <button
-            className="btn-ghost px-2 py-0.5 text-sm leading-none"
+          />
+          <NavArrow
+            dir={1}
             title="Later days"
             onClick={() => setGridOffset(gridOffset + columns)}
-          >
-            ›
-          </button>
+          />
           <button
             className={`px-2 py-0.5 text-xs rounded-md ${
               config.days_today_only ? "bg-accent/15 text-accent" : "btn-ghost"

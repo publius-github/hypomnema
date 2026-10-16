@@ -19,6 +19,7 @@ import {
 } from "../lib/tasks";
 import type { Task } from "../types";
 import TaskModal from "../components/TaskModal";
+import NavArrow from "../components/NavArrow";
 
 const ORIGIN_LABELS: Record<string, string> = {
   manual: "manual",
@@ -195,22 +196,20 @@ export default function Review() {
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-y-auto p-6">
       <div className="flex items-center gap-2">
-        <button
-          className="btn-ghost px-3 py-1"
+        <NavArrow
+          dir={-1}
+          title="Previous week"
           onClick={() => setWeekOffset((o) => o - 1)}
-        >
-          &lt;
-        </button>
+        />
         <span className="w-64 text-center text-sm font-semibold">
           {weekStart} - {weekEnd}
           {weekOffset === 0 && " (this week)"}
         </span>
-        <button
-          className="btn-ghost px-3 py-1"
+        <NavArrow
+          dir={1}
+          title="Next week"
           onClick={() => setWeekOffset((o) => o + 1)}
-        >
-          &gt;
-        </button>
+        />
         {weekOffset !== 0 && (
           <button
             className="btn-ghost px-2 py-1 text-xs"

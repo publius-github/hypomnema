@@ -25,6 +25,7 @@ import {
 import type { OutlookEvent, Task } from "../types";
 import TaskModal from "../components/TaskModal";
 import QuickAdd from "../components/QuickAdd";
+import NavArrow from "../components/NavArrow";
 
 const MONTHS = [
   "January",
@@ -294,12 +295,11 @@ export default function Calendar() {
     <div className="flex h-full">
       <div className="flex w-[380px] shrink-0 flex-col gap-3 border-r border-line p-4">
         <div className="flex items-center justify-between">
-          <button
-            className="btn-ghost px-3 py-1"
+          <NavArrow
+            dir={-1}
+            title="Previous month"
             onClick={() => shiftMonth(-1)}
-          >
-            &lt;
-          </button>
+          />
           <span className="text-sm font-semibold">
             {MONTHS[month]} {year}
           </span>
@@ -314,12 +314,11 @@ export default function Calendar() {
             >
               Today
             </button>
-            <button
-              className="btn-ghost px-3 py-1"
+            <NavArrow
+              dir={1}
+              title="Next month"
               onClick={() => shiftMonth(1)}
-            >
-              &gt;
-            </button>
+            />
           </span>
         </div>
         <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-content-muted">
