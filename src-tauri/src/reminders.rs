@@ -268,7 +268,7 @@ mod tests {
     fn setup(name: &str) -> (Connection, PathBuf) {
         let conn = Connection::open_in_memory().unwrap();
         db::migrate(&conn).unwrap();
-        let dir = std::env::temp_dir().join(format!("app-pkb-reminders-{name}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-reminders-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         (conn, dir)

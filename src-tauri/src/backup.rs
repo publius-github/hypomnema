@@ -266,7 +266,7 @@ mod tests {
     use crate::db;
 
     fn vault(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("app-pkb-backup-{name}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-backup-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("config")).unwrap();
         dir
@@ -285,7 +285,7 @@ mod tests {
     /// the listing/restore tests below which go through the `vault::`
     /// path helpers rather than a bare `config_dir`.
     fn fresh_vault(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("app-pkb-backup-restore-{name}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-backup-restore-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir

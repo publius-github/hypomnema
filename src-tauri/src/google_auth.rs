@@ -26,8 +26,16 @@ use crate::sync_gdrive::percent_encode;
 
 /// The "Desktop app" OAuth client of the Hypomnema Google Cloud project.
 /// A public identifier, not a credential.
-pub const CLIENT_ID: &str =
+const DEFAULT_CLIENT_ID: &str =
     "901647150843-gni9t7lasuf143m1qbkn3hp8otr7r0ok.apps.googleusercontent.com";
+
+/// The OAuth client this build signs in with: a fork or self-build that
+/// registers its own client sets `HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_ID` at
+/// build time (paired with its own secret) instead of editing the source.
+pub const CLIENT_ID: &str = match option_env!("HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_ID") {
+    Some(id) if !id.is_empty() => id,
+    _ => DEFAULT_CLIENT_ID,
+};
 
 /// Only the app's own hidden folder in the user's Drive.
 pub const SCOPE: &str = "https://www.googleapis.com/auth/drive.appdata";

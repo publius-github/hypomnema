@@ -37,6 +37,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Compiled into google_auth.rs; without the secret the installer
+          # builds fine but cannot sign in to Google. The id is optional
+          # (the source carries the project's own as the default).
+          HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET }}
+          HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_ID }}
         with:
           # __VERSION__ resolves to the app version, synced from VERSION
           tagName: v__VERSION__

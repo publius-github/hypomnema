@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.103.1 - 2026-10-16
+
+Open-source readiness: the updater checks the renamed repository (publius-github/app-hypomnema) instead of relying on GitHub's redirect from app-pkb; the release workflow passes HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET (and an optional HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_ID variable) so CI-built installers can sign in to Google; the desktop OAuth client id can be overridden at build time for self-builds; release.ps1 syncs Cargo.lock for the right crate name; the window title and leftover app-pkb names are gone; README gains an Install section, plus CONTRIBUTING, a code of conduct, issue and PR templates and license metadata in the manifests
+
 ## 0.103.0 - 2026-10-16
 
 Task rules sync between devices: retention, catch-up window, cron-by-day, done-list cleanup at rollover, priority overdue, the cadence bucket thresholds, the quick-capture list and the completion-rate inputs move from the per-device app.yml into .hypomnema/config/shared.yml, which syncs like colors.yml - the engine runs on every device, and different rules on two devices would clean up and generate differently. They keep their Settings controls. On first open a device whose app.yml holds non-default values for them writes those into shared.yml; one at the defaults waits for the file to sync in. shared.yml is editable in Notes > Config. Phone settings trimmed to match the desktop: text size is fixed at 16px, Appearance and Tasks & engine merge into one General panel (theme, done display, capture list, notifications, retention, catch-up, cron time), and the snooze length, the engine-run button and the sync timings and guard leave the phone's Settings (still in app.yml)

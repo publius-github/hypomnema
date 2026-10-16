@@ -999,7 +999,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("app-pkb-config-{name}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-config-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir

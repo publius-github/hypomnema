@@ -312,7 +312,7 @@ mod tests {
     use super::*;
 
     fn vault(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("app-pkb-journal-{name}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-journal-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("journal").join("templates")).unwrap();
         fs::create_dir_all(dir.join("config")).unwrap();

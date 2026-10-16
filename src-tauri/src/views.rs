@@ -753,7 +753,7 @@ mod tests {
 
     #[test]
     fn habit_rates_count_settled_instances_against_thresholds() {
-        let dir = std::env::temp_dir().join("app-pkb-views-habit-rates");
+        let dir = std::env::temp_dir().join("hypomnema-views-habit-rates");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         fs::write(
@@ -837,7 +837,7 @@ mod tests {
 
     #[test]
     fn outlook_projects_beyond_horizon_within_cadence_caps() {
-        let dir = std::env::temp_dir().join("app-pkb-views-outlook");
+        let dir = std::env::temp_dir().join("hypomnema-views-outlook");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         fs::write(
@@ -908,7 +908,7 @@ mod tests {
 
     #[test]
     fn upcoming_lists_pending_and_open_events_plus_dated_list_tasks() {
-        let dir = std::env::temp_dir().join("app-pkb-views-upcoming");
+        let dir = std::env::temp_dir().join("hypomnema-views-upcoming");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         fs::write(
@@ -975,7 +975,7 @@ mod tests {
 
     #[test]
     fn birthdays_roll_to_next_year_and_report_bad_dates() {
-        let dir = std::env::temp_dir().join("app-pkb-views-birthdays");
+        let dir = std::env::temp_dir().join("hypomnema-views-birthdays");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         fs::write(
@@ -1005,7 +1005,7 @@ mod tests {
 
     #[test]
     fn recurring_list_keeps_broken_rules_and_names_their_error() {
-        let dir = std::env::temp_dir().join("app-pkb-views-recurring-list");
+        let dir = std::env::temp_dir().join("hypomnema-views-recurring-list");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         fs::write(

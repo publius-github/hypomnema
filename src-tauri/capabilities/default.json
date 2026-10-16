@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities for the main and quick-capture windows. The opener pair is the Dropbox consent page on Android (allow-open-url enables the command, allow-default-urls is the http/https scope it checks against); the app's own code is its only caller.",
+  "description": "Capabilities for the main and quick-capture windows. The opener pair lets the app open http/https links in the system browser (allow-open-url enables the command, allow-default-urls is the scope it checks against); the app's own code is its only caller.",
   "windows": ["main", "capture"],
   "permissions": [
     "core:default",

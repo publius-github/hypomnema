@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn a_conflicted_copy_diffs_against_its_file_and_resolves_either_way() {
-        let root = std::env::temp_dir().join("app-pkb-conflict-review");
+        let root = std::env::temp_dir().join("hypomnema-conflict-review");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("notes")).unwrap();
         let path = "notes/n.md";

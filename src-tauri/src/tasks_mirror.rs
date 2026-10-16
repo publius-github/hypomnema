@@ -1224,7 +1224,7 @@ mod tests {
     const TODAY: &str = "2026-08-29";
 
     fn setup(tag: &str) -> (Connection, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("app-pkb-mirror-{tag}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-mirror-{tag}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let conn = Connection::open_in_memory().unwrap();

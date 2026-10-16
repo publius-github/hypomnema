@@ -477,7 +477,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn setup(tag: &str) -> (Connection, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("app-pkb-state-{tag}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-state-{tag}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let conn = Connection::open_in_memory().unwrap();
@@ -577,7 +577,7 @@ mod tests {
 
         // a second export from the restored db is byte-identical
         let before = fs::read_to_string(dir.join("tasks.jsonl")).unwrap();
-        let dir2 = std::env::temp_dir().join("app-pkb-state-roundtrip2");
+        let dir2 = std::env::temp_dir().join("hypomnema-state-roundtrip2");
         let _ = fs::remove_dir_all(&dir2);
         export(&fresh, &dir2).unwrap();
         let after = fs::read_to_string(dir2.join("tasks.jsonl")).unwrap();

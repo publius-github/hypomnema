@@ -1044,7 +1044,7 @@ mod tests {
     fn setup(name: &str) -> (Connection, PathBuf) {
         let conn = Connection::open_in_memory().unwrap();
         db::migrate(&conn).unwrap();
-        let dir = std::env::temp_dir().join(format!("app-pkb-engine-{name}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-engine-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         (conn, dir)

@@ -185,7 +185,7 @@ function Main {
     $repoRoot = Get-RepoRoot
     Set-Location $repoRoot
 
-    Write-Info "Building app-pkb Windows installer"
+    Write-Info "Building Hypomnema Windows installer"
     Assert-RequiredPrograms
     Assert-NodeRuntime
     Assert-RustToolchain -RepoRoot $repoRoot

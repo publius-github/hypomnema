@@ -1,0 +1,57 @@
+name: Bug report
+description: Something does not work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems go to the private address in SECURITY.md, not here.
+        Strip anything personal from logs, notes or YAML before pasting.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown in the About dialog.
+      placeholder: "0.103.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - Android
+        - Other (built from source)
+    validations:
+      required: true
+  - type: dropdown
+    id: sync
+    attributes:
+      label: Google Drive sync
+      options:
+        - Not signed in
+        - Signed in on this device only
+        - Signed in on several devices
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Error banners, screenshots, the relevant YAML snippet.
+    validations:
+      required: true

@@ -785,7 +785,7 @@ mod tests {
     use super::*;
 
     fn root(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("app-pkb-kb-{name}"));
+        let dir = std::env::temp_dir().join(format!("hypomnema-kb-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -1075,7 +1075,7 @@ mod tests {
 
     #[test]
     fn write_returns_the_stamped_text_and_skips_a_no_op() {
-        let root = std::env::temp_dir().join("app-pkb-kb-stamp");
+        let root = std::env::temp_dir().join("hypomnema-kb-stamp");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let first = write(&root, "n.md", "hi\n", true).unwrap();

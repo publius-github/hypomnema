@@ -4,9 +4,21 @@ A local-first personal productivity app: a weekly task planner, a daily journal 
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
 
-- [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Building](#building-and-releasing) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
+- [Install](#install) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
 Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
+
+<!-- TODO(owner): add a screenshot, e.g. docs/screenshot.png, and uncomment:
+![Hypomnema - the dashboard](docs/screenshot.png)
+-->
+
+## Install
+
+- **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/app-hypomnema/releases/latest) and run it. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. The app then updates itself; every update is verified against the project's signing key before it is installed.
+- **Android** - no published build yet; see [`docs/android/ARCHITECTURE.md`](docs/android/ARCHITECTURE.md) to build the APK yourself.
+- **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run tauri dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
+
+On first start the app asks for a vault folder - pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place.
 
 ## Sections
 
@@ -95,7 +107,7 @@ npm ci && npm run tauri dev             # dev mode with hot reload
 
 Artifacts land in `src-tauri/target/release/bundle/`.
 
-Google sign-in on the desktop needs an OAuth client secret compiled in from the `HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET` environment variable (see `docs/windows/ARCHITECTURE.md`); a build without it simply has no Google sync. If you build your own copy, register your own OAuth client in Google Cloud and put its id in `src-tauri/src/google_auth.rs`.
+Google sign-in on the desktop needs an OAuth client secret compiled in from the `HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET` environment variable (see `docs/windows/ARCHITECTURE.md`); a build without it simply has no Google sync. If you build your own copy, register your own "Desktop app" OAuth client in Google Cloud (scope `drive.appdata`) and set `HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_ID` alongside the secret at build time; no source edit is needed.
 
 ### Version and release
 

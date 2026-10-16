@@ -1182,7 +1182,7 @@ mod tests {
 
     #[test]
     fn defaults_created_when_file_missing() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config");
+        let dir = std::env::temp_dir().join("hypomnema-test-config");
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join("app.yml");
 
@@ -1198,7 +1198,7 @@ mod tests {
 
     #[test]
     fn broken_app_yml_falls_back_to_defaults_with_error() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config-broken");
+        let dir = std::env::temp_dir().join("hypomnema-test-config-broken");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("app.yml");
@@ -1214,7 +1214,7 @@ mod tests {
 
     #[test]
     fn colors_live_in_their_own_file() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config-colors");
+        let dir = std::env::temp_dir().join("hypomnema-test-config-colors");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let (settings, colors) = (dir.join("app.yml"), dir.join("colors.yml"));
@@ -1240,7 +1240,7 @@ mod tests {
 
     #[test]
     fn stale_keys_are_dropped_from_app_yml_on_load() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config-stale");
+        let dir = std::env::temp_dir().join("hypomnema-test-config-stale");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let settings = dir.join("app.yml");
@@ -1260,7 +1260,7 @@ mod tests {
 
     #[test]
     fn colors_left_in_app_yml_are_ignored() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config-legacy-colors");
+        let dir = std::env::temp_dir().join("hypomnema-test-config-legacy-colors");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let settings = dir.join("app.yml");
@@ -1282,7 +1282,7 @@ mod tests {
 
     #[test]
     fn broken_colors_yml_costs_only_the_colors() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config-broken-colors");
+        let dir = std::env::temp_dir().join("hypomnema-test-config-broken-colors");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let (settings, colors) = (dir.join("app.yml"), dir.join("colors.yml"));
@@ -1308,7 +1308,7 @@ mod tests {
 
     #[test]
     fn shared_rules_are_seeded_once_from_an_old_app_yml() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config-seed-shared");
+        let dir = std::env::temp_dir().join("hypomnema-test-config-seed-shared");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let settings = dir.join("app.yml");
@@ -1332,7 +1332,7 @@ mod tests {
 
     #[test]
     fn a_device_at_the_defaults_does_not_seed_shared_yml() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config-no-seed");
+        let dir = std::env::temp_dir().join("hypomnema-test-config-no-seed");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let settings = dir.join("app.yml");
@@ -1344,7 +1344,7 @@ mod tests {
 
     #[test]
     fn shared_yml_wins_over_an_old_app_yml() {
-        let dir = std::env::temp_dir().join("app-pkb-test-config-shared-wins");
+        let dir = std::env::temp_dir().join("hypomnema-test-config-shared-wins");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let settings = dir.join("app.yml");

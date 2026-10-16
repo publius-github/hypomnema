@@ -105,7 +105,7 @@ function Sync-VersionManifests {
   if (Get-Command cargo -ErrorAction SilentlyContinue) {
     Push-Location (Join-Path $RepoRoot 'src-tauri')
     try {
-      cargo update --package app-pkb --quiet
+      cargo update --package hypomnema --quiet
     }
     finally {
       Pop-Location
