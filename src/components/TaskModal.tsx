@@ -14,6 +14,7 @@ import {
 import { isExternalUrl } from "../lib/links";
 import { wikiTargetFromHref, wikiToMarkdownLinks } from "../lib/wiki";
 import type { Task, TaskStatus } from "../types";
+import { pressable } from "../lib/a11y";
 
 const TASK_STATUSES: TaskStatus[] = [
   "todo",
@@ -24,6 +25,13 @@ const TASK_STATUSES: TaskStatus[] = [
 ];
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
+const COLOR_NAMES: Record<string, string> = {
+  "#ef4444": "red",
+  "#f59e0b": "amber",
+  "#22c55e": "green",
+  "#3b82f6": "blue",
+  "#a855f7": "purple",
+};
 
 const ORIGIN_CONFIG: Record<string, string> = {
   recurring: "recurring.yml",
@@ -118,6 +126,7 @@ export default function TaskModal({
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) commitAndClose();
@@ -125,6 +134,7 @@ export default function TaskModal({
     >
       <div
         role="dialog"
+        aria-label="Task"
         aria-modal="true"
         className="flex max-h-full w-[560px] flex-col gap-4 overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-xl"
       >
@@ -135,6 +145,7 @@ export default function TaskModal({
           <textarea
             ref={titleRef}
             rows={1}
+            aria-label="Title"
             className={`input flex-1 resize-none overflow-hidden text-base font-medium ${
               generated ? "opacity-70" : ""
             }`}
@@ -150,6 +161,7 @@ export default function TaskModal({
             onBlur={commitTitle}
           />
           <button
+            aria-label="Close"
             className="text-lg text-content-muted hover:text-content"
             onClick={commitAndClose}
           >
@@ -318,6 +330,9 @@ export default function TaskModal({
                 task.color === c ? "border-content" : "border-transparent"
               }`}
               style={{ backgroundColor: c }}
+              title={`Color: ${COLOR_NAMES[c]}`}
+              aria-label={`Color: ${COLOR_NAMES[c]}`}
+              aria-pressed={task.color === c}
               onClick={() => void updateTask(task.id, { color: c })}
             />
           ))}
@@ -402,6 +417,7 @@ export default function TaskModal({
             </div>
           ) : (
             <textarea
+              aria-label="Description (Markdown)"
               className="input min-h-[80px] resize-y font-mono text-xs"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -484,6 +500,7 @@ function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
     <div className="flex items-start gap-2 px-2 py-1.5 text-sm">
       <input
         type="checkbox"
+        aria-label={`Done: ${sub.title}`}
         className="mt-1"
         style={{ accentColor: "var(--hex-done)" }}
         checked={sub.status === "done"}
@@ -520,10 +537,10 @@ function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
                   : ""
           }`}
           title="Click to edit"
-          onClick={() => {
+          {...pressable(() => {
             setTitle(sub.title);
             setEditing(true);
-          }}
+          })}
         >
           {sub.title}
         </span>
@@ -540,6 +557,7 @@ function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
               : "text-content-muted hover:text-warn"
           }`}
           title={sub.status === "postponed" ? "Back to To Do" : "Postpone"}
+          aria-label={sub.status === "postponed" ? "Back to To Do" : "Postpone"}
           onClick={() =>
             void updateTask(sub.id, {
               status: sub.status === "postponed" ? "todo" : "postponed",
@@ -552,6 +570,7 @@ function SubtaskRow({ sub, checklist }: { sub: Task; checklist: boolean }) {
       <button
         className="shrink-0 px-1 text-base leading-none text-content-muted hover:text-danger"
         title="Delete subtask"
+        aria-label="Delete subtask"
         onClick={() => void deleteTask(sub.id)}
       >
         ×

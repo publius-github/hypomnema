@@ -156,6 +156,7 @@ export default function History() {
         </button>
         <div className="flex-1" />
         <select
+          aria-label="Filter by list"
           className="input w-44 text-xs"
           value={listFilter === "all" ? "" : String(listFilter)}
           onChange={(e) =>

@@ -55,7 +55,7 @@ export default function VaultPicker() {
       </p>
       <button
         onClick={() => void pick()}
-        className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
+        className="rounded-lg bg-accent-fill px-5 py-2.5 font-medium text-white hover:opacity-90"
       >
         Select vault folder
       </button>

@@ -53,6 +53,7 @@ cd src-tauri && cargo fmt && cargo clippy --all-targets -- -D warnings && cargo 
 - Added, removed or upgraded a dependency? Run `node scripts/general/third-party-licenses.mjs` and commit the regenerated `THIRD_PARTY_LICENSES.txt`.
 - **Do not bump the version** or edit `VERSION`, the manifests' versions or `CHANGELOG.md` headings - the maintainer does that when merging. A line describing your change in the PR is enough.
 - Keep one topic per PR; a refactor mixed into a fix is hard to review.
+- UI changes keep the accessibility checks green: `npm run lint` includes `jsx-a11y`, and `npm run e2e` runs axe-core over every screen. Everything a mouse can do needs a keyboard path (see *Accessibility* in `docs/general/ARCHITECTURE.md`).
 
 ## License
 

@@ -4,6 +4,7 @@ import { useAppStore } from "../store";
 import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
 import { ConfirmModal } from "../components/dialogs";
 import type { ConfigError, RecurringRule, RecurringRuleView } from "../types";
+import { pressable } from "../lib/a11y";
 
 const WEEKDAYS = [
   { cron: 1, label: "Mon" },
@@ -119,6 +120,7 @@ export default function Recurring() {
               title={
                 editable ? "Click to edit" : `Read-only: from ${rule.source}`
               }
+              role="presentation"
               onClick={() => editable && setEditing(i)}
             >
               <div className="min-w-0 flex-1">
@@ -126,7 +128,12 @@ export default function Recurring() {
                   <span className="shrink-0 rounded-sm bg-line/40 px-2 py-0.5 font-mono text-xs">
                     {rule.schedule}
                   </span>
-                  <span className="min-w-0 flex-1 truncate font-medium">
+                  <span
+                    className="min-w-0 flex-1 truncate font-medium"
+                    {...(editable
+                      ? pressable(() => setEditing(i), { click: false })
+                      : {})}
+                  >
                     {rule.description || "(no description)"}
                   </span>
                   {rule.threshold != null && (

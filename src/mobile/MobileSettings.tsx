@@ -260,7 +260,7 @@ function SyncPanel({
         <button
           disabled={busy || google?.available === false}
           onClick={() => void signIn()}
-          className="rounded-lg bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-accent-fill px-4 py-3 font-medium text-white disabled:opacity-50"
         >
           {busy ? "Signing in..." : "Sign in with Google"}
         </button>
@@ -309,7 +309,7 @@ function SyncPanel({
         <button
           disabled={busy}
           onClick={() => void syncNow()}
-          className="rounded-lg bg-accent px-4 py-3 font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-accent-fill px-4 py-3 font-medium text-white disabled:opacity-50"
         >
           {busy ? "Syncing..." : "Sync now"}
         </button>

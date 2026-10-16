@@ -264,6 +264,7 @@ export default function Journal() {
               <Suspense fallback={null}>
                 <MarkdownEditor
                   docKey={`entry:${doc.date}`}
+                  label={`Journal entry ${doc.date}`}
                   value={doc.content}
                   onChange={scheduleSave}
                   onWikiLink={(name) =>

@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.106.0 - 2026-10-17
+
+Accessibility. Task cards move with the keyboard: focus a card, Space picks it up, the arrow keys carry it to another day or list, Space or Enter drops it, Escape puts it back - and Enter opens it; the drag instructions are read out. Rows that open an editor on click (Upcoming, Recurring, Reminders) and subtask titles are reachable with Tab and open with Enter. Dialogs are announced as dialogs, icon buttons by what they do, the open section and tab are marked, the editors and every form field are named. Contrast meets WCAG AA on both themes: the light theme's danger, warn, info and muted text and the dark theme's accent and danger are a little deeper or brighter, filled buttons on the dark theme use a darker shade of the accent so their white text stays readable for any accent, category headers adapt like the other object colors, and section counts are no longer dimmed. Checked by eslint-plugin-jsx-a11y and by axe-core over every screen in the e2e suite, which also gains keyboard specs; the visual baselines compare at zero tolerance
+
 ## 0.105.3 - 2026-10-16
 
 Tailwind CSS 3 -> 4, with no visible change: all 41 screens of `npm run e2e:visual` (every section and Settings tab in both themes, the task dialog, the vault picker, the phone tabs) are pixel-identical before and after. The JS config is gone - the palette lives in src/styles.css as `@theme inline` over runtime variables renamed to `--rgb-*` (RGB triplets) and `--hex-*` (done/waiting/dropped marks), `.input`/`.btn-*` are `@utility` classes, and a few base rules keep Tailwind 3's rem line heights, border and placeholder colors, button cursor and date-field height. PostCSS runs @tailwindcss/postcss; autoprefixer is no longer needed. `npm audit` is now clean across all dependencies, dev tooling included

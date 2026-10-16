@@ -116,6 +116,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-20 flex justify-center bg-black/40 p-6 pt-24"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -123,6 +124,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
     >
       <div
         role="dialog"
+        aria-label="Search"
         aria-modal="true"
         className="flex h-fit max-h-[70vh] w-[560px] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-xl"
       >

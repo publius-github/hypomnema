@@ -89,8 +89,17 @@ function seed() {
   const home = makeList("Home", { color: "#5194e6" });
   const work = makeList("Work");
   state.lists.push(inbox, home, work);
+  const plan = makeTask({ title: "Plan the week", scheduled_date: isoDate(0), time: "09:00" });
   state.tasks.push(
-    makeTask({ title: "Plan the week", scheduled_date: isoDate(0), time: "09:00" }),
+    plan,
+    makeTask({ title: "Draft the agenda", scheduled_date: isoDate(0), parent_task_id: plan.id }),
+    makeTask({
+      title: "Renew the passport",
+      scheduled_date: isoDate(0),
+      overdue: true,
+      origin_date: isoDate(-3),
+    }),
+    makeTask({ title: "Hear back from the landlord", list_id: home.id, status: "waiting" }),
     makeTask({
       title: "Water the plants",
       scheduled_date: isoDate(0),
@@ -269,15 +278,42 @@ const handlers: Record<string, (args: Args) => unknown> = {
   calendar_outlook: () => [],
   habit_rates: () => [],
   daily_streaks: () => [],
-  upcoming_events: () => ({ events: [], ...noErrors }),
-  recurring_list: () => ({ rules: [], ...noErrors }),
-  birthdays_list: () => ({ birthdays: [], ...noErrors }),
+  upcoming_events: () => ({
+    events: [{ date: isoDate(20), title: "Conference talk", time: "14:00", source: "scheduled.yml" }],
+    ...noErrors,
+  }),
+  recurring_list: () => ({
+    rules: [
+      {
+        schedule: "0 0 * * *",
+        description: "Daily care",
+        items: ["Water the plants"],
+        threshold: 80,
+        source: "recurring.yml",
+      },
+    ],
+    ...noErrors,
+  }),
+  birthdays_list: () => ({
+    birthdays: [
+      {
+        name: "Ada",
+        date: "12-10",
+        year: 1990,
+        next_occurrence: isoDate(57),
+        days_until: 57,
+        turns: 36,
+        source: "birthdays.yml",
+      },
+    ],
+    ...noErrors,
+  }),
   reminders_overview: () => ({
     focus: "Ship the open-source release",
     rotation: "weekly",
     phrases: ["Ship the open-source release"],
-    reminders: [],
-    blocks: [],
+    reminders: [{ day_type: "workday", text: "Plan the first hour before opening mail" }],
+    blocks: [{ from: "09:00", to: "10:00", label: "Deep work" }],
     today: isoDate(0),
     today_reminders: [],
     errors: [],

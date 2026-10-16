@@ -67,6 +67,7 @@ export default function ConflictReview({
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-3 sm:p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -74,6 +75,7 @@ export default function ConflictReview({
     >
       <div
         role="dialog"
+        aria-label="Sync conflict"
         aria-modal="true"
         className="flex max-h-full w-full max-w-3xl flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-xl"
       >

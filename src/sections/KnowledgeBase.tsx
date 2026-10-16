@@ -650,6 +650,7 @@ export default function KnowledgeBase() {
               <button
                 className="rounded-md border border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
                 title="New note"
+                aria-label="New note"
                 onClick={() => setDialog({ kind: "create" })}
               >
                 +
@@ -657,14 +658,18 @@ export default function KnowledgeBase() {
               <button
                 className="rounded-md border border-line px-1.5 py-1 text-content-muted hover:border-accent hover:text-accent"
                 title="New folder"
+                aria-label="New folder"
                 onClick={() => setDialog({ kind: "createFolder" })}
               >
                 <Icon name="folderPlus" className="h-3.5 w-3.5" />
               </button>
             </div>
             {/* focusable so the tree takes IDE keys: F2 rename, Delete,
-                Ctrl+C/X/V copy-cut-paste, Ctrl+A select all */}
+                Ctrl+C/X/V copy-cut-paste, Ctrl+A select all; its rows
+                are buttons of their own */}
+            {/* eslint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions */}
             <div
+              aria-label="Notes"
               className={`min-h-0 flex-1 overflow-y-auto px-1 pb-2 outline-hidden ${
                 dropTarget === "" ? "bg-accent/10" : ""
               }`}
@@ -691,6 +696,7 @@ export default function KnowledgeBase() {
                 setMenu({ x: e.clientX, y: e.clientY, node: null });
               }}
             >
+              {/* eslint-enable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions */}
               {(searchResults ?? tree).map((node) => (
                 <NoteRow key={node.path} node={node} depth={0} ctx={treeCtx} />
               ))}

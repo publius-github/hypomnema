@@ -5,6 +5,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { taskCardKeyboard } from "./taskDnd";
 import { memo, useState } from "react";
 import { useAppStore } from "../store";
 import {
@@ -164,6 +165,7 @@ function ListColumn({
         <button
           className="text-base leading-none text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
           title="List settings: tasks, color, description, copy"
+          aria-label="List settings: tasks, color, description, copy"
           onClick={() => setDetailsOpen(true)}
         >
           ⋯
@@ -179,6 +181,11 @@ function ListColumn({
               ? "Remove from favorites"
               : "Favorite: pin ahead of the other lists"
           }
+          aria-label={
+            list.favorite
+              ? "Remove from favorites"
+              : "Favorite: pin ahead of the other lists"
+          }
           onClick={() =>
             void useAppStore.getState().toggleListFavorite(list.id)
           }
@@ -188,6 +195,7 @@ function ListColumn({
         <button
           className="text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
           title="Archive list"
+          aria-label="Archive list"
           onClick={() => setConfirmArchive(true)}
         >
           ×
@@ -283,6 +291,11 @@ function SortableCard({
       className={isDragging ? "opacity-30" : ""}
       {...attributes}
       {...listeners}
+      {...taskCardKeyboard(
+        task.title,
+        () => onOpenTask(task.id),
+        listeners,
+      )}
     >
       <RowLead row={row} />
       <TaskCard

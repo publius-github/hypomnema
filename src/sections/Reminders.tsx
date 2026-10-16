@@ -5,6 +5,7 @@ import { currentAndNextBlock } from "../lib/tasks";
 import { ConfirmModal } from "../components/dialogs";
 import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
 import type { DayReminder, RemindersOverview, ScheduleBlock } from "../types";
+import { pressable } from "../lib/a11y";
 
 type SubTab = "focus" | "reminders" | "schedule";
 
@@ -256,6 +257,7 @@ function FocusTab({
               key={`${text}-${i}`}
               className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
               title="Click to edit"
+              role="presentation"
               onClick={() => {
                 setDraft(text);
                 setEditing(i);
@@ -264,7 +266,18 @@ function FocusTab({
               <span className="w-8 shrink-0 font-mono text-content-muted">
                 {i + 1}
               </span>
-              <span className="min-w-0 flex-1 wrap-break-word">{text}</span>
+              <span
+                className="min-w-0 flex-1 wrap-break-word"
+                {...pressable(
+                  () => {
+                    setDraft(text);
+                    setEditing(i);
+                  },
+                  { click: false },
+                )}
+              >
+                {text}
+              </span>
               {text === current && (
                 <span className="shrink-0 rounded-sm bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent">
                   this week
@@ -371,12 +384,18 @@ function DayRemindersTab({
               key={`${entry.day_type}-${entry.text}-${i}`}
               className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
               title="Click to edit"
+              role="presentation"
               onClick={() => setEditing(i)}
             >
               <span className="w-36 shrink-0 text-content-muted">
                 {DAY_TYPE_LABELS[entry.day_type] ?? entry.day_type}
               </span>
-              <span className="min-w-0 flex-1 wrap-break-word">{entry.text}</span>
+              <span
+                className="min-w-0 flex-1 wrap-break-word"
+                {...pressable(() => setEditing(i), { click: false })}
+              >
+                {entry.text}
+              </span>
               <DeleteRowButton
                 onDelete={(e) => {
                   e.stopPropagation();
@@ -555,12 +574,18 @@ function ScheduleTab({
               key={`${block.from}-${block.label}-${i}`}
               className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
               title="Click to edit"
+              role="presentation"
               onClick={() => setEditing(i)}
             >
               <span className="w-28 shrink-0 font-mono text-content-muted">
                 {block.from}-{block.to}
               </span>
-              <span className="min-w-0 flex-1 wrap-break-word">{block.label}</span>
+              <span
+                className="min-w-0 flex-1 wrap-break-word"
+                {...pressable(() => setEditing(i), { click: false })}
+              >
+                {block.label}
+              </span>
               <DeleteRowButton
                 onDelete={(e) => {
                   e.stopPropagation();

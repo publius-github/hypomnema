@@ -125,6 +125,7 @@ export default function GeneralTab() {
                   className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
                   disabled={i === 0}
                   title="Move up"
+                  aria-label="Move up"
                   onClick={() => move(i, -1)}
                 >
                   ↑
@@ -133,6 +134,7 @@ export default function GeneralTab() {
                   className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
                   disabled={i === config.section_order.length - 1}
                   title="Move down"
+                  aria-label="Move down"
                   onClick={() => move(i, 1)}
                 >
                   ↓

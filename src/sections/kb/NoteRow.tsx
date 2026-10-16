@@ -103,6 +103,7 @@ export default function NoteRow({
             <button
               className="px-0.5 opacity-0 hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
               title="New note in this folder"
+              aria-label="New note in this folder"
               onClick={() => ctx.onNewNote(node.path)}
             >
               +
@@ -110,6 +111,7 @@ export default function NoteRow({
             <button
               className="px-0.5 opacity-0 hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
               title="New folder inside this one"
+              aria-label="New folder inside this one"
               onClick={() => ctx.onNewFolder(node.path)}
             >
               <Icon name="folderPlus" className="h-3.5 w-3.5" />
@@ -117,6 +119,7 @@ export default function NoteRow({
             <button
               className="opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
               title="Delete folder"
+              aria-label="Delete folder"
               onClick={() => ctx.onDelete(node)}
             >
               <Icon name="trash" className="h-3 w-3" />
@@ -136,6 +139,7 @@ export default function NoteRow({
             <button
               className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
               title="Rename"
+              aria-label="Rename"
               onClick={() => ctx.onRename(node)}
             >
               <Icon name="pencil" className="h-3 w-3" />
@@ -143,6 +147,7 @@ export default function NoteRow({
             <button
               className="opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
               title="Delete"
+              aria-label="Delete"
               onClick={() => ctx.onDelete(node)}
             >
               <Icon name="trash" className="h-3 w-3" />

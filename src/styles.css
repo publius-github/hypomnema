@@ -10,6 +10,13 @@
   --color-content: rgb(var(--rgb-content));
   --color-content-muted: rgb(var(--rgb-content-muted));
   --color-accent: rgb(var(--rgb-accent));
+  /* filled buttons: the accent, darkened on the dark theme so white
+     text on it keeps 4.5:1 whatever accent Settings picks */
+  --color-accent-fill: color-mix(
+    in srgb,
+    rgb(var(--rgb-accent)) var(--accent-fill-mix),
+    black
+  );
   --color-line: rgb(var(--rgb-line));
   --color-danger: rgb(var(--rgb-danger));
   --color-warn: rgb(var(--rgb-warn));
@@ -81,7 +88,7 @@
   @apply rounded-md border border-line bg-surface-alt px-3 py-1.5 text-sm text-content outline-hidden focus:border-accent;
 }
 @utility btn-primary {
-  @apply rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90;
+  @apply rounded-md bg-accent-fill px-4 py-1.5 text-sm font-medium text-white hover:opacity-90;
 }
 @utility btn-ghost {
   @apply rounded-md border border-line px-3 py-1.5 text-sm hover:border-accent hover:text-accent;
@@ -101,13 +108,14 @@
   --rgb-content: 51 51 51;
   /* the single secondary text tone: readable, just quieter than
      --rgb-content; never dim it further with opacity modifiers */
-  --rgb-content-muted: 111 111 111;
+  --rgb-content-muted: 96 96 96;
   --rgb-accent: 0 95 184;
   --rgb-line: 224 224 224;
+  --accent-fill-mix: 100%;
   /* semantic roles: overdue/errors, postponed/warnings, exact-date/info */
-  --rgb-danger: 220 38 38;
-  --rgb-warn: 217 119 6;
-  --rgb-info: 2 132 199;
+  --rgb-danger: 185 28 28;
+  --rgb-warn: 146 64 14;
+  --rgb-info: 7 89 133;
   /* checked (done) checkboxes; config-driven via done_color, this is
      only the pre-config fallback */
   --hex-done: #079042;
@@ -143,9 +151,10 @@
   --rgb-surface-alt: 37 37 38;
   --rgb-content: 212 212 212;
   --rgb-content-muted: 191 191 191;
-  --rgb-accent: 55 148 255;
+  --rgb-accent: 85 165 255;
   --rgb-line: 60 60 60;
-  --rgb-danger: 248 113 113;
+  --accent-fill-mix: 70%;
+  --rgb-danger: 250 128 128;
   --rgb-warn: 251 191 36;
   --rgb-info: 56 189 248;
   /* markdown token colors per the VS Code Dark+ spec (dark_vs.json):
@@ -247,7 +256,8 @@ html.mobile {
 
 /* keyboard focus must be visible outside .input fields too */
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+[role="button"]:focus-visible {
   outline: 2px solid rgb(var(--rgb-accent) / 0.7);
   outline-offset: 1px;
 }

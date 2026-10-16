@@ -107,7 +107,11 @@ export function ColorPicker({
       />
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div
+            role="presentation"
+            className="fixed inset-0 z-10"
+            onClick={() => setOpen(false)}
+          />
           <div className="absolute left-0 top-7 z-20 w-max rounded-md border border-line bg-surface-alt p-2 shadow-lg">
             <div className="grid grid-cols-6 gap-1.5">
               {PALETTE.map((color) => (

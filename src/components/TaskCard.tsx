@@ -1,4 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
+import { taskCardKeyboard } from "./taskDnd";
 import { memo, useState, type CSSProperties } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
@@ -192,6 +193,15 @@ function TaskCard({
       ref={passive ? undefined : setNodeRef}
       {...(passive ? {} : attributes)}
       {...(passive ? {} : listeners)}
+      // a focused card opens on Enter, like a click on its title; Space
+      // picks it up to move with the arrow keys (useTaskDnd's sensor)
+      {...(passive
+        ? {}
+        : taskCardKeyboard(
+            task.title,
+            () => onOpen?.(task.id),
+            listeners,
+          ))}
       className={`group text-sm ${
         overlay
           ? // the drag overlay floats over the page, so it keeps a
@@ -225,6 +235,7 @@ function TaskCard({
           } ${statusBoxClass(task.status)}`}
           style={statusBoxStyle(task.status)}
           title={`Status: ${STATUS_LABEL[task.status]} (click: ${STATUS_LABEL[nextStatus(task.status, checklist)]})`}
+          aria-label={`Status: ${STATUS_LABEL[task.status]} (click: ${STATUS_LABEL[nextStatus(task.status, checklist)]})`}
           onClick={(e) => {
             e.stopPropagation();
             cycleStatus();
@@ -290,6 +301,8 @@ function TaskCard({
           // multi-line titles clamp at the configured line count
           // instead of truncating on the first line
           style={multiline ? clampStyle(titleLines) : undefined}
+          // the mouse path; the keyboard opens the card itself (Enter)
+          role="presentation"
           onClick={() => onOpen?.(task.id)}
         >
           {/* on a wrapping title the chips flow inline with the text,
@@ -375,6 +388,11 @@ function TaskCard({
                     ? "Remove priority"
                     : "Priority: pin to today's column"
                 }
+                aria-label={
+                  task.priority
+                    ? "Remove priority"
+                    : "Priority: pin to today's column"
+                }
                 onClick={(e) => {
                   e.stopPropagation();
                   void updateTask(
@@ -429,6 +447,7 @@ function TaskCard({
             <button
               className="text-base leading-none opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
               title="Not done, drop it"
+              aria-label="Not done, drop it"
               onClick={(e) => {
                 e.stopPropagation();
                 void updateTask(task.id, { status: "dropped" });
@@ -445,6 +464,7 @@ function TaskCard({
             <button
               className="text-base leading-none opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
               title="Delete task"
+              aria-label="Delete task"
               onClick={(e) => {
                 e.stopPropagation();
                 void useAppStore.getState().deleteTask(task.id);
@@ -495,6 +515,9 @@ function TaskCard({
                     : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover/sub:opacity-100"
                 }`}
                 title={
+                  sub.status === "postponed" ? "Back to To Do" : "Postpone"
+                }
+                aria-label={
                   sub.status === "postponed" ? "Back to To Do" : "Postpone"
                 }
                 onClick={(e) => {

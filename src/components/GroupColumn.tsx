@@ -114,6 +114,7 @@ function GroupColumn({
         <button
           className="text-base leading-none text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
           title="Group settings: name, color, lists, delete"
+          aria-label="Group settings: name, color, lists, delete"
           onClick={() => setDetailsOpen(true)}
         >
           ⋯

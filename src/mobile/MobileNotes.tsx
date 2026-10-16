@@ -328,7 +328,7 @@ export default function MobileNotes() {
                 />
                 <button
                   onClick={create}
-                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+                  className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
                 >
                   Create
                 </button>
@@ -587,7 +587,7 @@ function NoteEditor({
             />
             <button
               onClick={applyAction}
-              className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white"
+              className="rounded-lg bg-accent-fill px-3 py-2 text-sm font-medium text-white"
             >
               {action === "rename" ? "Rename" : "Move"}
             </button>

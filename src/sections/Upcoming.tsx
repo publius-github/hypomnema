@@ -6,6 +6,7 @@ import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
 import { DateInput, MonthDayInput } from "../components/dateFields";
 import Recurring from "./Recurring";
 import type { BirthdayView, ConfigError, UpcomingEvent } from "../types";
+import { pressable } from "../lib/a11y";
 
 type SubTab = "scheduled" | "birthdays" | "recurring";
 
@@ -59,6 +60,7 @@ export default function Upcoming() {
         {(["scheduled", "birthdays", "recurring"] as const).map((t) => (
           <button
             key={t}
+            aria-current={tab === t ? "true" : undefined}
             className={`px-4 py-2 text-sm font-medium capitalize ${
               tab === t
                 ? "border-b-2 border-accent text-accent"
@@ -175,6 +177,7 @@ function ScheduledTab({
         <input
           className="input"
           type="time"
+          aria-label="Time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
         />
@@ -207,12 +210,20 @@ function ScheduledTab({
               title={
                 editable ? "Click to edit" : `Read-only: from ${event.source}`
               }
+              role="presentation"
               onClick={() => editable && setEditing(i)}
             >
               <span className="w-24 shrink-0 font-mono text-content-muted">
                 {event.date}
               </span>
-              <span className="min-w-0 flex-1 truncate">{event.title}</span>
+              <span
+                className="min-w-0 flex-1 truncate"
+                {...(editable
+                  ? pressable(() => setEditing(i), { click: false })
+                  : {})}
+              >
+                {event.title}
+              </span>
               {event.time && (
                 <span className="text-xs text-content-muted">
                   {event.time}
@@ -283,6 +294,7 @@ function EventEditRow({
       <input
         className="input"
         type="time"
+        aria-label="Time"
         value={time}
         onChange={(e) => setTime(e.target.value)}
       />
@@ -408,12 +420,18 @@ function BirthdaysTab({
                 editable ? "cursor-pointer hover:bg-line/20" : ""
               }`}
               title={editable ? "Click to edit" : `Read-only: from ${b.source}`}
+              role="presentation"
               onClick={() => editable && setEditing(i)}
             >
               <span className="w-24 shrink-0 font-mono text-content-muted">
                 {b.next_occurrence}
               </span>
-              <span className="min-w-0 flex-1 truncate">
+              <span
+                className="min-w-0 flex-1 truncate"
+                {...(editable
+                  ? pressable(() => setEditing(i), { click: false })
+                  : {})}
+              >
                 {b.name}
                 {b.turns !== null && (
                   <span className="text-content-muted"> (turns {b.turns})</span>

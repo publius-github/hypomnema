@@ -211,10 +211,11 @@ export default function MobileApp() {
           {tab === "notes" && <MobileNotes />}
           {tab === "more" && <MobileMore />}
         </main>
-        <nav className="flex shrink-0 border-t border-line bg-surface-alt">
+        <nav aria-label="Tabs" className="flex shrink-0 border-t border-line bg-surface-alt">
           {TABS.map((entry) => (
             <button
               key={entry.id}
+              aria-current={tab === entry.id ? "page" : undefined}
               onClick={() => setTab(entry.id)}
               // Tall enough to hit without aiming, and padded for the
               // gesture bar that sits under it on modern Android.

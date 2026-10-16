@@ -273,7 +273,7 @@ export default function MobileLists() {
                 void createList(trimmed, currentGroup.id);
                 setNewList("");
               }}
-              className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+              className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
             >
               Add
             </button>
@@ -408,7 +408,7 @@ export default function MobileLists() {
             />
             <button
               onClick={addFromIndex}
-              className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+              className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
             >
               Add
             </button>
@@ -635,7 +635,7 @@ export default function MobileLists() {
         />
         <button
           onClick={submit}
-          className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+          className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
         >
           Add
         </button>

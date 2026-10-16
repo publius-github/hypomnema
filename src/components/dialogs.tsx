@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 // with the app styling and window.prompt is unreliable in WebView2.
 
 function Backdrop({
+  label,
   onCancel,
   children,
 }: {
+  label: string;
   onCancel: () => void;
   children: React.ReactNode;
 }) {
@@ -22,7 +24,9 @@ function Backdrop({
   }, [onCancel]);
 
   return (
+    // the backdrop is a mouse convenience; Escape is the keyboard's way out
     <div
+      role="presentation"
       className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onCancel();
@@ -31,6 +35,7 @@ function Backdrop({
       <div
         role="dialog"
         aria-modal="true"
+        aria-label={label}
         className="flex w-[400px] flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl"
       >
         {children}
@@ -73,11 +78,13 @@ export function ConfirmModal({
   };
 
   return (
-    <Backdrop onCancel={onCancel}>
+    <Backdrop label={title} onCancel={onCancel}>
       <span className="text-sm font-semibold">{title}</span>
       {message && <p className="text-sm text-content-muted">{message}</p>}
       <div
         ref={row}
+        // the arrow keys walk the two buttons, as in a toolbar
+        role="toolbar"
         className="flex justify-end gap-2 pt-1"
         onKeyDown={onKeyDown}
       >
@@ -129,7 +136,7 @@ export function PromptModal({
   };
 
   return (
-    <Backdrop onCancel={onCancel}>
+    <Backdrop label={title} onCancel={onCancel}>
       <span className="text-sm font-semibold">{title}</span>
       <form
         onSubmit={(e) => {

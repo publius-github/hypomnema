@@ -3,7 +3,7 @@ import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { addDaysISO, gridDates } from "../lib/tasks";
-import { useTaskDnd } from "../components/taskDnd";
+import { useTaskDnd, DND_ACCESSIBILITY } from "../components/taskDnd";
 import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
 import TaskCard from "../components/TaskCard";
@@ -63,6 +63,7 @@ export default function Days() {
 
   return (
     <DndContext
+      accessibility={DND_ACCESSIBILITY}
       sensors={dnd.sensors}
       onDragStart={dnd.onDragStart}
       onDragEnd={dnd.onDragEnd}

@@ -428,9 +428,12 @@ export default function MarkdownEditor({
   showLineNumbers = false,
   mode = "markdown",
   onWikiLink,
+  label,
 }: {
   /** Identity of the document; changing it resets the editor state. */
   docKey: string;
+  /** What screen readers call the text area ("Journal entry 2026-10-14"). */
+  label: string;
   value: string;
   /** where the cursor starts when the document is (re)created */
   initialAnchor?: number;
@@ -509,6 +512,7 @@ export default function MarkdownEditor({
           },
         }),
         wrapCompartment.of(wrapLines ? EditorView.lineWrapping : []),
+        EditorView.contentAttributes.of({ "aria-label": label }),
         editorTheme,
         ...modeExtensions(mode),
         ...(showLineNumbers

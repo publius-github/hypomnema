@@ -22,7 +22,9 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   expect: {
-    toHaveScreenshot: { maxDiffPixelRatio: 0.002 },
+    // the same machine renders the same pixels, so any difference is a
+    // change (a small ratio here once let a whole new row through)
+    toHaveScreenshot: { maxDiffPixels: 0 },
   },
   projects: [
     {

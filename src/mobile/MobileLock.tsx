@@ -58,7 +58,7 @@ export function LockSettings({
       {error && <p className="text-sm text-danger">{error}</p>}
       <button
         onClick={() => void remove()}
-        className="self-start rounded-lg bg-accent px-4 py-2 font-medium text-white"
+        className="self-start rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
       >
         Remove passphrase
       </button>

@@ -213,7 +213,7 @@ function Scheduled({
                       }),
                     ).then(() => setEditing(null));
                   }}
-                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+                  className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
                 >
                   Save
                 </button>
@@ -373,7 +373,7 @@ function Birthdays({
                       }),
                     ).then(() => setEditing(null));
                   }}
-                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+                  className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
                 >
                   Save
                 </button>
@@ -543,7 +543,7 @@ function Recurring({
                       invoke("recurring_edit", { index, replacement }),
                     ).then(() => setEditing(null));
                   }}
-                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+                  className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
                 >
                   Save
                 </button>
@@ -612,7 +612,7 @@ function AddBox({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="m-3 rounded-lg bg-accent px-4 py-3 font-medium text-white"
+        className="m-3 rounded-lg bg-accent-fill px-4 py-3 font-medium text-white"
       >
         + Add
       </button>
@@ -624,7 +624,7 @@ function AddBox({
       <div className="flex gap-2">
         <button
           onClick={onAdd}
-          className="flex-1 rounded-lg bg-accent px-4 py-2 font-medium text-white"
+          className="flex-1 rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
         >
           Add
         </button>

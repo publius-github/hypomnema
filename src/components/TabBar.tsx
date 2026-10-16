@@ -65,7 +65,12 @@ function RailButton({
       ? "text-accent"
       : "text-content/80";
   return (
-    <button className={railButton} title={title} onClick={onClick}>
+    <button
+      className={railButton}
+      title={title}
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
+    >
       <span
         className={`${railBox} ${tone} ${
           active
@@ -226,7 +231,9 @@ export default function TabBar() {
   }, [section, hidden, visible, setSection]);
 
   return (
-    <nav className="flex w-[64px] flex-col items-center gap-[4px] border-r border-line bg-surface-alt py-[12px]">
+    <nav
+      aria-label="Sections"
+      className="flex w-[64px] flex-col items-center gap-[4px] border-r border-line bg-surface-alt py-[12px]">
       {visible.map((tab) => (
           <RailButton
             key={tab.id}

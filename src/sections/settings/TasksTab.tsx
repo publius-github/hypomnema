@@ -137,6 +137,7 @@ export default function TasksTab() {
                   className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
                   disabled={i === 0}
                   title="Move up"
+                  aria-label="Move up"
                   onClick={() => moveCadence(i, -1)}
                 >
                   ↑
@@ -145,6 +146,7 @@ export default function TasksTab() {
                   className="btn-ghost px-2 py-0.5 text-xs disabled:opacity-30"
                   disabled={i === config.cadence_group_order.length - 1}
                   title="Move down"
+                  aria-label="Move down"
                   onClick={() => moveCadence(i, 1)}
                 >
                   ↓

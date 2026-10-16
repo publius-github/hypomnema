@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useAppStore } from "../store";
+import { readable } from "../lib/color";
 import {
   categoryChipColor,
   isClosed,
@@ -72,14 +73,16 @@ export default function SectionBlock({
       >
         <span>{label}</span>
         {(config?.section_plate_count ?? true) && (
-          <span className="font-normal tabular-nums opacity-70">· {count}</span>
+          <span className="font-normal tabular-nums">· {count}</span>
         )}
         <span
           className={`h-px flex-1 ${
             tone === "warn" ? "bg-warn/30" : "bg-current opacity-30"
           }`}
         />
-        <span className="font-normal opacity-70">{folded ? "▸" : "▾"}</span>
+        <span className="font-normal opacity-70" aria-hidden>
+          {folded ? "▸" : "▾"}
+        </span>
       </button>
     </div>
   );
@@ -114,7 +117,7 @@ export function RowLead({ row }: { row: ColumnRow }) {
       {headers && row.header && hue && (
         <div
           className="truncate px-2 pt-1 text-sm font-bold"
-          style={{ color: hue }}
+          style={{ color: readable(hue, "text") }}
         >
           {row.header}
         </div>

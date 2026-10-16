@@ -62,7 +62,9 @@ export default function CaptureWindow() {
   };
 
   return (
+    // catches Escape bubbling up from the input
     <div
+      role="presentation"
       className="flex h-screen w-screen flex-col gap-2 border border-line bg-surface p-4"
       onKeyDown={(e) => {
         if (e.key === "Escape") hide();

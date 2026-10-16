@@ -53,6 +53,7 @@ export default function TreeMenu({
   return (
     <>
       <div
+        role="presentation"
         className="fixed inset-0 z-40"
         onMouseDown={onClose}
         onContextMenu={(e) => {

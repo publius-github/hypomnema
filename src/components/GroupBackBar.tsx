@@ -49,6 +49,7 @@ export default function GroupBackBar({
       <button
         className="leading-none hover:text-accent"
         title="Group settings: name, color, lists, delete"
+        aria-label="Group settings: name, color, lists, delete"
         onClick={() => setDetailsOpen(true)}
       >
         ⋯

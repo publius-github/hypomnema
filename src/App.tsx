@@ -248,6 +248,7 @@ export default function App() {
           <button
             className="text-content-muted"
             title="Dismiss"
+            aria-label="Dismiss"
             onClick={() => useAppStore.getState().dismissUndo()}
           >
             ✕

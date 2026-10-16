@@ -93,6 +93,7 @@ export default function Settings() {
         {SETTINGS_TABS.map((t) => (
           <button
             key={t.id}
+            aria-current={tab === t.id ? "true" : undefined}
             className={`px-3 py-2 text-sm font-medium ${
               tab === t.id
                 ? "border-b-2 border-accent text-accent"

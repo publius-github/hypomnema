@@ -165,7 +165,7 @@ export default function MobileCalendar() {
               onClick={() => setSelected(iso)}
               className={`flex aspect-square flex-col items-center justify-center rounded-lg text-sm ${
                 iso === selected
-                  ? "bg-accent text-white"
+                  ? "bg-accent-fill text-white"
                   : iso === today
                     ? "border border-accent"
                     : ""
@@ -242,7 +242,7 @@ export default function MobileCalendar() {
             void createTask({ title: trimmed, scheduled_date: selected });
             setTitle("");
           }}
-          className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
+          className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
         >
           Add
         </button>

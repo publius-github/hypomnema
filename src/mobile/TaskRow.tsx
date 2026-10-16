@@ -202,9 +202,11 @@ export default function TaskRow({
               status: nextStatus(task.status, checklist),
             });
           }}
-          aria-label={`Status: ${STATUS_LABEL[task.status]}`}
           className="flex min-w-0 flex-1 items-start gap-2.5 py-2 pl-2.5 pr-1 text-left"
         >
+          {/* the name starts with what a tap does, then reads the row
+              as it is shown */}
+          <span className="sr-only">Status: {STATUS_LABEL[task.status]}.</span>
           <span
             aria-hidden
             className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded border ${statusBoxClass(
@@ -303,10 +305,12 @@ export default function TaskRow({
         {subtasks.length > 0 && (
           <button
             onClick={() => setExpanded((v) => !v)}
-            aria-label={expanded ? "Hide subtasks" : "Show subtasks"}
+            aria-expanded={expanded}
             className="shrink-0 px-2 text-sm text-content-muted"
           >
-            {expanded ? "▾" : "▸"} {subtasksDone}/{subtasks.length}
+            <span aria-hidden>{expanded ? "▾" : "▸"} </span>
+            <span className="sr-only">Subtasks </span>
+            {subtasksDone}/{subtasks.length}
           </button>
         )}
         <button

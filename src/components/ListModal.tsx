@@ -138,6 +138,7 @@ export default function ListModal({
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -145,6 +146,7 @@ export default function ListModal({
     >
       <div
         role="dialog"
+        aria-label="List"
         aria-modal="true"
         className="flex max-h-full w-[560px] flex-col gap-3 overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-xl"
       >
@@ -155,6 +157,7 @@ export default function ListModal({
               list.favorite ? "text-warn" : "text-content-muted hover:text-warn"
             }`}
             title={list.favorite ? "Remove from favorites" : "Favorite"}
+            aria-label={list.favorite ? "Remove from favorites" : "Favorite"}
             onClick={() => void toggleListFavorite(list.id)}
           >
             {list.favorite ? "★" : "☆"}
@@ -339,6 +342,7 @@ function ListTaskRow({
         className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${statusBoxClass(task.status)}`}
         style={statusBoxStyle(task.status)}
         title={`Status: ${STATUS_LABEL[task.status]} (click: ${STATUS_LABEL[nextStatus(task.status, checklist)]})`}
+        aria-label={`Status: ${STATUS_LABEL[task.status]} (click: ${STATUS_LABEL[nextStatus(task.status, checklist)]})`}
         onClick={() => {
           void updateTask(task.id, {
             status: nextStatus(task.status, checklist),
@@ -383,6 +387,7 @@ function ListTaskRow({
             : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
         }`}
         title={task.priority ? "Remove priority" : "Priority: pin to today"}
+        aria-label={task.priority ? "Remove priority" : "Priority: pin to today"}
         onClick={() =>
           void updateTask(
             task.id,
@@ -395,6 +400,7 @@ function ListTaskRow({
       <button
         className="mt-0.5 shrink-0 text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
         title="Delete task"
+        aria-label="Delete task"
         onClick={() => void useAppStore.getState().deleteTask(task.id)}
       >
         ×

@@ -58,6 +58,7 @@ export default function QuickAddModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-30 flex items-start justify-center bg-black/40 p-6 pt-24"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -65,6 +66,7 @@ export default function QuickAddModal({ onClose }: { onClose: () => void }) {
     >
       <div
         role="dialog"
+        aria-label="Quick add"
         aria-modal="true"
         className="flex w-[440px] flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl"
       >

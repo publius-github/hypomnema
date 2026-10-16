@@ -3,7 +3,7 @@ import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
 import { indexRows, orderLists, orderPanel } from "../lib/tasks";
 import type { IndexRow } from "../lib/tasks";
-import { useTaskDnd } from "../components/taskDnd";
+import { useTaskDnd, DND_ACCESSIBILITY } from "../components/taskDnd";
 import ListColumn from "../components/ListColumn";
 import IndexRowLabel from "../components/IndexRowLabel";
 import GroupColumn from "../components/GroupColumn";
@@ -128,6 +128,7 @@ export default function Lists() {
 
   return (
     <DndContext
+      accessibility={DND_ACCESSIBILITY}
       sensors={dnd.sensors}
       onDragStart={dnd.onDragStart}
       onDragEnd={dnd.onDragEnd}

@@ -3,6 +3,7 @@ import { errorMessage, invoke } from "../lib/ipc";
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   useDraggable,
   useDroppable,
@@ -11,6 +12,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { useAppStore } from "../store";
+import { KEYBOARD_CODES, DND_ACCESSIBILITY } from "../components/taskDnd";
 import {
   categoryBlockIndex,
   categoryChipColor,
@@ -233,6 +235,7 @@ export default function Calendar() {
   const updateTask = useAppStore((s) => s.updateTask);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { keyboardCodes: KEYBOARD_CODES }),
   );
   const [dragTask, setDragTask] = useState<Task | null>(null);
   const onDragEnd = (event: DragEndEvent) => {
@@ -278,6 +281,7 @@ export default function Calendar() {
 
   return (
     <DndContext
+      accessibility={DND_ACCESSIBILITY}
       sensors={sensors}
       onDragStart={(e) =>
         setDragTask(

@@ -16,6 +16,10 @@ import type { AppConfig } from "../types";
 const TINT_ALPHA = 0x26 / 255;
 /** WCAG 1.4.11: a non-text mark needs 3:1, never more. */
 const MARK_CONTRAST = 3;
+/** Aimed past the text floor by this much: the floor is checked against
+ *  an idealized blend, and the browser's 8-bit compositing of the tint
+ *  can land a hair under it (4.48 for a 4.5 floor). */
+const FLOOR_MARGIN = 0.1;
 
 type Rgb = [number, number, number];
 
@@ -166,7 +170,9 @@ export function readable(
   const hit = cache.get(key);
   if (hit) return hit;
   const target =
-    kind === "mark" ? Math.min(context.floor, MARK_CONTRAST) : context.floor;
+    kind === "mark"
+      ? Math.min(context.floor, MARK_CONTRAST)
+      : context.floor + FLOOR_MARGIN;
   const tinted = kind === "tint";
   let result = hex;
   if (worstContrast(rgb, tinted) < target) {

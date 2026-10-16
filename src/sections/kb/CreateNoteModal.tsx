@@ -34,6 +34,7 @@ export default function CreateNoteModal({
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onCancel();
@@ -41,6 +42,7 @@ export default function CreateNoteModal({
     >
       <div
         role="dialog"
+        aria-label="New note"
         aria-modal="true"
         className="flex w-[400px] flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl"
       >

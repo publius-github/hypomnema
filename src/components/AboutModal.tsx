@@ -16,12 +16,17 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-30 flex items-center justify-center bg-black/50"
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="About Hypomnema"
         className="w-80 rounded-xl border border-line bg-surface-alt p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
       >
         <AboutContent />
         <button

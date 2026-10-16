@@ -194,6 +194,7 @@ export default function EditorPane({
         <Suspense fallback={null}>
           <MarkdownEditor
             docKey={`${current.kind}:${current.path}`}
+            label={current.path}
             value={current.content}
             initialAnchor={
               current.kind === "note" ? noteBodyOffset(current.content) : 0

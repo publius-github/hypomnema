@@ -10,7 +10,7 @@ import {
   orderPanel,
 } from "../lib/tasks";
 import type { IndexRow } from "../lib/tasks";
-import { useTaskDnd } from "../components/taskDnd";
+import { useTaskDnd, DND_ACCESSIBILITY } from "../components/taskDnd";
 import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
 import ListColumn from "../components/ListColumn";
@@ -100,6 +100,7 @@ export default function Dashboard() {
 
   return (
     <DndContext
+      accessibility={DND_ACCESSIBILITY}
       sensors={dnd.sensors}
       onDragStart={dnd.onDragStart}
       onDragEnd={dnd.onDragEnd}
@@ -439,6 +440,7 @@ function ListZone({
     <button
       className="btn-ghost self-stretch px-1 text-lg leading-none disabled:opacity-20"
       title={label}
+      aria-label={label}
       disabled={disabled}
       onClick={() => setOffset(Math.max(0, Math.min(maxOffset, off + delta)))}
     >

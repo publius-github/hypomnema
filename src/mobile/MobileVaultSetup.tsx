@@ -86,7 +86,7 @@ export default function MobileVaultSetup() {
               .catch((e) => setError(errorMessage(e)))
               .finally(() => setBusy(false));
           }}
-          className="rounded-lg bg-accent px-5 py-3 font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-accent-fill px-5 py-3 font-medium text-white disabled:opacity-50"
         >
           Use a vault on this device
         </button>

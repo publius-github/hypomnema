@@ -60,6 +60,7 @@ export default function GroupModal({
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -67,6 +68,7 @@ export default function GroupModal({
     >
       <div
         role="dialog"
+        aria-label="List group"
         aria-modal="true"
         className="flex max-h-full w-[480px] flex-col gap-3 overflow-y-auto rounded-xl border border-line bg-surface p-5 shadow-xl"
       >
