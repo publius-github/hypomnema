@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.107.2 - 2026-10-17
+
+Build housekeeping, no change to the app. The Cargo target dir no longer grows without bound: the Windows and Android build scripts first run `scripts/general/prune-target.mjs`, which removes build output untouched for 7 days (`PRUNE_DAYS`) whenever a newer build of the same unit exists - every version bump used to leave a full copy of the test binaries and incremental caches behind, 118 GB by now. The dev profile keeps line tables only (none for dependencies), so a test binary is about 10 MB instead of 370 MB, and the lib no longer builds an iOS-only `staticlib` (a 1 GB archive per debug compile)
+
 ## 0.107.1 - 2026-10-17
 
 Frontend structure, no visible change (the visual baselines of Reminders, Dashboard, Days and the phone day are pixel-identical). The store is assembled from slices - vault and settings, the task snapshot, undo, navigation - with the theme code beside them; `useAppStore` and its API are unchanged. Shared pieces replace repeated code: `useEditingTask` (Dashboard, Days), `useDayAmbient`/`DayAmbientLines` (the desktop day column and the phone's day), `OptionalColorField` (list and group dialogs), and one `RowListEditor` behind the three Reminders tabs. The schedule form's time fields are labelled

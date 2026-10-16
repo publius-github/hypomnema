@@ -6,7 +6,7 @@ Local-first personal productivity app for Windows: weekly task planner, journal,
 
 - `src/` - React frontend (Zustand store, Tailwind tokens, CodeMirror editor).
 - `src-tauri/src/` - Rust core: `engine.rs` (generation), `tasks.rs`, `db.rs` (migrations), `vault.rs`, `journal.rs`, `kb.rs`, `reminders.rs`; Tauri commands in `cmd_*.rs`, `AppState` in `state.rs`, vault open + watchers + export worker in `watchers.rs`, `lib.rs` is the builder only.
-- `scripts/` is split by what a script targets: `scripts/general/` (platform-agnostic - `bump.sh`, `third-party-licenses.mjs`), `scripts/windows/` (`build.sh`/`build.ps1` - local installer build; `release.sh`/`release.ps1` - version bump + tag + push), `scripts/android/` (`build-android.sh`).
+- `scripts/` is split by what a script targets: `scripts/general/` (platform-agnostic - `bump.sh`, `third-party-licenses.mjs`, `prune-target.mjs` - stale Cargo output prune the build scripts run first), `scripts/windows/` (`build.sh`/`build.ps1` - local installer build; `release.sh`/`release.ps1` - version bump + tag + push), `scripts/android/` (`build-android.sh`).
 
 ## Versioning
 

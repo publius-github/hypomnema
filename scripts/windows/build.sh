@@ -178,6 +178,15 @@ function resolve_repo_root() {
   log_info "repository root: $REPO_ROOT"
 }
 
+# Cargo keeps every old build of every unit; drop the ones untouched for
+# PRUNE_DAYS (default 7) before adding a new one. Best effort: a failed
+# prune never stops the build.
+function prune_target() {
+  printf "\n"
+  log_info "function prune_target - remove stale build output from the Cargo target dir"
+  node scripts/general/prune-target.mjs || log_warn "pruning the target dir failed; continuing with the build"
+}
+
 function install_frontend_dependencies() {
   printf "\n"
   log_info "function install_frontend_dependencies - npm ci"
@@ -227,6 +236,7 @@ function report_artifacts() {
 function main() {
   log_info "function main - build Hypomnema installer for the current platform"
   resolve_repo_root
+  prune_target
   install_frontend_dependencies
   build_bundle
   report_artifacts

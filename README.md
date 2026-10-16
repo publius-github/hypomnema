@@ -135,6 +135,14 @@ The `VERSION` file at the root is the single source of truth for the version; ne
 
 The `release.yml` workflow, on a `v*` tag, checks the tag against `VERSION`, builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend, fmt/clippy/test for the Rust core on Linux and clippy/test again on Windows (the shipped platform), plus an audit job - `cargo-deny` (advisories and licenses, policy in `src-tauri/deny.toml`), `npm audit` of the runtime dependencies and a `gitleaks` secret scan - on pull requests and pushes to `main` and `development`; `release.yml` runs the same gates on the tagged commit before it builds anything. Third-party actions and the Rust toolchain are pinned to exact commits and versions; Dependabot proposes the updates.
 
+### Build cache
+
+Cargo never deletes old build output, so `src-tauri/target` grows with every version bump. The build scripts prune output untouched for 7 days before each build (`PRUNE_DAYS` changes the limit); to prune by hand:
+
+```bash
+node scripts/general/prune-target.mjs [--days N] [--dry-run]
+```
+
 ### Third-party licenses
 
 `THIRD_PARTY_LICENSES.txt` collects the license texts of every bundled Rust crate and npm package; the app compiles it in and shows it under About. Regenerate it after changing dependencies:

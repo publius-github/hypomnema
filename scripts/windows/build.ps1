@@ -80,6 +80,17 @@ function Assert-WindowsHost {
   }
 }
 
+# Cargo keeps every old build of every unit; drop the ones untouched for
+# PRUNE_DAYS (default 7) before adding a new one. Best effort: a failed
+# prune never stops the build.
+function Invoke-PruneTarget {
+  Write-Info "Pruning stale build output from the Cargo target dir"
+  & node scripts/general/prune-target.mjs
+  if ($LASTEXITCODE -ne 0) {
+    Write-WarnLog "Pruning the target dir failed; continuing with the build"
+  }
+}
+
 function Install-FrontendDependencies {
   Write-Info "Installing frontend dependencies (npm ci)"
   npm ci
@@ -190,6 +201,7 @@ function Main {
     Assert-NodeRuntime
     Assert-RustToolchain -RepoRoot $repoRoot
     Assert-WindowsHost
+    Invoke-PruneTarget
     Install-FrontendDependencies
     Import-GoogleClientSecret
     Invoke-TauriBuild -RepoRoot $repoRoot

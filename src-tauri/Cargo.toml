@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.107.1"
+version = "0.107.2"
 description = "Weekly planner, journal, and personal knowledge base"
 license = "GPL-3.0-only"
 repository = "https://github.com/publius-github/app-hypomnema"
@@ -8,7 +8,10 @@ edition = "2021"
 
 [lib]
 name = "hypomnema_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# cdylib is the Android app's library, rlib links into the desktop binary.
+# No staticlib: only an iOS build needs it, and in a debug build it is a
+# 1 GB archive written on every compile.
+crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -59,6 +62,15 @@ jni = "0.21"
 # lives in the plugin's own android/ source set, tracked here rather
 # than in the regenerated gen/android project.
 tauri-plugin-google-auth = { path = "plugins/google-auth" }
+
+# Line tables keep file:line in backtraces and test failures; full debug
+# info made every test binary hundreds of MB, copied anew on each version
+# bump. Dependencies are not debugged here, so they carry none.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
 
 [profile.release]
 panic = "abort"

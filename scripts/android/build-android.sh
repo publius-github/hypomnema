@@ -15,6 +15,8 @@
 #   ANDROID_HOME        Android SDK root (required)
 #   ANDROID_NDK_HOME    NDK root (auto-detected under $ANDROID_HOME/ndk if unset)
 #   JAVA_HOME           JDK root (auto-detected from `java` on PATH if unset)
+#   PRUNE_DAYS          build output untouched this many days is pruned
+#                       before the build (default: 7)
 #   CARGO_TARGET_DIR    override if the repo's drive is low on space (see
 #                       check_disk_space below) - an Android build adds
 #                       several GB across Rust + Gradle caches
@@ -146,6 +148,15 @@ function resolve_android_sdk() {
     export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
   fi
   log_info "JAVA_HOME: $JAVA_HOME"
+}
+
+# Cargo keeps every old build of every unit; drop the ones untouched for
+# PRUNE_DAYS (default 7) before adding a new one. Honors CARGO_TARGET_DIR.
+# Best effort: a failed prune never stops the build.
+function prune_target() {
+  printf "\n"
+  log_info "function prune_target - remove stale build output from the Cargo target dir"
+  node scripts/general/prune-target.mjs || log_warn "pruning the target dir failed; continuing with the build"
 }
 
 function check_disk_space() {
@@ -489,6 +500,7 @@ function main() {
   BUILD_STARTED_AT="$(date +%s)"
   resolve_repo_root
   resolve_android_sdk
+  prune_target
   check_disk_space
   ensure_rust_targets
   install_frontend_dependencies
