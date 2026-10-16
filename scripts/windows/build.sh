@@ -187,7 +187,7 @@ function install_frontend_dependencies() {
 function build_bundle() {
   printf "\n"
   log_info "function build_bundle - tauri release build with installer bundles"
-  local key_file="$HOME/.tauri/app-pkb.key"
+  local key_file="$HOME/.tauri/hypomnema.key"
   if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
     log_info "using signing key from TAURI_SIGNING_PRIVATE_KEY"
     npm run tauri build

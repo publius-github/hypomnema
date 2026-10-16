@@ -109,7 +109,7 @@ function Invoke-TauriBuild {
   param([string]$RepoRoot)
 
   Write-Info "Running Tauri build for NSIS installer"
-  $keyFile = Join-Path $HOME '.tauri/app-pkb.key'
+  $keyFile = Join-Path $HOME '.tauri/hypomnema.key'
 
   if ($env:TAURI_SIGNING_PRIVATE_KEY) {
     Write-Info "Using signing key from TAURI_SIGNING_PRIVATE_KEY"
