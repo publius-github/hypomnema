@@ -40,6 +40,26 @@ A vertical rail on the left; the section order is configurable and Settings alwa
 
 On Windows there is also a tray icon and a global shortcut for a quick-capture window.
 
+### Keyboard
+
+Everything works without a mouse; About lists these shortcuts too.
+
+| Keys | Action |
+|---|---|
+| Ctrl+Alt+Space (set in Settings) | Quick capture from anywhere in Windows |
+| Ctrl+K | Search tasks, notes and the journal |
+| Ctrl+1 … 9 | Open a section, in the left bar's order |
+| Ctrl+= / Ctrl+− | Larger / smaller text (Base font size) |
+| Ctrl+0 | Default text size |
+| Esc | Close a dialog |
+| Enter | On a task card: open the task |
+| Space, arrows, Space | On a task card: pick it up, carry it to a day or list, drop it (Esc puts it back) |
+| Alt+← / Alt+→ | Journal: previous / next day |
+| Ctrl+F | Editor: find and replace |
+| Alt+Z | Editor: word wrap |
+| Ctrl+click | Editor: follow a `[[link]]` or a web address |
+| Esc, then Tab | Editor: leave it with Tab (Tab indents otherwise; Ctrl+M switches this for good) |
+
 ## Data: the vault
 
 The app keeps its working files in a hidden `.hypomnema` folder inside the vault (like `.git` in a repository); your own content sits at the top level:

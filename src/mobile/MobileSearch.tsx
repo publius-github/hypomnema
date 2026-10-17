@@ -74,7 +74,7 @@ export default function MobileSearch({ onClose }: { onClose: () => void }) {
   };
 
   const groupHeader = (label: string) => (
-    <div className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+    <div className="px-4 pb-1 pt-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
       {label}
     </div>
   );

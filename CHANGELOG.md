@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.109.0 - 2026-10-17
+
+Keyboard and screen-reader pass. Dialogs take focus when they open, keep Tab inside and give focus back on close; deleting a task from its card puts focus on Undo. Errors, Undo and due reminders are announced, and dragging a card with the keyboard says the task's and the day's names instead of internal ids. Task titles in the day columns stay readable (the hover buttons no longer reserve their width), the left bar fits the default window and scrolls on the smallest one, and the week's phrase no longer covers the header controls. Every text size follows Base font size, which Ctrl+= / Ctrl+- / Ctrl+0 now step; About and the README list the keyboard shortcuts. A due reminder opens its task on click. Each page has a heading for screen readers.
+
 ## 0.108.1 - 2026-10-17
 
 The motto reads "Your mind. Organized." in About and on the website.

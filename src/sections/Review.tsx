@@ -105,7 +105,7 @@ export default function Review() {
 
   const rowAction = (label: string, tooltip: string, onClick: () => void) => (
     <button
-      className="rounded-sm border border-line px-1.5 py-0.5 text-[11px] text-content-muted hover:border-content-muted hover:text-content"
+      className="rounded-sm border border-line px-1.5 py-0.5 text-[0.6875rem] text-content-muted hover:border-content-muted hover:text-content"
       title={tooltip}
       onClick={onClick}
     >
@@ -140,7 +140,7 @@ export default function Review() {
           {splitCategory(task.title).text}
         </span>
         {task.overdue && !isClosed(task.status) && (
-          <span className="rounded-sm bg-danger/15 px-1.5 py-0.5 text-[11px] font-semibold text-danger">
+          <span className="rounded-sm bg-danger/15 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-danger">
             OVERDUE
           </span>
         )}
@@ -148,7 +148,7 @@ export default function Review() {
           <span className="text-xs text-content-muted">{task.time}</span>
         )}
         {listName(task.list_id) && (
-          <span className="rounded-sm bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+          <span className="rounded-sm bg-line/40 px-1.5 py-0.5 text-[0.6875rem] text-content-muted">
             {listName(task.list_id)}
           </span>
         )}
@@ -182,7 +182,7 @@ export default function Review() {
             () => void updateTask(task.id, { status: "dropped" }),
           )}
           <button
-            className="rounded-sm border border-line px-1.5 py-0.5 text-[11px] text-content-muted hover:border-danger hover:text-danger"
+            className="rounded-sm border border-line px-1.5 py-0.5 text-[0.6875rem] text-content-muted hover:border-danger hover:text-danger"
             title="Delete the task (undo offered)"
             onClick={() => void deleteTask(task.id)}
           >
@@ -230,7 +230,7 @@ export default function Review() {
 
       {weekFocus && (
         <div className="rounded-lg border border-accent/40 bg-accent/10 px-4 py-2 text-sm">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-accent">
+          <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-accent">
             Focus
           </span>
           <div>{weekFocus}</div>
@@ -259,7 +259,7 @@ export default function Review() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+          <div className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
             Completed
           </div>
           {doneByDay.length === 0 && (
@@ -269,7 +269,7 @@ export default function Review() {
           )}
           {doneByDay.map(([date, tasks]) => (
             <div key={date} className="flex flex-col gap-1">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+              <div className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
                 {weekdayShort(date)} {date}
                 {date === today && " (today)"}
               </div>
@@ -278,7 +278,7 @@ export default function Review() {
           ))}
           {dropped.length > 0 && (
             <div className="flex flex-col gap-1">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+              <div className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
                 Dropped, not done
               </div>
               {dropped.map((t) => taskRow(t, true))}
@@ -287,7 +287,7 @@ export default function Review() {
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+          <div className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
             Still open
           </div>
           {stillOpen.length === 0 ? (
@@ -298,7 +298,7 @@ export default function Review() {
             stillOpen.map((t) => taskRow(t, false))
           )}
           {weekOffset < 0 && (
-            <p className="text-[11px] text-content-muted">
+            <p className="text-[0.6875rem] text-content-muted">
               Tasks left open in a past week were carried over to a later day
               and show up there, not here.
             </p>
@@ -307,12 +307,12 @@ export default function Review() {
       </div>
 
       <div className="flex flex-col gap-3 rounded-lg border border-line bg-surface-alt/50 p-4">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+        <div className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
           Next week ({nextStart} - {nextEnd})
         </div>
         {nextFocus && (
           <div className="text-sm">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-accent">
+            <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-accent">
               Focus{" "}
             </span>
             {nextFocus}
@@ -325,7 +325,7 @@ export default function Review() {
         )}
         {nextByDay.map(([date, { tasks, projected }]) => (
           <div key={date} className="flex flex-col gap-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+            <div className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
               {weekdayShort(date)} {date}
             </div>
             {tasks.map((t) => taskRow(t, true))}
@@ -335,7 +335,7 @@ export default function Review() {
                 className="flex items-center gap-2 rounded-md border border-dashed border-line px-3 py-1.5 text-sm text-content-muted"
                 title="Not generated yet; appears as a task when the date nears"
               >
-                <span className="w-16 shrink-0 rounded-sm bg-line/40 px-1.5 py-0.5 text-center text-[11px]">
+                <span className="w-16 shrink-0 rounded-sm bg-line/40 px-1.5 py-0.5 text-center text-[0.6875rem]">
                   {event.kind}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{event.title}</span>

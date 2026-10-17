@@ -645,7 +645,7 @@ export default function KnowledgeBase() {
           ))}
           {searchResults && extraContentHits.length > 0 && (
             <>
-              <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+              <div className="px-2 pb-1 pt-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
                 In content
               </div>
               {extraContentHits.map((hit) => (
@@ -657,7 +657,7 @@ export default function KnowledgeBase() {
                   <span className="block truncate text-sm text-content">
                     {hit.name}
                   </span>
-                  <span className="block truncate text-[11px] text-content-muted">
+                  <span className="block truncate text-[0.6875rem] text-content-muted">
                     {hit.line}: {hit.preview}
                   </span>
                 </button>
@@ -666,7 +666,7 @@ export default function KnowledgeBase() {
           )}
         </div>
         <div className="border-t border-line px-1 py-2">
-          <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+          <div className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
             Config
           </div>
           {CONFIG_FILES.map((file) => (
@@ -683,7 +683,7 @@ export default function KnowledgeBase() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-content-muted">
+        <div className="flex items-center gap-2 border-t border-line px-3 py-2 text-[0.6875rem] text-content-muted">
           <button
             className="min-w-0 flex-1 truncate text-left hover:text-content"
             title={

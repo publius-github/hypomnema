@@ -95,22 +95,24 @@ function GroupColumn({
         className="group flex items-center gap-2 px-2.5 py-2"
         onDoubleClick={openOnFreeSpace}
       >
-        <button
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
-          title={`Open group "${group.name}"`}
-          onClick={() => onOpen()}
-        >
-          {group.color && (
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: readable(group.color, "mark") }}
-            />
-          )}
-          <span className="truncate">{group.name}</span>
-          <span className="shrink-0 text-[11px] font-normal normal-case tracking-normal text-content-muted">
-            {ordered.length} {ordered.length === 1 ? "list" : "lists"}
-          </span>
-        </button>
+        <h2 className="flex min-w-0 flex-1">
+          <button
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
+            title={`Open group "${group.name}"`}
+            onClick={() => onOpen()}
+          >
+            {group.color && (
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: readable(group.color, "mark") }}
+              />
+            )}
+            <span className="truncate">{group.name}</span>
+            <span className="shrink-0 text-[0.6875rem] font-normal normal-case tracking-normal text-content-muted">
+              {ordered.length} {ordered.length === 1 ? "list" : "lists"}
+            </span>
+          </button>
+        </h2>
         <button
           className="text-base leading-none text-content-muted opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
           title="Group settings: name, color, lists, delete"
@@ -143,7 +145,7 @@ function GroupColumn({
               />
             )}
             <span className="min-w-0 flex-1 truncate">{list.name}</span>
-            <span className="shrink-0 text-[11px] text-content-muted">
+            <span className="shrink-0 text-[0.6875rem] text-content-muted">
               {openCount(list.id)}
             </span>
           </button>

@@ -2,8 +2,9 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { expect, rail, test } from "./fixtures";
 
-// axe-core over every screen, against WCAG 2 A and AA. A rule switched
-// off here needs its reason written next to it.
+// axe-core over every screen, against WCAG 2 A and AA plus axe's best
+// practices (landmarks, one top heading per page). A rule switched off
+// here needs its reason written next to it.
 
 const SECTIONS = [
   "Dashboard",
@@ -21,7 +22,7 @@ const SECTIONS = [
 
 async function violations(page: Page) {
   const result = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"])
     .analyze();
   return result.violations.map((v) => ({
     rule: v.id,
@@ -37,6 +38,7 @@ for (const theme of ["dark", "light"]) {
       await expect(page.getByText("Plan the week").first()).toBeVisible();
       await rail(page, label).click();
       expect(await violations(page)).toEqual([]);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(label);
     });
   }
 }

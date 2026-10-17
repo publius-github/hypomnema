@@ -196,7 +196,7 @@ export default function History() {
 
       {streaks.length > 0 && (
         <div className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface-alt/50 p-4">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+          <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
             Daily streaks
           </span>
           {streaks.map((s, i) => (
@@ -235,7 +235,7 @@ export default function History() {
               </span>
             </div>
           ))}
-          <span className="pt-1 text-[11px] text-content-muted">
+          <span className="pt-1 text-[0.6875rem] text-content-muted">
             Consecutive completed instances per daily rule; skipped
             weekdays (e.g. MON-FRI rules) do not break a streak. The marks
             are the newest instances, oldest on the left. Limited by the
@@ -254,7 +254,7 @@ export default function History() {
         )}
         {doneByDay.map(([date, tasks]) => (
           <div key={date} className="flex flex-col gap-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+            <div className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
               {weekdayShort(date)} {date}
               {date === today && " (today)"}
             </div>
@@ -274,7 +274,7 @@ export default function History() {
                   </span>
                 )}
                 {listName(task.list_id) && (
-                  <span className="rounded-sm bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                  <span className="rounded-sm bg-line/40 px-1.5 py-0.5 text-[0.6875rem] text-content-muted">
                     {listName(task.list_id)}
                   </span>
                 )}

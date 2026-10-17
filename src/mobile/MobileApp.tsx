@@ -15,6 +15,7 @@ import { EditingTaskContext } from "./editing";
 import { MobileNavContext } from "./nav";
 import { useBackStep } from "./back";
 import { warn } from "../lib/log";
+import { useFocusIfLost } from "../hooks/useFocusIfLost";
 
 export type MobileTab = "day" | "lists" | "journal" | "notes" | "more";
 
@@ -90,6 +91,10 @@ export default function MobileApp() {
   const error = useAppStore((s) => s.error);
   const clearError = useAppStore((s) => s.clearError);
   const undoEntry = useAppStore((s) => s.undoEntry);
+  // a task deleted from its own card takes the focused button with it:
+  // the Undo that just appeared is where the keyboard goes next
+  const undoButton = useRef<HTMLButtonElement>(null);
+  useFocusIfLost(undoButton, undoEntry);
   const tasks = useAppStore((s) => s.tasks);
   // The task can leave the snapshot while its editor is open - an engine
   // pass moves a date, or the task is deleted from inside the editor -
@@ -196,15 +201,22 @@ export default function MobileApp() {
         value={{ setTab, openSearch: () => setSearchOpen(true) }}
       >
       <div className="safe-area flex h-full flex-col">
-        {error && (
-          <div className="flex items-start justify-between gap-3 border-b border-danger/40 bg-danger/15 px-4 py-2 text-sm text-danger">
-            <span className="min-w-0 wrap-break-word">{error}</span>
-            <button className="shrink-0 font-semibold" onClick={clearError}>
-              Dismiss
-            </button>
-          </div>
-        )}
+        {/* mounted empty, so what appears in it is announced */}
+        <div role="alert" className="shrink-0">
+          {error && (
+            <div className="flex items-start justify-between gap-3 border-b border-danger/40 bg-danger/15 px-4 py-2 text-sm text-danger">
+              <span className="min-w-0 wrap-break-word">{error}</span>
+              <button className="shrink-0 font-semibold" onClick={clearError}>
+                Dismiss
+              </button>
+            </div>
+          )}
+        </div>
         <main className="min-h-0 flex-1 overflow-auto">
+          {/* the screen's one top heading, for screen readers */}
+          <h1 className="sr-only">
+            {TABS.find((entry) => entry.id === tab)?.label}
+          </h1>
           {tab === "day" && <MobileDay />}
           {tab === "lists" && <MobileLists />}
           {tab === "journal" && <MobileJournal />}
@@ -231,25 +243,28 @@ export default function MobileApp() {
         {/* above the tab bar, where a thumb can still reach it; delete
             on a phone is one tap with no confirm, so the way back has
             to be just as reachable */}
-        {undoEntry && (
-          <div className="absolute bottom-20 left-1/2 z-20 flex max-w-[92%] -translate-x-1/2 items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-sm shadow-lg">
-            <span className="min-w-0 truncate">{undoEntry.label}</span>
-            <button
-              className="shrink-0 font-semibold text-accent"
-              onClick={() => void useAppStore.getState().undoLast()}
-            >
-              Undo
-            </button>
-            <button
-              className="shrink-0 text-content-muted"
-              aria-label="Dismiss"
-              onClick={() => useAppStore.getState().dismissUndo()}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-        <DueToasts position="bottom-24 right-3" />
+        <div role="status">
+          {undoEntry && (
+            <div className="absolute bottom-20 left-1/2 z-20 flex max-w-[92%] -translate-x-1/2 items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-sm shadow-lg">
+              <span className="min-w-0 truncate">{undoEntry.label}</span>
+              <button
+                className="shrink-0 font-semibold text-accent"
+                ref={undoButton}
+                onClick={() => void useAppStore.getState().undoLast()}
+              >
+                Undo
+              </button>
+              <button
+                className="shrink-0 text-content-muted"
+                aria-label="Dismiss"
+                onClick={() => useAppStore.getState().dismissUndo()}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+        <DueToasts position="bottom-24 right-3" onOpen={setEditing} />
         {searchOpen && <MobileSearch onClose={() => setSearchOpen(false)} />}
         {editingTask && (
           <MobileTaskEditor

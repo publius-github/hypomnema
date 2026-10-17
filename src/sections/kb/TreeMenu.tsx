@@ -85,7 +85,7 @@ export default function TreeMenu({
             >
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
               {item.hint && (
-                <span className="shrink-0 text-[11px] text-content-muted">
+                <span className="shrink-0 text-[0.6875rem] text-content-muted">
                   {item.hint}
                 </span>
               )}

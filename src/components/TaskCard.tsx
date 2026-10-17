@@ -381,7 +381,7 @@ function TaskCard({
                 className={`text-base leading-none ${
                   task.priority
                     ? "text-warn"
-                    : "opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
+                    : "hidden hover:text-warn group-focus-within:inline group-hover:inline"
                 }`}
                 title={
                   task.priority
@@ -445,7 +445,7 @@ function TaskCard({
             // was done - the review counts it as not done. The hold
             // keeps the card in place long enough to undo a misclick.
             <button
-              className="text-base leading-none opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100"
+              className="hidden text-base leading-none hover:text-content group-focus-within:inline group-hover:inline"
               title="Not done, drop it"
               aria-label="Not done, drop it"
               onClick={(e) => {
@@ -462,7 +462,7 @@ function TaskCard({
             // instance of a still-live rule regenerates on the next
             // engine run - the config file is where a rule dies
             <button
-              className="text-base leading-none opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+              className="hidden text-base leading-none hover:text-danger group-focus-within:inline group-hover:inline"
               title="Delete task"
               aria-label="Delete task"
               onClick={(e) => {

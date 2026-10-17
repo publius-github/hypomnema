@@ -70,7 +70,7 @@ export default function EntryList({
     </button>
   );
 
-  const heading = "pb-1 text-[11px] font-semibold uppercase tracking-wider text-content-muted";
+  const heading = "pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted";
 
   return (
     <>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 // In-app replacements for window.confirm/prompt: native dialogs clash
 // with the app styling and window.prompt is unreliable in WebView2.
@@ -12,6 +13,7 @@ function Backdrop({
   onCancel: () => void;
   children: React.ReactNode;
 }) {
+  const dialogRef = useDialogFocus();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -33,6 +35,7 @@ function Backdrop({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={label}

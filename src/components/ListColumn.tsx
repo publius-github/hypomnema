@@ -119,30 +119,32 @@ function ListColumn({
             />
           </form>
         ) : (
-          <button
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
-            onDoubleClick={() => {
-              setName(list.name);
-              setEditing(true);
-            }}
-            title={
-              list.description
-                ? `${list.description}\n\nDouble-click to rename`
-                : "Double-click to rename"
-            }
-          >
-            {list.color && (
-              <span
-                className="h-3 w-1 shrink-0 rounded-sm"
-                style={{ backgroundColor: readable(list.color, "mark") }}
-              />
-            )}
-            <span className="truncate">{list.name}</span>
-          </button>
+          <h2 className="flex min-w-0 flex-1">
+            <button
+              className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
+              onDoubleClick={() => {
+                setName(list.name);
+                setEditing(true);
+              }}
+              title={
+                list.description
+                  ? `${list.description}\n\nDouble-click to rename`
+                  : "Double-click to rename"
+              }
+            >
+              {list.color && (
+                <span
+                  className="h-3 w-1 shrink-0 rounded-sm"
+                  style={{ backgroundColor: readable(list.color, "mark") }}
+                />
+              )}
+              <span className="truncate">{list.name}</span>
+            </button>
+          </h2>
         )}
         {group && (
           <button
-            className="max-w-[45%] shrink-0 truncate rounded-sm border border-line px-1 py-px text-[10px] uppercase tracking-wide text-content-muted hover:border-accent hover:text-accent"
+            className="max-w-[45%] shrink-0 truncate rounded-sm border border-line px-1 py-px text-[0.625rem] uppercase tracking-wide text-content-muted hover:border-accent hover:text-accent"
             title={`In group "${group.name}"${onOpenGroup ? " - click to open it" : ""}`}
             onClick={() => onOpenGroup?.(group.id)}
           >

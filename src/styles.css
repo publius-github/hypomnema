@@ -257,9 +257,16 @@ html.mobile {
 /* keyboard focus must be visible outside .input fields too */
 button:focus-visible,
 a:focus-visible,
+summary:focus-visible,
 [role="button"]:focus-visible {
   outline: 2px solid rgb(var(--rgb-accent) / 0.7);
   outline-offset: 1px;
+}
+
+/* a dialog panel holds focus only until the first Tab (useDialogFocus):
+   the panel itself is not a control and wears no ring */
+[role="dialog"]:focus {
+  outline: none;
 }
 
 /* a closed task row fades everything but its status box (TaskCard,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useDialogFocus } from "../../hooks/useDialogFocus";
 
 /**
  * New-note dialog with an explicit extension completion: a name typed
@@ -15,6 +16,7 @@ export default function CreateNoteModal({
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }) {
+  const dialogRef = useDialogFocus();
   const [value, setValue] = useState(initialDir ? `${initialDir}/` : "");
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function CreateNoteModal({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-label="New note"
         aria-modal="true"

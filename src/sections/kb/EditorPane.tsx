@@ -51,7 +51,7 @@ function BacklinksPanel({ path }: { path: string }) {
   if (!data || total === 0) return null;
 
   const groupHeader = (label: string) => (
-    <div className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+    <div className="px-2 pb-1 pt-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
       {label}
     </div>
   );
@@ -63,7 +63,7 @@ function BacklinksPanel({ path }: { path: string }) {
       onClick={() => useAppStore.getState().openKbNote(hit.path)}
     >
       <span className="block truncate text-sm text-content">{hit.name}</span>
-      <span className="block truncate text-[11px] text-content-muted">
+      <span className="block truncate text-[0.6875rem] text-content-muted">
         {hit.line}: {hit.preview}
       </span>
     </button>
@@ -81,7 +81,7 @@ function BacklinksPanel({ path }: { path: string }) {
   return (
     <div className="shrink-0 border-t border-line">
       <button
-        className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-content-muted hover:text-content"
+        className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted hover:text-content"
         onClick={() => setOpen((o) => !o)}
       >
         <span>{open ? "▾" : "▸"}</span>
@@ -110,13 +110,13 @@ function BacklinksPanel({ path }: { path: string }) {
                   <span className="block truncate text-sm text-content">
                     {hit.date}
                     {!hit.is_link && (
-                      <span className="text-[11px] text-content-muted">
+                      <span className="text-[0.6875rem] text-content-muted">
                         {" "}
                         (mention)
                       </span>
                     )}
                   </span>
-                  <span className="block truncate text-[11px] text-content-muted">
+                  <span className="block truncate text-[0.6875rem] text-content-muted">
                     {hit.line}: {hit.preview}
                   </span>
                 </button>
@@ -135,7 +135,7 @@ function BacklinksPanel({ path }: { path: string }) {
                   <span className="block truncate text-sm text-content">
                     {splitCategory(hit.task.title).text}
                   </span>
-                  <span className="block truncate text-[11px] text-content-muted">
+                  <span className="block truncate text-[0.6875rem] text-content-muted">
                     {hit.preview}
                   </span>
                 </button>

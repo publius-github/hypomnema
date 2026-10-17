@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "./lib/ipc";
+import { errorMessage, invoke } from "./lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useAppStore } from "./store";
 import { todayISO } from "./lib/tasks";
-import type { ConfigError, Section } from "./types";
-import TabBar from "./components/TabBar";
+import type { ConfigError, Section, Task } from "./types";
+import TabBar, { sectionLabel } from "./components/TabBar";
 import SearchPalette from "./components/SearchPalette";
 import DueToasts from "./components/DueToasts";
+import TaskModal from "./components/TaskModal";
 import VaultPicker from "./components/VaultPicker";
 import MobileApp from "./mobile/MobileApp";
 import Dashboard from "./sections/Dashboard";
@@ -22,6 +23,20 @@ import Journal from "./sections/Journal";
 import KnowledgeBase from "./sections/KnowledgeBase";
 import Settings from "./sections/Settings";
 import { warn } from "./lib/log";
+import { useFocusIfLost } from "./hooks/useFocusIfLost";
+
+// the clamp AppConfig::sanitized applies to ui_font_size
+const UI_FONT_MIN = 10;
+const UI_FONT_MAX = 28;
+/** Physical keys that step the text size with Ctrl (0 = the default). */
+const TEXT_SIZE_KEYS: Record<string, number> = {
+  Equal: 1,
+  NumpadAdd: 1,
+  Minus: -1,
+  NumpadSubtract: -1,
+  Digit0: 0,
+  Numpad0: 0,
+};
 
 export default function App() {
   const loaded = useAppStore((s) => s.loaded);
@@ -35,6 +50,20 @@ export default function App() {
   const init = useAppStore((s) => s.init);
   const clearError = useAppStore((s) => s.clearError);
   const configErrors = useAppStore((s) => s.configErrors);
+  const tasks = useAppStore((s) => s.tasks);
+  // the task a due toast opened; the live store copy wins while it is
+  // in the snapshot, so edits in the dialog show up in it
+  const [toastTask, setToastTask] = useState<Task | null>(null);
+  const openToastTask = (id: number) => {
+    const live = useAppStore.getState().tasks.find((t) => t.id === id);
+    if (live) {
+      setToastTask(live);
+      return;
+    }
+    invoke("task_get", { id })
+      .then(setToastTask)
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
+  };
 
   useEffect(() => {
     void init();
@@ -108,6 +137,10 @@ export default function App() {
   // global shortcuts: Ctrl/Cmd+K search palette, Ctrl/Cmd+1..6 sections
   const searchOpen = useAppStore((s) => s.searchOpen);
   const undoEntry = useAppStore((s) => s.undoEntry);
+  // a task deleted from its own card takes the focused button with it:
+  // the Undo that just appeared is where the keyboard goes next
+  const undoButton = useRef<HTMLButtonElement>(null);
+  useFocusIfLost(undoButton, undoEntry);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -136,6 +169,20 @@ export default function App() {
       if (e.code === "KeyK") {
         e.preventDefault();
         if (store.vaultPath) store.setSearchOpen(!store.searchOpen);
+      } else if (TEXT_SIZE_KEYS[e.code] !== undefined && store.config) {
+        // Ctrl+= / Ctrl+- / Ctrl+0 step Base font size, the setting
+        // every text size derives from, the way zoom keys would - and
+        // it stays set
+        e.preventDefault();
+        const step = TEXT_SIZE_KEYS[e.code];
+        const size =
+          step === 0
+            ? (store.defaults?.ui_font_size ?? 16)
+            : store.config.ui_font_size + step;
+        const next = Math.min(UI_FONT_MAX, Math.max(UI_FONT_MIN, size));
+        if (next !== store.config.ui_font_size) {
+          void store.updateConfig({ ui_font_size: next });
+        }
       } else if (e.key >= "1" && e.key <= "9") {
         // not while typing: editors and inputs own Ctrl+digits there
         const el = e.target as HTMLElement | null;
@@ -190,38 +237,48 @@ export default function App() {
           header controls left, or they stop lining up with the same
           controls on the Days and Lists pages */}
       <main className="min-w-0 flex-1 overflow-auto scrollbar-gutter-stable">
-        {error && (
-          <div className="flex items-center justify-between border-b border-danger/40 bg-danger/15 px-4 py-2 text-sm text-danger">
-            <span>{error}</span>
-            <button className="font-semibold" onClick={clearError}>
-              Dismiss
-            </button>
-          </div>
-        )}
-        {configErrors.length > 0 && (
-          <div className="border-b border-warn/40 bg-warn/15 px-4 py-2 text-sm text-warn">
-            {configErrors.map((err, i) => {
-              const editable = err.file !== "app.yml";
-              const text = `${err.file}${
-                err.line !== null ? ` line ${err.line}` : ""
-              }: ${err.message}`;
-              return editable ? (
-                <button
-                  key={i}
-                  className="block w-full truncate text-left hover:underline"
-                  title="Open the file in Notes"
-                  onClick={() =>
-                    useAppStore.getState().openConfigFile(err.file)
-                  }
-                >
-                  {text}
-                </button>
-              ) : (
-                <div key={i}>{text}</div>
-              );
-            })}
-          </div>
-        )}
+        {/* live regions stay mounted and only their content changes:
+            a screen reader announces what appears in one that was
+            already there, not a region that arrives with its text */}
+        <div role="alert">
+          {error && (
+            <div className="flex items-center justify-between border-b border-danger/40 bg-danger/15 px-4 py-2 text-sm text-danger">
+              <span>{error}</span>
+              <button className="font-semibold" onClick={clearError}>
+                Dismiss
+              </button>
+            </div>
+          )}
+        </div>
+        <div role="status">
+          {configErrors.length > 0 && (
+            <div className="border-b border-warn/40 bg-warn/15 px-4 py-2 text-sm text-warn">
+              {configErrors.map((err, i) => {
+                const editable = err.file !== "app.yml";
+                const text = `${err.file}${
+                  err.line !== null ? ` line ${err.line}` : ""
+                }: ${err.message}`;
+                return editable ? (
+                  <button
+                    key={i}
+                    className="block w-full truncate text-left hover:underline"
+                    title="Open the file in Notes"
+                    onClick={() =>
+                      useAppStore.getState().openConfigFile(err.file)
+                    }
+                  >
+                    {text}
+                  </button>
+                ) : (
+                  <div key={i}>{text}</div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {/* the page's one top heading, for screen readers: the rail
+            already shows which section is open */}
+        <h1 className="sr-only">{sectionLabel(section)}</h1>
         {section === "dashboard" && <Dashboard />}
         {section === "lists" && <Lists />}
         {section === "days" && <Days />}
@@ -239,26 +296,35 @@ export default function App() {
           onClose={() => useAppStore.getState().setSearchOpen(false)}
         />
       )}
-      {undoEntry && (
-        <div className="fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-sm shadow-lg">
-          <span className="max-w-md truncate">{undoEntry.label}</span>
-          <button
-            className="font-semibold text-accent"
-            onClick={() => void useAppStore.getState().undoLast()}
-          >
-            Undo
-          </button>
-          <button
-            className="text-content-muted"
-            title="Dismiss"
-            aria-label="Dismiss"
-            onClick={() => useAppStore.getState().dismissUndo()}
-          >
-            ✕
-          </button>
-        </div>
+      <div role="status">
+        {undoEntry && (
+          <div className="fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-sm shadow-lg">
+            <span className="max-w-md truncate">{undoEntry.label}</span>
+            <button
+              className="font-semibold text-accent"
+              ref={undoButton}
+              onClick={() => void useAppStore.getState().undoLast()}
+            >
+              Undo
+            </button>
+            <button
+              className="text-content-muted"
+              title="Dismiss"
+              aria-label="Dismiss"
+              onClick={() => useAppStore.getState().dismissUndo()}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
+      <DueToasts onOpen={openToastTask} />
+      {toastTask && (
+        <TaskModal
+          task={tasks.find((t) => t.id === toastTask.id) ?? toastTask}
+          onClose={() => setToastTask(null)}
+        />
       )}
-      <DueToasts />
     </div>
   );
 }

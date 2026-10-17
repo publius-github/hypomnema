@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store";
 import { addDaysISO, dayLabel, gridDates } from "../lib/tasks";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 /**
  * Global quick-add from the dashboard header: one input plus a
@@ -8,6 +9,7 @@ import { addDaysISO, dayLabel, gridDates } from "../lib/tasks";
  * the task and keeps the dialog open for the next one; Escape closes.
  */
 export default function QuickAddModal({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogFocus();
   const createTask = useAppStore((s) => s.createTask);
   const lists = useAppStore((s) => s.lists);
   const config = useAppStore((s) => s.config);
@@ -67,6 +69,7 @@ export default function QuickAddModal({ onClose }: { onClose: () => void }) {
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-label="Quick add"
         aria-modal="true"

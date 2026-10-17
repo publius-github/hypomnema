@@ -18,6 +18,7 @@ export function DatePick({
       type="date"
       className="input px-1.5 py-0.5 text-xs"
       title="Jump to a date"
+      aria-label="Jump to a date"
       min="1970-01-01"
       max="9999-12-31"
       value={value}

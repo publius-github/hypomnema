@@ -160,7 +160,7 @@ export default function Recurring() {
                 </ul>
               </div>
               {!editable && (
-                <span className="max-w-[140px] shrink-0 truncate rounded-sm bg-line/40 px-1.5 py-0.5 text-[11px] text-content-muted">
+                <span className="max-w-[140px] shrink-0 truncate rounded-sm bg-line/40 px-1.5 py-0.5 text-[0.6875rem] text-content-muted">
                   {rule.source}
                 </span>
               )}

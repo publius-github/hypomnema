@@ -17,6 +17,7 @@ import GapFill from "./GapFill";
 import type { List, Task } from "../types";
 import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
 import { errorMessage } from "../lib/ipc";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 /**
  * List dialog: rename, favorite, color (used as the card stripe of the
@@ -34,6 +35,7 @@ export default function ListModal({
   list: List;
   onClose: () => void;
 }) {
+  const dialogRef = useDialogFocus();
   const renameList = useAppStore((s) => s.renameList);
   const updateListMeta = useAppStore((s) => s.updateListMeta);
   const toggleListFavorite = useAppStore((s) => s.toggleListFavorite);
@@ -148,6 +150,7 @@ export default function ListModal({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-label="List"
         aria-modal="true"
@@ -358,12 +361,12 @@ function ListTaskRow({
         {task.title}
       </button>
       {subtasks.length > 0 && (
-        <span className="mt-0.5 shrink-0 text-[11px] text-content-muted">
+        <span className="mt-0.5 shrink-0 text-[0.6875rem] text-content-muted">
           {subDone}/{subtasks.length}
         </span>
       )}
       {task.time && (
-        <span className="mt-0.5 shrink-0 text-[11px] text-content-muted">
+        <span className="mt-0.5 shrink-0 text-[0.6875rem] text-content-muted">
           {task.time}
         </span>
       )}

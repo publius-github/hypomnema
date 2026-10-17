@@ -20,6 +20,11 @@ const TABS: Record<string, { id: Section; label: string; icon: IconName }> = {
   kb: { id: "kb", label: "Notes", icon: "notes" },
 };
 
+/** A section's name as the rail shows it. */
+export function sectionLabel(id: Section): string {
+  return id === "settings" ? "Settings" : (TABS[id]?.label ?? id);
+}
+
 const DEFAULT_ORDER = [
   "dashboard",
   "lists",
@@ -41,16 +46,38 @@ const railButton = "group flex w-[60px] flex-col items-center gap-[2px] py-[2px]
 const railBox =
   "flex h-[36px] w-[36px] items-center justify-center rounded-lg transition-colors";
 const railLabel = "max-w-full truncate px-[2px] text-[11px] leading-[14px]";
+// one labelled button's share of the rail: button (2+36+2+14+2) + gap 4
+const RAIL_ITEM_PX = 60;
+// the rail's vertical padding plus the sync time's two lines under Sync
+const RAIL_EXTRA_PX = 24 + 24;
+
+/**
+ * True while the window is too short for the labelled rail: the labels
+ * then go (they stay the buttons' accessible names, and the tooltips
+ * still show them), which brings every button back into view on a
+ * laptop-height window. Below even that the rail scrolls.
+ */
+function useCompactRail(items: number) {
+  const [height, setHeight] = useState(() => window.innerHeight);
+  useEffect(() => {
+    const onResize = () => setHeight(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return height < items * RAIL_ITEM_PX + RAIL_EXTRA_PX;
+}
 
 function RailButton({
   active = false,
   danger = false,
   accent = false,
+  compact = false,
   title,
   label,
   onClick,
   children,
 }: {
+  compact?: boolean;
   active?: boolean;
   danger?: boolean;
   accent?: boolean;
@@ -80,7 +107,7 @@ function RailButton({
       >
         {children}
       </span>
-      <span className={`${railLabel} ${tone}`}>{label}</span>
+      <span className={compact ? "sr-only" : `${railLabel} ${tone}`}>{label}</span>
     </button>
   );
 }
@@ -104,7 +131,7 @@ function syncedLines(iso: string): [string, string] {
  * any trigger: this button, the scheduler, Settings), red when that pass
  * failed.
  */
-function SyncButton() {
+function SyncButton({ compact }: { compact: boolean }) {
   const runEngine = useAppStore((s) => s.runEngine);
   const vaultPath = useAppStore((s) => s.vaultPath);
   const [syncing, setSyncing] = useState(false);
@@ -176,6 +203,7 @@ function SyncButton() {
             ? "Re-read config files, regenerate tasks and sync with Google Drive"
             : "Re-read config files and regenerate tasks"
         }
+        compact={compact}
         label={syncing ? "..." : (result ?? "Sync")}
         danger={result === "failed" || result === "config!"}
         accent={Boolean(result) && result !== "failed" && result !== "config!"}
@@ -193,9 +221,13 @@ function SyncButton() {
               ? `Last sync failed: ${standing?.last_error}`
               : `Last synced ${new Date(last as string).toLocaleString()}`
           }
-          className={`flex flex-col items-center text-[10px] leading-[12px] ${
-            failed ? "text-danger" : "text-content-muted"
-          }`}
+          className={
+            compact
+              ? "sr-only"
+              : `flex flex-col items-center text-[10px] leading-[12px] ${
+                  failed ? "text-danger" : "text-content-muted"
+                }`
+          }
         >
           <span>{lines[0]}</span>
           <span>{lines[1]}</span>
@@ -230,13 +262,19 @@ export default function TabBar() {
     setSection(visible[0]?.id ?? "settings");
   }, [section, hidden, visible, setSection]);
 
+  // the sections plus Search, Sync, About and Settings
+  const compact = useCompactRail(visible.length + 4);
+
   return (
     <nav
       aria-label="Sections"
-      className="flex w-[64px] flex-col items-center gap-[4px] border-r border-line bg-surface-alt py-[12px]">
+      // scrolls when even the compact rail is taller than the window;
+      // a focused button scrolls itself into view
+      className="flex w-[64px] shrink-0 flex-col items-center gap-[4px] overflow-y-auto border-r border-line bg-surface-alt py-[12px] [scrollbar-width:none]">
       {visible.map((tab) => (
           <RailButton
             key={tab.id}
+            compact={compact}
             title={tab.label}
             label={tab.label}
             active={section === tab.id}
@@ -246,6 +284,7 @@ export default function TabBar() {
           </RailButton>
         ))}
       <RailButton
+        compact={compact}
         title="Search tasks (Ctrl+K)"
         label="Search"
         onClick={() => useAppStore.getState().setSearchOpen(true)}
@@ -253,12 +292,18 @@ export default function TabBar() {
         <Icon name="search" />
       </RailButton>
       <div className="flex-1" />
-      <SyncButton />
-      <RailButton title="About" label="About" onClick={() => setAboutOpen(true)}>
+      <SyncButton compact={compact} />
+      <RailButton
+        compact={compact}
+        title="About"
+        label="About"
+        onClick={() => setAboutOpen(true)}
+      >
         <Icon name="info" />
       </RailButton>
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
       <RailButton
+        compact={compact}
         title="Settings"
         label="Settings"
         active={section === "settings"}

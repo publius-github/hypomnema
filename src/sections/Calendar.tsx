@@ -319,7 +319,7 @@ export default function Calendar() {
             />
           </span>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-content-muted">
+        <div className="grid grid-cols-7 gap-1 text-center text-[0.6875rem] text-content-muted">
           {WEEKDAYS.map((d) => (
             <span key={d}>{d}</span>
           ))}
@@ -356,7 +356,7 @@ export default function Calendar() {
                 </span>
                 {dayTasks.length > 0 ? (
                   <span
-                    className={`text-[11px] leading-none ${
+                    className={`text-[0.6875rem] leading-none ${
                       doneCount === dayTasks.length
                         ? "text-accent"
                         : "text-content-muted"
@@ -366,7 +366,7 @@ export default function Calendar() {
                   </span>
                 ) : (
                   projected > 0 && (
-                    <span className="text-[11px] leading-none text-content-muted">
+                    <span className="text-[0.6875rem] leading-none text-content-muted">
                       +{projected}
                     </span>
                   )
@@ -386,7 +386,7 @@ export default function Calendar() {
             );
           })}
         </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-content-muted">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[0.6875rem] text-content-muted">
           {KIND_ORDER.map((k) => (
             <span key={k} className="flex items-center gap-1">
               <span className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[k]}`} />
@@ -456,7 +456,7 @@ export default function Calendar() {
         ))}
         {selectedOutlook.length > 0 && (
           <>
-            <div className="pt-2 text-[11px] font-medium uppercase tracking-wider text-content-muted">
+            <div className="pt-2 text-[0.6875rem] font-medium uppercase tracking-wider text-content-muted">
               Projected
             </div>
             {selectedOutlook.map((event, i) => (

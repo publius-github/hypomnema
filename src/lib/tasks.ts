@@ -473,7 +473,8 @@ export function tintStyle(color: string): {
  * Size of a section plate in the day and list columns: the whole plate
  * - its 12px label and the 2px padding either side - grows by
  * `list_view_plate_scale` %, so the text stays in proportion to the
- * plate instead of a small label floating in a tall bar.
+ * plate instead of a small label floating in a tall bar. In rem, so the
+ * base font size scales the plates along with the rest of the text.
  */
 export function listViewPlateStyle(config: AppConfig | null): {
   fontSize: string;
@@ -482,9 +483,9 @@ export function listViewPlateStyle(config: AppConfig | null): {
 } {
   const scale = (config?.list_view_plate_scale ?? 100) / 100;
   return {
-    fontSize: `${12 * scale}px`,
-    paddingTop: `${2 * scale}px`,
-    paddingBottom: `${2 * scale}px`,
+    fontSize: `${0.75 * scale}rem`,
+    paddingTop: `${0.125 * scale}rem`,
+    paddingBottom: `${0.125 * scale}rem`,
   };
 }
 

@@ -232,7 +232,7 @@ export default function Lists() {
             {(openGroup !== null || rows.length > columns) &&
               rows.length > 0 && (
               <div className="flex flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
-                <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+                <div className="px-1 pb-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
                   {openGroup ? "Group lists" : "All lists"}
                 </div>
                 {rows.map((row, i) => {

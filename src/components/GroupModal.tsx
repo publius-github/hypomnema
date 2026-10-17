@@ -3,6 +3,7 @@ import { useAppStore } from "../store";
 import { OptionalColorField } from "./form";
 import { ConfirmModal } from "./dialogs";
 import type { ListGroup } from "../types";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 /**
  * Group dialog: rename, color (a dot on the group tile), membership -
@@ -17,6 +18,7 @@ export default function GroupModal({
   group: ListGroup;
   onClose: () => void;
 }) {
+  const dialogRef = useDialogFocus();
   const updateGroupMeta = useAppStore((s) => s.updateGroupMeta);
   const deleteGroup = useAppStore((s) => s.deleteGroup);
   const setListGroup = useAppStore((s) => s.setListGroup);
@@ -67,6 +69,7 @@ export default function GroupModal({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-label="List group"
         aria-modal="true"
@@ -111,7 +114,7 @@ export default function GroupModal({
               )}
               <span className="min-w-0 flex-1 truncate">{list.name}</span>
               {list.group_id !== null && list.group_id !== group.id && (
-                <span className="shrink-0 text-[11px] text-content-muted">
+                <span className="shrink-0 text-[0.6875rem] text-content-muted">
                   in another group
                 </span>
               )}

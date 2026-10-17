@@ -6,6 +6,7 @@ import type { JournalSearchHit, KbSearchHit, Task } from "../types";
 import TaskModal from "./TaskModal";
 import Icon from "./icons";
 import { isClosed } from "../lib/tasks";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 const STATUS_GLYPH: Record<string, string> = {
   todo: "○",
@@ -23,6 +24,7 @@ type Row =
   | { kind: "journal"; hit: JournalSearchHit };
 
 export default function SearchPalette({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogFocus();
   const [selected, setSelected] = useState<Task | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const storeTasks = useAppStore((s) => s.tasks);
@@ -106,7 +108,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
   );
 
   const groupHeader = (label: string) => (
-    <div className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+    <div className="px-4 pb-1 pt-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
       {label}
     </div>
   );
@@ -123,6 +125,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-label="Search"
         aria-modal="true"
@@ -148,7 +151,7 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
               }
             }}
           />
-          <span className="text-[11px] text-content-muted">Esc</span>
+          <span className="text-[0.6875rem] text-content-muted">Esc</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pb-1">
           {tasks.length > 0 && groupHeader("Tasks")}

@@ -50,8 +50,11 @@ interface Toast {
 export default function DueToasts({
   // the phone shell lifts the stack above its bottom tab bar
   position = "bottom-4 right-4",
+  onOpen,
 }: {
   position?: string;
+  /** opens the task a toast is about (its dialog or editor) */
+  onOpen: (taskId: number) => void;
 }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const notifiedRef = useRef(new Set<number>());
@@ -91,7 +94,7 @@ export default function DueToasts({
       const now = new Date();
       const nowClock = clockPlus(now, 0);
       const horizon = clockPlus(now, config?.notify_lead_minutes ?? 0);
-      const missed: string[] = [];
+      const missed: { id: number; text: string }[] = [];
       for (const task of tasks) {
         if (
           task.scheduled_date !== today ||
@@ -107,7 +110,7 @@ export default function DueToasts({
         // opening the app at six must not fire every reminder since
         // morning one by one
         if (fresh && task.time < nowClock) {
-          missed.push(text);
+          missed.push({ id: task.id, text });
           continue;
         }
         raise({
@@ -116,13 +119,15 @@ export default function DueToasts({
           text,
         });
       }
+      // one missed task is that task's own toast (open, snooze); only
+      // several fold into the summary
       if (missed.length === 1) {
-        raise({ id: SUMMARY_ID, label: "Task due", text: missed[0] });
+        raise({ id: missed[0].id, label: "Task due", text: missed[0].text });
       } else if (missed.length > 1) {
         raise({
           id: SUMMARY_ID,
           label: `${missed.length} timed tasks already due today`,
-          text: missed.join(" · "),
+          text: missed.map((m) => m.text).join(" · "),
         });
       }
     };
@@ -164,26 +169,39 @@ export default function DueToasts({
     timers.add(timer);
   };
 
-  if (toasts.length === 0) return null;
+  const dismiss = (id: number) =>
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+
+  // mounted while empty, so a toast that appears in it is announced
   return (
-    <div className={`fixed z-20 flex flex-col gap-2 ${position}`}>
+    <div role="status" className={`fixed z-20 flex flex-col gap-2 ${position}`}>
       {toasts.map((toast) => (
         <div
           key={toast.id}
           className="flex max-w-sm items-center gap-3 rounded-lg border border-line bg-surface-alt px-4 py-2 text-left text-sm shadow-lg"
         >
-          <button
-            className="min-w-0 text-left"
-            title="Dismiss"
-            onClick={() =>
-              setToasts((prev) => prev.filter((t) => t.id !== toast.id))
-            }
-          >
-            <span className="font-medium text-accent">{toast.label}</span>
-            <br />
-            <span className="wrap-break-word">{toast.text}</span>
-          </button>
-          {/* the summary covers several tasks: nothing single to snooze */}
+          {/* the summary covers several tasks: nothing single to open
+              or snooze */}
+          {toast.id === SUMMARY_ID ? (
+            <div className="min-w-0">
+              <span className="font-medium text-accent">{toast.label}</span>
+              <br />
+              <span className="wrap-break-word">{toast.text}</span>
+            </div>
+          ) : (
+            <button
+              className="min-w-0 text-left"
+              title="Open the task"
+              onClick={() => {
+                dismiss(toast.id);
+                onOpen(toast.id);
+              }}
+            >
+              <span className="font-medium text-accent">{toast.label}</span>
+              <br />
+              <span className="wrap-break-word">{toast.text}</span>
+            </button>
+          )}
           {toast.id !== SUMMARY_ID && (
             <button
               className="shrink-0 font-semibold text-accent"
@@ -193,6 +211,14 @@ export default function DueToasts({
               Snooze
             </button>
           )}
+          <button
+            className="shrink-0 text-content-muted"
+            title="Dismiss"
+            aria-label="Dismiss"
+            onClick={() => dismiss(toast.id)}
+          >
+            ✕
+          </button>
         </div>
       ))}
     </div>

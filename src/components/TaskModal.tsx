@@ -15,6 +15,7 @@ import { isExternalUrl } from "../lib/links";
 import { wikiTargetFromHref, wikiToMarkdownLinks } from "../lib/wiki";
 import type { Task, TaskStatus } from "../types";
 import { pressable } from "../lib/a11y";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 const TASK_STATUSES: TaskStatus[] = [
   "todo",
@@ -46,6 +47,7 @@ export default function TaskModal({
   task: Task;
   onClose: () => void;
 }) {
+  const dialogRef = useDialogFocus();
   const lists = useAppStore((s) => s.lists);
   const config = useAppStore((s) => s.config);
   const updateTask = useAppStore((s) => s.updateTask);
@@ -133,6 +135,7 @@ export default function TaskModal({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-label="Task"
         aria-modal="true"
@@ -185,7 +188,7 @@ export default function TaskModal({
               {ORIGIN_CONFIG[task.origin] ?? "config"}
             </button>
             . Title, text, date and list follow the config; edit it there.
-            <div className="mt-1 select-text text-[11px] text-info/70">
+            <div className="mt-1 select-text text-[0.6875rem] text-info/70">
               origin {task.origin}
               {task.cadence ? ` · cadence ${task.cadence}` : ""}
               {task.dow_label ? ` · day ${task.dow_label}` : ""}

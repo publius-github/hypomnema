@@ -30,7 +30,7 @@ import { readable } from "../lib/color";
 /** A status badge in the row's right-hand column: small enough not to
  * outweigh the title, narrow enough for the column's fixed width. */
 const BADGE =
-  "whitespace-nowrap rounded-sm px-1 text-[9px] font-semibold uppercase leading-4";
+  "whitespace-nowrap rounded-sm px-1 text-[0.5625rem] font-semibold uppercase leading-4";
 
 /**
  * One task, sized for a thumb and legible at a glance.

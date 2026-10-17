@@ -58,7 +58,7 @@ export default function ConflictList({
                 {entry.path}
               </div>
               {entry.open && (
-                <span className="shrink-0 rounded-sm bg-warn/15 px-1 text-[10px] font-semibold uppercase leading-4 text-warn">
+                <span className="shrink-0 rounded-sm bg-warn/15 px-1 text-[0.625rem] font-semibold uppercase leading-4 text-warn">
                   to review
                 </span>
               )}

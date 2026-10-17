@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type { ConflictDiff, ConflictEntry } from "../types";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 /**
  * A file set against the conflicted copy a sync (or an editor's save)
@@ -20,6 +21,7 @@ export default function ConflictReview({
   onClose: () => void;
   onResolved: () => void;
 }) {
+  const dialogRef = useDialogFocus();
   const [diff, setDiff] = useState<ConflictDiff | null>(null);
   const [busy, setBusy] = useState(false);
   const setError = useAppStore((s) => s.setError);
@@ -74,6 +76,7 @@ export default function ConflictReview({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-label="Sync conflict"
         aria-modal="true"

@@ -325,7 +325,7 @@ function FocusTab({
         text={(text) => text}
         trail={(text) =>
           text === current && (
-            <span className="shrink-0 rounded-sm bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent">
+            <span className="shrink-0 rounded-sm bg-accent/15 px-1.5 py-0.5 text-[0.6875rem] text-accent">
               this week
             </span>
           )

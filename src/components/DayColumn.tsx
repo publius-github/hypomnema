@@ -44,7 +44,7 @@ function DayColumn({
         "bg-surface-alt"
       }`}
     >
-      <div
+      <h2
         // one color for every header, Today included: it follows the
         // main text tone (and the day_header_color override); Today is
         // marked by the [Today] suffix and the column tint instead of
@@ -60,9 +60,9 @@ function DayColumn({
         title={dayLabel(date, today)}
       >
         {dayLabel(date, today)}
-      </div>
+      </h2>
       {(reminders.length > 0 || schedule) && (
-        <div className="flex flex-col gap-0.5 px-2.5 pb-1.5 text-[11px] text-content-muted">
+        <div className="flex flex-col gap-0.5 px-2.5 pb-1.5 text-[0.6875rem] text-content-muted">
           <DayAmbientLines reminders={reminders} schedule={schedule} />
         </div>
       )}

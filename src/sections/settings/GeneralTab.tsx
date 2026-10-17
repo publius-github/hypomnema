@@ -69,7 +69,7 @@ export default function GeneralTab() {
           />
         </Field>
 
-        <Field label="Base font size, px (16 = default; every text size scales from it)">
+        <Field label="Base font size, px (16 = default; every text size scales from it; Ctrl+= / Ctrl+− / Ctrl+0 step it from anywhere)">
           <NumberInput
             value={config.ui_font_size}
             min={10}

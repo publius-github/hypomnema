@@ -82,7 +82,7 @@ export default function Dashboard() {
           reaches everything - long lists never collapse or scroll on
           their own. */}
       <div className="flex min-h-full flex-col gap-3 p-4">
-        <div className="relative flex min-h-[24px] items-center">
+        <div className="flex min-h-[24px] items-center">
           <div className="flex items-center gap-1">
             <NavArrow
               dir={-1}
@@ -116,6 +116,27 @@ export default function Dashboard() {
                 onClick={() => setGridOffset(0)}
               >
                 Back to today
+              </button>
+            )}
+          </div>
+          {/* the week's phrase sits between the two control groups in
+              the flow, centered in what they leave free and cut short
+              before it would run under them on a narrow window */}
+          <div className="flex min-w-0 flex-1 justify-center px-3">
+            {dashboard?.focus && (
+              <button
+                className="min-w-0 truncate text-sm font-medium italic text-accent hover:underline"
+                style={
+                  config.weekly_focus_color
+                    ? { color: readable(config.weekly_focus_color, "text") }
+                    : undefined
+                }
+                title={`${dashboard.focus} - edit weekly-focus.yml`}
+                onClick={() =>
+                  useAppStore.getState().openConfigFile("weekly-focus.yml")
+                }
+              >
+                {dashboard.focus}
               </button>
             )}
           </div>
@@ -160,22 +181,6 @@ export default function Dashboard() {
               + Task
             </button>
           </HeaderControls>
-          {dashboard?.focus && (
-            <button
-              className="absolute left-1/2 -translate-x-1/2 text-sm font-medium italic text-accent hover:underline"
-              style={
-                config.weekly_focus_color
-                  ? { color: readable(config.weekly_focus_color, "text") }
-                  : undefined
-              }
-              title="Edit weekly-focus.yml"
-              onClick={() =>
-                useAppStore.getState().openConfigFile("weekly-focus.yml")
-              }
-            >
-              {dashboard.focus}
-            </button>
-          )}
         </div>
         {freshVault && (
           <div className="mx-auto flex w-full max-w-xl flex-col gap-2 rounded-lg border border-line bg-surface-alt p-4 text-sm">
@@ -466,7 +471,7 @@ function ListZone({
         {(openGroup !== null || rows.length > perPage) &&
           rows.length > 0 && (
           <div className="flex w-40 flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
-            <div className="px-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-content-muted">
+            <div className="px-1 pb-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
               {openGroup ? "Group lists" : "All lists"}
             </div>
             {rows.map((row, i) => {

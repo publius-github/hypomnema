@@ -2,10 +2,15 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "../lib/ipc";
 import { COPYRIGHT, LICENSE_URL } from "../lib/legal";
+import { SHORTCUTS } from "../lib/shortcuts";
+import { useAppStore } from "../store";
 import AppLogo from "./AppLogo";
 import ProblemReport from "./ProblemReport";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 export default function AboutModal({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogFocus();
+  const capture = useAppStore((s) => s.config?.capture_shortcut ?? "");
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -17,18 +22,41 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-30 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-6"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="About Hypomnema"
-        className="w-80 rounded-xl border border-line bg-surface-alt p-6 shadow-xl"
+        className="max-h-full w-80 overflow-y-auto rounded-xl border border-line bg-surface-alt p-6 shadow-xl"
       >
         <AboutContent />
+        {/* desktop only: the phone's About (Settings) has no keyboard */}
+        <details className="mt-4 text-xs">
+          <summary className="cursor-pointer text-content-muted hover:text-content">
+            Keyboard shortcuts
+          </summary>
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+            {capture && (
+              <>
+                <dt className="whitespace-nowrap font-mono">{capture}</dt>
+                <dd className="text-content-muted">
+                  Quick capture from anywhere in Windows (Settings)
+                </dd>
+              </>
+            )}
+            {SHORTCUTS.map((s) => (
+              <div key={s.keys} className="contents">
+                <dt className="whitespace-nowrap font-mono">{s.keys}</dt>
+                <dd className="text-content-muted">{s.action}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
         <button
           className="btn-primary mt-4 w-full"
           onClick={onClose}
@@ -60,7 +88,7 @@ export function AboutContent() {
       <div className="flex flex-col items-center text-center">
         <AppLogo size={88} />
         <h2 className="mt-3 font-serif text-3xl leading-tight">Hypomnema</h2>
-        <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-content-muted">
+        <p className="mt-1 text-[0.6875rem] uppercase tracking-[0.3em] text-content-muted">
           Your mind. Organized.
         </p>
         <p className="mt-1 text-xs text-content-muted">
@@ -116,7 +144,7 @@ function LegalNotice() {
           {error ? "Could not load - retry" : "Third-party licenses"}
         </button>
       ) : (
-        <pre className="mt-2 max-h-64 select-text overflow-auto whitespace-pre-wrap wrap-break-word rounded-sm border border-line p-2 text-[10px] leading-snug">
+        <pre className="mt-2 max-h-64 select-text overflow-auto whitespace-pre-wrap wrap-break-word rounded-sm border border-line p-2 text-[0.625rem] leading-snug">
           {licenses}
         </pre>
       )}
