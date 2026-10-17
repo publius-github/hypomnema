@@ -6,17 +6,14 @@ import {
   basenameOf,
   isConflictedCopy,
   parentDirOf,
-  serialSaves,
   settleSave,
-  type SaveState,
 } from "../sections/kb/util";
 import SaveIndicator from "../components/SaveIndicator";
 import ConflictBadge from "../components/ConflictBadge";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
-
-const SAVE_DEBOUNCE_MS = 1200;
+import { AUTOSAVE_DELAY_MS, useAutosave } from "../hooks/useAutosave";
 
 type Open = { kind: "note" | "config"; path: string; content: string };
 
@@ -358,8 +355,6 @@ function NoteEditor({
 }) {
   const setError = useAppStore((s) => s.setError);
   const [content, setContent] = useState(note.content);
-  const [saveState, setSaveState] = useState<SaveState>("saved");
-  const saved = saveState === "saved";
   const [confirmTrash, setConfirmTrash] = useState(false);
   // a config file opens straight into the editor: its reading view is
   // YAML, which there is nothing to "read" - only to change
@@ -375,16 +370,8 @@ function NoteEditor({
   const [action, setAction] = useState<"rename" | "move" | null>(null);
   const [actionValue, setActionValue] = useState("");
   useBackStep(action !== null, () => setAction(null));
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pending = useRef<{ text: string; gen: number } | null>(null);
-  // bumped by every keystroke: a save only marks the note saved when
-  // nothing was typed after the text it carried
-  const editGen = useRef(0);
-  const queueSave = useRef(serialSaves()).current;
   const contentRef = useRef(content);
   contentRef.current = content;
-  const savedRef = useRef(saved);
-  savedRef.current = saved;
   // the on-disk text the shown note derives from: each save sends it, so
   // a sync pass that merged the desktop's edit in under the editor is
   // merged with the typing instead of overwritten
@@ -392,54 +379,37 @@ function NoteEditor({
 
   // Same contract as the journal's: the tail of what was typed must
   // survive backgrounding, which is how a phone screen is usually left.
-  const flush = useCallback(async () => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    const save = pending.current;
-    if (save === null) return;
-    pending.current = null;
-    const { text: outstanding, gen } = save;
-    await queueSave(async () => {
-      const done = () => {
-        if (gen === editGen.current) setSaveState("saved");
-      };
-      try {
-        if (note.kind === "config") {
-          // invalid YAML is reported and never written (last valid state
-          // stays active), same as the desktop's Config editor
-          const errors = await invoke("config_file_set", {
-            file: note.path,
-            content: outstanding,
-          });
-          setConfigErrors(errors);
-          if (errors.length === 0) done();
-        } else {
-          const written = await invoke("kb_write", {
-            path: note.path,
-            content: outstanding,
-            base: baseRef.current,
-          });
-          done();
-          const settled = settleSave(outstanding, written, contentRef.current);
-          baseRef.current = settled.base;
-          if (settled.content !== contentRef.current) {
-            setContent(settled.content);
-          }
-        }
-      } catch (e) {
-        // kept for the next flush (Back, leaving, Retry) unless newer
-        // typing already replaced it
-        if (!pending.current) pending.current = save;
-        if (gen === editGen.current) setSaveState("failed");
-        setError(errorMessage(e));
+  const reportError = useCallback(
+    (e: unknown) => setError(errorMessage(e)),
+    [setError],
+  );
+  const { saveState, savedRef, flush, schedule } = useAutosave<string>(
+    async (outstanding) => {
+      if (note.kind === "config") {
+        // invalid YAML is reported and never written (last valid state
+        // stays active), same as the desktop's Config editor
+        const errors = await invoke("config_file_set", {
+          file: note.path,
+          content: outstanding,
+        });
+        setConfigErrors(errors);
+        return errors.length === 0;
       }
-    });
-  }, [note.path, note.kind, queueSave, setError]);
-  const flushRef = useRef(flush);
-  flushRef.current = flush;
-  useEffect(() => () => void flushRef.current(), []);
+      const written = await invoke("kb_write", {
+        path: note.path,
+        content: outstanding,
+        base: baseRef.current,
+      });
+      const settled = settleSave(outstanding, written, contentRef.current);
+      baseRef.current = settled.base;
+      if (settled.content !== contentRef.current) {
+        setContent(settled.content);
+      }
+    },
+    reportError,
+    AUTOSAVE_DELAY_MS.mobile,
+  );
+  const saved = saveState === "saved";
 
   // A sync pass changed the vault: a note with no unsaved typing shows
   // what is on disk now; typing is kept, and its save merges the two.
@@ -458,14 +428,11 @@ function NoteEditor({
       .catch(() => {
         // deleted elsewhere or the vault is mid-reopen: keep what is shown
       });
-  }, [vaultVersion, note.kind, note.path]);
+  }, [vaultVersion, note.kind, note.path, savedRef]);
 
   const edit = (text: string) => {
     setContent(text);
-    setSaveState("dirty");
-    pending.current = { text, gen: ++editGen.current };
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void flush(), SAVE_DEBOUNCE_MS);
+    schedule(text);
   };
 
   const applyAction = () => {

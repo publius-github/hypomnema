@@ -3,14 +3,9 @@ import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { useBackStep } from "./back";
 import DayHeader, { HeaderButton, MenuIcon } from "./DayHeader";
-import {
-  serialSaves,
-  settleSave,
-  type SaveState,
-} from "../sections/kb/util";
+import { settleSave } from "../sections/kb/util";
 import SaveIndicator from "../components/SaveIndicator";
-
-const SAVE_DEBOUNCE_MS = 1200;
+import { AUTOSAVE_DELAY_MS, useAutosave } from "../hooks/useAutosave";
 
 /**
  * The journal, one day at a time.
@@ -25,22 +20,10 @@ export default function MobileJournal() {
   const setError = useAppStore((s) => s.setError);
   const [date, setDate] = useState(today);
   const [content, setContent] = useState("");
-  const [saveState, setSaveState] = useState<SaveState>("saved");
-  const saved = saveState === "saved";
   const [browsing, setBrowsing] = useState(false);
   const [entries, setEntries] = useState<string[]>([]);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pending = useRef<{ date: string; content: string; gen: number } | null>(
-    null,
-  );
-  // bumped by every keystroke: a save only marks the entry saved when
-  // nothing was typed after the text it carried
-  const editGen = useRef(0);
-  const queueSave = useRef(serialSaves()).current;
   const contentRef = useRef(content);
   contentRef.current = content;
-  const savedRef = useRef(saved);
-  savedRef.current = saved;
   // the on-disk text the shown entry derives from: each save sends it,
   // so a sync pass that merged the desktop's edit in under the textarea
   // is merged with the typing instead of overwritten
@@ -59,50 +42,39 @@ export default function MobileJournal() {
     useAppStore.setState({ journalOpenDate: null });
   }, [openDate]);
 
-  const persist = useCallback(
-    (save: { date: string; content: string; gen: number }) =>
-      queueSave(async () => {
-        const { date: entryDate, content: text, gen } = save;
-        try {
-          const base = baseRef.current;
-          const written = await invoke("journal_save", {
-            date: entryDate,
-            content: text,
-            base: base?.date === entryDate ? base.content : null,
-          });
-          if (gen === editGen.current) setSaveState("saved");
-          if (loadedDate.current === entryDate) {
-            const settled = settleSave(text, written, contentRef.current);
-            baseRef.current = { date: entryDate, content: settled.base };
-            if (settled.content !== contentRef.current) {
-              setContent(settled.content);
-            }
-          }
-        } catch (e) {
-          // kept for the next flush (day switch, leaving, Retry) unless
-          // newer typing already replaced it
-          if (!pending.current) pending.current = save;
-          if (gen === editGen.current) setSaveState("failed");
-          setError(errorMessage(e));
-        }
-      }),
-    [queueSave, setError],
+  // Switching days (or leaving, or backgrounding the app - on a phone
+  // the common way to leave) must not drop an edit still sitting in the
+  // debounce, and the save has to land before the next read or the user
+  // types over text that was already stale when it arrived.
+  const reportError = useCallback(
+    (e: unknown) => setError(errorMessage(e)),
+    [setError],
   );
-
-  // Switching days (or leaving) must not drop an edit still sitting in
-  // the debounce, and the save has to land before the next read or the
-  // user types over text that was already stale when it arrived.
-  const flush = useCallback(async () => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    const outstanding = pending.current;
-    if (outstanding) {
-      pending.current = null;
-      await persist(outstanding);
-    }
-  }, [persist]);
+  const {
+    saveState,
+    savedRef,
+    flush,
+    loaded: markLoaded,
+    schedule,
+  } = useAutosave<{ date: string; content: string }>(
+    async ({ date: entryDate, content: text }) => {
+      const base = baseRef.current;
+      const written = await invoke("journal_save", {
+        date: entryDate,
+        content: text,
+        base: base?.date === entryDate ? base.content : null,
+      });
+      if (loadedDate.current === entryDate) {
+        const settled = settleSave(text, written, contentRef.current);
+        baseRef.current = { date: entryDate, content: settled.base };
+        if (settled.content !== contentRef.current) {
+          setContent(settled.content);
+        }
+      }
+    },
+    reportError,
+    AUTOSAVE_DELAY_MS.mobile,
+  );
 
   const loadedDate = useRef<string | null>(null);
   useEffect(() => {
@@ -118,8 +90,7 @@ export default function MobileJournal() {
         loadedDate.current = entry.date;
         baseRef.current = { date: entry.date, content: entry.content };
         setContent(entry.content);
-        editGen.current++;
-        setSaveState("saved");
+        markLoaded();
       } catch (e) {
         if (!cancelled) setError(errorMessage(e));
       }
@@ -148,21 +119,14 @@ export default function MobileJournal() {
         // the vault is mid-reopen; the next update tries again
       }
     })();
-  }, [vaultVersion]);
-
-  // Leaving the tab or backgrounding the app must not lose the tail of
-  // what was typed - on a phone that is the common way to leave.
-  useEffect(() => () => void flush(), [flush]);
+  }, [vaultVersion, savedRef]);
 
   const edit = (text: string) => {
     // the textarea still shows the previous day's text until the open
     // lands; a keystroke now would queue that text under the new date
     if (loadedDate.current !== date) return;
     setContent(text);
-    setSaveState("dirty");
-    pending.current = { date, content: text, gen: ++editGen.current };
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void flush(), SAVE_DEBOUNCE_MS);
+    schedule({ date, content: text });
   };
 
   if (browsing) {

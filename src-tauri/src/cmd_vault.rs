@@ -231,7 +231,11 @@ pub(crate) async fn config_set(
     // the task mirror toggle takes effect immediately
     if mirror_now && !mirror_was {
         state.request_export();
-        let _ = start_tasks_watcher(app, &vault::tasks_dir(&root));
+        if let Err(e) = start_tasks_watcher(app, &vault::tasks_dir(&root)) {
+            applog::error(format!(
+                "task mirror watcher did not start, edits to the task files are not read: {e}"
+            ));
+        }
     } else if !mirror_now && mirror_was {
         // dropping the watcher closes its channel and ends the thread;
         // the files stay on disk but are no longer read or written

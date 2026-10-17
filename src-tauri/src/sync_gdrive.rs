@@ -28,7 +28,6 @@
 //! - A file deleted on the other device simply stops being listed;
 //!   `sync_cycle` reads "in the manifest, absent from a full listing" as
 //!   that deletion, so no tombstones are needed.
-#![allow(dead_code)]
 
 use std::collections::HashMap;
 use std::sync::Mutex;

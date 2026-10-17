@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
-import { splitCategory, todayISO, weekdayShort } from "../lib/tasks";
+import { isoDate, splitCategory, todayISO, weekdayShort } from "../lib/tasks";
 import type { DailyStreak, Task } from "../types";
 import TaskModal from "../components/TaskModal";
 import NavArrow from "../components/NavArrow";
@@ -28,10 +28,6 @@ const ORIGIN_LABELS: Record<string, string> = {
   birthday: "birthdays",
 };
 
-function iso(year: number, month: number, day: number): string {
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
 /**
  * Read-only browser over past work: month completion stats, per-rule
  * daily streaks, and the completed tasks grouped by day. Retention
@@ -49,9 +45,9 @@ export default function History() {
   const [listFilter, setListFilter] = useState<number | "all">("all");
   const [openTask, setOpenTask] = useState<Task | null>(null);
 
-  const monthStart = iso(year, month, 1);
+  const monthStart = isoDate(year, month, 1);
   const nextMonthStart =
-    month === 11 ? iso(year + 1, 0, 1) : iso(year, month + 1, 1);
+    month === 11 ? isoDate(year + 1, 0, 1) : isoDate(year, month + 1, 1);
 
   useEffect(() => {
     let cancelled = false;

@@ -5,7 +5,8 @@ import { useAppStore } from "../store";
 import { addDaysISO, dayLabel, todayISO } from "../lib/tasks";
 import EntryList from "./journal/EntryList";
 import DayTasks from "./journal/DayTasks";
-import { serialSaves, settleSave, type SaveState } from "./kb/util";
+import { settleSave } from "./kb/util";
+import { AUTOSAVE_DELAY_MS, useAutosave } from "../hooks/useAutosave";
 import { lazy, Suspense } from "react";
 import NavArrow from "../components/NavArrow";
 import { DatePick } from "../components/DateJump";
@@ -19,12 +20,6 @@ interface OpenDoc {
   content: string;
 }
 
-/** An edit waiting to be saved, numbered so a save that lands knows
- * whether anything was typed after it. */
-interface PendingSave extends OpenDoc {
-  gen: number;
-}
-
 export default function Journal() {
   const setError = useCallback(
     (e: unknown) => useAppStore.getState().setError(errorMessage(e)),
@@ -32,18 +27,8 @@ export default function Journal() {
   );
   const [dates, setDates] = useState<string[]>([]);
   const [doc, setDoc] = useState<OpenDoc | null>(null);
-  const [saveState, setSaveState] = useState<SaveState>("saved");
-  const saved = saveState === "saved";
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<PendingSave | null>(null);
-  // bumped by every keystroke: a save only marks the entry saved when
-  // nothing was typed after the text it carried
-  const editGen = useRef(0);
-  const queueSave = useRef(serialSaves()).current;
   const docRef = useRef<OpenDoc | null>(null);
   docRef.current = doc;
-  const savedRef = useRef(true);
-  savedRef.current = saved;
   // the on-disk text the open entry's editor text derives from: each
   // save sends it, so a sync pass that merged the phone's edit in under
   // the editor gets merged with the typing instead of overwritten
@@ -57,55 +42,38 @@ export default function Journal() {
     }
   }, [setError]);
 
-  const persist = useCallback(
-    (pending: PendingSave) =>
-      queueSave(async () => {
-        const { date, content, gen } = pending;
-        try {
-          const base = baseRef.current;
-          const written = await invoke("journal_save", {
-            date,
-            content,
-            base: base?.date === date ? base.content : null,
-          });
-          if (gen === editGen.current) setSaveState("saved");
-          const cur = docRef.current;
-          if (cur?.date === date) {
-            const settled = settleSave(content, written, cur.content);
-            baseRef.current = { date, content: settled.base };
-            if (settled.content !== cur.content) {
-              setDoc((prev) =>
-                prev?.date === date
-                  ? { ...prev, content: settled.content }
-                  : prev,
-              );
-            }
-          }
-        } catch (e) {
-          // kept for the next flush (entry switch, leaving, Retry) unless
-          // newer typing already replaced it
-          if (!pendingRef.current) pendingRef.current = pending;
-          if (gen === editGen.current) setSaveState("failed");
-          setError(e);
+  // autosave with debounce; flushed on unmount and awaited before an
+  // entry switch, or the read could return the pre-save file and the
+  // user would keep typing over stale text
+  const autosave = useAutosave<OpenDoc>(
+    async ({ date, content }) => {
+      const base = baseRef.current;
+      const written = await invoke("journal_save", {
+        date,
+        content,
+        base: base?.date === date ? base.content : null,
+      });
+      const cur = docRef.current;
+      if (cur?.date === date) {
+        const settled = settleSave(content, written, cur.content);
+        baseRef.current = { date, content: settled.base };
+        if (settled.content !== cur.content) {
+          setDoc((prev) =>
+            prev?.date === date ? { ...prev, content: settled.content } : prev,
+          );
         }
-      }),
-    [queueSave, setError],
+      }
+    },
+    setError,
+    AUTOSAVE_DELAY_MS.desktop,
   );
-
-  // saves the debounced edit immediately (tab switch, entry switch);
-  // awaited before reopening, or the read could return the pre-save
-  // file and the user would keep typing over stale text
-  const flushPending = useCallback(async () => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    const pending = pendingRef.current;
-    if (pending) {
-      pendingRef.current = null;
-      await persist(pending);
-    }
-  }, [persist]);
+  const {
+    saveState,
+    savedRef,
+    flush: flushPending,
+    loaded: markLoaded,
+    schedule,
+  } = autosave;
 
   // two quick clicks race their reads: only the latest open may land
   const openSeq = useRef(0);
@@ -122,14 +90,13 @@ export default function Journal() {
         if (seq !== openSeq.current) return;
         baseRef.current = { date: entry.date, content: entry.content };
         setDoc({ date: entry.date, content: entry.content });
-        editGen.current++;
-        setSaveState("saved");
+        markLoaded();
         await loadDates();
       } catch (e) {
         setError(e);
       }
     },
-    [flushPending, loadDates, setError],
+    [flushPending, loadDates, markLoaded, setError],
   );
 
   useEffect(() => {
@@ -156,7 +123,7 @@ export default function Journal() {
         // the vault is mid-reopen; the next update tries again
       }
     })();
-  }, [vaultVersion]);
+  }, [vaultVersion, savedRef]);
 
   // navigation requests from the search palette
   const journalOpenDate = useAppStore((s) => s.journalOpenDate);
@@ -166,23 +133,11 @@ export default function Journal() {
     void openEntry(journalOpenDate);
   }, [journalOpenDate, openEntry]);
 
-  // autosave with debounce; flush on unmount and on entry switch
   const scheduleSave = (content: string) => {
     if (!doc) return;
     setDoc({ ...doc, content });
-    setSaveState("dirty");
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    const target = { ...doc, content, gen: ++editGen.current };
-    pendingRef.current = target;
-    saveTimer.current = setTimeout(() => {
-      pendingRef.current = null;
-      void persist(target);
-    }, 800);
+    schedule({ ...doc, content });
   };
-
-  useEffect(() => {
-    return () => void flushPending();
-  }, [flushPending]);
 
   const today = todayISO();
   const config = useAppStore((s) => s.config);

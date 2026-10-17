@@ -2,25 +2,28 @@
 //! someone else". The sync engine (`sync_cycle.rs`, `sync_merge.rs`)
 //! consumes this trait without caring which backend moved the bytes; the
 //! one real implementation is `sync_gdrive.rs` (Google Drive's hidden
-//! app folder), Dropbox's having been retired.
-//!
-//! Nothing outside this module's own tests calls into it yet - it's
-//! staged ahead of the concrete providers and the vault-bootstrap wiring
-//! that will use it, both later Phase 1 work.
-#![allow(dead_code)]
+//! app folder), Dropbox's having been retired; tests run the engine
+//! against the in-memory `mock` below.
 
 use crate::error::Result;
 
 /// Opaque per-file change marker. The two backends give different
 /// guarantees:
-/// - `Rev` (Dropbox API): server-issued, monotonic - a real
+/// - `Rev` (Google Drive, the mock): server-issued - a real
 ///   optimistic-concurrency token.
-/// - `HashMtime` (SAF/filesystem): best-effort content hash + mtime, a
-///   weaker signal with no server enforcement behind it.
+/// - `HashMtime` (a SAF/filesystem backend): best-effort content hash +
+///   mtime, a weaker signal with no server enforcement behind it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChangeMarker {
     Rev(String),
-    HashMtime { hash: String, mtime_unix: i64 },
+    // No backend issues it yet; the providers already refuse it as a
+    // foreign marker, so a filesystem backend can be added without
+    // reshaping every match on this enum.
+    #[allow(dead_code)]
+    HashMtime {
+        hash: String,
+        mtime_unix: i64,
+    },
 }
 
 /// One entry from `SyncProvider::list_changes`.

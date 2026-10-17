@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use chrono::NaiveDate;
 use serde::Serialize;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 
 pub(crate) const DEFAULT_TEMPLATE: &str = "\
 # {{date}}
@@ -106,7 +106,7 @@ pub fn open_entry(vault: &Path, date: &str) -> Result<JournalEntry> {
     let path = entry_path(vault, &date)?;
     if path.exists() {
         return Ok(JournalEntry {
-            content: fs::read_to_string(&path)?,
+            content: fs::read_to_string(&path).at(&path)?,
             date,
         });
     }
@@ -131,7 +131,7 @@ pub fn save_entry_from(
 ) -> Result<crate::text_merge::Reconciled> {
     let path = entry_path(vault, date)?;
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).at(parent)?;
     }
     let _files = crate::text_merge::user_file_lock();
     let on_disk = fs::read_to_string(&path).ok();

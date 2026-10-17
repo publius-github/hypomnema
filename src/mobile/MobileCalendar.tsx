@@ -10,12 +10,6 @@ function monthStart(iso: string): Date {
   return new Date(year, month - 1, 1);
 }
 
-function isoOf(date: Date): string {
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
 /** Monday-first, so the two weekend cells sit together at the end. */
 function weekdayIndex(date: Date): number {
   return (date.getDay() + 6) % 7;
@@ -50,15 +44,22 @@ export default function MobileCalendar() {
     first.getMonth() + 1,
     0,
   ).getDate();
-  const from = isoOf(first);
-  const to = isoOf(
+  const from = todayISO(first);
+  const to = todayISO(
     new Date(first.getFullYear(), first.getMonth(), daysInMonth),
   );
 
   useEffect(() => {
+    // paging fast: a slow answer for the month just left must not land
+    let cancelled = false;
     void invoke("calendar_outlook", { from, to })
-      .then(setOutlook)
+      .then((events) => {
+        if (!cancelled) setOutlook(events);
+      })
       .catch((e) => setError(errorMessage(e)));
+    return () => {
+      cancelled = true;
+    };
   }, [from, to, setError, vaultVersion]);
 
   // The month's own snapshot, same as the desktop calendar: the store's
@@ -116,7 +117,7 @@ export default function MobileCalendar() {
   const cells: (string | null)[] = [
     ...Array<null>(weekdayIndex(first)).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) =>
-      isoOf(new Date(first.getFullYear(), first.getMonth(), i + 1)),
+      todayISO(new Date(first.getFullYear(), first.getMonth(), i + 1)),
     ),
   ];
 

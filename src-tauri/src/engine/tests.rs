@@ -1751,3 +1751,64 @@ fn invariants_hold_over_a_long_irregular_run() {
         "too little was generated to prove much"
     );
 }
+
+/// A zone whose clocks skip midnight on 2026-09-06 (00:00 -> 01:00, the
+/// Santiago kind of change) and repeat its first hour on 2026-04-05.
+#[derive(Clone)]
+struct MidnightDst;
+
+impl TimeZone for MidnightDst {
+    type Offset = chrono::FixedOffset;
+
+    fn from_offset(_: &chrono::FixedOffset) -> Self {
+        MidnightDst
+    }
+
+    fn offset_from_local_date(&self, _: &NaiveDate) -> chrono::LocalResult<chrono::FixedOffset> {
+        chrono::LocalResult::None
+    }
+
+    fn offset_from_local_datetime(
+        &self,
+        local: &chrono::NaiveDateTime,
+    ) -> chrono::LocalResult<chrono::FixedOffset> {
+        let summer = chrono::FixedOffset::west_opt(3 * 3600).unwrap();
+        let winter = chrono::FixedOffset::west_opt(4 * 3600).unwrap();
+        let first_hour = local.time() < chrono::NaiveTime::from_hms_opt(1, 0, 0).unwrap();
+        match local.date().to_string().as_str() {
+            "2026-09-06" if first_hour => chrono::LocalResult::None,
+            "2026-04-05" if first_hour => chrono::LocalResult::Ambiguous(summer, winter),
+            _ => chrono::LocalResult::Single(summer),
+        }
+    }
+
+    fn offset_from_utc_date(&self, _: &NaiveDate) -> chrono::FixedOffset {
+        chrono::FixedOffset::west_opt(3 * 3600).unwrap()
+    }
+
+    fn offset_from_utc_datetime(&self, _: &chrono::NaiveDateTime) -> chrono::FixedOffset {
+        chrono::FixedOffset::west_opt(3 * 3600).unwrap()
+    }
+}
+
+#[test]
+fn a_day_whose_midnight_is_skipped_starts_right_after_the_gap() {
+    let day = NaiveDate::from_ymd_opt(2026, 9, 6).unwrap();
+    let start = day_start(&MidnightDst, day).unwrap();
+    assert_eq!(start.naive_local().to_string(), "2026-09-06 01:00:00");
+}
+
+#[test]
+fn a_repeated_midnight_starts_the_day_at_its_earlier_instance() {
+    let day = NaiveDate::from_ymd_opt(2026, 4, 5).unwrap();
+    let start = day_start(&MidnightDst, day).unwrap();
+    assert_eq!(start.naive_local().to_string(), "2026-04-05 00:00:00");
+    assert_eq!(start.offset().local_minus_utc(), -3 * 3600);
+}
+
+#[test]
+fn an_ordinary_day_starts_at_midnight() {
+    let day = NaiveDate::from_ymd_opt(2026, 9, 7).unwrap();
+    let start = day_start(&MidnightDst, day).unwrap();
+    assert_eq!(start.naive_local().to_string(), "2026-09-07 00:00:00");
+}

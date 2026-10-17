@@ -117,6 +117,38 @@ fn a_note_edited_only_there_comes_down_over_the_local_copy() {
     assert_eq!(read(&local, "journal/a.md"), "their edit");
 }
 
+/// A file that is there but cannot be read right now (locked by another
+/// app, a cloud placeholder offline) may hold edits: the pass reports it
+/// as failed instead of taking it for missing and writing the other side
+/// over it, and the next pass tries again.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_local_file_is_not_overwritten_as_if_it_were_missing() {
+    use std::os::unix::fs::PermissionsExt;
+    let local = temp_dir("unreadable");
+    let provider = MockProvider::new();
+    in_sync(&provider, &local, "journal/a.md", "before");
+    write(&local, "journal/a.md", "my edit");
+    let (_, marker) = provider.read_file("vault/journal/a.md").unwrap();
+    provider
+        .write_file("vault/journal/a.md", b"their edit", Some(&marker))
+        .unwrap();
+    let path = local.join("journal/a.md");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read(&path).is_ok() {
+        // running as root: permissions cannot make the file unreadable
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        return;
+    }
+
+    let report = sync(&provider, &local);
+
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(report.failed, vec!["vault/journal/a.md".to_string()]);
+    assert_eq!(report.downloaded, 0);
+    assert_eq!(read(&local, "journal/a.md"), "my edit");
+}
+
 #[test]
 fn a_journal_entry_written_on_both_devices_keeps_both_versions() {
     let local = temp_dir("prose-conflict");

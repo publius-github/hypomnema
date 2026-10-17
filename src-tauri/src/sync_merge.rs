@@ -19,10 +19,9 @@
 //! then this module can only tell a caller a deletion was overridden by a
 //! concurrent edit, not attribute the deletion to a side or a time.
 //!
-//! Nothing outside this module's own tests calls into it yet - it's
-//! staged ahead of the JSONL schema's `updated_at`/`updated_by` fields and
-//! the sync pipeline that will call it, both later Phase 1 work.
-#![allow(dead_code)]
+//! `sync_state` applies it to every stamped row of the JSONL snapshot
+//! during a pass; the dedup ledger (`rule_runs`) needs no field merge and
+//! is a plain set union there.
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -180,19 +179,6 @@ fn record_is_newer(a: &Record, b: &Record) -> bool {
     }
 }
 
-/// `rule_runs`' dedup ledger merges as a plain set union of
-/// `(rule_key, period_key)` pairs - it's inherently
-/// conflict-free, since both sides regenerating the same period
-/// independently must collapse to one row.
-pub fn merge_rule_runs(
-    local: impl IntoIterator<Item = (String, String)>,
-    remote: impl IntoIterator<Item = (String, String)>,
-) -> BTreeSet<(String, String)> {
-    let mut merged: BTreeSet<(String, String)> = local.into_iter().collect();
-    merged.extend(remote);
-    merged
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,24 +301,6 @@ mod tests {
         let merged = merge_record(None, None, None, &mut conflicts);
         assert!(conflicts.is_empty());
         assert!(merged.is_none());
-    }
-
-    #[test]
-    fn rule_runs_merge_as_a_set_union() {
-        let local = vec![
-            ("daily-standup".to_string(), "2026-09-08".to_string()),
-            ("weekly-review".to_string(), "2026-W36".to_string()),
-        ];
-        let remote = vec![
-            ("daily-standup".to_string(), "2026-09-08".to_string()),
-            ("daily-standup".to_string(), "2026-09-09".to_string()),
-        ];
-
-        let merged = merge_rule_runs(local, remote);
-
-        assert_eq!(merged.len(), 3);
-        assert!(merged.contains(&("daily-standup".to_string(), "2026-09-09".to_string())));
-        assert!(merged.contains(&("weekly-review".to_string(), "2026-W36".to_string())));
     }
 
     #[test]

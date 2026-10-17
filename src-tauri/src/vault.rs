@@ -310,11 +310,11 @@ pub fn write_atomic_bytes(path: &Path, content: &[u8]) -> Result<()> {
     })();
     if let Err(e) = staged {
         let _ = fs::remove_file(&tmp);
-        return Err(e.into());
+        return Err(Error::io_at(path, e));
     }
     if let Err(e) = fs::rename(&tmp, path) {
         let _ = fs::remove_file(&tmp);
-        return Err(e.into());
+        return Err(Error::io_at(path, e));
     }
     Ok(())
 }

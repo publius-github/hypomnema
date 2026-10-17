@@ -9,7 +9,6 @@
 //! chosen over a synced folder (the verdict of an early spike). A
 //! rejection is reported, never overwritten: the other device's edit is
 //! not this device's to discard.
-#![allow(dead_code)]
 
 use std::collections::BTreeMap;
 use std::path::Path;

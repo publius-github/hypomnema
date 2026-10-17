@@ -177,7 +177,11 @@ pub(crate) fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
             let snapshot = {
                 let mut guard = state.vault.lock_or_recover();
                 guard.as_mut().map(|vault| {
-                    let _ = vault.reload_config();
+                    // a broken file is already on the banner via
+                    // config_error; anything else would vanish silently
+                    if let Err(e) = vault.reload_config() {
+                        applog::error(format!("settings reload failed: {e}"));
+                    }
                     (
                         vault.root.clone(),
                         vault.config.clone(),
@@ -415,7 +419,11 @@ pub(crate) fn open_vault(
     start_config_watcher(app.clone(), root)?;
     if config.tasks_mirror {
         mirror_export_now(state);
-        let _ = start_tasks_watcher(app.clone(), &vault::tasks_dir(root));
+        if let Err(e) = start_tasks_watcher(app.clone(), &vault::tasks_dir(root)) {
+            applog::error(format!(
+                "task mirror watcher did not start, edits to the task files are not read: {e}"
+            ));
+        }
     } else {
         *state.tasks_watcher.lock_or_recover() = None;
     }

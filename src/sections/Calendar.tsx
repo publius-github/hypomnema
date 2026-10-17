@@ -17,6 +17,7 @@ import {
   categoryBlockIndex,
   categoryChipColor,
   categoryOf,
+  isoDate,
   splitCategory,
   tintStyle,
   todayISO,
@@ -62,10 +63,6 @@ function taskKind(task: Task): string {
   if (task.origin === "scheduled") return "date";
   if (task.origin === "birthday") return "birthday";
   return task.cadence && task.cadence in KIND_DOT ? task.cadence : "once";
-}
-
-function iso(year: number, month: number, day: number): string {
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 /** Month cell as a drop target: dropping a task row here reschedules it
@@ -135,11 +132,11 @@ export default function Calendar() {
   // any task mutation anywhere refreshes the month view
   const storeTasks = useAppStore((s) => s.tasks);
 
-  const monthStart = iso(year, month, 1);
+  const monthStart = isoDate(year, month, 1);
   const nextMonthStart =
-    month === 11 ? iso(year + 1, 0, 1) : iso(year, month + 1, 1);
+    month === 11 ? isoDate(year + 1, 0, 1) : isoDate(year, month + 1, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthEnd = iso(year, month, daysInMonth);
+  const monthEnd = isoDate(year, month, daysInMonth);
 
   useEffect(() => {
     let cancelled = false;
@@ -330,7 +327,7 @@ export default function Calendar() {
         <div className="grid grid-cols-7 gap-1">
           {cells.map((day, i) => {
             if (day === null) return <span key={`empty-${i}`} />;
-            const date = iso(year, month, day);
+            const date = isoDate(year, month, day);
             const dayTasks = byDate.get(date) ?? [];
             const projected = outlookByDate.get(date)?.length ?? 0;
             const doneCount = dayTasks.filter(

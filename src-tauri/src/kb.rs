@@ -4,7 +4,7 @@ use std::path::{Component, Path, PathBuf};
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
@@ -354,7 +354,8 @@ pub fn backlinks(root: &Path, rel: &str) -> Result<KbBacklinks> {
 }
 
 pub fn read(root: &Path, rel: &str) -> Result<String> {
-    Ok(fs::read_to_string(resolve(root, rel)?)?)
+    let path = resolve(root, rel)?;
+    fs::read_to_string(&path).at(&path)
 }
 
 /// Writes a note. With `stamp` (a Markdown note, timestamps on) the
@@ -394,7 +395,7 @@ pub fn write_from(
         return Ok((content, kept_aside));
     }
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).at(parent)?;
     }
     // Notes are primary user data: a crash mid-autosave must not
     // truncate the file, same guarantee the YAML configs already have.
@@ -596,9 +597,9 @@ pub fn create(root: &Path, rel: &str) -> Result<String> {
         return Err(Error::State(format!("file already exists: {rel}")));
     }
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).at(parent)?;
     }
-    fs::write(&path, "")?;
+    fs::write(&path, "").at(&path)?;
     Ok(rel)
 }
 
@@ -615,7 +616,7 @@ pub fn create_dir(root: &Path, rel: &str) -> Result<String> {
     if path.is_file() {
         return Err(Error::State(format!("a file already exists at {rel}")));
     }
-    fs::create_dir_all(&path)?;
+    fs::create_dir_all(&path).at(&path)?;
     Ok(rel)
 }
 
@@ -660,9 +661,9 @@ pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {
         return Err(Error::State(format!("target already exists: {to}")));
     }
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).at(parent)?;
     }
-    fs::rename(source, target)?;
+    fs::rename(&source, &target).at(&source)?;
     Ok(())
 }
 
@@ -744,7 +745,7 @@ pub fn delete(root: &Path, rel: &str) -> Result<()> {
         return Err(Error::State(format!("no such file: {rel}")));
     }
     let trash = root.join(TRASH_DIR);
-    fs::create_dir_all(&trash)?;
+    fs::create_dir_all(&trash).at(&trash)?;
     let flat = rel.replace(['/', '\\'], "__");
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
     let mut target = trash.join(format!("{stamp}-{flat}"));
@@ -753,7 +754,7 @@ pub fn delete(root: &Path, rel: &str) -> Result<()> {
         target = trash.join(format!("{stamp}-{n}-{flat}"));
         n += 1;
     }
-    fs::rename(&path, &target)?;
+    fs::rename(&path, &target).at(&path)?;
     prune_trash(&trash);
     Ok(())
 }

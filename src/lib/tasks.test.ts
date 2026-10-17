@@ -12,6 +12,7 @@ import {
   nextStatus,
   nextWeekTarget,
   indexRows,
+  isoDate,
   orderPanel,
   priorityPatch,
   sortClosedAlpha,
@@ -153,6 +154,11 @@ describe("priorityPatch", () => {
 describe("date helpers", () => {
   it("adds days across month boundaries", () => {
     expect(addDaysISO("2026-08-30", 3)).toBe("2026-09-02");
+  });
+
+  it("names a calendar cell with a 0-based month, zero-padded", () => {
+    expect(isoDate(2026, 0, 5)).toBe("2026-01-05");
+    expect(isoDate(2026, 11, 31)).toBe("2026-12-31");
   });
 
   it("builds the rolling window from today", () => {

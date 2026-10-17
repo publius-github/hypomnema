@@ -16,10 +16,9 @@ import {
   flattenAll,
   flattenFiles,
   parentDirOf,
-  serialSaves,
   settleSave,
-  type SaveState,
 } from "./kb/util";
+import { AUTOSAVE_DELAY_MS, useAutosave } from "../hooks/useAutosave";
 
 import type { KbNode, KbSearchHit } from "../types";
 
@@ -64,21 +63,59 @@ export default function KnowledgeBase() {
   const [configErrors, setConfigErrors] = useState<
     { line: number | null; message: string }[]
   >([]);
-  const [saveState, setSaveState] = useState<SaveState>("saved");
-  const savedRef = useRef(true);
-  savedRef.current = saveState === "saved";
-  // bumped by every keystroke: a save only marks the note saved when
-  // nothing was typed after the text it carried
-  const editGen = useRef(0);
-  const queueSave = useRef(serialSaves()).current;
   const currentRef = useRef<OpenDoc | null>(null);
   currentRef.current = current;
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<(OpenDoc & { gen: number }) | null>(null);
   // the on-disk text the open note's editor text derives from: each save
   // sends it, so a change that landed under the editor (a sync merging
   // the other device's edit) is merged in rather than overwritten
   const baseRef = useRef<{ path: string; text: string } | null>(null);
+
+  // autosave with debounce: flushed (awaited) before a file switch, a
+  // rename or leaving, so a reopen never reads the pre-save file
+  const {
+    saveState,
+    savedRef,
+    flush: flushPending,
+    drop: dropPending,
+    loaded: markLoaded,
+    schedule,
+  } = useAutosave<OpenDoc>(
+    async (doc) => {
+      if (doc.kind === "config") {
+        // invalid YAML is reported and never written (last valid
+        // state stays active), same as the Settings editor
+        const errors = await invoke("config_file_set", {
+          file: doc.path,
+          content: doc.content,
+        });
+        setConfigErrors(errors);
+        return errors.length === 0;
+      }
+      const base = baseRef.current;
+      const written = await invoke("kb_write", {
+        path: doc.path,
+        content: doc.content,
+        base: base?.path === doc.path ? base.text : null,
+      });
+      // the save stamped the note's Created / Last edited header, or
+      // merged in a change made elsewhere: the editor takes it over
+      // without losing what was typed meanwhile
+      const cur = currentRef.current;
+      if (cur && cur.kind === "note" && cur.path === doc.path) {
+        const settled = settleSave(doc.content, written, cur.content);
+        baseRef.current = { path: doc.path, text: settled.base };
+        if (settled.content !== cur.content) {
+          setCurrent((prev) =>
+            prev && prev.path === doc.path
+              ? { ...prev, content: settled.content }
+              : prev,
+          );
+        }
+      }
+    },
+    setError,
+    AUTOSAVE_DELAY_MS.desktop,
+  );
 
   const kbPath = config?.kb_path?.trim() ?? "";
 
@@ -123,37 +160,7 @@ export default function KnowledgeBase() {
     return () => {
       void unlisten.then((fn) => fn());
     };
-  }, [loadTree]);
-
-  // saves the debounced edit immediately (file switch, tab switch);
-  // awaited before reads so a reopen never sees the pre-save file
-  const flushPending = useCallback(async () => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    const pending = pendingRef.current;
-    if (pending) {
-      pendingRef.current = null;
-      await persist(pending);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // rename/delete of the open file: the debounced kb_write would
-  // otherwise fire after the operation and resurrect the old path
-  const dropPendingFor = (path: string) => {
-    if (pendingRef.current?.path !== path) return;
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    pendingRef.current = null;
-  };
-
-  useEffect(() => {
-    return () => void flushPending();
-  }, [flushPending]);
+  }, [loadTree, savedRef]);
 
   // two quick clicks race their reads: only the latest open may land
   const openSeq = useRef(0);
@@ -168,8 +175,7 @@ export default function KnowledgeBase() {
       setCurrent({ kind: "note", path, content });
       useAppStore.getState().setKbCurrent({ kind: "note", path });
       setConfigErrors([]);
-      editGen.current++;
-      setSaveState("saved");
+      markLoaded();
     } catch (e) {
       setError(e);
     }
@@ -184,8 +190,7 @@ export default function KnowledgeBase() {
       setCurrent({ kind: "config", path: file, content });
       useAppStore.getState().setKbCurrent({ kind: "config", path: file });
       setConfigErrors([]);
-      editGen.current++;
-      setSaveState("saved");
+      markLoaded();
     } catch (e) {
       setError(e);
     }
@@ -201,70 +206,11 @@ export default function KnowledgeBase() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const persist = (doc: OpenDoc & { gen: number }) =>
-    queueSave(async () => {
-      const done = () => {
-        if (doc.gen === editGen.current) setSaveState("saved");
-      };
-      try {
-        if (doc.kind === "config") {
-          // invalid YAML is reported and never written (last valid
-          // state stays active), same as the Settings editor
-          const errors = await invoke("config_file_set", {
-            file: doc.path,
-            content: doc.content,
-          });
-          setConfigErrors(errors);
-          if (errors.length === 0) done();
-        } else {
-          const base = baseRef.current;
-          const written = await invoke("kb_write", {
-            path: doc.path,
-            content: doc.content,
-            base: base?.path === doc.path ? base.text : null,
-          });
-          done();
-          // the save stamped the note's Created / Last edited header, or
-          // merged in a change made elsewhere: the editor takes it over
-          // without losing what was typed meanwhile
-          const cur = currentRef.current;
-          if (cur && cur.kind === "note" && cur.path === doc.path) {
-            const settled = settleSave(doc.content, written, cur.content);
-            baseRef.current = { path: doc.path, text: settled.base };
-            if (settled.content !== cur.content) {
-              setCurrent((prev) =>
-                prev && prev.path === doc.path
-                  ? { ...prev, content: settled.content }
-                  : prev,
-              );
-            }
-          }
-        }
-      } catch (e) {
-        // kept for the next flush (file switch, leaving, Retry) unless
-        // newer typing already replaced it
-        if (!pendingRef.current) pendingRef.current = doc;
-        if (doc.gen === editGen.current) setSaveState("failed");
-        setError(e);
-      }
-    });
-
   const scheduleSave = (content: string) => {
     if (!current) return;
-    const target = {
-      kind: current.kind,
-      path: current.path,
-      content,
-      gen: ++editGen.current,
-    };
+    const target = { kind: current.kind, path: current.path, content };
     setCurrent(target);
-    setSaveState("dirty");
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    pendingRef.current = target;
-    saveTimer.current = setTimeout(() => {
-      pendingRef.current = null;
-      void persist(target);
-    }, 800);
+    schedule(target);
   };
 
   type Dialog =
@@ -329,11 +275,8 @@ export default function KnowledgeBase() {
   const deleteMany = async (paths: string[]) => {
     setDialog(null);
     for (const path of paths) {
-      const inside = (p: string | undefined) =>
-        p === path || p?.startsWith(`${path}/`);
-      if (inside(pendingRef.current?.path)) {
-        dropPendingFor(pendingRef.current!.path);
-      }
+      const inside = (p: string) => p === path || p.startsWith(`${path}/`);
+      dropPending((doc) => inside(doc.path));
       try {
         await invoke("kb_delete", { path });
       } catch (e) {
@@ -525,11 +468,9 @@ export default function KnowledgeBase() {
     setDialog(null);
     // a debounced save of a file inside a deleted folder would recreate
     // the path, so drop it too
-    const inside = (path: string | undefined) =>
-      path === node.path || (node.is_dir && path?.startsWith(`${node.path}/`));
-    if (inside(pendingRef.current?.path)) {
-      dropPendingFor(pendingRef.current!.path);
-    }
+    const inside = (path: string) =>
+      path === node.path || (node.is_dir && path.startsWith(`${node.path}/`));
+    dropPending((doc) => inside(doc.path));
     try {
       await invoke("kb_delete", { path: node.path });
       await loadTree();

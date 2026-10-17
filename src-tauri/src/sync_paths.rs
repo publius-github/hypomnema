@@ -11,7 +11,6 @@
 //!
 //! Paths here are vault-relative and always `/`-separated, the form the
 //! `SyncProvider` deals in - not native paths.
-#![allow(dead_code)]
 
 use std::path::Path;
 use std::sync::RwLock;

@@ -724,6 +724,254 @@ fn parse_content(content: &str, scheduled: bool, ids: bool) -> Result<Vec<Entry>
     Ok(entries)
 }
 
+/// Which part of the task set a mirror file stands for, by its marker
+/// line (or, for a brand-new file, a new list named after it). Renaming a
+/// list's file renames the list; `changed` records that and a list the
+/// file created.
+fn import_scope(
+    conn: &Connection,
+    lists: &[tasks::List],
+    stem: &str,
+    first: &str,
+    changed: &mut bool,
+) -> Result<Scope> {
+    Ok(if let Some(raw) = first.strip_prefix(LIST_MARKER_PREFIX) {
+        let digits: String = raw.chars().take_while(|c| c.is_ascii_digit()).collect();
+        let id: i64 = digits
+            .parse()
+            .map_err(|_| Error::State(format!("{stem}.md: malformed list marker")))?;
+        let list = lists
+            .iter()
+            .find(|l| l.id == id)
+            .ok_or_else(|| Error::State(format!("{stem}.md: unknown list id {id}")))?;
+        // renaming the file renames the list - unless the stem is the
+        // export's own collision form `Name (id)` (a reserved name, two
+        // lists differing only by case), which is not a rename at all
+        let clean = sanitize_name(&list.name);
+        if clean != stem && format!("{clean} ({id})") != stem {
+            tasks::list_rename(conn, id, stem)?;
+            *changed = true;
+        }
+        Scope::List(id)
+    } else if first == SCHEDULED_MARKER {
+        // a marker under the wrong name is a duplicate (a file-sync
+        // "conflicted copy"); importing it would double-apply its lines
+        if stem != "scheduled" {
+            return Err(Error::State(format!(
+                "{stem}.md: carries the scheduled marker but is not scheduled.md - \
+                 likely a sync conflict copy; merge or delete it"
+            )));
+        }
+        Scope::Scheduled
+    } else if first == AGENDA_MARKER {
+        if stem != "agenda" {
+            return Err(Error::State(format!(
+                "{stem}.md: carries the agenda marker but is not agenda.md - \
+                 likely a sync conflict copy; merge or delete it"
+            )));
+        }
+        Scope::Agenda
+    } else {
+        // a brand-new file becomes a new list named after it
+        match lists.iter().find(|l| l.name == stem) {
+            Some(list) => Scope::List(list.id),
+            None => {
+                *changed = true;
+                Scope::List(tasks::list_create(conn, stem, None, false)?.id)
+            }
+        }
+    })
+}
+
+/// The three-way field merge for a line whose task exists: a file value
+/// applies only when it differs from the base (or there is no base), so
+/// an unchanged line never overrides an app-side edit. `None` when there
+/// is nothing to change.
+fn existing_task_patch(
+    task: &Task,
+    entry: &Entry,
+    base_entry: Option<&Entry>,
+    base_sort: Option<i64>,
+    sort_order: i64,
+    scope: &Scope,
+) -> Option<TaskPatch> {
+    let agenda = matches!(scope, Scope::Agenda);
+    let base_line = base_entry.map(|e| &e.line);
+    let mut patch = TaskPatch::default();
+    let mut dirty = false;
+    // per-field three-way rule: the file value applies only
+    // when it differs from the base (or there is no base) -
+    // an unchanged line never overrides an app-side edit
+    if !agenda
+        && task.title != entry.line.title
+        && base_line.is_none_or(|b| b.title != entry.line.title)
+    {
+        patch.title = Some(entry.line.title.clone());
+        dirty = true;
+    }
+    if task.status != entry.line.status && base_line.is_none_or(|b| b.status != entry.line.status) {
+        patch.status = Some(entry.line.status.to_string());
+        dirty = true;
+    }
+    if task.time != entry.line.time && base_line.is_none_or(|b| b.time != entry.line.time) {
+        patch.time = Some(entry.line.time.clone());
+        dirty = true;
+    }
+    if task.priority != entry.line.priority
+        && base_line.is_none_or(|b| b.priority != entry.line.priority)
+    {
+        patch.priority = Some(entry.line.priority);
+        dirty = true;
+    }
+    if !agenda {
+        if task.sort_order != sort_order && base_sort.is_none_or(|b| b != sort_order) {
+            patch.sort_order = Some(sort_order);
+            dirty = true;
+        }
+        match scope {
+            Scope::List(id) => {
+                // membership is presence in the file; a line
+                // unchanged since the base is no signal to
+                // pull a task the app moved elsewhere back
+                if base_entry.is_none() {
+                    if task.list_id != Some(*id) {
+                        patch.list_id = Some(Some(*id));
+                        dirty = true;
+                    }
+                    if task.scheduled_date.is_some() {
+                        patch.scheduled_date = Some(None);
+                        dirty = true;
+                    }
+                }
+            }
+            Scope::Scheduled => {
+                if task.scheduled_date != entry.date
+                    && base_entry.is_none_or(|e| e.date != entry.date)
+                {
+                    patch.scheduled_date = Some(entry.date.clone());
+                    dirty = true;
+                }
+            }
+            Scope::Agenda => {}
+        }
+    }
+    dirty.then_some(patch)
+}
+
+/// The subtask lines under one parent, merged the same three-way way as
+/// the parents: matched by `^id` (or by text with the keys off), a field
+/// applies only when it differs from the base, a stale line of a sub
+/// deleted app-side is skipped, and absence deletes only subs the base
+/// knew about (any sub, without a base). Returns whether anything changed.
+fn import_subtasks(
+    conn: &Connection,
+    pid: i64,
+    subs: &[Line],
+    existing_subs: &[&Task],
+    base_subs: &[Line],
+    has_base: bool,
+    ids: bool,
+) -> Result<bool> {
+    let mut changed = false;
+    let sub_by_id: HashMap<i64, &Task> = existing_subs.iter().map(|t| (t.id, *t)).collect();
+    let base_sub_for = |sub: &Line| -> Option<&Line> {
+        sub.id
+            .and_then(|id| base_subs.iter().find(|b| b.id == Some(id)))
+            .or_else(|| {
+                if ids {
+                    return None;
+                }
+                base_subs.iter().find(|b| b.title == sub.title)
+            })
+    };
+    let mut sub_seen: HashSet<i64> = HashSet::new();
+    for (i, sub) in subs.iter().enumerate() {
+        let matched = sub
+            .id
+            .and_then(|id| sub_by_id.get(&id).copied())
+            .or_else(|| {
+                if ids {
+                    return None;
+                }
+                existing_subs
+                    .iter()
+                    .find(|existing| {
+                        !sub_seen.contains(&existing.id) && existing.title == sub.title
+                    })
+                    .copied()
+            });
+        match matched {
+            Some(existing_sub) => {
+                let base_sub = base_sub_for(sub);
+                let mut patch = TaskPatch::default();
+                let mut dirty = false;
+                if existing_sub.title != sub.title && base_sub.is_none_or(|b| b.title != sub.title)
+                {
+                    patch.title = Some(sub.title.clone());
+                    dirty = true;
+                }
+                if existing_sub.status != sub.status
+                    && base_sub.is_none_or(|b| b.status != sub.status)
+                {
+                    patch.status = Some(sub.status.to_string());
+                    dirty = true;
+                }
+                if existing_sub.sort_order != i as i64 {
+                    patch.sort_order = Some(i as i64);
+                    dirty = true;
+                }
+                if dirty {
+                    tasks::task_update(conn, existing_sub.id, &patch)?;
+                    changed = true;
+                }
+                sub_seen.insert(existing_sub.id);
+            }
+            None => {
+                // a stale line of a sub deleted app-side: skip, like
+                // the parent-level rule above
+                if let (Some(_), Some(b)) = (sub.id, base_sub_for(sub)) {
+                    if *b == *sub {
+                        continue;
+                    }
+                }
+                let created = tasks::task_create(
+                    conn,
+                    &NewTask {
+                        title: sub.title.clone(),
+                        parent_task_id: Some(pid),
+                        ..Default::default()
+                    },
+                )?;
+                let mut patch = TaskPatch {
+                    sort_order: Some(i as i64),
+                    ..Default::default()
+                };
+                if sub.status != "todo" {
+                    patch.status = Some(sub.status.to_string());
+                }
+                tasks::task_update(conn, created.id, &patch)?;
+                changed = true;
+                sub_seen.insert(created.id);
+            }
+        }
+    }
+    for existing_sub in existing_subs.iter().copied() {
+        if !sub_seen.contains(&existing_sub.id) {
+            // with a base at hand, absence deletes only subs the
+            // file was told about
+            let known_to_base = !has_base
+                || base_subs.iter().any(|b| {
+                    b.id == Some(existing_sub.id) || (!ids && b.title == existing_sub.title)
+                });
+            if known_to_base {
+                tasks::task_delete(conn, existing_sub.id)?;
+                changed = true;
+            }
+        }
+    }
+    Ok(changed)
+}
+
 enum Scope {
     List(i64),
     Scheduled,
@@ -786,53 +1034,7 @@ pub fn import_file(
     }
     let lists = tasks::lists_all(conn)?;
     let mut changed = false;
-
-    let scope = if let Some(raw) = first.strip_prefix(LIST_MARKER_PREFIX) {
-        let digits: String = raw.chars().take_while(|c| c.is_ascii_digit()).collect();
-        let id: i64 = digits
-            .parse()
-            .map_err(|_| Error::State(format!("{stem}.md: malformed list marker")))?;
-        let list = lists
-            .iter()
-            .find(|l| l.id == id)
-            .ok_or_else(|| Error::State(format!("{stem}.md: unknown list id {id}")))?;
-        // renaming the file renames the list - unless the stem is the
-        // export's own collision form `Name (id)` (a reserved name, two
-        // lists differing only by case), which is not a rename at all
-        let clean = sanitize_name(&list.name);
-        if clean != stem && format!("{clean} ({id})") != stem {
-            tasks::list_rename(conn, id, &stem)?;
-            changed = true;
-        }
-        Scope::List(id)
-    } else if first == SCHEDULED_MARKER {
-        // a marker under the wrong name is a duplicate (a file-sync
-        // "conflicted copy"); importing it would double-apply its lines
-        if stem != "scheduled" {
-            return Err(Error::State(format!(
-                "{stem}.md: carries the scheduled marker but is not scheduled.md - \
-                 likely a sync conflict copy; merge or delete it"
-            )));
-        }
-        Scope::Scheduled
-    } else if first == AGENDA_MARKER {
-        if stem != "agenda" {
-            return Err(Error::State(format!(
-                "{stem}.md: carries the agenda marker but is not agenda.md - \
-                 likely a sync conflict copy; merge or delete it"
-            )));
-        }
-        Scope::Agenda
-    } else {
-        // a brand-new file becomes a new list named after it
-        match lists.iter().find(|l| l.name == stem) {
-            Some(list) => Scope::List(list.id),
-            None => {
-                changed = true;
-                Scope::List(tasks::list_create(conn, &stem, None, false)?.id)
-            }
-        }
-    };
+    let scope = import_scope(conn, &lists, &stem, &first, &mut changed)?;
 
     // The group line is a field like any other in the three-way merge:
     // applied only when the file differs from the base, so a stale copy
@@ -969,75 +1171,14 @@ pub fn import_file(
                 base_by_title.get(&key).copied()
             });
         let base_entry = base_idx.and_then(|i| base_entries.as_deref().map(|be| &be[i]));
-        let base_line = base_entry.map(|e| &e.line);
 
         let existing = resolved_id.and_then(|id| by_id.get(&id).copied());
         let pid = match existing {
             Some(task) => {
-                let mut patch = TaskPatch::default();
-                let mut dirty = false;
-                // per-field three-way rule: the file value applies only
-                // when it differs from the base (or there is no base) -
-                // an unchanged line never overrides an app-side edit
-                if !agenda
-                    && task.title != entry.line.title
-                    && base_line.is_none_or(|b| b.title != entry.line.title)
-                {
-                    patch.title = Some(entry.line.title.clone());
-                    dirty = true;
-                }
-                if task.status != entry.line.status
-                    && base_line.is_none_or(|b| b.status != entry.line.status)
-                {
-                    patch.status = Some(entry.line.status.to_string());
-                    dirty = true;
-                }
-                if task.time != entry.line.time
-                    && base_line.is_none_or(|b| b.time != entry.line.time)
-                {
-                    patch.time = Some(entry.line.time.clone());
-                    dirty = true;
-                }
-                if task.priority != entry.line.priority
-                    && base_line.is_none_or(|b| b.priority != entry.line.priority)
-                {
-                    patch.priority = Some(entry.line.priority);
-                    dirty = true;
-                }
-                if !agenda {
-                    let base_sort = base_idx.and_then(|i| base_order.get(&i)).copied();
-                    if task.sort_order != sort_order && base_sort.is_none_or(|b| b != sort_order) {
-                        patch.sort_order = Some(sort_order);
-                        dirty = true;
-                    }
-                    match &scope {
-                        Scope::List(id) => {
-                            // membership is presence in the file; a line
-                            // unchanged since the base is no signal to
-                            // pull a task the app moved elsewhere back
-                            if base_entry.is_none() {
-                                if task.list_id != Some(*id) {
-                                    patch.list_id = Some(Some(*id));
-                                    dirty = true;
-                                }
-                                if task.scheduled_date.is_some() {
-                                    patch.scheduled_date = Some(None);
-                                    dirty = true;
-                                }
-                            }
-                        }
-                        Scope::Scheduled => {
-                            if task.scheduled_date != entry.date
-                                && base_entry.is_none_or(|e| e.date != entry.date)
-                            {
-                                patch.scheduled_date = Some(entry.date.clone());
-                                dirty = true;
-                            }
-                        }
-                        Scope::Agenda => {}
-                    }
-                }
-                if dirty {
+                let base_sort = base_idx.and_then(|i| base_order.get(&i)).copied();
+                let patch =
+                    existing_task_patch(task, entry, base_entry, base_sort, sort_order, &scope);
+                if let Some(patch) = patch {
                     tasks::task_update(conn, task.id, &patch)?;
                     changed = true;
                 }
@@ -1091,103 +1232,17 @@ pub fn import_file(
         seen.insert(pid);
 
         let existing_subs: Vec<&Task> = subs_by_parent.get(&pid).cloned().unwrap_or_default();
-        let sub_by_id: HashMap<i64, &Task> = existing_subs.iter().map(|t| (t.id, *t)).collect();
         let base_subs: &[Line] = base_entry.map(|e| e.subs.as_slice()).unwrap_or(&[]);
-        let base_sub_for = |sub: &Line| -> Option<&Line> {
-            sub.id
-                .and_then(|id| base_subs.iter().find(|b| b.id == Some(id)))
-                .or_else(|| {
-                    if ids {
-                        return None;
-                    }
-                    base_subs.iter().find(|b| b.title == sub.title)
-                })
-        };
-        let mut sub_seen: HashSet<i64> = HashSet::new();
-        for (i, sub) in entry.subs.iter().enumerate() {
-            let matched = sub
-                .id
-                .and_then(|id| sub_by_id.get(&id).copied())
-                .or_else(|| {
-                    if ids {
-                        return None;
-                    }
-                    existing_subs
-                        .iter()
-                        .find(|existing| {
-                            !sub_seen.contains(&existing.id) && existing.title == sub.title
-                        })
-                        .copied()
-                });
-            match matched {
-                Some(existing_sub) => {
-                    let base_sub = base_sub_for(sub);
-                    let mut patch = TaskPatch::default();
-                    let mut dirty = false;
-                    if existing_sub.title != sub.title
-                        && base_sub.is_none_or(|b| b.title != sub.title)
-                    {
-                        patch.title = Some(sub.title.clone());
-                        dirty = true;
-                    }
-                    if existing_sub.status != sub.status
-                        && base_sub.is_none_or(|b| b.status != sub.status)
-                    {
-                        patch.status = Some(sub.status.to_string());
-                        dirty = true;
-                    }
-                    if existing_sub.sort_order != i as i64 {
-                        patch.sort_order = Some(i as i64);
-                        dirty = true;
-                    }
-                    if dirty {
-                        tasks::task_update(conn, existing_sub.id, &patch)?;
-                        changed = true;
-                    }
-                    sub_seen.insert(existing_sub.id);
-                }
-                None => {
-                    // a stale line of a sub deleted app-side: skip, like
-                    // the parent-level rule above
-                    if let (Some(_), Some(b)) = (sub.id, base_sub_for(sub)) {
-                        if *b == *sub {
-                            continue;
-                        }
-                    }
-                    let created = tasks::task_create(
-                        conn,
-                        &NewTask {
-                            title: sub.title.clone(),
-                            parent_task_id: Some(pid),
-                            ..Default::default()
-                        },
-                    )?;
-                    let mut patch = TaskPatch {
-                        sort_order: Some(i as i64),
-                        ..Default::default()
-                    };
-                    if sub.status != "todo" {
-                        patch.status = Some(sub.status.to_string());
-                    }
-                    tasks::task_update(conn, created.id, &patch)?;
-                    changed = true;
-                    sub_seen.insert(created.id);
-                }
-            }
-        }
-        for existing_sub in existing_subs {
-            if !sub_seen.contains(&existing_sub.id) {
-                // with a base at hand, absence deletes only subs the
-                // file was told about
-                let known_to_base = base_entries.is_none()
-                    || base_subs.iter().any(|b| {
-                        b.id == Some(existing_sub.id) || (!ids && b.title == existing_sub.title)
-                    });
-                if known_to_base {
-                    tasks::task_delete(conn, existing_sub.id)?;
-                    changed = true;
-                }
-            }
+        if import_subtasks(
+            conn,
+            pid,
+            &entry.subs,
+            &existing_subs,
+            base_subs,
+            base_entries.is_some(),
+            ids,
+        )? {
+            changed = true;
         }
     }
 

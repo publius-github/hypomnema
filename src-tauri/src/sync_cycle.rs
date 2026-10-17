@@ -290,6 +290,24 @@ enum Incoming {
     Unchanged,
 }
 
+/// A conflict about a whole file rather than one field of a record: which
+/// version stayed, which went, and which device each came from ("" when
+/// it was not this one).
+fn file_conflict(
+    kept: impl Into<String>,
+    kept_updated_by: &str,
+    discarded: impl Into<String>,
+    discarded_updated_by: &str,
+) -> FieldConflict {
+    FieldConflict {
+        field: "<file>".into(),
+        kept: serde_json::Value::String(kept.into()),
+        kept_updated_by: kept_updated_by.to_string(),
+        discarded: serde_json::Value::String(discarded.into()),
+        discarded_updated_by: discarded_updated_by.to_string(),
+    }
+}
+
 struct Context<'a> {
     local_root: &'a Path,
     device: &'a str,
@@ -318,7 +336,15 @@ fn apply_incoming(
     conflicted_copies: &mut Vec<String>,
 ) -> Result<Incoming> {
     let target = ctx.local_root.join(relative);
-    let local_bytes = fs::read(&target).ok();
+    // Only a file that is really not there may be replaced outright: one
+    // that exists but cannot be read right now (locked by another app,
+    // a cloud placeholder offline) may hold edits: the file is reported
+    // as failed and the next pass tries again.
+    let local_bytes = match fs::read(&target) {
+        Ok(bytes) => Some(bytes),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(Error::io_at(&target, e)),
+    };
 
     let changed_here = match (&local_bytes, known.and_then(|s| s.hash.as_deref())) {
         // Never seen here before: nothing local to lose.
@@ -403,17 +429,12 @@ fn apply_incoming(
         sync_conflicts::entries_from(
             relative,
             ctx.now,
-            [FieldConflict {
-                field: "<file>".into(),
-                kept: serde_json::Value::String(format!(
-                    "the other device's version, now at {relative}"
-                )),
-                kept_updated_by: String::new(),
-                discarded: serde_json::Value::String(format!(
-                    "this device's version, kept as {copy}"
-                )),
-                discarded_updated_by: ctx.device.to_string(),
-            }],
+            [file_conflict(
+                format!("the other device's version, now at {relative}"),
+                "",
+                format!("this device's version, kept as {copy}"),
+                ctx.device,
+            )],
         ),
         &copy,
     ));
@@ -461,15 +482,12 @@ fn apply_duplicate(
         sync_conflicts::entries_from(
             relative,
             ctx.now,
-            [FieldConflict {
-                field: "<file>".into(),
-                kept: serde_json::Value::String(format!("one device's version, at {relative}")),
-                kept_updated_by: String::new(),
-                discarded: serde_json::Value::String(format!(
-                    "the other device's version, created at the same time, kept as {copy}"
-                )),
-                discarded_updated_by: String::new(),
-            }],
+            [file_conflict(
+                format!("one device's version, at {relative}"),
+                "",
+                format!("the other device's version, created at the same time, kept as {copy}"),
+                "",
+            )],
         ),
         &copy,
     ));
@@ -492,6 +510,168 @@ fn write_local(path: &Path, bytes: &[u8]) -> Result<()> {
 pub struct DeviceTag<'a> {
     pub id: &'a str,
     pub label: &'a str,
+}
+
+/// Copies two devices created under one path at once: merged into the
+/// local file (or kept beside it), then discarded on the server - only
+/// once their content is safely here.
+fn apply_duplicates<P: SyncProvider>(
+    provider: &P,
+    ctx: &Context<'_>,
+    root: &VaultRoot,
+    conflicts: &mut Vec<ConflictEntry>,
+    report: &mut SyncReport,
+) -> Result<()> {
+    for duplicate in provider.take_duplicates()? {
+        let remote = duplicate.path.trim_start_matches('/');
+        let Some(relative) = root.relative(remote) else {
+            continue;
+        };
+        if !sync_paths::is_synced(relative) {
+            continue;
+        }
+        let applied = {
+            let _files = crate::text_merge::user_file_lock();
+            apply_duplicate(
+                ctx,
+                relative,
+                &duplicate.bytes,
+                conflicts,
+                &mut report.conflicted_copies,
+            )
+        };
+        // Only a copy whose content is safely in the local file may go;
+        // one that could not be applied is still there next pass.
+        match applied {
+            Ok(Some(merged)) => {
+                if provider.discard_duplicate(&duplicate).is_err() {
+                    report.failed.push(remote.to_string());
+                }
+                if merged {
+                    report.merged += 1;
+                    if sync_state::state_file_of(relative).is_some() {
+                        report.state_changed = true;
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(_) => report.failed.push(remote.to_string()),
+        }
+    }
+    Ok(())
+}
+
+/// Files the other device deleted: gone here too when untouched since
+/// they arrived; an edit made here outranks the deletion and goes back
+/// up with this pass's push.
+fn apply_remote_deletions(
+    ctx: &Context<'_>,
+    root: &VaultRoot,
+    remote_gone: &[String],
+    manifest: &mut BTreeMap<String, FileState>,
+    conflicts: &mut Vec<ConflictEntry>,
+    report: &mut SyncReport,
+) -> Result<()> {
+    let (local_root, device, now) = (ctx.local_root, ctx.device, ctx.now);
+    for remote in remote_gone {
+        let Some(relative) = root.relative(remote) else {
+            continue;
+        };
+        let target = local_root.join(relative);
+        let Ok(local_bytes) = fs::read(&target) else {
+            manifest.remove(remote);
+            continue;
+        };
+        let known_hash = manifest.get(remote).and_then(|s| s.hash.clone());
+        if known_hash.as_deref() == Some(content_hash(&local_bytes).as_str()) {
+            // Untouched here since it arrived: the deletion stands.
+            fs::remove_file(&target)?;
+            forget_base(local_root, relative);
+            manifest.remove(remote);
+            report.removed_locally += 1;
+            if sync_state::state_file_of(relative).is_some() {
+                report.state_changed = true;
+            }
+        } else if known_hash.is_some() {
+            // Edited here after it arrived. An edit outranks a deletion -
+            // the file stays and the push below puts it back, which is
+            // the same call `sync_merge::merge_record` makes for a row.
+            manifest.remove(remote);
+            conflicts.extend(sync_conflicts::entries_from(
+                relative,
+                now,
+                [file_conflict(
+                    "edited here, deletion overridden",
+                    device,
+                    "deleted on the other device",
+                    "",
+                )],
+            ));
+        } else {
+            manifest.remove(remote);
+        }
+    }
+    Ok(())
+}
+
+/// Files deleted here: deleted on the server too, guarded by the revision
+/// this device last saw, so an edit made there since is not lost.
+fn push_local_deletions<P: SyncProvider>(
+    provider: &P,
+    ctx: &Context<'_>,
+    root: &VaultRoot,
+    remote_live: &BTreeMap<String, String>,
+    manifest: &mut BTreeMap<String, FileState>,
+    conflicts: &mut Vec<ConflictEntry>,
+    report: &mut SyncReport,
+) -> Result<()> {
+    let (local_root, device, now) = (ctx.local_root, ctx.device, ctx.now);
+    let held: std::collections::BTreeSet<String> =
+        local_files(local_root, &sync_paths::loaded_user_ignore())?
+            .into_iter()
+            .map(|relative| root.absolute(&relative))
+            .collect();
+    let vanished: Vec<String> = manifest
+        .keys()
+        .filter(|remote| !held.contains(*remote) && remote_live.contains_key(*remote))
+        .cloned()
+        .collect();
+    for remote in vanished {
+        let Some(state) = manifest.get(&remote).cloned() else {
+            continue;
+        };
+        // Guarded by the revision this device last saw: if the other end
+        // edited the file after that, the provider refuses and the next pass
+        // brings their edit down instead of losing it.
+        match provider.delete_file(&remote, Some(&ChangeMarker::Rev(state.rev.clone()))) {
+            Ok(()) => {
+                manifest.remove(&remote);
+                if let Some(relative) = root.relative(&remote) {
+                    forget_base(local_root, relative);
+                }
+                report.removed_remotely += 1;
+            }
+            Err(Error::SyncConflict { .. }) => {
+                // Their edit wins over this deletion; drop the manifest
+                // entry so the next pass downloads it as new.
+                manifest.remove(&remote);
+                if let Some(relative) = root.relative(&remote) {
+                    conflicts.extend(sync_conflicts::entries_from(
+                        relative,
+                        now,
+                        [file_conflict(
+                            "edited on the other device, deletion not applied",
+                            "",
+                            "deleted here",
+                            device,
+                        )],
+                    ));
+                }
+            }
+            Err(_) => report.failed.push(remote.clone()),
+        }
+    }
+    Ok(())
 }
 
 /// Runs a full pass. `now` is RFC3339 UTC, injected so the tests are not
@@ -637,134 +817,24 @@ pub fn sync_vault<P: SyncProvider>(
         );
     }
 
-    // --- Copies two devices created under one path --------------------
-    for duplicate in provider.take_duplicates()? {
-        let remote = duplicate.path.trim_start_matches('/');
-        let Some(relative) = root.relative(remote) else {
-            continue;
-        };
-        if !sync_paths::is_synced(relative) {
-            continue;
-        }
-        let applied = {
-            let _files = crate::text_merge::user_file_lock();
-            apply_duplicate(
-                &ctx,
-                relative,
-                &duplicate.bytes,
-                &mut conflicts,
-                &mut report.conflicted_copies,
-            )
-        };
-        // Only a copy whose content is safely in the local file may go;
-        // one that could not be applied is still there next pass.
-        match applied {
-            Ok(Some(merged)) => {
-                if provider.discard_duplicate(&duplicate).is_err() {
-                    report.failed.push(remote.to_string());
-                }
-                if merged {
-                    report.merged += 1;
-                    if sync_state::state_file_of(relative).is_some() {
-                        report.state_changed = true;
-                    }
-                }
-            }
-            Ok(None) => {}
-            Err(_) => report.failed.push(remote.to_string()),
-        }
-    }
-
-    // --- Deletions made on the other device ----------------------------
-    for remote in &remote_gone {
-        let Some(relative) = root.relative(remote) else {
-            continue;
-        };
-        let target = local_root.join(relative);
-        let Ok(local_bytes) = fs::read(&target) else {
-            manifest.remove(remote);
-            continue;
-        };
-        let known_hash = manifest.get(remote).and_then(|s| s.hash.clone());
-        if known_hash.as_deref() == Some(content_hash(&local_bytes).as_str()) {
-            // Untouched here since it arrived: the deletion stands.
-            fs::remove_file(&target)?;
-            forget_base(local_root, relative);
-            manifest.remove(remote);
-            report.removed_locally += 1;
-            if sync_state::state_file_of(relative).is_some() {
-                report.state_changed = true;
-            }
-        } else if known_hash.is_some() {
-            // Edited here after it arrived. An edit outranks a deletion -
-            // the file stays and the push below puts it back, which is
-            // the same call `sync_merge::merge_record` makes for a row.
-            manifest.remove(remote);
-            conflicts.extend(sync_conflicts::entries_from(
-                relative,
-                now,
-                [FieldConflict {
-                    field: "<file>".into(),
-                    kept: serde_json::Value::String("edited here, deletion overridden".into()),
-                    kept_updated_by: device.to_string(),
-                    discarded: serde_json::Value::String("deleted on the other device".into()),
-                    discarded_updated_by: String::new(),
-                }],
-            ));
-        } else {
-            manifest.remove(remote);
-        }
-    }
-
-    // --- Deletions made here -------------------------------------------
-    let held: std::collections::BTreeSet<String> =
-        local_files(local_root, &sync_paths::loaded_user_ignore())?
-            .into_iter()
-            .map(|relative| root.absolute(&relative))
-            .collect();
-    let vanished: Vec<String> = manifest
-        .keys()
-        .filter(|remote| !held.contains(*remote) && remote_live.contains_key(*remote))
-        .cloned()
-        .collect();
-    for remote in vanished {
-        let Some(state) = manifest.get(&remote).cloned() else {
-            continue;
-        };
-        // Guarded by the revision this device last saw: if the other end
-        // edited the file after that, Dropbox refuses and the next pass
-        // brings their edit down instead of losing it.
-        match provider.delete_file(&remote, Some(&ChangeMarker::Rev(state.rev.clone()))) {
-            Ok(()) => {
-                manifest.remove(&remote);
-                if let Some(relative) = root.relative(&remote) {
-                    forget_base(local_root, relative);
-                }
-                report.removed_remotely += 1;
-            }
-            Err(Error::SyncConflict { .. }) => {
-                // Their edit wins over this deletion; drop the manifest
-                // entry so the next pass downloads it as new.
-                manifest.remove(&remote);
-                if let Some(relative) = root.relative(&remote) {
-                    conflicts.extend(sync_conflicts::entries_from(
-                        relative,
-                        now,
-                        [FieldConflict {
-                            field: "<file>".into(),
-                            kept: serde_json::Value::String(
-                                "edited on the other device, deletion not applied".into(),
-                            ),
-                            kept_updated_by: String::new(),
-                            discarded: serde_json::Value::String("deleted here".into()),
-                            discarded_updated_by: device.to_string(),
-                        }],
-                    ));
-                }
-            }
-            Err(_) => report.failed.push(remote.clone()),
-        }
-    }
+    apply_duplicates(provider, &ctx, root, &mut conflicts, &mut report)?;
+    apply_remote_deletions(
+        &ctx,
+        root,
+        &remote_gone,
+        &mut manifest,
+        &mut conflicts,
+        &mut report,
+    )?;
+    push_local_deletions(
+        provider,
+        &ctx,
+        root,
+        &remote_live,
+        &mut manifest,
+        &mut conflicts,
+        &mut report,
+    )?;
     save_manifest(local_root, &manifest)?;
 
     // --- Outgoing ------------------------------------------------------
@@ -789,15 +859,12 @@ pub fn sync_vault<P: SyncProvider>(
             conflicts.extend(sync_conflicts::entries_from(
                 relative,
                 now,
-                [FieldConflict {
-                    field: "<file>".into(),
-                    kept: serde_json::Value::String(
-                        "the other device's version; run sync again to merge it".into(),
-                    ),
-                    kept_updated_by: String::new(),
-                    discarded: serde_json::Value::String("not uploaded this pass".into()),
-                    discarded_updated_by: device.to_string(),
-                }],
+                [file_conflict(
+                    "the other device's version; run sync again to merge it",
+                    "",
+                    "not uploaded this pass",
+                    device,
+                )],
             ));
         }
     }

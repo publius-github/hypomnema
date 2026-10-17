@@ -1,9 +1,19 @@
+use std::path::Path;
+
 use serde::Serialize;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    /// An io failure on a known file: the message names it, so "access
+    /// is denied" in a toast or the log says which file was refused.
+    #[error("io error on {path}: {source}")]
+    IoAt {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
     #[error("config error: {0}")]
@@ -40,12 +50,19 @@ pub enum Error {
 }
 
 impl Error {
+    pub fn io_at(path: &Path, source: std::io::Error) -> Error {
+        Error::IoAt {
+            path: path.display().to_string(),
+            source,
+        }
+    }
+
     /// The stable machine-readable half of the serialized error; the
     /// frontend's `IpcError["kind"]` in `src/lib/ipc.ts` lists the same
     /// names.
     pub fn kind(&self) -> &'static str {
         match self {
-            Error::Io(_) => "io",
+            Error::Io(_) | Error::IoAt { .. } => "io",
             Error::Db(_) => "db",
             Error::Yaml(_) => "config",
             Error::State(_) => "state",
@@ -88,6 +105,17 @@ impl Serialize for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// `fs::write(&path, ..).at(&path)?` - an io result that names its file.
+pub trait IoContext<T> {
+    fn at(self, path: &Path) -> Result<T>;
+}
+
+impl<T> IoContext<T> for std::io::Result<T> {
+    fn at(self, path: &Path) -> Result<T> {
+        self.map_err(|e| Error::io_at(path, e))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,5 +137,15 @@ mod tests {
         .unwrap();
         assert_eq!(v["kind"], "sync_conflict");
         assert_eq!(v["path"], "notes/a.md");
+    }
+
+    #[test]
+    fn an_io_error_on_a_file_names_it_and_stays_kind_io() {
+        let missing = std::env::temp_dir().join("hypomnema-no-such-dir/x.md");
+        let err = std::fs::read(&missing).at(&missing).unwrap_err();
+        let v = serde_json::to_value(&err).unwrap();
+        assert_eq!(v["kind"], "io");
+        let message = v["message"].as_str().unwrap();
+        assert!(message.contains("x.md"), "{message}");
     }
 }

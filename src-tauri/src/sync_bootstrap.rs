@@ -8,7 +8,6 @@
 //!
 //! What identifies a vault root is `.hypomnema/` - the same working
 //! directory `vault.rs` creates and every vault has.
-#![allow(dead_code)]
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -93,22 +92,16 @@ pub fn detect_vault_root(paths: &[String]) -> Result<VaultRoot> {
     }
 }
 
-/// The app-folder paths this device should pull, given a listing.
+/// Whether this device should pull an app-folder path.
 ///
 /// Filtered through `sync_paths`, so the same whitelist that keeps
 /// `app.db` out of the shared vault also keeps it from being downloaded
 /// into one - a device pulling another device's database would defeat the
 /// disposable-cache model rather than corrupting it, but it would still
 /// be wrong.
-pub fn files_to_pull(paths: &[String], root: &VaultRoot) -> Vec<String> {
-    paths
-        .iter()
-        .filter(|path| {
-            root.relative(path.trim_start_matches('/'))
-                .is_some_and(sync_paths::is_synced)
-        })
-        .cloned()
-        .collect()
+fn is_pulled(path: &str, root: &VaultRoot) -> bool {
+    root.relative(path.trim_start_matches('/'))
+        .is_some_and(sync_paths::is_synced)
 }
 
 /// What a pull brought down, for the screen that triggered it.
@@ -292,13 +285,7 @@ pub fn pull_vault<P: SyncProvider>(
     let paths: Vec<String> = live.iter().map(|c| c.path.clone()).collect();
     let root = detect_vault_root(&paths)?;
 
-    let wanted: Vec<_> = live
-        .iter()
-        .filter(|c| {
-            root.relative(c.path.trim_start_matches('/'))
-                .is_some_and(sync_paths::is_synced)
-        })
-        .collect();
+    let wanted: Vec<_> = live.iter().filter(|c| is_pulled(&c.path, &root)).collect();
     let total = wanted.len();
     let mut manifest = load_manifest(local_root);
     let mut report = PullReport {
@@ -477,7 +464,11 @@ mod tests {
             "vault/.hypomnema/settings/app.yml",
         ]);
 
-        let pull = files_to_pull(&listing, &root);
+        let pull: Vec<String> = listing
+            .iter()
+            .filter(|path| is_pulled(path, &root))
+            .cloned()
+            .collect();
 
         assert_eq!(
             pull,

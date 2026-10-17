@@ -244,6 +244,78 @@ fn load_recurring_sources(
     (root_transient, Some(sources))
 }
 
+/// Guard against runaway schedules ("* * * * *" would enumerate tens of
+/// thousands of firings and insert a task for each).
+const MAX_FIRINGS: usize = 2000;
+
+enum FiringsProblem {
+    /// more than `MAX_FIRINGS` firings inside the window
+    Overflow,
+    /// the cron library could not step past a firing
+    Failed(String),
+}
+
+/// A rule's firings after `cursor` up to and including the `horizon` day.
+/// On `Failed` the firings found before the error are still returned; on
+/// `Overflow` they are not meant to be used.
+fn firings_until(
+    cron: &Cron,
+    mut cursor: DateTime<Local>,
+    horizon: NaiveDate,
+) -> (Vec<DateTime<Local>>, Option<FiringsProblem>) {
+    let mut firings = Vec::new();
+    loop {
+        match cron.find_next_occurrence(&cursor, false) {
+            Ok(firing) if firing.date_naive() <= horizon => {
+                if firings.len() >= MAX_FIRINGS {
+                    return (firings, Some(FiringsProblem::Overflow));
+                }
+                cursor = firing;
+                firings.push(firing);
+            }
+            Ok(_) => return (firings, None),
+            Err(e) => return (firings, Some(FiringsProblem::Failed(e.to_string()))),
+        }
+    }
+}
+
+/// The local day the engine first saw a rule item, recorded now if this
+/// is that day.
+fn first_seen(conn: &Connection, rule_key: &str, today: NaiveDate) -> Result<String> {
+    // Catch-up never reaches back past the day the engine first
+    // saw the item: a rule added today must not open as overdue,
+    // and later runs must not resurrect pre-sighting firings.
+    // first_seen is consumed as a LOCAL date (substr below), so it
+    // is stored as the plain local date - a UTC timestamp would
+    // shift the sighting day around midnight.
+    let newly_seen = conn.execute(
+        "INSERT OR IGNORE INTO rule_seen (rule_key, first_seen) VALUES (?1, ?2)",
+        (rule_key, today.format("%Y-%m-%d").to_string()),
+    )? == 1;
+    if newly_seen {
+        // A first-seen rule starts with a clean ledger from today
+        // on. Removing a rule deletes its future tasks but leaves
+        // their rule_runs rows; re-adding the same rule text would
+        // otherwise skip those periods forever (e.g. today's
+        // instance never reappearing). Rows whose task still
+        // exists stay - reconcile keeps today's live instance.
+        conn.execute(
+            "DELETE FROM rule_runs
+             WHERE rule_key = ?1
+               AND substr(period_key, 1, 10) >= ?2
+               AND NOT EXISTS (SELECT 1 FROM tasks
+                               WHERE tasks.rule_key = rule_runs.rule_key
+                                 AND tasks.period_key = rule_runs.period_key)",
+            (rule_key, today.format("%Y-%m-%d").to_string()),
+        )?;
+    }
+    Ok(conn.query_row(
+        "SELECT substr(first_seen, 1, 10) FROM rule_seen WHERE rule_key = ?1",
+        [rule_key],
+        |row| row.get(0),
+    )?)
+}
+
 /// Enumerates firings for every rule item inside the catch-up window
 /// and materializes the missing instances through the rule_runs ledger.
 fn generate_recurring(
@@ -270,9 +342,7 @@ fn generate_recurring(
         // cron fired at 23:59 - "0 0 * * 1" a day ago is still one
         // missed Monday, no matter what time the engine runs
         let start_day = today - Duration::days(i64::from(config.catchup_days));
-        start_day
-            .and_hms_opt(0, 0, 0)
-            .and_then(|naive| Local.from_local_datetime(&naive).earliest())
+        day_start(&Local, start_day)
             .map(|start| start - Duration::seconds(1))
             .unwrap_or(exact_start)
     } else {
@@ -301,66 +371,47 @@ fn generate_recurring(
         // collapse into the single latest firing, which carry-over then
         // moves to today with the overdue mark - a gap of N days must
         // produce one overdue task per item, not N duplicates.
-        // Guard against runaway schedules ("* * * * *" would enumerate
-        // tens of thousands of firings and insert a task for each).
-        const MAX_FIRINGS: usize = 2000;
         let cadence = cadence_of(&cron, now, config);
-        let mut firings = Vec::new();
         // dailies discard every pre-today firing anyway (see
         // `latest_missed`), so an hourly rule must not trip the guard
         // on a long catch-up window it never uses
-        let mut cursor = if cadence == "daily" {
+        let cursor = if cadence == "daily" {
             window_start.max(
-                today
-                    .and_hms_opt(0, 0, 0)
-                    .and_then(|t| t.and_local_timezone(Local).single())
+                day_start(&Local, today)
                     .map(|t| t - Duration::seconds(1))
                     .unwrap_or(window_start),
             )
         } else {
             window_start
         };
-        let mut overflow = false;
-        loop {
-            match cron.find_next_occurrence(&cursor, false) {
-                Ok(firing) if firing.date_naive() <= horizon => {
-                    if firings.len() >= MAX_FIRINGS {
-                        overflow = true;
-                        break;
-                    }
-                    cursor = firing;
-                    firings.push(firing);
-                }
-                Ok(_) => break,
+        let (firings, problem) = firings_until(&cron, cursor, horizon);
+        if let Some(problem) = &problem {
+            let message = match problem {
                 // An enumeration error is not "no more occurrences": say
                 // so, or the rule silently under-generates.
-                Err(e) => {
-                    outcome.errors.push(ConfigError {
-                        file: source.into(),
-                        line: None,
-                        message: format!(
-                            "rule {} ('{}'): cron '{}' enumeration failed: {e}",
-                            index + 1,
-                            rule.description,
-                            rule.schedule
-                        ),
-                    });
-                    break;
-                }
-            }
-        }
-        if overflow {
-            outcome.errors.push(ConfigError {
-                file: source.into(),
-                line: None,
-                message: format!(
+                FiringsProblem::Failed(e) => format!(
+                    "rule {} ('{}'): cron '{}' enumeration failed: {e}",
+                    index + 1,
+                    rule.description,
+                    rule.schedule
+                ),
+                FiringsProblem::Overflow => format!(
                     "rule {} ('{}'): cron '{}' fires more than {MAX_FIRINGS} times \
                      inside the catch-up window; rule skipped",
                     index + 1,
                     rule.description,
                     rule.schedule
                 ),
+            };
+            outcome.errors.push(ConfigError {
+                file: source.into(),
+                line: None,
+                message,
             });
+        }
+        // a failed enumeration still generates what it found before the
+        // error; a runaway schedule generates nothing
+        if matches!(problem, Some(FiringsProblem::Overflow)) {
             continue;
         }
         // rules pinned to concrete weekdays carry a [SAT#1]-style marker
@@ -390,38 +441,7 @@ fn generate_recurring(
                  WHERE rule_key = ?2 AND dow_label IS NOT ?1",
                 (&dow_label, &rule_key),
             )?;
-            // Catch-up never reaches back past the day the engine first
-            // saw the item: a rule added today must not open as overdue,
-            // and later runs must not resurrect pre-sighting firings.
-            // first_seen is consumed as a LOCAL date (substr below), so it
-            // is stored as the plain local date - a UTC timestamp would
-            // shift the sighting day around midnight.
-            let newly_seen = conn.execute(
-                "INSERT OR IGNORE INTO rule_seen (rule_key, first_seen) VALUES (?1, ?2)",
-                (&rule_key, today.format("%Y-%m-%d").to_string()),
-            )? == 1;
-            if newly_seen {
-                // A first-seen rule starts with a clean ledger from today
-                // on. Removing a rule deletes its future tasks but leaves
-                // their rule_runs rows; re-adding the same rule text would
-                // otherwise skip those periods forever (e.g. today's
-                // instance never reappearing). Rows whose task still
-                // exists stay - reconcile keeps today's live instance.
-                conn.execute(
-                    "DELETE FROM rule_runs
-                     WHERE rule_key = ?1
-                       AND substr(period_key, 1, 10) >= ?2
-                       AND NOT EXISTS (SELECT 1 FROM tasks
-                                       WHERE tasks.rule_key = rule_runs.rule_key
-                                         AND tasks.period_key = rule_runs.period_key)",
-                    (&rule_key, today.format("%Y-%m-%d").to_string()),
-                )?;
-            }
-            let first_seen: String = conn.query_row(
-                "SELECT substr(first_seen, 1, 10) FROM rule_seen WHERE rule_key = ?1",
-                [&rule_key],
-                |row| row.get(0),
-            )?;
+            let first_seen = first_seen(conn, &rule_key, today)?;
             let selected = latest_missed
                 .into_iter()
                 .filter(|f| f.format("%Y-%m-%d").to_string() >= first_seen)
@@ -896,6 +916,19 @@ fn carry_over(
     Ok((moved, deduped))
 }
 
+/// The first instant of a local calendar day. Midnight itself where it
+/// exists (the earlier one if the clocks fall back over it); where a DST
+/// jump skips midnight (Santiago, Beirut, Havana) the day starts at the
+/// first minute after the gap, not at "no answer".
+pub(crate) fn day_start<Tz: TimeZone>(tz: &Tz, day: NaiveDate) -> Option<DateTime<Tz>> {
+    let midnight = day.and_hms_opt(0, 0, 0)?;
+    // no real gap is longer than a few hours
+    (0..=4 * 60).find_map(|minute| {
+        tz.from_local_datetime(&(midnight + Duration::minutes(minute)))
+            .earliest()
+    })
+}
+
 /// With clear_done_list_tasks on, done backlog tasks of the list
 /// columns (manual, list-bound, unscheduled or priority-pinned) are
 /// removed once their completion day has passed: the list is a working
@@ -910,10 +943,7 @@ fn carry_over(
 /// the user keeps (grocery lists), not a finished queue entry.
 fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usize> {
     let today = now.date_naive();
-    let today_start = today
-        .and_hms_opt(0, 0, 0)
-        .and_then(|naive| Local.from_local_datetime(&naive).earliest())
-        .unwrap_or(now);
+    let today_start = day_start(&Local, today).unwrap_or(now);
     // completed_at is stored as UTC RFC3339, comparable lexicographically
     let cutoff = today_start.with_timezone(&Utc).to_rfc3339();
     let today_str = today.format("%Y-%m-%d").to_string();
