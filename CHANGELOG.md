@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.109.2 - 2026-10-17
+
+Data safety pass. A task changed while a sync pass is running is no longer lost when the pass brings in the other device's changes. A database restore from the snapshot that failed or was cut short is tried again on the next start instead of leaving an empty task list that would then be written over the snapshot and synced to the other devices. A device running an older app version stops syncing with "update the app on this device" instead of dropping fields it does not know (a list's group, a checklist) on every device. A database that cannot be replaced during a rebuild is left as it was, and if a rebuild fails the next pass merges again instead of uploading the old state. The daily database snapshot is also taken at each day change, not only when the app starts, so a desktop living in the tray keeps getting them. A note deleted on the other device goes to `.trash/`. An unreadable `app.db` is moved aside and rebuilt from the snapshot. The snapshot is read in one transaction, and restoring a backup no longer overwrites `app.db` in place.
+
 ## 0.109.1 - 2026-10-17
 
 Security pass before going public. The app window can no longer be navigated away from the app: a link the interface fails to catch opens in the browser instead of replacing the app with a web page. A backup id with a `:` is refused (on Windows `C:name` would have pointed outside the backups folder). The Android build opts out of Auto Backup, so the vault and the device id do not go to Google's cloud backup. The release workflow keeps secrets out of third-party build code: no checkout leaves a token behind, the frontend is built in its own step without secrets, and the signing step runs no npm script; it runs in a `release` environment. SECURITY.md and the privacy policy say plainly that the desktop's Google token is an unencrypted file (the privacy policy wrongly offered a passphrase the desktop has no screen for), and the README says when a release is signed.

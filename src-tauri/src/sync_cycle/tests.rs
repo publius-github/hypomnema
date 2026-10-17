@@ -394,6 +394,69 @@ fn a_note_deleted_there_and_untouched_here_goes_away_locally() {
 
     assert_eq!(report.removed_locally, 1);
     assert!(!local.join("journal/a.md").exists());
+    // the remote keeps no copy: this one is the last, in the trash
+    let trashed: Vec<_> = fs::read_dir(local.join(sync_paths::TRASH_DIR))
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(trashed.len(), 1);
+    assert!(trashed[0].ends_with("-journal__a.md"), "{trashed:?}");
+    assert_eq!(
+        fs::read_to_string(local.join(sync_paths::TRASH_DIR).join(&trashed[0])).unwrap(),
+        "text"
+    );
+}
+
+#[test]
+fn a_snapshot_from_a_newer_build_stops_the_pass_before_anything_changes() {
+    let local = temp_dir("state-newer");
+    let provider = MockProvider::new();
+    let path = ".hypomnema/state/lists.jsonl";
+    let base = "{\"id\":1,\"name\":\"Shop\",\"updated_at\":\"t0\",\"updated_by\":\"d\"}\n";
+    in_sync(&provider, &local, path, base);
+    let (_, marker) = provider.read_file(&root().absolute(path)).unwrap();
+    provider
+        .write_file(
+            &root().absolute(path),
+            b"{\"id\":1,\"name\":\"Shop\",\"shelf\":2,\"updated_at\":\"t1\",\"updated_by\":\"desk\"}\n",
+            Some(&marker),
+        )
+        .unwrap();
+    provider
+        .write_file("vault/journal/new.md", b"from the desktop", None)
+        .unwrap();
+
+    let err = sync_vault(&provider, &local, &root(), PHONE, NOW, 30, |_, _| {})
+        .unwrap_err()
+        .to_string();
+
+    assert!(err.contains("newer version"), "{err}");
+    assert_eq!(read(&local, path), base);
+    assert!(!local.join("journal/new.md").exists());
+}
+
+#[test]
+fn a_snapshot_whose_rebuild_failed_merges_again_instead_of_overwriting() {
+    let local = temp_dir("state-forget");
+    let provider = MockProvider::new();
+    let path = ".hypomnema/state/tasks.jsonl";
+    let theirs = "{\"id\":1,\"title\":\"a\",\"updated_at\":\"t0\",\"updated_by\":\"d\"}\n\
+                  {\"id\":2,\"title\":\"theirs\",\"updated_at\":\"t1\",\"updated_by\":\"desk\"}\n";
+    in_sync(&provider, &local, path, theirs);
+    // the old database's export, which lacks the merged-in row
+    write(
+        &local,
+        path,
+        "{\"id\":1,\"title\":\"a\",\"updated_at\":\"t0\",\"updated_by\":\"d\"}\n",
+    );
+
+    forget_state_agreement(&local, &root()).unwrap();
+    sync(&provider, &local);
+
+    let uploaded = provider.read_file(&root().absolute(path)).unwrap().0;
+    assert!(String::from_utf8(uploaded).unwrap().contains("\"theirs\""));
+    assert!(read(&local, path).contains("\"theirs\""));
 }
 
 #[test]

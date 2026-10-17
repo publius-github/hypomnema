@@ -264,6 +264,18 @@ pub(crate) async fn engine_run(state: State<'_, AppState>) -> Result<engine::Eng
     let _pass = engine_lock.lock_or_recover();
     let guard = state.vault.lock_or_recover();
     let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
+    // The frontend runs the engine at start and at every day rollover:
+    // the daily snapshot goes here as well as into the vault open, or a
+    // desktop that lives in the tray for weeks would take none. Before
+    // the pass, so it holds yesterday's end state. Best effort, as at open.
+    if let Err(e) = crate::backup::backup_db_daily(
+        &vault.conn,
+        &vault.root,
+        vault.config.backup_keep,
+        chrono::Local::now(),
+    ) {
+        crate::applog::warn(format!("daily database backup failed: {e}"));
+    }
     let mut outcome = engine::run(
         &vault.conn,
         &vault.config_dir(),

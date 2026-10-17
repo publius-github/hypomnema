@@ -493,8 +493,27 @@ pub(crate) fn rebuild_cache(
 fn replace_db_files(root: &Path, mut open: impl FnMut() -> Result<()>) -> Result<()> {
     let db = vault::db_path(root);
     let aside = db.with_extension("db.rebuild-bak");
-    let had_db = db.exists() && std::fs::copy(&db, &aside).is_ok();
+    let had_db = db.exists();
+    if had_db {
+        // no copy, no rebuild: there would be nothing to fall back on
+        if let Err(e) = std::fs::copy(&db, &aside) {
+            let _ = open();
+            return Err(Error::io_at(&aside, e));
+        }
+    }
     remove_db_files(root);
+    if db.exists() {
+        // Still there - held open by another program (Windows refuses to
+        // delete an open file). Opening it now would skip the restore and
+        // export the old state over the snapshot being rebuilt from.
+        let _ = std::fs::remove_file(&aside);
+        let _ = open();
+        return Err(Error::State(format!(
+            "could not replace {} (is another program holding it open?); \
+             the database was left as it was",
+            db.display()
+        )));
+    }
     match open() {
         Ok(()) => {
             let _ = std::fs::remove_file(&aside);
@@ -561,6 +580,60 @@ mod tests {
         assert!(!vault::db_path(&root)
             .with_extension("db.rebuild-bak")
             .exists());
+    }
+
+    #[test]
+    fn writes_made_while_a_pass_was_out_survive_its_rebuild() {
+        let root = vault_with_a_task("rebuild-fold");
+        let vault = Vault::open(&root).unwrap();
+        // the pass starts: its export is the base of the fold
+        let at_start = state_export::snapshot(&vault.conn).unwrap();
+        state_export::write(&vault::state_dir(&root), &at_start).unwrap();
+        // on the network: the user adds a task here...
+        crate::tasks::task_create(
+            &vault.conn,
+            &NewTask {
+                title: "added meanwhile".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // ...and the merge brings the other device's rename
+        let path = vault::state_dir(&root).join("tasks.jsonl");
+        let merged = std::fs::read_to_string(&path)
+            .unwrap()
+            .replace("\"survives\"", "\"renamed there\"")
+            .replace("\"updated_at\":\"", "\"updated_at\":\"9");
+        std::fs::write(&path, merged).unwrap();
+
+        let at_end = state_export::snapshot(&vault.conn).unwrap();
+        assert!(crate::sync_cycle::fold_local_writes(
+            &root,
+            &at_start,
+            &at_end,
+            "2026-10-17T00:00:00Z"
+        )
+        .unwrap());
+        drop(vault);
+        replace_db_files(&root, || Vault::open(&root).map(|_| ())).unwrap();
+
+        let mut titles = titles(&root);
+        titles.sort();
+        assert_eq!(titles, ["added meanwhile", "renamed there"]);
+    }
+
+    #[test]
+    fn a_rebuild_with_no_safety_copy_leaves_the_database_alone() {
+        let root = vault_with_a_task("rebuild-no-copy");
+        // a folder where the copy goes: it cannot be made
+        let aside = vault::db_path(&root).with_extension("db.rebuild-bak");
+        std::fs::create_dir_all(&aside).unwrap();
+        std::fs::write(vault::state_dir(&root).join("tasks.jsonl"), "").unwrap();
+
+        let result = replace_db_files(&root, || Vault::open(&root).map(|_| ()));
+
+        assert!(result.is_err());
+        assert_eq!(titles(&root), ["survives"]);
     }
 
     #[test]

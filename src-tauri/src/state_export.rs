@@ -34,7 +34,30 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 
+/// The snapshot files, in the order `export` writes them.
+pub const FILES: [&str; 6] = [
+    "tasks.jsonl",
+    "lists.jsonl",
+    "list_groups.jsonl",
+    "rule_runs.jsonl",
+    "rule_seen.jsonl",
+    "weekly_focus.jsonl",
+];
+
+/// The values the schema's CHECK constraints accept (db.rs migrations
+/// 017 and 019). A snapshot carrying any other value was written by a
+/// newer build: restoring it would fail on the constraint halfway
+/// through a rebuild, so it is refused up front instead.
+const TASK_STATUSES: &[&str] = &["todo", "done", "postponed", "waiting", "dropped"];
+const LIST_KINDS: &[&str] = &["todo", "checklist"];
+
+// Every row struct denies unknown fields: a field this build does not
+// know comes from a newer build, and reading past it would drop it on
+// the next export - which the record merge then hands to every other
+// device as "removed here" (a list's group, a checklist's kind). Fields
+// added later stay `#[serde(default)]`, so an older snapshot still reads.
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TaskRow {
     id: i64,
     title: String,
@@ -69,6 +92,7 @@ struct TaskRow {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ListRow {
     id: i64,
     name: String,
@@ -94,6 +118,7 @@ fn default_list_kind() -> String {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct GroupRow {
     id: i64,
     name: String,
@@ -106,6 +131,7 @@ struct GroupRow {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RuleRunRow {
     rule_key: String,
     period_key: String,
@@ -113,12 +139,14 @@ struct RuleRunRow {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RuleSeenRow {
     rule_key: String,
     first_seen: String,
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FocusRow {
     iso_year: i64,
     iso_week: i64,
@@ -158,6 +186,11 @@ fn from_jsonl_optional<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<
 
 fn from_jsonl<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<T>> {
     let content = fs::read_to_string(path)?;
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    parse_jsonl(&name, &content)
+}
+
+fn parse_jsonl<T: for<'de> Deserialize<'de>>(name: &str, content: &str) -> Result<Vec<T>> {
     let mut rows = Vec::new();
     for (i, line) in content.lines().enumerate() {
         let line = line.trim();
@@ -165,20 +198,175 @@ fn from_jsonl<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<T>> {
             continue;
         }
         rows.push(serde_json::from_str(line).map_err(|e| {
-            Error::State(format!(
-                "{}: line {}: {e}",
-                path.file_name().unwrap_or_default().to_string_lossy(),
-                i + 1
-            ))
+            let detail = e.to_string();
+            if detail.starts_with("unknown field") {
+                newer_version(name, i + 1, &detail)
+            } else {
+                Error::State(format!("{name}: line {}: {detail}", i + 1))
+            }
         })?);
     }
     Ok(rows)
 }
 
+fn newer_version(name: &str, line: usize, detail: &str) -> Error {
+    Error::State(format!(
+        "{name} line {line} was written by a newer version of Hypomnema ({detail}); \
+         update the app on this device"
+    ))
+}
+
+fn check_tasks(rows: &[TaskRow]) -> Result<()> {
+    match rows
+        .iter()
+        .position(|t| !TASK_STATUSES.contains(&t.status.as_str()))
+    {
+        Some(i) => Err(newer_version(
+            "tasks.jsonl",
+            i + 1,
+            &format!("unknown status `{}`", rows[i].status),
+        )),
+        None => Ok(()),
+    }
+}
+
+fn check_lists(rows: &[ListRow]) -> Result<()> {
+    match rows
+        .iter()
+        .position(|l| !LIST_KINDS.contains(&l.kind.as_str()))
+    {
+        Some(i) => Err(newer_version(
+            "lists.jsonl",
+            i + 1,
+            &format!("unknown list kind `{}`", rows[i].kind),
+        )),
+        None => Ok(()),
+    }
+}
+
+/// The fields each snapshot file's rows may carry - the row structs
+/// above, by name (a test keeps the two in step).
+fn known_fields(file_name: &str) -> Option<&'static [&'static str]> {
+    Some(match file_name {
+        "tasks.jsonl" => &[
+            "id",
+            "title",
+            "description_md",
+            "list_id",
+            "scheduled_date",
+            "time",
+            "status",
+            "color",
+            "sort_order",
+            "parent_task_id",
+            "created_at",
+            "completed_at",
+            "overdue",
+            "origin",
+            "rule_key",
+            "period_key",
+            "archived_at",
+            "cadence",
+            "origin_date",
+            "priority",
+            "dow_label",
+            "updated_at",
+            "updated_by",
+        ],
+        "lists.jsonl" => &[
+            "id",
+            "name",
+            "sort_order",
+            "color",
+            "archived",
+            "auto",
+            "favorite",
+            "description",
+            "kind",
+            "group_id",
+            "updated_at",
+            "updated_by",
+        ],
+        "list_groups.jsonl" => &[
+            "id",
+            "name",
+            "sort_order",
+            "color",
+            "updated_at",
+            "updated_by",
+        ],
+        "rule_runs.jsonl" => &["rule_key", "period_key", "generated_at"],
+        "rule_seen.jsonl" => &["rule_key", "first_seen"],
+        "weekly_focus.jsonl" => &["iso_year", "iso_week", "phrase_index"],
+        _ => return None,
+    })
+}
+
+/// Whether this build can take a snapshot file in without losing any of
+/// it: every line is a JSON object with no field and no status or list
+/// kind this build does not know. Sync runs this on a downloaded state
+/// file before applying anything, so a snapshot from a newer build stops
+/// the pass rather than being merged (and partly forgotten) here. A field
+/// missing is not this check's concern - rows from older builds lack the
+/// newer ones. Not a snapshot file - nothing to check.
+pub fn check_readable(file_name: &str, text: &str) -> Result<()> {
+    let Some(known) = known_fields(file_name) else {
+        return Ok(());
+    };
+    for (i, line) in text.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let row: serde_json::Map<String, serde_json::Value> = serde_json::from_str(line)
+            .map_err(|e| Error::State(format!("{file_name}: line {}: {e}", i + 1)))?;
+        if let Some(field) = row.keys().find(|k| !known.contains(&k.as_str())) {
+            return Err(newer_version(
+                file_name,
+                i + 1,
+                &format!("unknown field `{field}`"),
+            ));
+        }
+        let value = |field: &str| row.get(field).and_then(|v| v.as_str());
+        let unknown = match file_name {
+            "tasks.jsonl" => value("status")
+                .filter(|v| !TASK_STATUSES.contains(v))
+                .map(|v| format!("unknown status `{v}`")),
+            "lists.jsonl" => value("kind")
+                .filter(|v| !LIST_KINDS.contains(v))
+                .map(|v| format!("unknown list kind `{v}`")),
+            _ => None,
+        };
+        if let Some(detail) = unknown {
+            return Err(newer_version(file_name, i + 1, &detail));
+        }
+    }
+    Ok(())
+}
+
 /// Writes the snapshot. Ordered queries keep the files byte-stable
 /// between unchanged exports, so write_if_changed skips the disk.
 pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
+    write(state_dir, &snapshot(conn)?)
+}
+
+/// Writes a `snapshot` taken earlier.
+pub fn write(state_dir: &Path, files: &[(&str, String)]) -> Result<()> {
     fs::create_dir_all(state_dir)?;
+    for (name, text) in files {
+        write_if_changed(&state_dir.join(name), text)?;
+    }
+    Ok(())
+}
+
+/// The snapshot as `(file name, content)` in `FILES` order, without
+/// touching the disk. All six tables are read in one transaction: the
+/// export worker reads on its own connection while commands write on
+/// theirs, and a list created between two of the reads would otherwise
+/// leave a task pointing at a list the snapshot does not have.
+pub fn snapshot(conn: &Connection) -> Result<Vec<(&'static str, String)>> {
+    let tx = conn.unchecked_transaction()?;
+    let conn: &Connection = &tx;
 
     let tasks: Vec<TaskRow> = conn
         .prepare("SELECT * FROM tasks ORDER BY id")?
@@ -210,7 +398,6 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
-    write_if_changed(&state_dir.join("tasks.jsonl"), &to_jsonl(&tasks)?)?;
 
     let lists: Vec<ListRow> = conn
         .prepare("SELECT * FROM lists ORDER BY id")?
@@ -231,7 +418,6 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
-    write_if_changed(&state_dir.join("lists.jsonl"), &to_jsonl(&lists)?)?;
 
     let groups: Vec<GroupRow> = conn
         .prepare("SELECT * FROM list_groups ORDER BY id")?
@@ -246,7 +432,6 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
-    write_if_changed(&state_dir.join("list_groups.jsonl"), &to_jsonl(&groups)?)?;
 
     let runs: Vec<RuleRunRow> = conn
         .prepare("SELECT rule_key, period_key, generated_at FROM rule_runs ORDER BY rule_key, period_key")?
@@ -258,7 +443,6 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
-    write_if_changed(&state_dir.join("rule_runs.jsonl"), &to_jsonl(&runs)?)?;
 
     let seen: Vec<RuleSeenRow> = conn
         .prepare("SELECT rule_key, first_seen FROM rule_seen ORDER BY rule_key")?
@@ -269,7 +453,6 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
-    write_if_changed(&state_dir.join("rule_seen.jsonl"), &to_jsonl(&seen)?)?;
 
     let focus: Vec<FocusRow> = conn
         .prepare("SELECT iso_year, iso_week, phrase_index FROM weekly_focus_state ORDER BY iso_year, iso_week")?
@@ -281,14 +464,44 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
-    write_if_changed(&state_dir.join("weekly_focus.jsonl"), &to_jsonl(&focus)?)?;
+    drop(tx);
 
-    Ok(())
+    Ok(vec![
+        (FILES[0], to_jsonl(&tasks)?),
+        (FILES[1], to_jsonl(&lists)?),
+        (FILES[2], to_jsonl(&groups)?),
+        (FILES[3], to_jsonl(&runs)?),
+        (FILES[4], to_jsonl(&seen)?),
+        (FILES[5], to_jsonl(&focus)?),
+    ])
+}
+
+/// Whether the database holds none of the state the snapshot carries -
+/// the condition under which `Vault::open` restores. Settings and the
+/// device row are not part of the snapshot and do not count.
+pub fn db_is_empty(conn: &Connection) -> Result<bool> {
+    for table in [
+        "tasks",
+        "lists",
+        "list_groups",
+        "rule_runs",
+        "rule_seen",
+        "weekly_focus_state",
+    ] {
+        let any: bool =
+            conn.query_row(&format!("SELECT EXISTS (SELECT 1 FROM {table})"), [], |r| {
+                r.get(0)
+            })?;
+        if any {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Rebuilds the database content from the snapshot. Returns false when
-/// no snapshot exists (a genuinely fresh vault). Only meant for a fresh,
-/// just-migrated database: rows are inserted with their original ids so
+/// no snapshot exists (a genuinely fresh vault). Only meant for an
+/// empty, just-migrated database (`db_is_empty`): rows are inserted with their original ids so
 /// the task mirror's ^id keys stay valid. One transaction - a broken
 /// snapshot leaves the database empty rather than half-restored, and the
 /// caller must treat the error as fatal for the open (continuing would
@@ -304,6 +517,8 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
     let runs: Vec<RuleRunRow> = from_jsonl_optional(&state_dir.join("rule_runs.jsonl"))?;
     let seen: Vec<RuleSeenRow> = from_jsonl_optional(&state_dir.join("rule_seen.jsonl"))?;
     let focus: Vec<FocusRow> = from_jsonl_optional(&state_dir.join("weekly_focus.jsonl"))?;
+    check_tasks(&tasks)?;
+    check_lists(&lists)?;
 
     let tx = conn.unchecked_transaction()?;
     // Two rows under one name are the same thing created on two devices
@@ -658,6 +873,78 @@ mod tests {
         let (conn, dir) = setup("fresh");
         let empty = dir.join("nothing-here");
         assert!(!restore(&conn, &empty).unwrap());
+    }
+
+    #[test]
+    fn every_exported_field_is_one_the_readability_check_knows() {
+        let (conn, dir) = setup("known-fields");
+        let group = tasks::group_create(&conn, "Home").unwrap();
+        let list = tasks::list_create(&conn, "Inbox", None, false).unwrap();
+        tasks::list_set_group(&conn, list.id, Some(group.id)).unwrap();
+        tasks::task_create(
+            &conn,
+            &NewTask {
+                title: "t".into(),
+                list_id: Some(list.id),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        conn.execute_batch(
+            "INSERT INTO rule_runs VALUES ('r', '2026-W40', '2026-10-01');
+             INSERT INTO rule_seen VALUES ('r', '2026-10-01');
+             INSERT INTO weekly_focus_state VALUES (2026, 40, 1);",
+        )
+        .unwrap();
+
+        export(&conn, &dir).unwrap();
+
+        for name in FILES {
+            let text = fs::read_to_string(dir.join(name)).unwrap();
+            assert!(!text.is_empty(), "{name} exported nothing");
+            check_readable(name, &text).unwrap_or_else(|e| panic!("{name}: {e}"));
+        }
+    }
+
+    #[test]
+    fn a_row_from_a_newer_build_is_refused_and_an_older_one_read() {
+        let newer = |file: &str, line: &str| {
+            let err = check_readable(file, line).unwrap_err().to_string();
+            assert!(err.contains("newer version"), "{err}");
+        };
+        newer("lists.jsonl", r#"{"id":1,"name":"x","shelf":3}"#);
+        newer("tasks.jsonl", r#"{"id":1,"title":"x","status":"someday"}"#);
+        newer("lists.jsonl", r#"{"id":1,"name":"x","kind":"kanban"}"#);
+        // written before list kinds, groups and merge stamps existed
+        check_readable(
+            "lists.jsonl",
+            r#"{"id":1,"name":"x","sort_order":0,"color":null,"archived":0,"auto":0,"favorite":0,"description":""}"#,
+        )
+        .unwrap();
+        assert!(check_readable("tasks.jsonl", "{not json}").is_err());
+    }
+
+    #[test]
+    fn a_snapshot_from_a_newer_build_is_not_restored_in_part() {
+        let (conn, dir) = setup("newer-restore");
+        tasks::task_create(
+            &conn,
+            &NewTask {
+                title: "t".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        export(&conn, &dir).unwrap();
+        let path = dir.join("tasks.jsonl");
+        let text = fs::read_to_string(&path).unwrap();
+        fs::write(&path, text.replace("\"title\":", "\"mood\":1,\"title\":")).unwrap();
+        let (fresh, _) = setup("newer-restore-target");
+
+        let err = restore(&fresh, &dir).unwrap_err().to_string();
+
+        assert!(err.contains("newer version"), "{err}");
+        assert_eq!(count(&fresh, "tasks"), 0);
     }
 
     #[test]

@@ -498,6 +498,8 @@ fn apply_duplicate(
     if let Some(kind) = sync_state::state_file_of(relative) {
         let local_text = String::from_utf8_lossy(&local_bytes).into_owned();
         let other_text = String::from_utf8_lossy(bytes).into_owned();
+        // a copy this build cannot fully read stays on the server
+        crate::state_export::check_readable(state_file_name(relative), &other_text)?;
         let merged = sync_state::merge_state_file(kind, None, &local_text, &other_text)?;
         write_local(&target, merged.text.as_bytes())?;
         out.extend(sync_conflicts::entries_from(
@@ -616,8 +618,16 @@ fn apply_remote_deletions(
         };
         let known_hash = manifest.get(remote).and_then(|s| s.hash.clone());
         if known_hash.as_deref() == Some(content_hash(&local_bytes).as_str()) {
-            // Untouched here since it arrived: the deletion stands.
-            fs::remove_file(&target)?;
+            // Untouched here since it arrived: the deletion stands. The
+            // snapshot is the app's own state and simply goes; anything
+            // else is the user's and goes to the vault's .trash/, as a
+            // delete made on this device would - the remote keeps no
+            // copy (Drive's app folder has no trash).
+            if sync_state::state_file_of(relative).is_some() {
+                fs::remove_file(&target)?;
+            } else {
+                crate::kb::move_to_trash(local_root, &target, relative)?;
+            }
             forget_base(local_root, relative);
             manifest.remove(remote);
             report.removed_locally += 1;
@@ -705,6 +715,120 @@ fn push_local_deletions<P: SyncProvider>(
     Ok(())
 }
 
+fn state_file_name(relative: &str) -> &str {
+    relative.rsplit('/').next().unwrap_or(relative)
+}
+
+/// Downloads the snapshot files the remote has a new revision of and
+/// checks that this build can read every row of them - before the pass
+/// applies anything. A snapshot written by a newer build (a field or a
+/// value this one does not know) would otherwise be merged here with the
+/// unknown parts quietly dropped, and the next push would take them from
+/// every other device too; or it would fail the rebuild after the merge,
+/// with this device's older database left to export over it. Stopping
+/// the pass leaves both ends as they were until this device is updated.
+/// A file that cannot be downloaded is left to the incoming loop, which
+/// reports it as failed.
+fn prefetch_state_files<P: SyncProvider>(
+    provider: &P,
+    root: &VaultRoot,
+    manifest: &BTreeMap<String, FileState>,
+    remote_live: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, Vec<u8>>> {
+    let mut fetched = BTreeMap::new();
+    for (remote, rev) in remote_live {
+        let Some(relative) = root.relative(remote) else {
+            continue;
+        };
+        if sync_state::state_file_of(relative).is_none()
+            || manifest.get(remote).is_some_and(|state| &state.rev == rev)
+        {
+            continue;
+        }
+        let Ok((bytes, _)) = provider.read_file(remote) else {
+            continue;
+        };
+        crate::state_export::check_readable(
+            state_file_name(relative),
+            &String::from_utf8_lossy(&bytes),
+        )
+        .map_err(|e| Error::State(format!("sync stopped before changing anything: {e}")))?;
+        fetched.insert(remote.clone(), bytes);
+    }
+    Ok(fetched)
+}
+
+/// Folds database writes made while a pass was on the network into the
+/// snapshot the pass merged, just before that snapshot replaces the
+/// database (`cmd_sync::run_pass`). The pass exported `before` when it
+/// started; commands kept writing to app.db meanwhile (`now` is app.db
+/// at the end), and a rebuild from the merged files alone would drop
+/// every one of those writes. Each changed file is merged three-way -
+/// base `before`, ours `now`, theirs the merged file on disk - with the
+/// same record merge a pass uses, and written back; the next pass sends
+/// it up. Returns whether anything was folded in.
+pub fn fold_local_writes(
+    local_root: &Path,
+    before: &[(&str, String)],
+    now: &[(&str, String)],
+    at: &str,
+) -> Result<bool> {
+    let state_dir = vault::state_dir(local_root);
+    let mut conflicts = Vec::new();
+    let mut folded = false;
+    for ((name, before_text), (_, now_text)) in before.iter().zip(now) {
+        if before_text == now_text {
+            continue;
+        }
+        let relative = format!("{}/state/{name}", vault::WORK_DIR);
+        let Some(kind) = sync_state::state_file_of(&relative) else {
+            continue;
+        };
+        let path = state_dir.join(name);
+        let merged = match fs::read_to_string(&path) {
+            Ok(theirs) => {
+                let merged =
+                    sync_state::merge_state_file(kind, Some(before_text), now_text, &theirs)?;
+                conflicts.extend(sync_conflicts::entries_from(
+                    &relative,
+                    at,
+                    merged.conflicts,
+                ));
+                merged.text
+            }
+            // the pass took the file away (deleted on the other device):
+            // what this device wrote since is all there is
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => now_text.clone(),
+            Err(e) => return Err(Error::io_at(&path, e)),
+        };
+        write_local(&path, merged.as_bytes())?;
+        folded = true;
+    }
+    sync_conflicts::append(local_root, conflicts)?;
+    Ok(folded)
+}
+
+/// Forgets what this device and the remote agreed on for the snapshot
+/// files: their manifest entries and merge bases. Used when a pass merged
+/// the snapshot but the database could not be rebuilt from it - the old
+/// database is back and its next export overwrites the merged files. With
+/// the agreement kept, the pass after would read that as "changed here
+/// only" and upload it wholesale, undoing the other device's changes;
+/// without it, both versions are merged with no base, which keeps every
+/// row either side has.
+pub fn forget_state_agreement(local_root: &Path, root: &VaultRoot) -> Result<()> {
+    let mut manifest = load_manifest(local_root);
+    manifest.retain(|remote, _| {
+        root.relative(remote)
+            .is_none_or(|relative| sync_state::state_file_of(relative).is_none())
+    });
+    save_manifest(local_root, &manifest)?;
+    for name in crate::state_export::FILES {
+        forget_base(local_root, &format!("{}/state/{name}", vault::WORK_DIR));
+    }
+    Ok(())
+}
+
 /// Runs a full pass. `now` is RFC3339 UTC, injected so the tests are not
 /// at the mercy of the clock.
 pub fn sync_vault<P: SyncProvider>(
@@ -750,6 +874,7 @@ pub fn sync_vault<P: SyncProvider>(
     }
 
     guard_mass_deletion(&ctx, root, &manifest, &remote_live, guard_percent)?;
+    let mut prefetched = prefetch_state_files(provider, root, &manifest, &remote_live)?;
 
     // Text synced before bases were kept for it has none yet. A file that
     // still matches what both ends last agreed on is that base, so record
@@ -801,12 +926,15 @@ pub fn sync_vault<P: SyncProvider>(
         if seen_this_revision {
             continue;
         }
-        let bytes = match provider.read_file(remote) {
-            Ok((bytes, _)) => bytes,
-            Err(_) => {
-                report.failed.push(remote.clone());
-                continue;
-            }
+        let bytes = match prefetched.remove(remote) {
+            Some(bytes) => bytes,
+            None => match provider.read_file(remote) {
+                Ok((bytes, _)) => bytes,
+                Err(_) => {
+                    report.failed.push(remote.clone());
+                    continue;
+                }
+            },
         };
         // S8-style resilience: one file that cannot be applied (a merge
         // parse error, a name the local filesystem rejects) is reported,

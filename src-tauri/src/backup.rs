@@ -262,7 +262,14 @@ pub fn restore_db_backup(root: &Path, id: &str, now: DateTime<Local>) -> Result<
         ));
         fs::copy(&target, &safety)?;
     }
-    fs::copy(&source, &target)?;
+    // copied beside the target and renamed over it: a copy cut short
+    // must not leave a truncated app.db in place of a working one
+    let staging = target.with_extension("db.restoring");
+    if let Err(e) = fs::copy(&source, &staging) {
+        let _ = fs::remove_file(&staging);
+        return Err(Error::io_at(&staging, e));
+    }
+    fs::rename(&staging, &target).map_err(|e| Error::io_at(&target, e))?;
     let _ = fs::remove_file(target.with_extension("db-wal"));
     let _ = fs::remove_file(target.with_extension("db-shm"));
     Ok(())

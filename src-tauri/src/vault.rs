@@ -162,32 +162,30 @@ impl Vault {
 
         let (config, config_error) = AppConfig::load_or_default(&settings_file(root), &config_dir);
 
-        // a vault without its .db (fresh sync copy, deleted cache) is
-        // rebuilt from the state snapshot BEFORE anything can export the
-        // empty database over it; a broken snapshot aborts the open for
-        // the same reason
-        let fresh_db = !db_path(root).exists();
-        let conn = db::open(&db_path(root))?;
-        if let Some(from) = db::pending_upgrade_from(&conn)? {
-            // Not best effort, unlike the daily snapshot: a schema
-            // upgrade is not undoable, so without a copy it does not run.
-            crate::backup::backup_db_before_migration(
-                &conn,
-                root,
-                from,
-                config.backup_keep,
-                Local::now(),
-            )
-            .map_err(|e| {
-                Error::State(format!(
-                    "could not back up the database before upgrading it \
-                     (schema {from}); nothing was changed: {e}"
-                ))
-            })?;
-            crate::applog::info(format!("database schema upgrade from version {from}"));
-        }
-        db::migrate(&conn)?;
-        if fresh_db {
+        let conn = match open_db(root, &config) {
+            Ok(conn) => conn,
+            // A database SQLite cannot read is a cache like any other
+            // when the snapshot is there to rebuild it from: set it
+            // aside (never deleted - it may still be worth a look) and
+            // open a fresh one. Without a snapshot it is the only copy,
+            // and the open fails instead.
+            Err(e) if is_unreadable_db(&e) && state_dir(root).join("tasks.jsonl").exists() => {
+                let aside = set_aside_unreadable_db(root, Local::now())?;
+                crate::applog::warn(format!(
+                    "app.db could not be read ({e}); moved to {} and rebuilt from the snapshot",
+                    aside.display()
+                ));
+                open_db(root, &config)?
+            }
+            Err(e) => return Err(e),
+        };
+        // An empty database is rebuilt from the state snapshot BEFORE
+        // anything can export it over the snapshot: a vault without its
+        // .db (fresh sync copy, deleted cache), but just as much one whose
+        // restore failed or was cut short - the file exists then, empty,
+        // and must not pass for a vault with nothing in it. A broken
+        // snapshot aborts the open, and the next open tries again.
+        if crate::state_export::db_is_empty(&conn)? {
             crate::state_export::restore(&conn, &state_dir(root))?;
         }
         db::mirror_settings(&conn, &config)?;
@@ -271,6 +269,60 @@ impl Vault {
         }
         Ok(())
     }
+}
+
+/// Opens app.db and brings its schema up to date, snapshotting an older
+/// schema first.
+fn open_db(root: &Path, config: &AppConfig) -> Result<Connection> {
+    let conn = db::open(&db_path(root))?;
+    if let Some(from) = db::pending_upgrade_from(&conn)? {
+        // Not best effort, unlike the daily snapshot: a schema
+        // upgrade is not undoable, so without a copy it does not run.
+        crate::backup::backup_db_before_migration(
+            &conn,
+            root,
+            from,
+            config.backup_keep,
+            Local::now(),
+        )
+        .map_err(|e| {
+            Error::State(format!(
+                "could not back up the database before upgrading it \
+                 (schema {from}); nothing was changed: {e}"
+            ))
+        })?;
+        crate::applog::info(format!("database schema upgrade from version {from}"));
+    }
+    db::migrate(&conn)?;
+    Ok(conn)
+}
+
+/// SQLite's verdict on a file that is not (or no longer) a database.
+fn is_unreadable_db(e: &Error) -> bool {
+    matches!(
+        e,
+        Error::Db(rusqlite::Error::SqliteFailure(f, _))
+            if matches!(
+                f.code,
+                rusqlite::ErrorCode::NotADatabase | rusqlite::ErrorCode::DatabaseCorrupt
+            )
+    )
+}
+
+/// Renames app.db and its WAL/SHM siblings to `app.db.unreadable-<ts>`
+/// (+`-wal`/`-shm`) beside it. Not into backups/db: the restore list
+/// would offer a database nobody can open.
+fn set_aside_unreadable_db(root: &Path, now: chrono::DateTime<Local>) -> Result<PathBuf> {
+    let db = db_path(root);
+    let aside = db.with_extension(format!("db.unreadable-{}", now.format("%Y%m%d-%H%M%S")));
+    fs::rename(&db, &aside).map_err(|e| Error::io_at(&db, e))?;
+    for suffix in ["-wal", "-shm"] {
+        let sibling = PathBuf::from(format!("{}{suffix}", db.display()));
+        if sibling.exists() {
+            let _ = fs::rename(&sibling, format!("{}{suffix}", aside.display()));
+        }
+    }
+    Ok(aside)
 }
 
 /// Writes to a temp file in the same directory, then renames over the
@@ -492,6 +544,97 @@ mod tests {
         assert!(Vault::open(&root).is_err());
 
         assert_eq!(fs::read_to_string(&snapshot).unwrap(), "{not json}\n");
+    }
+
+    /// A vault whose snapshot holds one task and whose app.db is gone.
+    fn snapshot_only_vault(name: &str) -> PathBuf {
+        let root = temp_dir(name);
+        {
+            let vault = Vault::open(&root).unwrap();
+            crate::tasks::task_create(
+                &vault.conn,
+                &crate::tasks::NewTask {
+                    title: "precious".into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            crate::state_export::export(&vault.conn, &state_dir(&root)).unwrap();
+        }
+        fs::remove_file(db_path(&root)).unwrap();
+        root
+    }
+
+    fn task_count(vault: &Vault) -> i64 {
+        vault
+            .conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |row| row.get(0))
+            .unwrap()
+    }
+
+    #[test]
+    fn a_restore_that_failed_is_tried_again_rather_than_taken_for_an_empty_vault() {
+        let root = snapshot_only_vault("vault-restore-retry");
+        let snapshot = state_dir(&root).join("tasks.jsonl");
+        let good = fs::read_to_string(&snapshot).unwrap();
+        // a value only a newer build writes: the restore refuses it
+        fs::write(&snapshot, good.replace("\"todo\"", "\"someday\"")).unwrap();
+
+        assert!(Vault::open(&root).is_err());
+        // the failed open left an empty app.db behind; the next open
+        // must not read that as "nothing here"
+        assert!(Vault::open(&root).is_err());
+
+        fs::write(&snapshot, &good).unwrap();
+        let vault = Vault::open(&root).unwrap();
+        assert_eq!(task_count(&vault), 1);
+    }
+
+    #[test]
+    fn an_empty_database_beside_a_snapshot_is_filled_from_it() {
+        // what a restore cut short (killed, power cut) leaves: the schema
+        // is there, its rows were rolled back
+        let root = snapshot_only_vault("vault-restore-interrupted");
+        {
+            let conn = db::open(&db_path(&root)).unwrap();
+            db::migrate(&conn).unwrap();
+        }
+
+        let vault = Vault::open(&root).unwrap();
+
+        assert_eq!(task_count(&vault), 1);
+    }
+
+    #[test]
+    fn an_unreadable_database_is_set_aside_and_rebuilt_from_the_snapshot() {
+        let root = snapshot_only_vault("vault-unreadable-db");
+        fs::write(db_path(&root), vec![b'x'; 4096]).unwrap();
+
+        let vault = Vault::open(&root).unwrap();
+
+        assert_eq!(task_count(&vault), 1);
+        let aside: Vec<_> = fs::read_dir(work_dir(&root))
+            .unwrap()
+            .flatten()
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("app.db.unreadable-")
+            })
+            .collect();
+        assert_eq!(aside.len(), 1);
+        assert_eq!(fs::read(aside[0].path()).unwrap(), vec![b'x'; 4096]);
+    }
+
+    #[test]
+    fn an_unreadable_database_with_no_snapshot_is_left_alone() {
+        let root = temp_dir("vault-unreadable-only-copy");
+        fs::create_dir_all(work_dir(&root)).unwrap();
+        fs::write(db_path(&root), vec![b'x'; 4096]).unwrap();
+
+        assert!(Vault::open(&root).is_err());
+
+        assert_eq!(fs::read(db_path(&root)).unwrap(), vec![b'x'; 4096]);
     }
 
     #[test]

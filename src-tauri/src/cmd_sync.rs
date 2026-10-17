@@ -428,15 +428,19 @@ fn run_pass<P: SyncProvider>(
     // (they take only the vault lock), their exports queue up behind.
     let engine_lock = state.engine_lock.clone();
     let _pass = engine_lock.lock_or_recover();
-    let (local_root, guard_percent) = {
+    let (local_root, guard_percent, at_start) = {
         let guard = state.vault.lock_or_recover();
         let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
         // The snapshot is what travels, so anything still only in app.db
-        // would be left behind by a pass that started without this.
-        state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
+        // would be left behind by a pass that started without this. Kept
+        // in memory too: it is the base `fold_local_writes` measures the
+        // writes made during the pass against.
+        let at_start = state_export::snapshot(&vault.conn)?;
+        state_export::write(&vault::state_dir(&vault.root), &at_start)?;
         (
             vault.root.clone(),
             vault.config.sync_mass_delete_guard_percent,
+            at_start,
         )
     };
     let device = device::ensure(&dir)?;
@@ -472,8 +476,36 @@ fn run_pass<P: SyncProvider>(
         // was built from the old one. Dropping app.db and reopening runs
         // the existing restore path over the merged files - the same
         // disposable-cache route `state_export.rs` documents, rather than
-        // a second way to write rows into SQLite.
-        rebuild_cache(app, state, &local_root)?;
+        // a second way to write rows into SQLite. Commands kept writing
+        // to app.db while the pass was on the network; those writes are
+        // folded into the merged files first, and the vault is closed
+        // under the same lock, so nothing lands in between.
+        let rebuilt = {
+            let mut guard = state.vault.lock_or_recover();
+            let folded = match guard.as_ref() {
+                Some(vault) => state_export::snapshot(&vault.conn).and_then(|at_end| {
+                    sync_cycle::fold_local_writes(&local_root, &at_start, &at_end, &now)
+                }),
+                None => Ok(false),
+            };
+            if folded.is_ok() {
+                *guard = None;
+            }
+            drop(guard);
+            folded.and_then(|_| rebuild_cache(app, state, &local_root))
+        };
+        if let Err(e) = rebuilt {
+            // This device is back on its old database, whose next export
+            // overwrites the merged snapshot; the next pass must merge
+            // that with the remote again rather than upload it as the
+            // newer side.
+            if let Err(forget) = sync_cycle::forget_state_agreement(&local_root, root) {
+                crate::applog::error(format!(
+                    "could not reset the snapshot's sync state: {forget}"
+                ));
+            }
+            return Err(e);
+        }
         // The merge can bring in another device's copy of an instance
         // this one generated under an older build's counted-up id, and
         // rules this device has not run yet: one engine pass folds the

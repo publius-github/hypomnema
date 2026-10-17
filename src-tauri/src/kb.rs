@@ -744,6 +744,14 @@ pub fn delete(root: &Path, rel: &str) -> Result<()> {
     if !path.exists() {
         return Err(Error::State(format!("no such file: {rel}")));
     }
+    move_to_trash(root, &path, rel)
+}
+
+/// Moves `path` (`rel` under `root`) into `root`'s .trash/ under the
+/// `YYYYMMDD-HHMMSS-` prefix the 30-day prune recognizes, and prunes.
+/// Shared with sync, which trashes a file the other device deleted
+/// rather than removing it outright.
+pub fn move_to_trash(root: &Path, path: &Path, rel: &str) -> Result<()> {
     let trash = root.join(TRASH_DIR);
     fs::create_dir_all(&trash).at(&trash)?;
     let flat = rel.replace(['/', '\\'], "__");
@@ -754,7 +762,7 @@ pub fn delete(root: &Path, rel: &str) -> Result<()> {
         target = trash.join(format!("{stamp}-{n}-{flat}"));
         n += 1;
     }
-    fs::rename(&path, &target).at(&path)?;
+    fs::rename(path, &target).at(path)?;
     prune_trash(&trash);
     Ok(())
 }
