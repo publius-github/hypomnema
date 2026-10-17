@@ -6,10 +6,21 @@ on:
   pull_request:
   # release.yml runs these same gates before it builds an installer
   workflow_call:
+  # Weekly, so a new advisory against an unchanged lockfile (or a runner
+  # image that stopped building the app) shows up without a push
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
 
 # Read-only by default: nothing here publishes or writes to the repo.
 permissions:
   contents: read
+
+# A new push to a pull request cancels its older run. Branch pushes, the
+# weekly run and the release call (a different event name) never cancel.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Third-party actions are pinned to a commit (the tag is in the comment);
 # Dependabot keeps both up to date. The Rust toolchain is pinned the same
@@ -94,6 +105,30 @@ jobs:
       - name: tests
         run: cargo test --locked
         working-directory: src-tauri
+      # cargo test regenerates the ts-rs bindings; the frontend compiles
+      # against the committed ones, so they must be what the core exports
+      - name: TypeScript bindings are up to date
+        run: |
+          git diff --exit-code -- src/bindings
+          untracked="$(git ls-files --others --exclude-standard -- src/bindings)"
+          if [ -n "$untracked" ]; then
+            echo "Generated bindings not committed: $untracked"
+            exit 1
+          fi
+      # THIRD_PARTY_LICENSES.txt ships inside the app; a dependency change
+      # (a Dependabot PR included) has to regenerate it
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: THIRD_PARTY_LICENSES.txt is up to date
+        run: |
+          node scripts/general/third-party-licenses.mjs
+          git diff --exit-code -- THIRD_PARTY_LICENSES.txt || {
+            echo "Run node scripts/general/third-party-licenses.mjs and commit the result"
+            exit 1
+          }
 
   # Line coverage of the Rust core, as a report on the run - informative,
   # not a gate.
@@ -178,3 +213,6 @@ jobs:
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Without it the action downloads whatever gitleaks is newest;
+          # Dependabot does not see this one - bump it with the action
+          GITLEAKS_VERSION: 8.30.1

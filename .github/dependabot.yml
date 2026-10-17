@@ -1,7 +1,14 @@
 version: 2
+# Day-to-day work lands on development (main follows it), so updates go
+# there and run the current CI. A version is proposed only a week after
+# it is published - a compromised release is usually pulled within days;
+# security updates are not delayed.
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: development
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -12,6 +19,9 @@ updates:
         patterns: ["@tauri-apps/*"]
   - package-ecosystem: cargo
     directory: /src-tauri
+    target-branch: development
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -20,6 +30,9 @@ updates:
         patterns: ["tauri", "tauri-*"]
   - package-ecosystem: github-actions
     directory: /
+    target-branch: development
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
     groups:

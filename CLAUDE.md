@@ -6,7 +6,7 @@ Local-first personal productivity app for Windows: weekly task planner, journal,
 
 - `src/` - React frontend (Zustand store, Tailwind tokens, CodeMirror editor).
 - `src-tauri/src/` - Rust core: `engine.rs` (generation), `tasks.rs`, `db.rs` (migrations), `vault.rs`, `journal.rs`, `kb.rs`, `reminders.rs`; Tauri commands in `cmd_*.rs`, `AppState` in `state.rs`, vault open + watchers + export worker in `watchers.rs`, `lib.rs` is the builder only.
-- `scripts/` is split by what a script targets: `scripts/general/` (platform-agnostic - `bump.sh`, `third-party-licenses.mjs`, `prune-target.mjs` - stale Cargo output prune the build scripts run first), `scripts/windows/` (`build.sh`/`build.ps1` - local installer build; `release.sh`/`release.ps1` - version bump + tag + push), `scripts/android/` (`build-android.sh`).
+- `scripts/` is split by what a script targets: `scripts/general/` (platform-agnostic - `bump.sh`, `third-party-licenses.mjs`, `prune-target.mjs` - stale Cargo output prune the build scripts run first), `scripts/windows/` (`build.sh`/`build.ps1` - local installer build; `release.sh`/`release.ps1` - tag the current version + push), `scripts/android/` (`build-android.sh`).
 
 ## Versioning
 
@@ -14,7 +14,7 @@ The `VERSION` file at the repo root is the single source of truth for the app ve
 
 - `scripts/general/bump.sh [major|minor|patch]` (default patch) bumps `VERSION` and syncs the manifests, nothing else. Use it while developing: bump with every user-visible feature batch (minor for features, patch for fixes/polish) and include the bump in the feature commit. The version is shown in the About dialog.
 - Every bump also gets an entry at the top of `CHANGELOG.md` (`## <version> - <date>` plus the commit's summary).
-- `scripts/windows/release.sh [major|minor|patch]` does the same bump plus commit, tag `v<version>`, and push - it triggers the release pipeline, so use it only when actually cutting a release. The release workflow rejects tags that do not match `VERSION`.
+- `scripts/windows/release.sh [--check]` does not bump: it tags the current `VERSION` as `v<version>` and pushes branch and tag - it triggers the release pipeline, so use it only when actually cutting a release (`--check` runs its checks and pushes nothing). It refuses without a `CHANGELOG.md` entry for the version, with manifests out of step, or with the branch behind `origin`. The release workflow rejects tags that do not match `VERSION` and uses the CHANGELOG entry as the release notes.
 
 ## Settings over hardcode
 

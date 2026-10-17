@@ -11,13 +11,50 @@ permissions:
   contents: read
 
 jobs:
+  # A minute, before the half hour of gates: the tag must name the VERSION
+  # file's version and CHANGELOG.md must describe it. The entry becomes
+  # the release notes.
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # The VERSION file is the source of truth; the tag must match it
+      - name: Check tag matches VERSION file
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match VERSION file (v$version)"
+            exit 1
+          fi
+      - name: Release notes from CHANGELOG.md
+        id: notes
+        run: |
+          node scripts/general/changelog-entry.mjs > notes.md
+          {
+            echo "notes<<HYPOMNEMA_NOTES_EOF"
+            cat notes.md
+            echo "HYPOMNEMA_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
   # The full CI gates on the tagged commit: an installer is only built,
   # signed and offered to every user's updater from code that passes them.
   checks:
+    needs: verify
     uses: ./.github/workflows/ci.yml
+    # A called workflow can only narrow the caller's token, never widen
+    # it: these are exactly the permissions ci.yml's jobs ask for (audit
+    # lists pull request commits), or the run fails before it starts.
+    permissions:
+      contents: read
+      pull-requests: read
 
   build-windows:
-    needs: checks
+    needs: [verify, checks]
     # The signing key and the client secret belong in this environment's
     # secrets, behind a required reviewer, so a pushed tag alone cannot
     # sign anything (set up under Settings > Environments).
@@ -30,15 +67,6 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      # The VERSION file is the source of truth; the tag must match it
-      - name: Check tag matches VERSION file
-        shell: bash
-        run: |
-          version="$(tr -d '[:space:]' < VERSION)"
-          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match VERSION file (v$version)"
-            exit 1
-          fi
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22.14.0
@@ -68,5 +96,6 @@ jobs:
           # __VERSION__ resolves to the app version, synced from VERSION
           tagName: v__VERSION__
           releaseName: Hypomnema v__VERSION__
+          releaseBody: ${{ needs.verify.outputs.notes }}
           releaseDraft: true
           args: --config src-tauri/tauri.release.conf.json

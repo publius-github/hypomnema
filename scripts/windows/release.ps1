@@ -1,6 +1,8 @@
 param(
-  [ValidateSet('major', 'minor', 'patch')]
-  [string]$BumpType = 'patch'
+  # Run every check, tag and push nothing
+  [switch]$Check,
+  # Kept only to point a caller of the old bumping script at bump.sh
+  [string]$BumpType = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,7 +31,7 @@ function Assert-Command {
 
 function Assert-RequiredPrograms {
   Write-Info "Checking required programs"
-  @('git', 'node', 'npm') | ForEach-Object { Assert-Command -Name $_ }
+  @('git', 'node') | ForEach-Object { Assert-Command -Name $_ }
 }
 
 function Assert-CleanWorkingTree {
@@ -40,127 +42,132 @@ function Assert-CleanWorkingTree {
   }
 }
 
-function Get-BumpedVersion {
-  param(
-    [string]$CurrentVersion,
-    [string]$Kind
-  )
-
-  if ($CurrentVersion -notmatch '^(\d+)\.(\d+)\.(\d+)$') {
-    throw "VERSION must be semver X.Y.Z, got: $CurrentVersion"
-  }
-
-  $major = [int]$Matches[1]
-  $minor = [int]$Matches[2]
-  $patch = [int]$Matches[3]
-
-  switch ($Kind) {
-    'major' { return "{0}.0.0" -f ($major + 1) }
-    'minor' { return "{0}.{1}.0" -f $major, ($minor + 1) }
-    'patch' { return "{0}.{1}.{2}" -f $major, $minor, ($patch + 1) }
-    default { throw "Unsupported bump type: $Kind" }
-  }
-}
-
-function Set-ReleaseVersion {
+function Get-ReleaseVersion {
   param([string]$RepoRoot)
 
-  Write-Info "Bumping VERSION with type: $BumpType"
+  Write-Host ''
+  Write-Info "Reading the version to release from VERSION (as bump.sh left it)"
 
   $versionPath = Join-Path $RepoRoot 'VERSION'
   if (-not (Test-Path $versionPath)) {
     throw 'VERSION file not found at repository root'
   }
-
-  $current = (Get-Content -Raw $versionPath).Trim()
-  $next = Get-BumpedVersion -CurrentVersion $current -Kind $BumpType
-
-  Set-Content -Path $versionPath -Value $next -NoNewline
-  Write-Host ''
-  Write-Info "Version: $current -> $next"
-  return $next
-}
-
-function Sync-VersionManifests {
-  param(
-    [string]$RepoRoot,
-    [string]$ReleaseVersion
-  )
-
-  Write-Host ''
-  Write-Info "Syncing version in package.json, package-lock.json, tauri.conf.json, Cargo.toml"
-
-  npm pkg set "version=$ReleaseVersion"
-
-  # package-lock.json repeats the root package's version; npm pkg set
-  # leaves it alone
-  # (single quotes only in the script: Windows PowerShell drops the double
-  # quotes of an argument passed to a native program)
-  node -e 'const fs = require(''fs''); const l = JSON.parse(fs.readFileSync(''package-lock.json'', ''utf8'')); l.version = process.argv[1]; l.packages[''''].version = process.argv[1]; fs.writeFileSync(''package-lock.json'', JSON.stringify(l, null, 2) + ''\n'');' $ReleaseVersion
-
-  $tauriConfigPath = Join-Path $RepoRoot 'src-tauri/tauri.conf.json'
-  $tauri = Get-Content -Raw $tauriConfigPath | ConvertFrom-Json
-  $tauri.version = $ReleaseVersion
-  $tauri | ConvertTo-Json -Depth 100 | Set-Content -Path $tauriConfigPath
-
-  $cargoTomlPath = Join-Path $RepoRoot 'src-tauri/Cargo.toml'
-  $cargoToml = Get-Content -Raw $cargoTomlPath
-  $cargoToml = [regex]::Replace($cargoToml, '^version\s*=\s*".*"\s*$', "version = `"$ReleaseVersion`"", [System.Text.RegularExpressions.RegexOptions]::Multiline)
-  Set-Content -Path $cargoTomlPath -Value $cargoToml -NoNewline
-
-  if (Get-Command cargo -ErrorAction SilentlyContinue) {
-    Push-Location (Join-Path $RepoRoot 'src-tauri')
-    try {
-      cargo update --package hypomnema --quiet
-    }
-    finally {
-      Pop-Location
-    }
+  $version = (Get-Content -Raw $versionPath).Trim()
+  if ($version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "VERSION must be semver X.Y.Z, got: $version"
   }
+
+  # bump.sh keeps these in step; a hand edit would ship a mismatched build
+  $found = [ordered]@{
+    'package.json'              = (Get-Content -Raw (Join-Path $RepoRoot 'package.json') | ConvertFrom-Json).version
+    # Windows PowerShell's ConvertFrom-Json rejects the lockfile's "" key;
+    # its first "version" is the root package's
+    'package-lock.json'         = [regex]::Match((Get-Content -Raw (Join-Path $RepoRoot 'package-lock.json')), '"version":\s*"([^"]*)"').Groups[1].Value
+    'src-tauri/tauri.conf.json' = (Get-Content -Raw (Join-Path $RepoRoot 'src-tauri/tauri.conf.json') | ConvertFrom-Json).version
+    'src-tauri/Cargo.toml'      = [regex]::Match((Get-Content -Raw (Join-Path $RepoRoot 'src-tauri/Cargo.toml')), '(?m)^version = "(.*)"\s*$').Groups[1].Value
+  }
+  $bad = @($found.Keys | Where-Object { $found[$_] -ne $version })
+  if ($bad.Count -gt 0) {
+    $bad | ForEach-Object { Write-ErrorLog "$_ has version $($found[$_]), VERSION has $version" }
+    throw 'Manifest versions differ from VERSION; run scripts/general/bump.sh instead of editing them.'
+  }
+
+  Write-Info "Release version: $version"
+  return $version
 }
 
-function Commit-And-Tag {
+function Assert-ChangelogEntry {
   param([string]$ReleaseVersion)
 
   Write-Host ''
-  Write-Info "Committing release and creating tag v$ReleaseVersion"
+  Write-Info "Checking CHANGELOG.md describes $ReleaseVersion (it becomes the release notes)"
+  # Windows PowerShell turns a native program's stderr into a terminating
+  # error under 'Stop'; the exit code is what decides here
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  node scripts/general/changelog-entry.mjs $ReleaseVersion *> $null
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $previous
+  if ($code -ne 0) {
+    throw "Add a '## $ReleaseVersion - <date>' entry to CHANGELOG.md and commit it first."
+  }
+}
 
-  git rev-parse "v$ReleaseVersion" *> $null
+function Get-ReleaseBranch {
+  param([string]$ReleaseVersion)
+
+  Write-Host ''
+  Write-Info "Checking the branch is up to date with origin and v$ReleaseVersion is new"
+
+  $branch = git rev-parse --abbrev-ref HEAD
+  if ($branch -eq 'HEAD') {
+    throw 'Detached HEAD; check out the branch to release from.'
+  }
+  git fetch --quiet --no-tags origin
+  if ($LASTEXITCODE -ne 0) { throw 'git fetch origin failed' }
+
+  git rev-parse --verify --quiet "refs/remotes/origin/$branch" *> $null
   if ($LASTEXITCODE -eq 0) {
-    throw "Tag v$ReleaseVersion already exists"
+    git merge-base --is-ancestor "origin/$branch" HEAD
+    if ($LASTEXITCODE -ne 0) {
+      throw "$branch is behind or diverged from origin/$branch; pull first."
+    }
   }
 
-  git add VERSION package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
-  git commit -m "Release v$ReleaseVersion"
-  git tag "v$ReleaseVersion"
+  git rev-parse --verify --quiet "refs/tags/v$ReleaseVersion" *> $null
+  if ($LASTEXITCODE -eq 0) {
+    throw "Tag v$ReleaseVersion already exists locally"
+  }
+  git ls-remote --exit-code --tags origin "refs/tags/v$ReleaseVersion" *> $null
+  if ($LASTEXITCODE -eq 0) {
+    throw "Tag v$ReleaseVersion already exists on origin"
+  }
+  return $branch
 }
 
 function Push-Release {
-  param([string]$ReleaseVersion)
+  param(
+    [string]$ReleaseVersion,
+    [string]$Branch
+  )
 
   Write-Host ''
-  Write-Info "Pushing branch and tag"
+  Write-Info "Tagging v$ReleaseVersion and pushing $Branch with it"
 
-  $branch = git rev-parse --abbrev-ref HEAD
-  git push origin $branch
+  git tag "v$ReleaseVersion"
+  if ($LASTEXITCODE -ne 0) { throw 'git tag failed' }
+  git push origin $Branch
+  if ($LASTEXITCODE -ne 0) { throw "git push origin $Branch failed" }
   git push origin "v$ReleaseVersion"
+  if ($LASTEXITCODE -ne 0) { throw "git push of tag v$ReleaseVersion failed" }
 }
 
 function Main {
+  if ($BumpType) {
+    throw "release.ps1 no longer bumps: run scripts/general/bump.sh $BumpType, write the CHANGELOG.md entry, commit, then release."
+  }
+
   $repoRoot = Get-RepoRoot
   Set-Location $repoRoot
 
-  Write-Info "Creating release"
+  Write-Info "Releasing the version in the VERSION file"
   Assert-RequiredPrograms
   Assert-CleanWorkingTree
 
-  $releaseVersion = Set-ReleaseVersion -RepoRoot $repoRoot
-  Sync-VersionManifests -RepoRoot $repoRoot -ReleaseVersion $releaseVersion
-  Commit-And-Tag -ReleaseVersion $releaseVersion
-  Push-Release -ReleaseVersion $releaseVersion
+  $releaseVersion = Get-ReleaseVersion -RepoRoot $repoRoot
+  Assert-ChangelogEntry -ReleaseVersion $releaseVersion
+  $branch = Get-ReleaseBranch -ReleaseVersion $releaseVersion
+
+  if ($Check) {
+    Write-Host ''
+    Write-Info "-Check: v$releaseVersion is ready to release; nothing tagged or pushed"
+    return
+  }
+
+  Push-Release -ReleaseVersion $releaseVersion -Branch $branch
 
   Write-Host ''
-  Write-Info "Release finished"
+  Write-Info "Release workflow triggered; the Windows installer will be attached to the draft GitHub Release v$releaseVersion"
 }
 
 Main

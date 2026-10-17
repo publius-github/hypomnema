@@ -28,9 +28,9 @@ function custom_cleanup() {
   :
 }
 
-REQUIRED_PROGRAMS=(git npm node)
+REQUIRED_PROGRAMS=(git node)
 EXTERNAL_ENV_VARIABLES=()
-ARGUMENT_ENV_VARIABLES=(BUMP_TYPE)
+ARGUMENT_ENV_VARIABLES=(RELEASE_MODE)
 SCRIPT_ARGS=("$@")
 
 function check_required_programs() {
@@ -63,43 +63,18 @@ function export_env_variables_from_arguments() {
 }
 
 function validate_env_variables() {
-  log_info "function validate_env_variables - check bump type argument"
-  if [ "$BUMP_TYPE" = "blank" ]; then
-    BUMP_TYPE="patch"
-    log_info "no bump type given, defaulting to patch"
-  fi
-  case "$BUMP_TYPE" in
-    major|minor|patch) ;;
+  log_info "function validate_env_variables - check the mode argument"
+  case "$RELEASE_MODE" in
+    blank|--check) ;;
+    major|minor|patch)
+      log_error "release.sh no longer bumps: run scripts/general/bump.sh $RELEASE_MODE, write the CHANGELOG.md entry, commit, then release"
+      exit 1
+      ;;
     *)
-      log_error "usage: scripts/release.sh [major|minor|patch] (default: patch)"
+      log_error "usage: scripts/windows/release.sh [--check]  (--check: run every check, tag and push nothing)"
       exit 1
       ;;
   esac
-}
-
-function bump_version_file() {
-  printf "\n"
-  log_info "function bump_version_file - bump $BUMP_TYPE version in VERSION file"
-  if [ ! -f VERSION ]; then
-    log_error "VERSION file not found at the repository root"
-    exit 1
-  fi
-  local current
-  current="$(tr -d '[:space:]' < VERSION)"
-  if ! printf "%s" "$current" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-    log_error "VERSION file must contain semver X.Y.Z, got: $current"
-    exit 1
-  fi
-  local major minor patch
-  IFS='.' read -r major minor patch <<< "$current"
-  case "$BUMP_TYPE" in
-    major) RELEASE_VERSION="$((major + 1)).0.0" ;;
-    minor) RELEASE_VERSION="$major.$((minor + 1)).0" ;;
-    patch) RELEASE_VERSION="$major.$minor.$((patch + 1))" ;;
-  esac
-  export RELEASE_VERSION
-  printf "%s\n" "$RELEASE_VERSION" > VERSION
-  log_info "version: $current -> $RELEASE_VERSION"
 }
 
 function resolve_repo_root() {
@@ -120,71 +95,90 @@ function check_working_tree() {
   fi
 }
 
-function bump_versions() {
+function read_release_version() {
   printf "\n"
-  log_info "function bump_versions - set $RELEASE_VERSION in package.json, package-lock.json, tauri.conf.json, Cargo.toml"
-  npm pkg set "version=$RELEASE_VERSION"
-  # package-lock.json repeats the root package's version; npm pkg set
-  # leaves it alone, so it drifted (0.105.3 under 0.109.x) until this
-  node -e '
-    const fs = require("fs");
-    const path = "package-lock.json";
-    const lock = JSON.parse(fs.readFileSync(path, "utf8"));
-    lock.version = process.argv[1];
-    lock.packages[""].version = process.argv[1];
-    fs.writeFileSync(path, JSON.stringify(lock, null, 2) + "\n");
-  ' "$RELEASE_VERSION"
-  node -e '
-    const fs = require("fs");
-    const path = "src-tauri/tauri.conf.json";
-    const conf = JSON.parse(fs.readFileSync(path, "utf8"));
-    conf.version = process.argv[1];
-    fs.writeFileSync(path, JSON.stringify(conf, null, 2) + "\n");
-  ' "$RELEASE_VERSION"
-  node -e '
-    const fs = require("fs");
-    const path = "src-tauri/Cargo.toml";
-    const toml = fs.readFileSync(path, "utf8");
-    fs.writeFileSync(path, toml.replace(/^version = ".*"$/m, `version = "${process.argv[1]}"`));
-  ' "$RELEASE_VERSION"
-  if command -v cargo >/dev/null 2>&1; then
-    (cd src-tauri && cargo update --package hypomnema --quiet)
-  else
-    log_warn "cargo not found locally; Cargo.lock version sync will happen in CI"
-  fi
-}
-
-function commit_and_tag() {
-  printf "\n"
-  log_info "function commit_and_tag - commit version bump and create tag v$RELEASE_VERSION"
-  if git rev-parse "v$RELEASE_VERSION" >/dev/null 2>&1; then
-    log_error "tag v$RELEASE_VERSION already exists"
+  log_info "function read_release_version - the version to release is the VERSION file's, as bump.sh left it"
+  RELEASE_VERSION="$(tr -d '[:space:]' < VERSION)"
+  if ! printf "%s" "$RELEASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    log_error "VERSION file must contain semver X.Y.Z, got: $RELEASE_VERSION"
     exit 1
   fi
-  git add VERSION package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock 2>/dev/null || true
-  git commit -m "Release v$RELEASE_VERSION"
-  git tag "v$RELEASE_VERSION"
+  export RELEASE_VERSION
+  # bump.sh keeps these in step; a hand edit would ship a mismatched build
+  node -e '
+    const fs = require("fs");
+    const v = process.argv[1];
+    const found = {
+      "package.json": JSON.parse(fs.readFileSync("package.json", "utf8")).version,
+      "package-lock.json": JSON.parse(fs.readFileSync("package-lock.json", "utf8")).version,
+      "src-tauri/tauri.conf.json": JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8")).version,
+      "src-tauri/Cargo.toml": (fs.readFileSync("src-tauri/Cargo.toml", "utf8").match(/^version = "(.*)"$/m) || [])[1],
+    };
+    const bad = Object.entries(found).filter(([, x]) => x !== v);
+    for (const [f, x] of bad) console.error(`${f} has version ${x}, VERSION has ${v}`);
+    process.exit(bad.length ? 1 : 0);
+  ' "$RELEASE_VERSION" || {
+    log_error "manifest versions differ from VERSION; run scripts/general/bump.sh instead of editing them"
+    exit 1
+  }
+  log_info "release version: $RELEASE_VERSION"
 }
 
-function push_release() {
+function check_changelog() {
   printf "\n"
-  log_info "function push_release - push branch and tag; GitHub Actions builds the installer"
-  local branch
-  branch="$(git rev-parse --abbrev-ref HEAD)"
-  git push origin "$branch"
+  log_info "function check_changelog - CHANGELOG.md must describe $RELEASE_VERSION (it becomes the release notes)"
+  if ! node scripts/general/changelog-entry.mjs "$RELEASE_VERSION" >/dev/null; then
+    log_error "add a '## $RELEASE_VERSION - <date>' entry to CHANGELOG.md and commit it first"
+    exit 1
+  fi
+}
+
+function check_branch_and_tag() {
+  printf "\n"
+  log_info "function check_branch_and_tag - the branch is up to date with origin and v$RELEASE_VERSION is new"
+  BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+  if [ "$BRANCH" = "HEAD" ]; then
+    log_error "detached HEAD; check out the branch to release from"
+    exit 1
+  fi
+  git fetch --quiet --no-tags origin
+  if git rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" >/dev/null \
+    && ! git merge-base --is-ancestor "origin/$BRANCH" HEAD; then
+    log_error "$BRANCH is behind or diverged from origin/$BRANCH; pull first"
+    exit 1
+  fi
+  if git rev-parse --verify --quiet "refs/tags/v$RELEASE_VERSION" >/dev/null; then
+    log_error "tag v$RELEASE_VERSION already exists locally"
+    exit 1
+  fi
+  if git ls-remote --exit-code --tags origin "refs/tags/v$RELEASE_VERSION" >/dev/null; then
+    log_error "tag v$RELEASE_VERSION already exists on origin"
+    exit 1
+  fi
+}
+
+function tag_and_push() {
+  printf "\n"
+  log_info "function tag_and_push - tag v$RELEASE_VERSION and push $BRANCH with it; GitHub Actions builds the installer"
+  git tag "v$RELEASE_VERSION"
+  git push origin "$BRANCH"
   git push origin "v$RELEASE_VERSION"
   log_info "release workflow triggered; the Windows installer will be attached to the draft GitHub Release v$RELEASE_VERSION"
 }
 
 function main() {
-  log_info "function main - cut a release from the VERSION file"
+  log_info "function main - release the version in the VERSION file"
   validate_env_variables
   resolve_repo_root
   check_working_tree
-  bump_version_file
-  bump_versions
-  commit_and_tag
-  push_release
+  read_release_version
+  check_changelog
+  check_branch_and_tag
+  if [ "$RELEASE_MODE" = "--check" ]; then
+    log_info "--check: v$RELEASE_VERSION is ready to release; nothing tagged or pushed"
+    return
+  fi
+  tag_and_push
   log_info "release finished"
 }
 

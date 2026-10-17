@@ -151,11 +151,13 @@ Google sign-in on the desktop needs an OAuth client secret compiled in from the 
 The `VERSION` file at the root is the single source of truth for the version; never edit it or the manifests' versions by hand:
 
 ```bash
-./scripts/general/bump.sh [major|minor|patch]      # bump + sync manifests, no commit
-./scripts/windows/release.sh [major|minor|patch]   # bump + commit + tag v<version> + push (release.ps1 for PowerShell)
+./scripts/general/bump.sh [major|minor|patch]   # bump + sync manifests, no commit
+./scripts/windows/release.sh [--check]          # tag v<VERSION> + push; --check only checks (release.ps1 [-Check] for PowerShell)
 ```
 
-The `release.yml` workflow, on a `v*` tag, checks the tag against `VERSION`, builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend, fmt/clippy/test for the Rust core on Linux and clippy/test again on Windows (the shipped platform), plus an audit job - `cargo-deny` (advisories and licenses, policy in `src-tauri/deny.toml`), `npm audit` of the runtime dependencies and a `gitleaks` secret scan - on pull requests and pushes to `main` and `development`; `release.yml` runs the same gates on the tagged commit before it builds anything. Third-party actions and the Rust toolchain are pinned to exact commits and versions; Dependabot proposes the updates.
+A release ships the version already in `VERSION`: bump with `bump.sh`, add its `## <version> - <date>` entry to `CHANGELOG.md`, commit, then run `release.sh`. It refuses a dirty tree, manifests out of step with `VERSION`, a missing CHANGELOG entry, a branch behind `origin` and an existing tag.
+
+The `release.yml` workflow, on a `v*` tag, first checks the tag against `VERSION` and takes the CHANGELOG entry as the release notes, then builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend, fmt/clippy/test for the Rust core on Linux and clippy/test again on Windows (the shipped platform), plus an audit job - `cargo-deny` (advisories and licenses, policy in `src-tauri/deny.toml`), `npm audit` of the runtime dependencies and a `gitleaks` secret scan - on pull requests, pushes to `main` and `development` and once a week; it also fails when the committed TypeScript bindings or `THIRD_PARTY_LICENSES.txt` are stale. `release.yml` runs the same gates on the tagged commit before it builds anything. Third-party actions and the Rust toolchain are pinned to exact commits and versions; Dependabot proposes the updates (to `development`, a week after a version is published).
 
 ### Build cache
 

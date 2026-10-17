@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.109.4 - 2026-10-18
+
+Release pipeline fixes. The release workflow could not start at all: it called CI with fewer token permissions than one of CI's jobs asks for, which GitHub rejects before running anything; it now grants exactly those. A release now ships the version already in `VERSION` - `release.sh`/`release.ps1` no longer bump it a second time (which left every release without a changelog entry); they refuse a missing CHANGELOG entry, manifests out of step, a branch behind origin or an existing tag, and `--check`/`-Check` runs the checks alone. The release workflow checks the tag and the CHANGELOG entry first, in a minute instead of after half an hour of gates, and uses the entry as the release notes. CI fails when the generated TypeScript bindings or `THIRD_PARTY_LICENSES.txt` are stale, runs weekly as well, cancels superseded pull request runs and pins the gitleaks version. Dependabot proposes updates to `development`, a week after a version is published.
+
 ## 0.109.3 - 2026-10-18
 
 Build fixes. The local Windows build script (`build.ps1`) now stops when `npm ci` or the Tauri build fails; it used to carry on and copy an older installer from an earlier build into `releases/windows/` under the new version's name. It now copies only the installer this run produced. The version bump and release scripts keep `package-lock.json`'s own version in step (it had stayed at 0.105.3). CI runs Cargo with `--locked`, so a `Cargo.toml` change without its lockfile fails the checks. An engine test no longer fails on machines east of UTC+9 or west of UTC-10. The build instructions match the scripts: which local builds sign updater artifacts, one list of Linux packages, and Android prerequisites (JDK 17, SDK 36, NDK, `python3`, now checked by the script) with a note that Google sign-in in a self-built APK needs its own OAuth client.
