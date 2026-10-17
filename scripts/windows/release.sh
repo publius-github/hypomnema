@@ -122,8 +122,18 @@ function check_working_tree() {
 
 function bump_versions() {
   printf "\n"
-  log_info "function bump_versions - set $RELEASE_VERSION in package.json, tauri.conf.json, Cargo.toml"
+  log_info "function bump_versions - set $RELEASE_VERSION in package.json, package-lock.json, tauri.conf.json, Cargo.toml"
   npm pkg set "version=$RELEASE_VERSION"
+  # package-lock.json repeats the root package's version; npm pkg set
+  # leaves it alone, so it drifted (0.105.3 under 0.109.x) until this
+  node -e '
+    const fs = require("fs");
+    const path = "package-lock.json";
+    const lock = JSON.parse(fs.readFileSync(path, "utf8"));
+    lock.version = process.argv[1];
+    lock.packages[""].version = process.argv[1];
+    fs.writeFileSync(path, JSON.stringify(lock, null, 2) + "\n");
+  ' "$RELEASE_VERSION"
   node -e '
     const fs = require("fs");
     const path = "src-tauri/tauri.conf.json";

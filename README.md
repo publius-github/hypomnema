@@ -18,8 +18,8 @@ Technical map of the shared core (modules, config schemas, engine invariants): `
 
 ## Install
 
-- **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/app-hypomnema/releases/latest) and run it. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. The app then updates itself; every update is verified against the project's signing key before it is installed.
-- **Android** - no published build yet; see [`docs/android/ARCHITECTURE.md`](docs/android/ARCHITECTURE.md) to build the APK yourself.
+- **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/app-hypomnema/releases/latest) and run it. It installs for the current user, without administrator rights; on a Windows 10 without WebView2 it downloads that first, so it needs a connection. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. The app then updates itself; every update is verified against the project's signing key before it is installed.
+- **Android** - no published build yet; see [`docs/android/ARCHITECTURE.md`](docs/android/ARCHITECTURE.md) (Prerequisites, Build) to build the APK yourself.
 - **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run tauri dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
 
 On first start the app asks for a vault folder - pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place. *Try it with an example* fills an empty folder with a few lists, tasks, rules, notes and a journal entry to look around in first.
@@ -134,7 +134,7 @@ Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-rem
 
 Development works on Windows, macOS or Linux; the release installer (NSIS `.exe`) is built by GitHub Actions on a Windows runner.
 
-Requirements: Node.js 22+, Rust stable (rustup). On Windows also VS Build Tools (Desktop C++), WebView2 and Git Bash; on Linux `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
+Requirements: Node.js 22+, Rust stable (rustup). On Windows also VS Build Tools (Desktop C++), WebView2 and Git Bash; on Linux (Debian/Ubuntu names) `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf` - the set CI installs.
 
 ```bash
 npm ci && npm run tauri dev             # dev mode with hot reload
@@ -175,7 +175,7 @@ node scripts/general/third-party-licenses.mjs
 
 ### Auto-updates
 
-At startup the desktop app checks `releases/latest/download/latest.json` of the release repository and offers to update. The manifest is signed: GitHub Secrets need `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/hypomnema.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is in `src-tauri/tauri.conf.json`. Without the secrets the release workflow fails at signing. A local `scripts/windows/build.sh` signs the updater artifacts only when the key is at `~/.tauri/hypomnema.key`. Updates reach users only once the draft release is published - `latest.json` is served from published releases only.
+At startup the desktop app checks `releases/latest/download/latest.json` of the release repository and offers to update. The manifest is signed: GitHub Secrets need `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/hypomnema.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is in `src-tauri/tauri.conf.json`. Without the secrets the release workflow fails at signing. A local build (`scripts/windows/build.ps1` or `build.sh`) signs the updater artifacts only when `TAURI_SIGNING_PRIVATE_KEY` is set, or when the key is at `~/.tauri/hypomnema.key` *and* `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is set; otherwise it builds the installer without updater artifacts. Updates reach users only once the draft release is published - `latest.json` is served from published releases only.
 
 ## Code signing policy
 

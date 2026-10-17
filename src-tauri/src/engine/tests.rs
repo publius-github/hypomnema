@@ -688,28 +688,24 @@ fn done_list_backlog_tasks_clear_on_day_rollover() {
             )
             .unwrap();
         };
+    // completed_at is stored in UTC, the day boundary is local: the
+    // stamps are local times so the test holds in every time zone
+    let yesterday = at("2026-08-27", "15:00:00")
+        .with_timezone(&Utc)
+        .to_rfc3339();
+    let this_morning = at("2026-08-28", "10:00:00")
+        .with_timezone(&Utc)
+        .to_rfc3339();
     // done yesterday: clears; done today: stays; open backlog: stays
-    insert(
-        "old done",
-        None,
-        "done",
-        Some("2026-08-27T15:00:00+00:00"),
-        0,
-    );
-    insert(
-        "fresh done",
-        None,
-        "done",
-        Some("2026-08-28T10:00:00+00:00"),
-        0,
-    );
+    insert("old done", None, "done", Some(&yesterday), 0);
+    insert("fresh done", None, "done", Some(&this_morning), 0);
     insert("open", None, "todo", None, 0);
     // starred copy done yesterday clears too (it shows in the list)
     insert(
         "starred done",
         Some("2026-08-27"),
         "done",
-        Some("2026-08-27T15:00:00+00:00"),
+        Some(&yesterday),
         1,
     );
 

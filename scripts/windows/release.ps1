@@ -88,9 +88,15 @@ function Sync-VersionManifests {
   )
 
   Write-Host ''
-  Write-Info "Syncing version in package.json, tauri.conf.json, Cargo.toml"
+  Write-Info "Syncing version in package.json, package-lock.json, tauri.conf.json, Cargo.toml"
 
   npm pkg set "version=$ReleaseVersion"
+
+  # package-lock.json repeats the root package's version; npm pkg set
+  # leaves it alone
+  # (single quotes only in the script: Windows PowerShell drops the double
+  # quotes of an argument passed to a native program)
+  node -e 'const fs = require(''fs''); const l = JSON.parse(fs.readFileSync(''package-lock.json'', ''utf8'')); l.version = process.argv[1]; l.packages[''''].version = process.argv[1]; fs.writeFileSync(''package-lock.json'', JSON.stringify(l, null, 2) + ''\n'');' $ReleaseVersion
 
   $tauriConfigPath = Join-Path $RepoRoot 'src-tauri/tauri.conf.json'
   $tauri = Get-Content -Raw $tauriConfigPath | ConvertFrom-Json

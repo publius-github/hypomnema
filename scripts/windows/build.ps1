@@ -22,6 +22,17 @@ function Exit-WithError {
   exit 1
 }
 
+# $ErrorActionPreference = 'Stop' does not cover native programs: Windows
+# PowerShell carries on after a failed npm or cargo. Every build step that
+# must succeed goes through here and stops the script on a nonzero exit.
+function Invoke-Native {
+  param([string]$Description, [scriptblock]$Command)
+  & $Command
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Description failed (exit code $LASTEXITCODE)"
+  }
+}
+
 function Get-RepoRoot {
   Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 }
@@ -48,8 +59,8 @@ function Assert-RequiredPrograms {
 
 function Assert-NodeRuntime {
   Write-Info "Validating Node.js runtime"
-  node --version | Out-Null
-  npm --version | Out-Null
+  Invoke-Native 'node --version' { node --version | Out-Null }
+  Invoke-Native 'npm --version' { npm --version | Out-Null }
 }
 
 function Assert-RustToolchain {
@@ -93,7 +104,7 @@ function Invoke-PruneTarget {
 
 function Install-FrontendDependencies {
   Write-Info "Installing frontend dependencies (npm ci)"
-  npm ci
+  Invoke-Native 'npm ci' { npm ci }
 }
 
 # The Google desktop client secret is compiled in (google_auth.rs). A
@@ -124,7 +135,7 @@ function Invoke-TauriBuild {
 
   if ($env:TAURI_SIGNING_PRIVATE_KEY) {
     Write-Info "Using signing key from TAURI_SIGNING_PRIVATE_KEY"
-    npm run tauri build -- -b nsis
+    Invoke-Native 'tauri build' { npm run tauri build -- -b nsis }
     return
   }
 
@@ -132,7 +143,7 @@ function Invoke-TauriBuild {
     Write-Info "Using signing key from $keyFile"
     $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw $keyFile
     try {
-      npm run tauri build -- -b nsis
+      Invoke-Native 'tauri build' { npm run tauri build -- -b nsis }
     }
     finally {
       Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
@@ -144,15 +155,19 @@ function Invoke-TauriBuild {
   $tmpCfg = Join-Path ([System.IO.Path]::GetTempPath()) "tauri-build-cfg-$([System.Guid]::NewGuid()).json"
   '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -Path $tmpCfg -Encoding UTF8
   try {
-    npm run tauri build -- -b nsis --config $tmpCfg
+    Invoke-Native 'tauri build' { npm run tauri build -- -b nsis --config $tmpCfg }
   }
   finally {
     Remove-Item $tmpCfg -ErrorAction SilentlyContinue
   }
 }
 
+# Copies the installer this run produced - picked by its exact name and
+# its timestamp, never "the newest .exe in the folder": bundle/nsis keeps
+# installers of earlier versions, and one of those must not be passed off
+# under the current version's name.
 function Publish-ReleaseArtifact {
-  param([string]$RepoRoot)
+  param([string]$RepoRoot, [datetime]$BuildStartedAt)
 
   $versionPath = Join-Path $RepoRoot 'VERSION'
   if (-not (Test-Path $versionPath)) {
@@ -176,9 +191,14 @@ function Publish-ReleaseArtifact {
     Exit-WithError "NSIS bundle directory not found: $nsisDir"
   }
 
-  $installer = Get-ChildItem -Path $nsisDir -Filter '*.exe' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-  if (-not $installer) {
-    Exit-WithError "No .exe installer found in $nsisDir"
+  $installerName = "{0}_{1}_x64-setup.exe" -f $productName, $version
+  $installerPath = Join-Path $nsisDir $installerName
+  if (-not (Test-Path $installerPath)) {
+    Exit-WithError "Installer $installerName not found in $nsisDir"
+  }
+  $installer = Get-Item $installerPath
+  if ($installer.LastWriteTime -lt $BuildStartedAt) {
+    Exit-WithError "$installerName predates this build; refusing to publish a stale installer"
   }
 
   $releaseDir = Join-Path $RepoRoot 'releases/windows'
@@ -193,6 +213,7 @@ function Publish-ReleaseArtifact {
 
 function Main {
   try {
+    $buildStartedAt = Get-Date
     $repoRoot = Get-RepoRoot
     Set-Location $repoRoot
 
@@ -205,7 +226,7 @@ function Main {
     Install-FrontendDependencies
     Import-GoogleClientSecret
     Invoke-TauriBuild -RepoRoot $repoRoot
-    Publish-ReleaseArtifact -RepoRoot $repoRoot
+    Publish-ReleaseArtifact -RepoRoot $repoRoot -BuildStartedAt $buildStartedAt
     Write-Info "Build finished"
   }
   catch {

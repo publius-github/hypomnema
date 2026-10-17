@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.109.3 - 2026-10-18
+
+Build fixes. The local Windows build script (`build.ps1`) now stops when `npm ci` or the Tauri build fails; it used to carry on and copy an older installer from an earlier build into `releases/windows/` under the new version's name. It now copies only the installer this run produced. The version bump and release scripts keep `package-lock.json`'s own version in step (it had stayed at 0.105.3). CI runs Cargo with `--locked`, so a `Cargo.toml` change without its lockfile fails the checks. An engine test no longer fails on machines east of UTC+9 or west of UTC-10. The build instructions match the scripts: which local builds sign updater artifacts, one list of Linux packages, and Android prerequisites (JDK 17, SDK 36, NDK, `python3`, now checked by the script) with a note that Google sign-in in a self-built APK needs its own OAuth client.
+
 ## 0.109.2 - 2026-10-17
 
 Data safety pass. A task changed while a sync pass is running is no longer lost when the pass brings in the other device's changes. A database restore from the snapshot that failed or was cut short is tried again on the next start instead of leaving an empty task list that would then be written over the snapshot and synced to the other devices. A device running an older app version stops syncing with "update the app on this device" instead of dropping fields it does not know (a list's group, a checklist) on every device. A database that cannot be replaced during a rebuild is left as it was, and if a rebuild fails the next pass merges again instead of uploading the old state. The daily database snapshot is also taken at each day change, not only when the app starts, so a desktop living in the tray keeps getting them. A note deleted on the other device goes to `.trash/`. An unreadable `app.db` is moved aside and rebuilt from the snapshot. The snapshot is read in one transaction, and restoring a backup no longer overwrites `app.db` in place.

@@ -29,6 +29,8 @@ function custom_cleanup() {
 }
 
 REQUIRED_PROGRAMS=(node npm cargo rustc)
+# The Debian/Ubuntu packages README and CONTRIBUTING list and CI installs
+LINUX_PACKAGES="build-essential pkg-config libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf"
 EXTERNAL_ENV_VARIABLES=()
 ARGUMENT_ENV_VARIABLES=()
 
@@ -102,7 +104,7 @@ function validate_linux_native_dependencies() {
   else
     log_error "pkg-config is required for Linux Tauri builds but was not found"
     if [ -f /etc/os-release ] && grep -qiE '^ID(_LIKE)?=.*(ubuntu|debian)' /etc/os-release; then
-      log_error "install with: sudo apt update && sudo apt install -y pkg-config build-essential libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libayatana-appindicator3-dev libxdo-dev"
+      log_error "install with: sudo apt update && sudo apt install -y $LINUX_PACKAGES"
     else
       log_error "install pkg-config and GTK/WebKit development packages for your distribution"
     fi
@@ -132,7 +134,7 @@ function validate_linux_native_dependencies() {
   if [ ${#missing_modules[@]} -gt 0 ]; then
     log_error "missing Linux development packages for: ${missing_modules[*]}"
     if [ -f /etc/os-release ] && grep -qiE '^ID(_LIKE)?=.*(ubuntu|debian)' /etc/os-release; then
-      log_error "install with: sudo apt update && sudo apt install -y pkg-config build-essential libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libayatana-appindicator3-dev libxdo-dev"
+      log_error "install with: sudo apt update && sudo apt install -y $LINUX_PACKAGES"
     else
       log_error "install the matching -dev packages that provide the listed pkg-config modules"
     fi

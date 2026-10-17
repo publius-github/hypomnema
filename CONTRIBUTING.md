@@ -10,7 +10,7 @@ Thanks for taking the time. Bug reports, small fixes and documentation improveme
 
 ## Getting set up
 
-Requirements: Node.js 22+, Rust stable via rustup. On Windows also VS Build Tools (Desktop C++) and WebView2; on Linux `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`.
+Requirements: Node.js 22+, Rust stable via rustup. On Windows also VS Build Tools (Desktop C++) and WebView2; on Linux (Debian/Ubuntu names) `build-essential pkg-config libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf` - the set CI installs. The pinned versions CI runs are in `.github/workflows/ci.yml` (Node, Rust); a newer Rust stable can bring clippy lints CI does not have yet.
 
 ```bash
 npm ci

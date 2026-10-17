@@ -62,7 +62,7 @@ function custom_cleanup() {
   :
 }
 
-REQUIRED_PROGRAMS=(node npm cargo rustup java)
+REQUIRED_PROGRAMS=(node npm cargo rustup java python3)
 ARGUMENT_ENV_VARIABLES=(BUILD_VARIANT)
 SCRIPT_ARGS=("$@")
 

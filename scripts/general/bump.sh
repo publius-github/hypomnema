@@ -113,8 +113,18 @@ function bump_version_file() {
 
 function sync_manifests() {
   printf "\n"
-  log_info "function sync_manifests - set $NEW_VERSION in package.json, tauri.conf.json, Cargo.toml"
+  log_info "function sync_manifests - set $NEW_VERSION in package.json, package-lock.json, tauri.conf.json, Cargo.toml"
   npm pkg set "version=$NEW_VERSION"
+  # package-lock.json repeats the root package's version; npm pkg set
+  # leaves it alone, so it drifted (0.105.3 under 0.109.x) until this
+  node -e '
+    const fs = require("fs");
+    const path = "package-lock.json";
+    const lock = JSON.parse(fs.readFileSync(path, "utf8"));
+    lock.version = process.argv[1];
+    lock.packages[""].version = process.argv[1];
+    fs.writeFileSync(path, JSON.stringify(lock, null, 2) + "\n");
+  ' "$NEW_VERSION"
   node -e '
     const fs = require("fs");
     const path = "src-tauri/tauri.conf.json";

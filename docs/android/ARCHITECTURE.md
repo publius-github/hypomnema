@@ -2,6 +2,17 @@
 
 Supplement to `docs/general/ARCHITECTURE.md` (the shared Rust core + React frontend map, including the phone UI under `src/mobile/` in its Frontend notes). This file covers only what is specific to the Android build. Android is a second build target of the same Tauri project, cross-compiled for `aarch64-linux-android`; iOS is not planned.
 
+## Prerequisites
+
+The script is run from Linux or WSL - the setups it is built and tested on. What a build needs, with the versions the project builds with:
+
+- Node, npm and Rust as for the desktop (README, *Building*); the script adds the missing `rustup` targets itself.
+- JDK 17 (`java` on `PATH` or `JAVA_HOME`) - the generated project uses Android Gradle Plugin 8.11, which requires it.
+- Android SDK with `ANDROID_HOME` exported: `platforms;android-36` (compileSdk/targetSdk 36, minSdk 24), `build-tools;35.0.0`, `platform-tools`, and the NDK `ndk;27.0.12077973` (found under `$ANDROID_HOME/ndk` unless `ANDROID_NDK_HOME` is set). `sdkmanager --licenses` accepted once.
+- `python3` - the script patches the generated manifest and Gradle files with it.
+
+Google sign-in on a self-built APK does not work out of the box: the project's Android OAuth client is registered for the maintainer's signing-key SHA-1 (see Open items). A build of your own needs its own Android OAuth client in Google Cloud for your key's SHA-1 (`keytool -list -v` on the keystore); without one the app works fully, with sync unavailable.
+
 ## Build (`scripts/android/build-android.sh`)
 
 - `src-tauri/gen/android` is generated (`tauri android init`) and **not tracked**: the CLI recreates it from `tauri.conf.json` and rewrites parts of it during a build (a new plugin's Gradle module, for one). Nothing in it is hand-edited; everything a build needs there is written by the script on every run:
