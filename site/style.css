@@ -30,7 +30,8 @@ code { font-size: 0.9em; overflow-wrap: anywhere; }
 .muted, .back { color: var(--muted); }
 .hero { text-align: center; padding: 1rem 0; }
 .hero img { border-radius: 20px; }
-.hero h1 { margin: 0.5rem 0 0; letter-spacing: 0.15em; text-transform: uppercase; }
+.hero h1 { margin: 0.5rem 0 0; font: 400 2.6rem/1.15 Georgia, "Times New Roman", serif; }
+.motto { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.3em; text-transform: uppercase; }
 .tagline { color: var(--muted); font-size: 1.1rem; }
 .button {
   display: inline-block;

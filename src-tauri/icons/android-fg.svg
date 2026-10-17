@@ -1,15 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Android adaptive icon foreground: the H alone, shrunk into the
-       launcher's safe zone; dark bands match the background layer -->
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#565C66"/>
-      <stop offset="1" stop-color="#2C3036"/>
-    </linearGradient>
-  </defs>
-  <g fill="none" stroke-linecap="square" stroke-linejoin="miter" transform="translate(512 512) scale(0.8) translate(-512 -512)">
-    <path d="M322 330V694M702 330V694M322 512H702" stroke="#FFFFFF" stroke-width="200"/>
-    <path d="M322 330V694M702 330V694M322 512H702" stroke="url(#tile)" stroke-width="120"/>
-    <path d="M322 330V694M702 330V694M322 512H702" stroke="#FFFFFF" stroke-width="40"/>
+  <!-- Android adaptive icon foreground: the mark alone, shrunk into the
+       launcher's safe zone (its filled corners stay inside a round mask) -->
+  <g fill="#111111" transform="translate(512 512) scale(0.8) translate(-512 -512)">
+    <path d="M344 232H792V680H680V344H568V456H456V344H344Z"/>
+    <path d="M232 344H344V680H456V568H568V680H680V792H232Z"/>
+    <path d="M710 710H762L710 762Z"/>
   </g>
 </svg>

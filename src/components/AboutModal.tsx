@@ -59,10 +59,10 @@ export function AboutContent() {
     <>
       <div className="flex flex-col items-center text-center">
         <AppLogo size={88} />
-        <h2 className="mt-3 text-lg font-semibold tracking-[0.2em]">
-          HYPOMNEMA
-        </h2>
-        <p className="text-sm text-content-muted">The Meander Habit</p>
+        <h2 className="mt-3 font-serif text-3xl leading-tight">Hypomnema</h2>
+        <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-content-muted">
+          Your mind, organized.
+        </p>
         <p className="mt-1 text-xs text-content-muted">
           {version ? `Version ${version}` : ""}
         </p>

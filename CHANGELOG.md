@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.108.0 - 2026-10-17
+
+New app icon on every platform: a black dog-eared H on a paper-white tile; About and the website show the serif Hypomnema wordmark with the motto "Your mind, organized."
+
 ## 0.107.7 - 2026-10-17
 
 The Android build compiles without warnings: the desktop-only Google sign-in (the loopback OAuth flow, PKCE, token refresh and the stored token file) and the scheduler's quit and focus hooks are now built for the desktop only, instead of being compiled into the phone build unused. ts-rs no longer warns about serde attributes it does not read.
