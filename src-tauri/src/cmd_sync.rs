@@ -10,9 +10,11 @@ use crate::state::*;
 use crate::sync_provider::{SyncCursor, SyncProvider};
 use crate::watchers::*;
 use crate::{
-    device, google_auth, google_link, oauth, secret_store, state_export, sync_bootstrap,
-    sync_conflicts, sync_cycle, sync_gdrive, sync_push, vault,
+    device, google_link, secret_store, state_export, sync_bootstrap, sync_conflicts, sync_cycle,
+    sync_gdrive, sync_push, vault,
 };
+#[cfg(desktop)]
+use crate::{google_auth, oauth};
 
 /// Outcome of a full sync pass (`sync_cycle.rs`), for the screen that
 /// asked for it.
@@ -224,8 +226,14 @@ pub(crate) async fn sync_now(app: AppHandle) -> Result<SyncSummary> {
 
 /// Whether this build can sign in at all: the desktop needs its client
 /// secret compiled in, Android goes through Play services.
+#[cfg(desktop)]
 fn google_available() -> bool {
-    cfg!(target_os = "android") || (cfg!(desktop) && google_auth::client_secret().is_some())
+    google_auth::client_secret().is_some()
+}
+
+#[cfg(target_os = "android")]
+fn google_available() -> bool {
+    true
 }
 
 #[tauri::command]
@@ -315,6 +323,7 @@ pub(crate) async fn google_sign_in_cancel() -> Result<()> {
 #[tauri::command]
 pub(crate) async fn google_sign_out(app: AppHandle) -> Result<google_link::GoogleStatus> {
     let dir = app_config_dir(&app)?;
+    #[cfg(desktop)]
     if let Some(token) = google_link::refresh_token(&dir) {
         let _ = google_auth::revoke(&google_auth::GoogleOauthTransport::new(), &token);
     }

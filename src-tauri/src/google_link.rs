@@ -20,8 +20,11 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::{Error, Result};
+#[cfg(desktop)]
 use crate::google_auth::{self, GoogleTokens};
+#[cfg(desktop)]
 use crate::oauth::OauthTransport;
+#[cfg(desktop)]
 use crate::secret_store;
 use crate::sync_gdrive::DriveUser;
 
@@ -29,11 +32,13 @@ const TOKENS_FILE: &str = "google.json";
 const ACCOUNT_FILE: &str = "google-account.json";
 
 /// Refresh this long before the token actually expires.
+#[cfg(desktop)]
 const EXPIRY_SKEW_SECS: i64 = 300;
 
 /// Every file `secret_store` seals when the lock is turned on.
 pub const SECRET_FILES: &[&str] = &[TOKENS_FILE];
 
+#[cfg(desktop)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct StoredTokens {
     refresh_token: String,
@@ -93,6 +98,7 @@ pub fn space_name(account: &Account) -> String {
 }
 
 /// Records a fresh sign-in.
+#[cfg(desktop)]
 pub fn store(
     config_dir: &Path,
     tokens: &GoogleTokens,
@@ -127,6 +133,7 @@ pub fn store_account(config_dir: &Path, user: &DriveUser) -> Result<Account> {
     Ok(account)
 }
 
+#[cfg(desktop)]
 fn load_tokens(config_dir: &Path) -> Result<Option<StoredTokens>> {
     let Some(bytes) = secret_store::read_secret(config_dir, TOKENS_FILE)? else {
         return Ok(None);
@@ -136,6 +143,7 @@ fn load_tokens(config_dir: &Path) -> Result<Option<StoredTokens>> {
         .map_err(|e| Error::State(format!("unreadable Google token file: {e}")))
 }
 
+#[cfg(desktop)]
 fn save_tokens(config_dir: &Path, tokens: &StoredTokens) -> Result<()> {
     let text = serde_json::to_string_pretty(tokens)
         .map_err(|e| Error::State(format!("cannot serialize Google tokens: {e}")))?;
@@ -143,6 +151,7 @@ fn save_tokens(config_dir: &Path, tokens: &StoredTokens) -> Result<()> {
 }
 
 /// The refresh token, for revoking it on sign-out.
+#[cfg(desktop)]
 pub fn refresh_token(config_dir: &Path) -> Option<String> {
     load_tokens(config_dir)
         .ok()
@@ -163,6 +172,7 @@ pub fn clear(config_dir: &Path) -> Result<()> {
 
 /// An access token good to use right now, refreshed first when the stored
 /// one is at or near expiry.
+#[cfg(desktop)]
 pub fn valid_access_token<T: OauthTransport>(
     config_dir: &Path,
     transport: &T,

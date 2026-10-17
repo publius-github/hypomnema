@@ -9,11 +9,13 @@ mod device;
 mod engine;
 mod error;
 mod example;
+#[cfg(desktop)]
 mod google_auth;
 mod google_link;
 mod ids;
 mod journal;
 mod kb;
+#[cfg(desktop)]
 mod oauth;
 mod reminders;
 mod secret_store;

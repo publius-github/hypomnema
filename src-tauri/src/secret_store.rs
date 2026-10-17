@@ -178,7 +178,9 @@ fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
 }
 
 /// Reads a secret, decrypting it when the lock is on. `None` means the
-/// file is simply not there.
+/// file is simply not there. Only the desktop keeps a secret to read:
+/// on Android Play services holds the Google grant.
+#[cfg(desktop)]
 pub fn read_secret(config_dir: &Path, name: &str) -> Result<Option<Vec<u8>>> {
     if read_lock(config_dir).is_none() {
         let path = secret_path(config_dir, name);

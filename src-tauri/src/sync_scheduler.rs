@@ -35,6 +35,7 @@ const TICK: Duration = Duration::from_secs(5);
 /// A focus pass no sooner than this after the previous pass.
 const FOCUS_MIN_GAP_SECS: i64 = 60;
 /// How long quitting waits for its pass.
+#[cfg(desktop)]
 const EXIT_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Unix time of the latest local change not yet synced; 0 = none.
@@ -47,6 +48,7 @@ pub fn poke() {
 }
 
 /// The main window came to the front.
+#[cfg(desktop)]
 pub fn focused() {
     FOCUSED.store(true, Ordering::SeqCst);
 }
@@ -148,6 +150,7 @@ fn log_pass<T>(result: crate::error::Result<T>) {
 }
 
 /// Quitting: send what is waiting, if anything, within a time limit.
+#[cfg(desktop)]
 pub fn on_exit(app: &AppHandle) {
     let Some((root, config)) = context(app) else {
         return;

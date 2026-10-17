@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.107.6"
+version = "0.107.7"
 description = "Weekly planner, journal, and personal knowledge base"
 license = "GPL-3.0-only"
 repository = "https://github.com/publius-github/app-hypomnema"
@@ -34,7 +34,7 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 croner = "2"
 notify = "8"
-ts-rs = "10"
+ts-rs = { version = "10", features = ["no-serde-warnings"] }
 ureq = "3"
 sha2 = "0.10"
 base64 = "0.22"

@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.107.7 - 2026-10-17
+
+The Android build compiles without warnings: the desktop-only Google sign-in (the loopback OAuth flow, PKCE, token refresh and the stored token file) and the scheduler's quit and focus hooks are now built for the desktop only, instead of being compiled into the phone build unused. ts-rs no longer warns about serde attributes it does not read.
+
 ## 0.107.6 - 2026-10-17
 
 Fixes from the functional audit. A task with neither a day nor a list no longer drops out of every view: clearing the date of a task added under a day, picking "No list" for an undated one, or undoing a delete whose list is gone now puts it in the quick-capture list (Inbox by default). Emptying old Notes trash only touches the entries the app put there - a `.trash` folder shared with another app (Obsidian uses the same name) used to lose any of its files or folders whose names started with a digit, for good. Adding a rule, event, birthday or reminder from a form to a config file that cannot be read (bytes that are not UTF-8, a lock) is refused with the file's name instead of replacing the whole file with the one new item - after which the engine would also have cleared the lost rules' tasks. Editing or deleting a recurring rule, a focus phrase, a day reminder or a schedule block names the item the editor was opened on, and the core refuses the write when the file changed in the meantime (a sync pass, an edit in Notes) instead of changing another item. When a Notes or Journal save fails, opening another note, entry or day stays on the unsaved one until it saves, rather than letting the next keystroke elsewhere replace it. A refused quick add gives the typed text back. The README and the rule editor now say what the engine has always done: removing a recurring rule, or changing its schedule, description or an item, clears that rule's past completed tasks too, so History, streaks and rates start over (the delete dialog used to claim past instances stay).
