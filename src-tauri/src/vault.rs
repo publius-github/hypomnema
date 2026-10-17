@@ -407,6 +407,93 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+    fn old_schema_vault(name: &str) -> PathBuf {
+        let root = temp_dir(name);
+        fs::create_dir_all(work_dir(&root)).unwrap();
+        let conn = db::open(&db_path(&root)).unwrap();
+        db::migrate_to(&conn, 2);
+        conn.execute("INSERT INTO lists (name) VALUES ('Inbox')", [])
+            .unwrap();
+        root
+    }
+
+    fn schema_version(path: &Path) -> i64 {
+        let conn = db::open(path).unwrap();
+        conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap()
+    }
+
+    #[test]
+    fn an_old_schema_is_backed_up_before_it_is_upgraded() {
+        let root = old_schema_vault("vault-pre-upgrade");
+
+        drop(Vault::open(&root).unwrap());
+
+        let backups = crate::backup::list_db_backups(&root).unwrap();
+        let pre: Vec<_> = backups
+            .iter()
+            .filter(|b| b.id.starts_with("pre-upgrade-"))
+            .collect();
+        assert_eq!(pre.len(), 1);
+        let copy = work_dir(&root).join("backups").join("db").join(&pre[0].id);
+        assert_eq!(schema_version(&copy), 2);
+        assert!(schema_version(&db_path(&root)) > 2);
+    }
+
+    #[test]
+    fn an_upgrade_that_cannot_be_backed_up_does_not_run() {
+        let root = old_schema_vault("vault-no-backup");
+        // a file where the backup folder goes: the copy cannot be made
+        fs::write(work_dir(&root).join("backups"), "in the way").unwrap();
+
+        let Err(err) = Vault::open(&root) else {
+            panic!("the upgrade ran without its backup");
+        };
+
+        assert!(err.to_string().contains("could not back up"), "{err}");
+        assert_eq!(schema_version(&db_path(&root)), 2);
+    }
+
+    #[test]
+    fn a_missing_database_is_rebuilt_from_the_snapshot() {
+        let root = temp_dir("vault-restore");
+        {
+            let vault = Vault::open(&root).unwrap();
+            crate::tasks::task_create(
+                &vault.conn,
+                &crate::tasks::NewTask {
+                    title: "from the snapshot".into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            crate::state_export::export(&vault.conn, &state_dir(&root)).unwrap();
+        }
+        fs::remove_file(db_path(&root)).unwrap();
+
+        let vault = Vault::open(&root).unwrap();
+
+        let title: String = vault
+            .conn
+            .query_row("SELECT title FROM tasks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(title, "from the snapshot");
+    }
+
+    #[test]
+    fn a_broken_snapshot_stops_the_open_and_is_left_as_it_was() {
+        let root = temp_dir("vault-broken-snapshot");
+        drop(Vault::open(&root).unwrap());
+        fs::remove_file(db_path(&root)).unwrap();
+        let snapshot = state_dir(&root).join("tasks.jsonl");
+        fs::create_dir_all(state_dir(&root)).unwrap();
+        fs::write(&snapshot, "{not json}\n").unwrap();
+
+        assert!(Vault::open(&root).is_err());
+
+        assert_eq!(fs::read_to_string(&snapshot).unwrap(), "{not json}\n");
+    }
+
     #[test]
     fn only_a_color_change_writes_colors_yml() {
         let root = temp_dir("vault-colors");

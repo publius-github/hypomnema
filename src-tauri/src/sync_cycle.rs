@@ -119,7 +119,8 @@ pub fn record_pass(local_root: &Path, now: &str, error: Option<String>) {
 /// What this device is holding, without asking the network.
 pub fn standing(local_root: &Path, root: &VaultRoot) -> Result<SyncStanding> {
     let manifest = load_manifest(local_root);
-    let files = local_files(local_root, &sync_paths::read_user_ignore(local_root))?;
+    let user_ignore = sync_paths::read_user_ignore(local_root);
+    let files = local_files(local_root, &user_ignore)?;
     let mut pending = 0;
     for relative in &files {
         let remote = root.absolute(relative);
@@ -135,12 +136,20 @@ pub fn standing(local_root: &Path, root: &VaultRoot) -> Result<SyncStanding> {
     }
     // A file this device pulled and then deleted is also waiting to go
     // up, and not counting it would report "nothing to send" while a
-    // deletion sat here unsent.
+    // deletion sat here unsent. One the user has since ignored is not:
+    // the pass leaves it alone on both ends.
     let held: std::collections::BTreeSet<String> = files
         .iter()
         .map(|relative| root.absolute(relative))
         .collect();
-    pending += manifest.keys().filter(|key| !held.contains(*key)).count();
+    pending += manifest
+        .keys()
+        .filter(|key| !held.contains(*key))
+        .filter(|key| {
+            root.relative(key)
+                .is_some_and(|relative| sync_paths::is_synced_with(relative, &user_ignore))
+        })
+        .count();
 
     let last: Option<LastPass> = fs::read_to_string(local_root.join(LAST_PASS_FILE))
         .ok()
@@ -216,18 +225,32 @@ const GUARD_MIN_FILES: usize = 10;
 /// device deleting everything - and applying it would delete the vault
 /// here too. `percent` of the known files is the line (100 turns the
 /// guard off). Nothing has been touched when this returns `Err`.
+///
+/// Only files still shared count: one the user has since put under
+/// `SYNC_IGNORE_FILE` is missing from `remote_live` because the listing
+/// skips it, not because the remote lost it - a folder ignored after it
+/// synced must not read as a wipe.
 fn guard_mass_deletion(
+    ctx: &Context<'_>,
+    root: &VaultRoot,
     manifest: &BTreeMap<String, FileState>,
     remote_live: &BTreeMap<String, String>,
     percent: u32,
 ) -> Result<()> {
-    let known = manifest.len();
+    let shared: Vec<&String> = manifest
+        .keys()
+        .filter(|path| {
+            root.relative(path)
+                .is_some_and(|relative| ctx.is_synced(relative))
+        })
+        .collect();
+    let known = shared.len();
     if known < GUARD_MIN_FILES {
         return Ok(());
     }
-    let gone = manifest
-        .keys()
-        .filter(|path| !remote_live.contains_key(*path))
+    let gone = shared
+        .iter()
+        .filter(|path| !remote_live.contains_key(**path))
         .count();
     if gone * 100 > known * percent.min(100) as usize {
         return Err(Error::RemoteWiped { known, gone });
@@ -316,6 +339,15 @@ struct Context<'a> {
     device_label: &'a str,
     /// RFC3339 UTC; the day half names conflicted copies.
     now: &'a str,
+    /// This vault's `SYNC_IGNORE_FILE` patterns, read once at the start
+    /// of the pass so every step of it agrees on what is shared.
+    user_ignore: Vec<String>,
+}
+
+impl Context<'_> {
+    fn is_synced(&self, relative: &str) -> bool {
+        sync_paths::is_synced_with(relative, &self.user_ignore)
+    }
 }
 
 impl Context<'_> {
@@ -527,7 +559,7 @@ fn apply_duplicates<P: SyncProvider>(
         let Some(relative) = root.relative(remote) else {
             continue;
         };
-        if !sync_paths::is_synced(relative) {
+        if !ctx.is_synced(relative) {
             continue;
         }
         let applied = {
@@ -626,11 +658,10 @@ fn push_local_deletions<P: SyncProvider>(
     report: &mut SyncReport,
 ) -> Result<()> {
     let (local_root, device, now) = (ctx.local_root, ctx.device, ctx.now);
-    let held: std::collections::BTreeSet<String> =
-        local_files(local_root, &sync_paths::loaded_user_ignore())?
-            .into_iter()
-            .map(|relative| root.absolute(&relative))
-            .collect();
+    let held: std::collections::BTreeSet<String> = local_files(local_root, &ctx.user_ignore)?
+        .into_iter()
+        .map(|relative| root.absolute(&relative))
+        .collect();
     let vanished: Vec<String> = manifest
         .keys()
         .filter(|remote| !held.contains(*remote) && remote_live.contains_key(*remote))
@@ -694,8 +725,8 @@ pub fn sync_vault<P: SyncProvider>(
         device,
         device_label,
         now,
+        user_ignore: sync_paths::read_user_ignore(local_root),
     };
-    sync_paths::load_user_ignore(local_root);
     let mut report = SyncReport::default();
     let mut manifest = load_manifest(local_root);
     let mut conflicts: Vec<ConflictEntry> = Vec::new();
@@ -708,7 +739,7 @@ pub fn sync_vault<P: SyncProvider>(
         let Some(relative) = root.relative(&path) else {
             continue;
         };
-        if !sync_paths::is_synced(relative) {
+        if !ctx.is_synced(relative) {
             continue;
         }
         if change.deleted {
@@ -718,7 +749,7 @@ pub fn sync_vault<P: SyncProvider>(
         }
     }
 
-    guard_mass_deletion(&manifest, &remote_live, guard_percent)?;
+    guard_mass_deletion(&ctx, root, &manifest, &remote_live, guard_percent)?;
 
     // Text synced before bases were kept for it has none yet. A file that
     // still matches what both ends last agreed on is that base, so record
@@ -741,7 +772,9 @@ pub fn sync_vault<P: SyncProvider>(
     // is no longer in it was deleted over there - whether or not the
     // backend reports tombstones (Google Drive does not).
     for remote in manifest.keys() {
-        let synced = root.relative(remote).is_some_and(sync_paths::is_synced);
+        let synced = root
+            .relative(remote)
+            .is_some_and(|relative| ctx.is_synced(relative));
         if synced && !remote_live.contains_key(remote) && !remote_gone.contains(remote) {
             remote_gone.push(remote.clone());
         }

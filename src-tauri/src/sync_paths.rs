@@ -13,7 +13,6 @@
 //! `SyncProvider` deals in - not native paths.
 
 use std::path::Path;
-use std::sync::RwLock;
 
 use crate::vault::{self, WORK_DIR};
 
@@ -28,39 +27,16 @@ pub const SYNC_IGNORE_FILE: &str = ".hypomnemasyncignore";
 /// device's deletions in the other's trash.
 pub const TRASH_DIR: &str = ".trash";
 
-/// Patterns of `SYNC_IGNORE_FILE`, loaded at the start of every pass
-/// (`load_user_ignore`) so `is_synced` keeps its one-argument shape at
-/// the many call sites that walk paths.
-static USER_IGNORE: RwLock<Vec<String>> = RwLock::new(Vec::new());
-
-/// Rereads the vault's `SYNC_IGNORE_FILE`; called by each pass before it
-/// lists anything.
-pub fn load_user_ignore(local_root: &Path) {
-    *USER_IGNORE.write().unwrap_or_else(|e| e.into_inner()) = read_user_ignore(local_root);
-}
-
-/// This vault's `SYNC_IGNORE_FILE` patterns, read now - for a caller
-/// outside a pass, which cannot rely on what the last pass loaded (none
-/// yet this session, or one over another vault).
+/// This vault's `SYNC_IGNORE_FILE` patterns, read now. A pass reads them
+/// once at its start and hands them down, rather than keeping them in a
+/// process-wide slot another vault's pass (or a parallel test) could swap
+/// underneath it.
 pub fn read_user_ignore(local_root: &Path) -> Vec<String> {
     crate::kb::load_patterns(&local_root.join(SYNC_IGNORE_FILE))
 }
 
-/// The patterns the running pass loaded.
-pub fn loaded_user_ignore() -> Vec<String> {
-    USER_IGNORE
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-}
-
-/// Is this vault-relative path part of the shared vault?
-pub fn is_synced(path: &str) -> bool {
-    let patterns = USER_IGNORE.read().unwrap_or_else(|e| e.into_inner());
-    is_synced_with(path, &patterns)
-}
-
-/// `is_synced` against an explicit set of user patterns.
+/// Is this vault-relative path part of the shared vault, under the
+/// vault's `SYNC_IGNORE_FILE` patterns (`read_user_ignore`)?
 pub fn is_synced_with(path: &str, user_ignore: &[String]) -> bool {
     let path = path.trim_start_matches('/');
     if path.is_empty() {
@@ -172,6 +148,11 @@ mod tests {
 
     fn patterns(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// The built-in rules alone, no `SYNC_IGNORE_FILE`.
+    fn is_synced(path: &str) -> bool {
+        is_synced_with(path, &[])
     }
 
     #[test]

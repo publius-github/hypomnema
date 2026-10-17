@@ -8,12 +8,18 @@
 //
 // What it does not do is the core's business logic: no task
 // generation, carry-over or sync. Those are covered by the Rust tests;
-// this suite covers what the window does with the answers.
+// this suite covers what the window does with the answers - the
+// refusals included: `?fail=<command>:<kind>,...` makes each listed
+// command's first call reject the way the core does (`{ kind, message }`,
+// error.rs `Wire`), so a retry goes through; `?configerror` reports a
+// broken config file from every engine pass; `?signedin` is a desktop
+// signed in to Google.
 
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
 import { defaultConfig, emptyOutcome } from "../../src/test/fixtures";
 import type { AppConfig, KbNode, List, ListGroup, NewTask, Task, TaskPatch } from "../../src/types";
+import type { Commands } from "../../src/lib/ipc";
 
 type Args = Record<string, unknown>;
 
@@ -151,7 +157,23 @@ function kbTree(): KbNode[] {
 
 const noErrors = { errors: [] };
 
-const handlers: Record<string, (args: Args) => unknown> = {
+/** `?fail=` as command -> the error kind its first call rejects with. */
+const failures = new Map(
+  (params.get("fail") ?? "")
+    .split(",")
+    .filter(Boolean)
+    .map((entry) => entry.split(":") as [string, string?])
+    .map(([cmd, kind]) => [cmd, kind ?? "state"]),
+);
+
+const configErrors = params.has("configerror")
+  ? [{ file: "recurring.yml", line: 3, message: "e2e: unknown field `cronn`" }]
+  : [];
+
+// Typed against `Commands`: an answer of the wrong shape, or a handler
+// for a command the core does not have, fails the typecheck. Plugin
+// calls are answered separately (`plugin`).
+const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] } = {
   // vault and configuration
   vault_status: () => state.vault,
   vault_select: (a) => {
@@ -181,7 +203,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
   },
   config_file_get: () => "",
   config_file_set: () => [],
-  engine_run: () => emptyOutcome,
+  engine_run: () => ({ ...emptyOutcome, errors: configErrors }),
 
   // tasks and lists
   lists_all: () => state.lists.filter((l) => !l.archived),
@@ -326,7 +348,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
 
   // journal and notes
   journal_list: () => [...state.journal.keys()].sort(),
-  journal_open: (a) => ({ date: a.date, content: state.journal.get(String(a.date)) ?? "" }),
+  journal_open: (a) => ({ date: String(a.date), content: state.journal.get(String(a.date)) ?? "" }),
   journal_save: (a) => {
     state.journal.set(String(a.date), String(a.content));
     return String(a.content);
@@ -347,7 +369,21 @@ const handlers: Record<string, (args: Args) => unknown> = {
   kb_search: () => [],
 
   // sync, backups, about
-  google_status: () => ({ available: false, signed_in: false, email: null, name: null }),
+  google_status: () =>
+    params.has("signedin")
+      ? { available: true, signed_in: true, email: "e2e@example.com", name: "E2E" }
+      : { available: false, signed_in: false, email: null, name: null },
+  sync_now: () => ({
+    downloaded: 2,
+    merged: 0,
+    uploaded: 1,
+    removed_locally: 0,
+    removed_remotely: 0,
+    conflicts: 0,
+    conflicted_copies: [],
+    failed: [],
+  }),
+  sync_reset_space: () => undefined,
   sync_standing: () => ({ pending: 0, last_pass_at: null, last_error: null }),
   sync_conflicts_list: () => [],
   backups_list: () => ({ db: [], config: [] }),
@@ -378,7 +414,12 @@ mockIPC(
     const args = (payload ?? {}) as Args;
     calls.push({ cmd, args });
     if (cmd.startsWith("plugin:")) return plugin(cmd);
-    const handler = handlers[cmd];
+    const kind = failures.get(cmd);
+    if (kind !== undefined) {
+      failures.delete(cmd);
+      throw { kind, message: `e2e: ${cmd} refused (${kind})` };
+    }
+    const handler = handlers[cmd as keyof Commands] as ((args: Args) => unknown) | undefined;
     if (!handler) throw new Error(`e2e backend: no handler for command "${cmd}"`);
     return handler(args);
   },

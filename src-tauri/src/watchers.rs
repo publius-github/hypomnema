@@ -482,21 +482,29 @@ pub(crate) fn rebuild_cache(
     root: &Path,
 ) -> Result<()> {
     *state.vault.lock_or_recover() = None;
+    replace_db_files(root, || open_vault(app, state, root).map(|_| ()))
+}
+
+/// The file half of `rebuild_cache`: drops app.db and opens the vault
+/// again (`open`), which restores it from the snapshot. The old cache is
+/// kept aside meanwhile - a merged snapshot the restore rejects must not
+/// leave the device with no database and an unopenable vault - and put
+/// back, then opened, when `open` fails.
+fn replace_db_files(root: &Path, mut open: impl FnMut() -> Result<()>) -> Result<()> {
     let db = vault::db_path(root);
-    // Keep the old cache aside: a merged snapshot the restore rejects
-    // must not leave the device with no database and an unopenable vault.
     let aside = db.with_extension("db.rebuild-bak");
     let had_db = db.exists() && std::fs::copy(&db, &aside).is_ok();
     remove_db_files(root);
-    match open_vault(app, state, root) {
-        Ok(_) => {
+    match open() {
+        Ok(()) => {
             let _ = std::fs::remove_file(&aside);
             Ok(())
         }
         Err(e) => {
             if had_db {
+                remove_db_files(root);
                 let _ = std::fs::rename(&aside, &db);
-                let _ = open_vault(app, state, root);
+                let _ = open();
             }
             Err(e)
         }
@@ -517,6 +525,57 @@ pub(crate) fn remove_db_files(root: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tasks::NewTask;
+
+    fn vault_with_a_task(name: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("hypomnema-watchers-{name}"));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let vault = Vault::open(&root).unwrap();
+        crate::tasks::task_create(
+            &vault.conn,
+            &NewTask {
+                title: "survives".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        crate::state_export::export(&vault.conn, &vault::state_dir(&root)).unwrap();
+        root
+    }
+
+    fn titles(root: &Path) -> Vec<String> {
+        let vault = Vault::open(root).unwrap();
+        let mut stmt = vault.conn.prepare("SELECT title FROM tasks").unwrap();
+        let rows = stmt.query_map([], |row| row.get(0)).unwrap();
+        rows.map(|r| r.unwrap()).collect()
+    }
+
+    #[test]
+    fn a_rebuild_restores_the_database_from_the_snapshot() {
+        let root = vault_with_a_task("rebuild");
+
+        replace_db_files(&root, || Vault::open(&root).map(|_| ())).unwrap();
+
+        assert_eq!(titles(&root), ["survives"]);
+        assert!(!vault::db_path(&root)
+            .with_extension("db.rebuild-bak")
+            .exists());
+    }
+
+    #[test]
+    fn a_rebuild_the_snapshot_refuses_puts_the_old_database_back() {
+        let root = vault_with_a_task("rebuild-refused");
+        std::fs::write(vault::state_dir(&root).join("tasks.jsonl"), "{not json}\n").unwrap();
+
+        let result = replace_db_files(&root, || Vault::open(&root).map(|_| ()));
+
+        assert!(result.is_err());
+        assert_eq!(titles(&root), ["survives"]);
+        assert!(!vault::db_path(&root)
+            .with_extension("db.rebuild-bak")
+            .exists());
+    }
 
     #[test]
     fn watcher_ignores_access_events_and_own_tmp_files() {

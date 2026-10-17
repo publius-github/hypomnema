@@ -566,6 +566,63 @@ fn what_is_waiting_honours_this_vaults_sync_ignore_before_any_pass() {
 }
 
 #[test]
+fn an_ignored_file_is_neither_uploaded_nor_downloaded() {
+    let local = temp_dir("ignore-pass");
+    let provider = MockProvider::new();
+    write(&local, ".hypomnemasyncignore", "drafts/\n");
+    write(&local, "drafts/mine.md", "stays on this device");
+    provider
+        .write_file("vault/drafts/theirs.md", b"stays over there", None)
+        .unwrap();
+
+    sync(&provider, &local);
+
+    assert!(provider.read_file("vault/drafts/mine.md").is_err());
+    assert!(!local.join("drafts/theirs.md").exists());
+    assert!(provider.read_file("vault/.hypomnemasyncignore").is_ok());
+}
+
+/// A folder put under the ignore file after it synced is missing from
+/// the pass's listing because the pass skips it - which must not read as
+/// the remote having lost most of the vault.
+#[test]
+fn ignoring_a_synced_folder_is_not_mistaken_for_a_wiped_remote() {
+    let local = temp_dir("ignore-synced-folder");
+    let provider = MockProvider::new();
+    for i in 0..12 {
+        in_sync(&provider, &local, &format!("journal/{i}.md"), "text");
+    }
+    in_sync(&provider, &local, "notes/a.md", "kept");
+    write(&local, ".hypomnemasyncignore", "journal/\n");
+
+    let report = sync_vault(&provider, &local, &root(), PHONE, NOW, 30, |_, _| {}).unwrap();
+
+    assert_eq!(report.removed_locally, 0);
+    assert_eq!(report.removed_remotely, 0);
+    for i in 0..12 {
+        assert!(provider.read_file(&format!("vault/journal/{i}.md")).is_ok());
+        assert!(local.join(format!("journal/{i}.md")).exists());
+    }
+}
+
+#[test]
+fn a_file_ignored_after_it_synced_is_not_left_waiting_to_go_up() {
+    let local = temp_dir("ignore-synced-file");
+    let provider = MockProvider::new();
+    for i in 0..12 {
+        in_sync(&provider, &local, &format!("notes/{i}.md"), "text");
+    }
+    in_sync(&provider, &local, "private.md", "mine");
+    write(&local, ".hypomnemasyncignore", "private.md\n");
+
+    sync(&provider, &local);
+
+    assert_eq!(standing(&local, &root()).unwrap().pending, 0);
+    assert!(provider.read_file("vault/private.md").is_ok());
+    assert!(local.join("private.md").exists());
+}
+
+#[test]
 fn a_failed_pass_is_remembered_so_the_screen_can_say_so() {
     let local = temp_dir("last-pass");
     fs::create_dir_all(local.join(".hypomnema/sync")).unwrap();

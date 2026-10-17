@@ -99,9 +99,9 @@ pub fn detect_vault_root(paths: &[String]) -> Result<VaultRoot> {
 /// into one - a device pulling another device's database would defeat the
 /// disposable-cache model rather than corrupting it, but it would still
 /// be wrong.
-fn is_pulled(path: &str, root: &VaultRoot) -> bool {
+fn is_pulled(path: &str, root: &VaultRoot, user_ignore: &[String]) -> bool {
     root.relative(path.trim_start_matches('/'))
-        .is_some_and(sync_paths::is_synced)
+        .is_some_and(|relative| sync_paths::is_synced_with(relative, user_ignore))
 }
 
 /// What a pull brought down, for the screen that triggered it.
@@ -277,7 +277,7 @@ pub fn pull_vault<P: SyncProvider>(
     local_root: &Path,
     mut on_progress: impl FnMut(usize, usize),
 ) -> Result<PullReport> {
-    crate::sync_paths::load_user_ignore(local_root);
+    let user_ignore = crate::sync_paths::read_user_ignore(local_root);
     // list_changes rather than a plain listing: it carries each file's
     // revision, which is what makes "already have this one" answerable.
     let (changes, _cursor) = provider.list_changes(&SyncCursor::default())?;
@@ -285,7 +285,10 @@ pub fn pull_vault<P: SyncProvider>(
     let paths: Vec<String> = live.iter().map(|c| c.path.clone()).collect();
     let root = detect_vault_root(&paths)?;
 
-    let wanted: Vec<_> = live.iter().filter(|c| is_pulled(&c.path, &root)).collect();
+    let wanted: Vec<_> = live
+        .iter()
+        .filter(|c| is_pulled(&c.path, &root, &user_ignore))
+        .collect();
     let total = wanted.len();
     let mut manifest = load_manifest(local_root);
     let mut report = PullReport {
@@ -466,7 +469,7 @@ mod tests {
 
         let pull: Vec<String> = listing
             .iter()
-            .filter(|path| is_pulled(path, &root))
+            .filter(|path| is_pulled(path, &root, &[]))
             .cloned()
             .collect();
 

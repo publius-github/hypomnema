@@ -57,8 +57,7 @@ pub fn push_vault<P: SyncProvider>(
     root: &VaultRoot,
     mut on_progress: impl FnMut(usize, usize),
 ) -> Result<PushReport> {
-    crate::sync_paths::load_user_ignore(local_root);
-    let files = local_files(local_root, &sync_paths::loaded_user_ignore())?;
+    let files = local_files(local_root, &sync_paths::read_user_ignore(local_root))?;
     let mut manifest = load_manifest(local_root);
     let mut report = PushReport::default();
 

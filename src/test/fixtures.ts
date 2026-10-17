@@ -1,4 +1,4 @@
-import type { AppConfig, DashboardContext, EngineOutcome, Task } from "../types";
+import type { AppConfig, DashboardContext, EngineOutcome, SyncSummary, Task } from "../types";
 
 /** Mirror of AppConfig::default() in src-tauri/src/config.rs - the
  *  typecheck forces this object to keep every field when the struct
@@ -177,6 +177,17 @@ export const emptyOutcome: EngineOutcome = {
   errors: [],
 };
 
+export const emptySync: SyncSummary = {
+  downloaded: 0,
+  merged: 0,
+  uploaded: 0,
+  removed_locally: 0,
+  removed_remotely: 0,
+  conflicts: 0,
+  conflicted_copies: [],
+  failed: [],
+};
+
 export type CommandHandlers = Record<string, (args?: unknown) => unknown>;
 
 /** The baseline command set a mounted App needs; tests override per
@@ -193,6 +204,9 @@ export function baseHandlers(overrides: CommandHandlers = {}): CommandHandlers {
     dashboard_context: () => emptyDashboard,
     calendar_outlook: () => [],
     habit_rates: () => [],
+    // the phone's automatic pass runs on mount; with no handler its
+    // rejection is swallowed by design and the test would only log it
+    sync_now: () => emptySync,
     ...overrides,
   };
 }

@@ -381,6 +381,17 @@ pub fn set_device_id(conn: &Connection, device_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// A database at schema `version` - an older build's - for tests that
+/// open one with the current build.
+#[cfg(test)]
+pub(crate) fn migrate_to(conn: &Connection, version: usize) {
+    for (idx, migration) in MIGRATIONS.iter().take(version).enumerate() {
+        conn.execute_batch(migration).unwrap();
+        conn.pragma_update(None, "user_version", (idx + 1) as i64)
+            .unwrap();
+    }
+}
+
 /// The schema version of an existing database that `migrate` is about
 /// to upgrade, or None when there is nothing to do (current, newer - which
 /// `migrate` refuses - or a brand-new empty file at version 0).
