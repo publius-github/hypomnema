@@ -61,7 +61,7 @@ export function AboutContent() {
         <AppLogo size={88} />
         <h2 className="mt-3 font-serif text-3xl leading-tight">Hypomnema</h2>
         <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-content-muted">
-          Your mind, organized.
+          Your mind. Organized.
         </p>
         <p className="mt-1 text-xs text-content-muted">
           {version ? `Version ${version}` : ""}

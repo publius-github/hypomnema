@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.108.1 - 2026-10-17
+
+The motto reads "Your mind. Organized." in About and on the website.
+
 ## 0.108.0 - 2026-10-17
 
 New app icon on every platform: a black dog-eared H on a paper-white tile; About and the website show the serif Hypomnema wordmark with the motto "Your mind, organized."
