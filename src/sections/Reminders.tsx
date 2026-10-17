@@ -204,13 +204,20 @@ function RowListEditor<T>({
   lead: (item: T, index: number) => ReactNode;
   text: (item: T) => ReactNode;
   trail?: (item: T) => ReactNode;
-  /** the row's edit form; `close` puts the row back */
+  /** the row's edit form; `close` puts the row back. `item` is the row
+   *  as it was when the editor opened - the `original` an edit sends,
+   *  so a reload under the open form cannot redirect it */
   editor: (item: T, index: number, close: () => void) => ReactNode;
   deleteLabel: (item: T) => string;
-  onDelete: (index: number) => void;
+  onDelete: (index: number, item: T) => void;
 }) {
-  const [editing, setEditing] = useState<number | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [editing, setEditing] = useState<{ index: number; item: T } | null>(
+    null,
+  );
+  const [confirmDelete, setConfirmDelete] = useState<{
+    index: number;
+    item: T;
+  } | null>(null);
   const close = () => setEditing(null);
 
   return (
@@ -220,20 +227,24 @@ function RowListEditor<T>({
           <p className="pt-6 text-center text-sm text-content-muted">{empty}</p>
         )}
         {items.map((item, i) =>
-          editing === i ? (
-            <Fragment key={`edit-${i}`}>{editor(item, i, close)}</Fragment>
+          editing?.index === i ? (
+            <Fragment key={`edit-${i}`}>
+              {editor(editing.item, i, close)}
+            </Fragment>
           ) : (
             <div
               key={rowKey(item, i)}
               className="group flex cursor-pointer items-center gap-3 border-b border-line py-2 text-sm hover:bg-line/20"
               title="Click to edit"
               role="presentation"
-              onClick={() => setEditing(i)}
+              onClick={() => setEditing({ index: i, item })}
             >
               {lead(item, i)}
               <span
                 className="min-w-0 flex-1 wrap-break-word"
-                {...pressable(() => setEditing(i), { click: false })}
+                {...pressable(() => setEditing({ index: i, item }), {
+                  click: false,
+                })}
               >
                 {text(item)}
               </span>
@@ -241,20 +252,20 @@ function RowListEditor<T>({
               <DeleteRowButton
                 onDelete={(e) => {
                   e.stopPropagation();
-                  setConfirmDelete(i);
+                  setConfirmDelete({ index: i, item });
                 }}
               />
             </div>
           ),
         )}
       </div>
-      {confirmDelete !== null && items[confirmDelete] !== undefined && (
+      {confirmDelete !== null && (
         <ConfirmModal
-          title={`Delete "${deleteLabel(items[confirmDelete])}"?`}
+          title={`Delete "${deleteLabel(confirmDelete.item)}"?`}
           onConfirm={() => {
-            const index = confirmDelete;
+            const { index, item } = confirmDelete;
             setConfirmDelete(null);
-            onDelete(index);
+            onDelete(index, item);
           }}
           onCancel={() => setConfirmDelete(null)}
         />
@@ -325,15 +336,25 @@ function FocusTab({
             onCancel={close}
             onSave={(replacement) =>
               void write(async () => {
-                await invoke("focus_phrase_edit", { index: i, replacement });
+                await invoke("focus_phrase_edit", {
+                  index: i,
+                  original: text,
+                  replacement,
+                });
                 close();
               })
             }
           />
         )}
         deleteLabel={(text) => text}
-        onDelete={(index) =>
-          void write(() => invoke("focus_phrase_edit", { index, replacement: null }))
+        onDelete={(index, text) =>
+          void write(() =>
+            invoke("focus_phrase_edit", {
+              index,
+              original: text,
+              replacement: null,
+            }),
+          )
         }
       />
     </div>
@@ -426,15 +447,25 @@ function DayRemindersTab({
             onCancel={close}
             onSave={(replacement) =>
               void write(async () => {
-                await invoke("day_reminder_edit", { index: i, replacement });
+                await invoke("day_reminder_edit", {
+                  index: i,
+                  original: entry,
+                  replacement,
+                });
                 close();
               })
             }
           />
         )}
         deleteLabel={(entry) => entry.text}
-        onDelete={(index) =>
-          void write(() => invoke("day_reminder_edit", { index, replacement: null }))
+        onDelete={(index, entry) =>
+          void write(() =>
+            invoke("day_reminder_edit", {
+              index,
+              original: entry,
+              replacement: null,
+            }),
+          )
         }
       />
     </div>
@@ -572,15 +603,25 @@ function ScheduleTab({
             onCancel={close}
             onSave={(replacement) =>
               void write(async () => {
-                await invoke("schedule_block_edit", { index: i, replacement });
+                await invoke("schedule_block_edit", {
+                  index: i,
+                  original: block,
+                  replacement,
+                });
                 close();
               })
             }
           />
         )}
         deleteLabel={(block) => block.label}
-        onDelete={(index) =>
-          void write(() => invoke("schedule_block_edit", { index, replacement: null }))
+        onDelete={(index, block) =>
+          void write(() =>
+            invoke("schedule_block_edit", {
+              index,
+              original: block,
+              replacement: null,
+            }),
+          )
         }
       />
     </div>

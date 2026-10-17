@@ -861,3 +861,69 @@ fn invalid_status_rejected() {
     );
     assert!(result.is_err());
 }
+
+#[test]
+fn a_task_left_with_no_day_and_no_list_goes_to_the_inbox() {
+    let conn = conn();
+    let today = "2026-10-17".to_string();
+    let task = task_create(
+        &conn,
+        &NewTask {
+            title: "call the bank".into(),
+            scheduled_date: Some(today.clone()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    // a day task with a date stays where it is
+    assert_eq!(
+        home_listless(&conn, task.id, "Inbox").unwrap().list_id,
+        None
+    );
+
+    // clearing its date would leave it in no view at all
+    task_update(
+        &conn,
+        task.id,
+        &TaskPatch {
+            scheduled_date: Some(None),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let homed = home_listless(&conn, task.id, "Inbox").unwrap();
+    let inbox = ensure_inbox(&conn, "Inbox").unwrap();
+    assert_eq!(homed.list_id, Some(inbox.id));
+    assert_eq!(homed.scheduled_date, None);
+
+    // a subtask carries neither on purpose and is left alone
+    let sub = task_create(
+        &conn,
+        &NewTask {
+            title: "find the number".into(),
+            parent_task_id: Some(task.id),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(home_listless(&conn, sub.id, "Inbox").unwrap().list_id, None);
+
+    // an Undo whose list is gone lands in the inbox, not nowhere
+    let list = list_create(&conn, "Errands", None, false).unwrap();
+    let errand = task_create(
+        &conn,
+        &NewTask {
+            title: "post office".into(),
+            list_id: Some(list.id),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let deleted = task_delete(&conn, errand.id).unwrap();
+    conn.execute("DELETE FROM lists WHERE id = ?1", [list.id])
+        .unwrap();
+    let restored = task_restore(&conn, &deleted).unwrap();
+    assert_eq!(restored[0].list_id, None);
+    let homed = home_listless(&conn, restored[0].id, "Inbox").unwrap();
+    assert_eq!(homed.list_id, Some(inbox.id));
+}

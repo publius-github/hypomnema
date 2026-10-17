@@ -421,7 +421,10 @@ export default function MobileLists() {
   const submit = () => {
     const trimmed = title.trim();
     if (!trimmed) return;
-    void createTask({ title: trimmed, list_id: current.id });
+    // a refused add gives the text back unless something new was typed
+    void createTask({ title: trimmed, list_id: current.id }).then((ok) => {
+      if (!ok) setTitle((now) => now || trimmed);
+    });
     setTitle("");
   };
 

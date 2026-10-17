@@ -60,3 +60,34 @@ test("search finds a task from anywhere", async ({ app }) => {
   await page.getByPlaceholder("Search tasks, notes and journal...").fill("leaking");
   await expect(page.getByText("Fix the leaking tap").last()).toBeVisible();
 });
+
+test("a day task whose date is cleared moves to the inbox instead of vanishing", async ({ app }) => {
+  const page = await app();
+  await page.getByText("Renew the passport", { exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Task" });
+  await dialog.getByLabel("Date").fill("");
+  await dialog.getByLabel("Date").blur();
+  await expect(dialog.getByLabel("List").locator("option:checked")).toHaveText("Inbox");
+  await page.keyboard.press("Escape");
+  // no day shows it any more; the inbox column does
+  await expect(page.getByText("Renew the passport", { exact: true })).toBeVisible();
+});
+
+test("a rule edit names the rule it was opened on", async ({ app }) => {
+  const page = await app();
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "Upcoming" }).click();
+  await page.getByRole("button", { name: "recurring", exact: true }).click();
+  await page.getByRole("button", { name: "Daily care" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect.poll(() => commands(page, "recurring_edit")).toContainEqual(
+    expect.objectContaining({
+      index: 0,
+      original: {
+        schedule: "0 0 * * *",
+        description: "Daily care",
+        items: ["Water the plants"],
+        threshold: 80,
+      },
+    }),
+  );
+});

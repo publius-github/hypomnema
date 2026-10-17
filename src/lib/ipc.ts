@@ -80,7 +80,7 @@ export interface Commands {
   diagnostics: { args: void; result: string };
   day_reminder_add: { args: { entry: DayReminder }; result: void };
   day_reminder_edit: {
-    args: { index: number; replacement: DayReminder | null };
+    args: { index: number; original: DayReminder; replacement: DayReminder | null };
     result: void;
   };
   engine_run: { args: void; result: EngineOutcome };
@@ -91,7 +91,7 @@ export interface Commands {
   google_status: { args: void; result: GoogleStatus };
   focus_phrase_add: { args: { phrase: string }; result: void };
   focus_phrase_edit: {
-    args: { index: number; replacement: string | null };
+    args: { index: number; original: string; replacement: string | null };
     result: void;
   };
   habit_rates: { args: void; result: HabitRate[] };
@@ -156,14 +156,14 @@ export interface Commands {
   platform_is_mobile: { args: void; result: boolean };
   recurring_add: { args: { rule: RecurringRule }; result: void };
   recurring_edit: {
-    args: { index: number; replacement: RecurringRule | null };
+    args: { index: number; original: RecurringRule; replacement: RecurringRule | null };
     result: void;
   };
   recurring_list: { args: void; result: RecurringResult };
   reminders_overview: { args: void; result: RemindersOverview };
   schedule_block_add: { args: { block: ScheduleBlock }; result: void };
   schedule_block_edit: {
-    args: { index: number; replacement: ScheduleBlock | null };
+    args: { index: number; original: ScheduleBlock; replacement: ScheduleBlock | null };
     result: void;
   };
   scheduled_add: { args: { event: ScheduledEvent }; result: void };

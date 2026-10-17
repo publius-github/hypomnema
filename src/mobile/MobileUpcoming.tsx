@@ -9,6 +9,7 @@ import type {
   ScheduledEvent,
   UpcomingResult,
 } from "../types";
+import { ruleOf } from "../lib/rules";
 
 type Sub = "scheduled" | "birthdays" | "recurring";
 
@@ -432,7 +433,12 @@ function Recurring({
 }) {
   const [schedule, setSchedule] = useState("");
   const [items, setItems] = useState("");
-  const [editing, setEditing] = useState<number | null>(null);
+  // the open row and the rule as it was when Edit was tapped: a reload
+  // under the open editor must not turn the index into another rule's
+  const [editing, setEditing] = useState<{
+    index: number;
+    original: RecurringRule;
+  } | null>(null);
   const [draft, setDraft] = useState<{
     schedule: string;
     description: string;
@@ -470,7 +476,11 @@ function Recurring({
                 <span className="flex shrink-0 gap-3">
                   <button
                     onClick={() => {
-                      setEditing(editing === index ? null : index);
+                      setEditing(
+                        editing?.index === index
+                          ? null
+                          : { index, original: ruleOf(rule) },
+                      );
                       setDraft({
                         schedule: rule.schedule,
                         description: rule.description,
@@ -487,7 +497,11 @@ function Recurring({
                   <button
                     onClick={() =>
                       void act(() =>
-                        invoke("recurring_edit", { index, replacement: null }),
+                        invoke("recurring_edit", {
+                          index,
+                          original: ruleOf(rule),
+                          replacement: null,
+                        }),
                       )
                     }
                     className="text-sm text-danger"
@@ -497,7 +511,7 @@ function Recurring({
                 </span>
               )}
             </div>
-            {editing === index && (
+            {editing?.index === index && (
               <div className="mt-2 flex flex-col gap-2">
                 <input
                   value={draft.schedule}
@@ -540,7 +554,11 @@ function Recurring({
                         : { threshold: draft.threshold }),
                     };
                     void act(() =>
-                      invoke("recurring_edit", { index, replacement }),
+                      invoke("recurring_edit", {
+                        index,
+                        original: editing.original,
+                        replacement,
+                      }),
                     ).then(() => setEditing(null));
                   }}
                   className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"

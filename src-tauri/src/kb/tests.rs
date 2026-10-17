@@ -346,3 +346,23 @@ fn renaming_a_dotted_folder_does_not_keep_its_suffix() {
     assert!(root.join("proj").is_dir());
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn trash_cleanup_leaves_entries_it_did_not_put_there() {
+    let root = root("trash-foreign");
+    let trash = root.join(".trash");
+    // another app's trash (Obsidian uses the same folder): digit-led
+    // names sort below the app's own timestamps
+    fs::create_dir_all(trash.join("2024 Projects")).unwrap();
+    fs::write(trash.join("2024 Projects").join("plan.md"), "plan").unwrap();
+    fs::write(trash.join("2024-01-15.md"), "a daily note").unwrap();
+    fs::write(trash.join("Ideas.md"), "letter-led").unwrap();
+    // the app's own entry from long ago is still pruned
+    fs::write(trash.join("20200101-120000-old.md"), "old").unwrap();
+    fs::write(root.join("note.md"), "x").unwrap();
+    delete(&root, "note.md").unwrap();
+    assert!(trash.join("2024-01-15.md").exists());
+    assert!(trash.join("2024 Projects").join("plan.md").exists());
+    assert!(trash.join("Ideas.md").exists());
+    assert!(!trash.join("20200101-120000-old.md").exists());
+}

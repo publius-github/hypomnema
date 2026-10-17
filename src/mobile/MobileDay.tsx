@@ -39,7 +39,10 @@ export default function MobileDay() {
   const submit = () => {
     const trimmed = title.trim();
     if (!trimmed) return;
-    void createTask({ title: trimmed, scheduled_date: date });
+    // a refused add gives the text back unless something new was typed
+    void createTask({ title: trimmed, scheduled_date: date }).then((ok) => {
+      if (!ok) setTitle((now) => now || trimmed);
+    });
     setTitle("");
   };
 

@@ -81,7 +81,9 @@ export default function Journal() {
   const openEntry = useCallback(
     async (date: string) => {
       const seq = ++openSeq.current;
-      await flushPending();
+      // an entry whose save failed would be lost to the first keystroke
+      // in the next one: stay on it (the error and Retry are showing)
+      if (!(await flushPending())) return;
       try {
         const entry = await invoke(
           "journal_open",

@@ -47,11 +47,13 @@ export default function QuickAddModal({ onClose }: { onClose: () => void }) {
   const submit = () => {
     const text = title.trim();
     if (!text) return;
-    if (target.startsWith("day:")) {
-      void createTask({ title: text, scheduled_date: target.slice(4) });
-    } else {
-      void createTask({ title: text, list_id: Number(target.slice(5)) });
-    }
+    const created = target.startsWith("day:")
+      ? createTask({ title: text, scheduled_date: target.slice(4) })
+      : createTask({ title: text, list_id: Number(target.slice(5)) });
+    // a refused add gives the text back unless something new was typed
+    void created.then((ok) => {
+      if (!ok) setTitle((now) => now || text);
+    });
     setTitle("");
     inputRef.current?.focus();
   };

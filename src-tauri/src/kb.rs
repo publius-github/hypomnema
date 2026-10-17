@@ -759,6 +759,16 @@ pub fn delete(root: &Path, rel: &str) -> Result<()> {
     Ok(())
 }
 
+/// `YYYYMMDD-HHMMSS-` - the prefix `delete` gives every trash entry.
+fn is_trash_stamped(name: &str) -> bool {
+    let b = name.as_bytes();
+    b.len() > 16
+        && b[..16].iter().enumerate().all(|(i, c)| match i {
+            8 | 15 => *c == b'-',
+            _ => c.is_ascii_digit(),
+        })
+}
+
 /// Best effort: trash cleanup must never fail the delete itself.
 fn prune_trash(trash: &Path) {
     let cutoff = (chrono::Local::now() - chrono::Duration::days(30))
@@ -769,6 +779,11 @@ fn prune_trash(trash: &Path) {
     };
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
+        // only what `delete` put here: another app sharing the folder
+        // (Obsidian's .trash) keeps its own entries, whatever they are named
+        if !is_trash_stamped(&name) {
+            continue;
+        }
         // names start with the timestamp, so a string compare orders them
         if name.as_str() < cutoff.as_str() {
             let path = entry.path();

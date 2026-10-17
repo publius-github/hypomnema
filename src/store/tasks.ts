@@ -28,7 +28,9 @@ export interface TasksSlice {
   habitRates: Record<string, HabitRate>;
   loadHabitRates: () => Promise<void>;
   refresh: () => Promise<void>;
-  createTask: (task: NewTask) => Promise<void>;
+  /// resolves false when the core refused (the banner says why), so a
+  /// quick-add field keeps what was typed
+  createTask: (task: NewTask) => Promise<boolean>;
   updateTask: (id: number, patch: TaskPatch) => Promise<void>;
   /// drag-to-reorder inside a list column; dropping onto a task of a
   /// different list moves the task there instead
@@ -68,6 +70,23 @@ export interface TasksSlice {
 
 let refreshSeq = 0;
 const taskUpdateSeq = new Map<number, number>();
+
+/** A task the core sent to the inbox (`home_listless`: no day and no
+ *  list would show it nowhere) may name a list created just then; fetch
+ *  the lists so its column appears with it. */
+export async function knowLists(
+  get: () => AppState,
+  set: (partial: Partial<AppState>) => void,
+  tasks: Task[],
+) {
+  const known = new Set(get().lists.map((l) => l.id));
+  if (tasks.every((t) => t.list_id === null || known.has(t.list_id))) return;
+  try {
+    set({ lists: await invoke("lists_all") });
+  } catch (e) {
+    warn("lists reload", e);
+  }
+}
 
 export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
   set,
@@ -137,8 +156,11 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
     try {
       const created = await invoke("task_create", { new: task });
       set((s) => ({ tasks: [...s.tasks, created] }));
+      await knowLists(get, set, [created]);
+      return true;
     } catch (e) {
       set({ error: errorMessage(e) });
+      return false;
     }
   },
 
@@ -160,6 +182,7 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
       set((s) => ({
         tasks: s.tasks.map((t) => (t.id === id ? updated : t)),
       }));
+      await knowLists(get, set, [updated]);
       // a status change on a recurring instance moves its rule's rate
       if (updated.origin === "recurring" && "status" in patch) {
         void get().loadHabitRates();

@@ -24,8 +24,12 @@ export default function QuickAdd({ target }: { target: Partial<NewTask> }) {
         e.preventDefault();
         // Enter submits and keeps the input focused for the next task;
         // Escape or clicking elsewhere ends the streak
-        if (title.trim()) {
-          void createTask({ title: title.trim(), ...target });
+        const text = title.trim();
+        if (text) {
+          // a refused add gives the text back unless something new was typed
+          void createTask({ title: text, ...target }).then((ok) => {
+            if (!ok) setTitle((now) => now || text);
+          });
           setTitle("");
         } else {
           setTitle("");
@@ -41,9 +45,15 @@ export default function QuickAdd({ target }: { target: Partial<NewTask> }) {
         autoFocus
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => {
-          // a click elsewhere mid-typing must not discard the text
-          if (title.trim()) {
-            void createTask({ title: title.trim(), ...target });
+          // a click elsewhere mid-typing must not discard the text -
+          // nor may a refused add: the field reopens holding it
+          const text = title.trim();
+          if (text) {
+            void createTask({ title: text, ...target }).then((ok) => {
+              if (ok) return;
+              setTitle(text);
+              setOpen(true);
+            });
           }
           setTitle("");
           setOpen(false);

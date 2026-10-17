@@ -769,6 +769,30 @@ pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
     task_get(conn, id)
 }
 
+/// A manual task with neither a day nor a list shows in no view - no
+/// day column, no list column, no mirror file; only search would find
+/// it. Clearing the date of a day task that has no list, picking "No
+/// list" for an undated one, or an Undo whose list is gone would leave
+/// it there, so such a task goes to the inbox (`ensure_inbox`, the
+/// quick-capture list) instead. Subtasks carry neither on purpose and
+/// are left alone. Returns the task as it now stands.
+pub fn home_listless(conn: &Connection, id: i64, inbox_name: &str) -> Result<Task> {
+    let task = task_get(conn, id)?;
+    let stranded = task.origin == "manual"
+        && task.parent_task_id.is_none()
+        && task.list_id.is_none()
+        && task.scheduled_date.is_none();
+    if !stranded {
+        return Ok(task);
+    }
+    let inbox = ensure_inbox(conn, inbox_name)?;
+    conn.execute(
+        "UPDATE tasks SET list_id = ?1 WHERE id = ?2",
+        (inbox.id, id),
+    )?;
+    task_get(conn, id)
+}
+
 /// Every status a task can hold. `todo`, `postponed` and `waiting` (done
 /// on the user's side, still waiting on someone else) are open: carried
 /// over, listed as upcoming. `done` and `dropped` (not done, taken off

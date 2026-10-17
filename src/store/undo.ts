@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import { errorMessage, invoke } from "../lib/ipc";
 import type { DeletedTasks } from "../types";
 import type { AppState } from "../store";
+import { knowLists } from "./tasks";
 
 export type UndoEntry =
   | { kind: "task"; label: string; deleted: DeletedTasks }
@@ -55,6 +56,8 @@ export const createUndoSlice: StateCreator<AppState, [], [], UndoSlice> = (
         });
         if (restored.length > 0) {
           set((s) => ({ tasks: [...s.tasks, ...restored] }));
+          // a task whose list is gone comes back in the inbox
+          await knowLists(get, set, restored);
         } else {
           // the engine regenerated the instance meanwhile; the card is
           // already back, just make sure we show the current state

@@ -114,6 +114,16 @@ export default function MobileCalendar() {
   );
   const dayProjections = outlook.filter((event) => event.date === selected);
 
+  const add = () => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    // a refused add gives the text back unless something new was typed
+    void createTask({ title: trimmed, scheduled_date: selected }).then((ok) => {
+      if (!ok) setTitle((now) => now || trimmed);
+    });
+    setTitle("");
+  };
+
   const cells: (string | null)[] = [
     ...Array<null>(weekdayIndex(first)).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) =>
@@ -227,22 +237,13 @@ export default function MobileCalendar() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key !== "Enter") return;
-            const trimmed = title.trim();
-            if (!trimmed) return;
-            void createTask({ title: trimmed, scheduled_date: selected });
-            setTitle("");
+            if (e.key === "Enter") add();
           }}
           placeholder={`New task on ${selected}`}
           className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
         />
         <button
-          onClick={() => {
-            const trimmed = title.trim();
-            if (!trimmed) return;
-            void createTask({ title: trimmed, scheduled_date: selected });
-            setTitle("");
-          }}
+          onClick={add}
           className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
         >
           Add

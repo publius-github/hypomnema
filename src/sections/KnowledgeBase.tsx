@@ -167,7 +167,9 @@ export default function KnowledgeBase() {
 
   const openFile = async (path: string) => {
     const seq = ++openSeq.current;
-    await flushPending();
+    // an edit whose save failed would be lost to the first keystroke in
+    // the next note: stay on it (the error and Retry are showing)
+    if (!(await flushPending())) return;
     try {
       const content = await invoke("kb_read", { path });
       if (seq !== openSeq.current) return;
@@ -183,7 +185,7 @@ export default function KnowledgeBase() {
 
   const openConfig = async (file: string) => {
     const seq = ++openSeq.current;
-    await flushPending();
+    if (!(await flushPending())) return;
     try {
       const content = await invoke("config_file_get", { file });
       if (seq !== openSeq.current) return;

@@ -146,7 +146,10 @@ pub(crate) async fn task_create(
     state: State<'_, AppState>,
     new: tasks::NewTask,
 ) -> Result<tasks::Task> {
-    let task = with_conn(&state, |conn| tasks::task_create(conn, &new))?;
+    let task = with_vault(&state, |vault| {
+        let task = tasks::task_create(&vault.conn, &new)?;
+        tasks::home_listless(&vault.conn, task.id, &vault.config.capture_list)
+    })?;
     state.request_export();
     Ok(task)
 }
@@ -199,7 +202,10 @@ pub(crate) async fn task_update(
     id: i64,
     patch: tasks::TaskPatch,
 ) -> Result<tasks::Task> {
-    let task = with_conn(&state, |conn| tasks::task_update(conn, id, &patch))?;
+    let task = with_vault(&state, |vault| {
+        tasks::task_update(&vault.conn, id, &patch)?;
+        tasks::home_listless(&vault.conn, id, &vault.config.capture_list)
+    })?;
     state.request_export();
     Ok(task)
 }
@@ -219,7 +225,12 @@ pub(crate) async fn task_restore(
     state: State<'_, AppState>,
     deleted: tasks::DeletedTasks,
 ) -> Result<Vec<tasks::Task>> {
-    let restored = with_conn(&state, |conn| tasks::task_restore(conn, &deleted))?;
+    let restored = with_vault(&state, |vault| {
+        tasks::task_restore(&vault.conn, &deleted)?
+            .into_iter()
+            .map(|task| tasks::home_listless(&vault.conn, task.id, &vault.config.capture_list))
+            .collect()
+    })?;
     state.request_export();
     Ok(restored)
 }

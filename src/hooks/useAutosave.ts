@@ -14,8 +14,10 @@ export interface Autosave<T> {
   schedule: (item: T) => void;
   /** saves the edit still in the debounce now (switching documents,
    *  leaving, Retry); awaited before a read so it never sees the
-   *  pre-save file */
-  flush: () => Promise<void>;
+   *  pre-save file. False while an edit stays unsaved after a failed
+   *  save: a caller about to show another document must stay put, or
+   *  the next keystroke there would replace the unsaved edit */
+  flush: () => Promise<boolean>;
   /** forgets the waiting edit when `match` says it is the one (a rename
    *  or delete of its file - saving it afterwards would recreate it) */
   drop: (match: (item: T) => boolean) => void;
@@ -48,6 +50,8 @@ export function useAutosave<T>(
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<{ item: T; gen: number } | null>(null);
   const editGen = useRef(0);
+  // the last save that ran failed, and what it carried is still waiting
+  const failed = useRef(false);
   const queueSave = useRef(serialSaves()).current;
   const saveRef = useRef(save);
   saveRef.current = save;
@@ -64,20 +68,25 @@ export function useAutosave<T>(
   const flush = useCallback(async () => {
     clearTimer();
     const job = pending.current;
-    if (!job) return;
     pending.current = null;
+    // with nothing new to save this still waits out a save in flight,
+    // so the answer covers it too
     await queueSave(async () => {
+      if (!job) return;
       try {
         const written = await saveRef.current(job.item);
+        failed.current = false;
         if (written !== false && job.gen === editGen.current) {
           setSaveState("saved");
         }
       } catch (e) {
+        failed.current = true;
         if (!pending.current) pending.current = job;
         if (job.gen === editGen.current) setSaveState("failed");
         onErrorRef.current(e);
       }
     });
+    return !failed.current;
   }, [queueSave]);
 
   const schedule = useCallback(
@@ -94,6 +103,8 @@ export function useAutosave<T>(
     if (!pending.current || !match(pending.current.item)) return;
     clearTimer();
     pending.current = null;
+    // the failed edit is gone with its file: nothing left to hold on to
+    failed.current = false;
   }, []);
 
   const loaded = useCallback(() => {

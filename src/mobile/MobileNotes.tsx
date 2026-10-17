@@ -456,7 +456,11 @@ function NoteEditor({
     if (!target) return;
     const to = target;
     void flush()
-      .then(() => invoke("kb_rename", { from: note.path, to }))
+      .then((saved) => {
+        // a failed save stays under the old name, retried from here
+        if (!saved) throw new Error("the note could not be saved - retry before renaming");
+        return invoke("kb_rename", { from: note.path, to });
+      })
       .then(() => onOpen(to))
       .catch((e) => setError(errorMessage(e)));
   };
@@ -473,7 +477,8 @@ function NoteEditor({
     <div className="flex h-full flex-col">
       <header className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-3">
         <button
-          onClick={() => void flush().then(onClose)}
+          // leaving drops the editor and with it a failed, unsaved edit
+          onClick={() => void flush().then((saved) => saved && onClose())}
           className="px-2 py-1 text-content-muted"
         >
           ‹ Back

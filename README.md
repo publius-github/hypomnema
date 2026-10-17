@@ -95,6 +95,7 @@ Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-rem
 
 - **Something failed or looks wrong** - About > *Copy diagnostics* puts the app version, the platform and the end of the diagnostic log on the clipboard; read it, remove anything private, and paste it into a [bug report](https://github.com/publius-github/app-hypomnema/issues/new?template=bug_report.yml) (About > *Report a problem* opens the form). The app never sends the log anywhere by itself.
 - **Where the log is** - `%APPDATA%\com.hypomnema.app\hypomnema.log` on Windows (About > *Show log file*); it rotates to `hypomnema.log.1` at `log_max_kb` (app.yml, 1 MiB by default).
+- **A task with no day and no list** - goes to the quick-capture list (Inbox by default) rather than out of sight, for example when you clear the date of a task added under a day.
 - **Tasks or lists went missing** - Settings > Data > Backups restores a daily database snapshot; the database being replaced is copied aside first, so a restore can itself be undone. Before an app update changes the database format, a `before upgrade` snapshot is taken as well.
 - **A config edit broke something** - the same list restores the copies of config files the app took before rewriting them.
 - **A `(conflicted copy ...)` file appeared** - two devices changed the same lines before syncing; Settings > Sync shows both versions side by side and keeps the one you pick.
@@ -106,7 +107,7 @@ Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-rem
 - Your edits and statuses are never overwritten: regeneration only creates what is missing. Deleting an instance a later firing has already replaced removes it for good; deleting the rule's current one (today's, or the latest still-due weekly or monthly firing) brings it back on the next run - to stop a rule, edit or remove it in its file.
 - Overdue open tasks move to today marked overdue (at most one open copy per rule); daily tasks never count as overdue.
 - Missed occurrences within the catch-up window collapse into one (a week away gives one task, not seven).
-- Removing a rule removes its future and today's open instances; completed ones stay in history. Completed tasks are cleaned up by the retention setting.
+- Removing a rule removes all of its tasks, completed ones from past days included, so History, streaks and completion rates start over for it; only a task already done today stays. A rule is identified by its schedule, description and item text, so changing any of them counts as removing the old rule and adding a new one (the rule editor says so); the alert threshold can change freely. Completed tasks are otherwise cleaned up by the retention setting.
 
 ## Building and releasing
 

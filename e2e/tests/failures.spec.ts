@@ -37,3 +37,31 @@ test("a wiped remote offers to upload the vault again, and that goes through", a
   );
   expect(resets).toBe(1);
 });
+
+test("a refused quick add keeps what was typed", async ({ app }) => {
+  const page = await app("fail=task_create:db");
+  await page.getByRole("button", { name: "+ Add task" }).first().click();
+  const field = page.getByPlaceholder("Task title, or {Category} title");
+  await field.fill("Call the bank");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("e2e: task_create refused (db)")).toBeVisible();
+  await expect(field).toHaveValue("Call the bank");
+});
+
+test("a journal entry whose save keeps failing is not left for another day", async ({ app }) => {
+  const page = await app("fail=journal_save:io:2");
+  await rail(page, "Journal").click();
+  await page.locator(".cm-content").click();
+  await page.keyboard.type("Not lost.");
+  await expect(page.getByText("e2e: journal_save refused (io)").first()).toBeVisible();
+  // the switch tries the save again, it fails again: the entry stays
+  await page.getByTitle("Previous day (Alt+←)").click();
+  await expect(page.locator(".cm-content")).toContainText("Not lost.");
+  await expect(page.locator(".cm-content")).not.toContainText("Shipped the first public build.");
+
+  // the third try goes through, and then the day changes
+  await page.getByTitle("Previous day (Alt+←)").click();
+  await expect(page.locator(".cm-content")).toContainText("Shipped the first public build.");
+  await page.getByTitle("Next day (Alt+→)").click();
+  await expect(page.locator(".cm-content")).toContainText("Not lost.");
+});

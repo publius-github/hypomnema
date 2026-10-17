@@ -77,6 +77,16 @@ pub(crate) fn with_conn<T>(
     f(&vault.conn)
 }
 
+/// `with_conn` for work that also needs the vault's settings.
+pub(crate) fn with_vault<T>(
+    state: &State<'_, AppState>,
+    f: impl FnOnce(&Vault) -> Result<T>,
+) -> Result<T> {
+    let guard = state.vault.lock_or_recover();
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
+    f(vault)
+}
+
 pub(crate) fn with_vault_root<T>(
     state: &State<'_, AppState>,
     f: impl FnOnce(&Path) -> Result<T>,

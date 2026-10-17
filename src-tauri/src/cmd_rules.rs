@@ -46,12 +46,13 @@ pub(crate) async fn birthday_add(
 pub(crate) async fn recurring_edit(
     state: State<'_, AppState>,
     index: usize,
+    original: config_files::RecurringRule,
     replacement: Option<config_files::RecurringRule>,
 ) -> Result<()> {
     backup_config(&state, "recurring.yml");
     let guard = state.vault.lock_or_recover();
     let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    config_files::edit_recurring(&vault.config_dir(), index, replacement)
+    config_files::edit_recurring(&vault.config_dir(), index, &original, replacement)
 }
 
 #[tauri::command]
@@ -103,12 +104,13 @@ pub(crate) async fn focus_phrase_add(state: State<'_, AppState>, phrase: String)
 pub(crate) async fn focus_phrase_edit(
     state: State<'_, AppState>,
     index: usize,
+    original: String,
     replacement: Option<String>,
 ) -> Result<()> {
     backup_config(&state, "weekly-focus.yml");
     let guard = state.vault.lock_or_recover();
     let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    config_files::edit_focus_phrase(&vault.config_dir(), index, replacement)
+    config_files::edit_focus_phrase(&vault.config_dir(), index, &original, replacement)
 }
 
 #[tauri::command]
@@ -126,12 +128,13 @@ pub(crate) async fn day_reminder_add(
 pub(crate) async fn day_reminder_edit(
     state: State<'_, AppState>,
     index: usize,
+    original: reminders::DayReminder,
     replacement: Option<reminders::DayReminder>,
 ) -> Result<()> {
     backup_config(&state, "day-reminders.yml");
     let guard = state.vault.lock_or_recover();
     let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    config_files::edit_day_reminder(&vault.config_dir(), index, replacement)
+    config_files::edit_day_reminder(&vault.config_dir(), index, &original, replacement)
 }
 
 #[tauri::command]
@@ -149,12 +152,13 @@ pub(crate) async fn schedule_block_add(
 pub(crate) async fn schedule_block_edit(
     state: State<'_, AppState>,
     index: usize,
+    original: reminders::ScheduleBlock,
     replacement: Option<reminders::ScheduleBlock>,
 ) -> Result<()> {
     backup_config(&state, "day-schedule.yml");
     let guard = state.vault.lock_or_recover();
     let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    config_files::edit_schedule_block(&vault.config_dir(), index, replacement)
+    config_files::edit_schedule_block(&vault.config_dir(), index, &original, replacement)
 }
 
 pub(crate) const EDITABLE_CONFIG_FILES: &[&str] = &[

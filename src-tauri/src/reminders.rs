@@ -42,7 +42,7 @@ pub(crate) struct DayScheduleFile {
 /// the current block. chrono parses it happily, so normalize the pair
 /// on the way out of the file; a time that is not a clock time at all
 /// is left as written and surfaces as an invalid block.
-fn normalized_blocks(file: DayScheduleFile) -> Vec<ScheduleBlock> {
+pub(crate) fn normalized_blocks(file: DayScheduleFile) -> Vec<ScheduleBlock> {
     let pad = |value: &str| {
         chrono::NaiveTime::parse_from_str(value, "%H:%M")
             .map(|t| t.format("%H:%M").to_string())

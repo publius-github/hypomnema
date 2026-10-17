@@ -5,6 +5,7 @@ import { DeleteRowButton, EditFormButtons } from "../components/rowForms";
 import { ConfirmModal } from "../components/dialogs";
 import type { ConfigError, RecurringRule, RecurringRuleView } from "../types";
 import { pressable } from "../lib/a11y";
+import { RULE_HISTORY_NOTE, ruleOf } from "../lib/rules";
 
 const WEEKDAYS = [
   { cron: 1, label: "Mon" },
@@ -26,8 +27,11 @@ export default function Recurring() {
   );
   const [rules, setRules] = useState<RecurringRuleView[]>([]);
   const [fileErrors, setFileErrors] = useState<ConfigError[]>([]);
-  const [editing, setEditing] = useState<number | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  // the row being edited or deleted, with the rule as it was when the
+  // editor opened: a reload under an open editor (sync, an edit in
+  // Notes) must not turn the index into another rule's
+  const [editing, setEditing] = useState<RowRef | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<RowRef | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -51,19 +55,22 @@ export default function Recurring() {
     await load();
   };
 
-  const remove = async (index: number) => {
+  const remove = async ({ index, original }: RowRef) => {
     setConfirmDelete(null);
     try {
-      await invoke("recurring_edit", { index, replacement: null });
+      await invoke("recurring_edit", { index, original, replacement: null });
       await afterWrite();
     } catch (e) {
       setError(e);
     }
   };
 
-  const save = async (index: number, replacement: RecurringRule) => {
+  const save = async (
+    { index, original }: RowRef,
+    replacement: RecurringRule,
+  ) => {
     try {
-      await invoke("recurring_edit", { index, replacement });
+      await invoke("recurring_edit", { index, original, replacement });
       setEditing(null);
       await afterWrite();
     } catch (e) {
@@ -104,12 +111,13 @@ export default function Recurring() {
           // root rules come first, so i is also the index inside
           // recurring.yml; pack rules are edited in their own file
           const editable = rule.source === "recurring.yml";
-          return editing === i ? (
+          const open = () => setEditing({ index: i, original: ruleOf(rule) });
+          return editing?.index === i ? (
             <RuleEditForm
               key={`edit-${i}`}
-              rule={rule}
+              rule={editing.original}
               onCancel={() => setEditing(null)}
-              onSave={(replacement) => void save(i, replacement)}
+              onSave={(replacement) => void save(editing, replacement)}
             />
           ) : (
             <div
@@ -121,7 +129,7 @@ export default function Recurring() {
                 editable ? "Click to edit" : `Read-only: from ${rule.source}`
               }
               role="presentation"
-              onClick={() => editable && setEditing(i)}
+              onClick={() => editable && open()}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3 text-sm">
@@ -131,7 +139,7 @@ export default function Recurring() {
                   <span
                     className="min-w-0 flex-1 truncate font-medium"
                     {...(editable
-                      ? pressable(() => setEditing(i), { click: false })
+                      ? pressable(open, { click: false })
                       : {})}
                   >
                     {rule.description || "(no description)"}
@@ -160,7 +168,7 @@ export default function Recurring() {
                 <DeleteRowButton
                   onDelete={(e) => {
                     e.stopPropagation();
-                    setConfirmDelete(i);
+                    setConfirmDelete({ index: i, original: ruleOf(rule) });
                   }}
                 />
               )}
@@ -168,19 +176,24 @@ export default function Recurring() {
           );
         })}
       </div>
-      {confirmDelete !== null && rules[confirmDelete] && (
+      {confirmDelete !== null && (
         <ConfirmModal
           title={`Delete rule "${
-            rules[confirmDelete].description ||
-            rules[confirmDelete].schedule
+            confirmDelete.original.description ||
+            confirmDelete.original.schedule
           }"?`}
-          message="Its not-yet-reached task instances are removed from the grid; today's and past instances stay."
+          message={RULE_HISTORY_NOTE}
           onConfirm={() => void remove(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
         />
       )}
     </div>
   );
+}
+
+interface RowRef {
+  index: number;
+  original: RecurringRule;
 }
 
 type Frequency = "daily" | "weekly" | "monthly";
@@ -442,6 +455,11 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
         value={items}
         onChange={(e) => setItems(e.target.value)}
       />
+      <p className="text-xs text-content-muted">
+        Changing the schedule, the description or an item text starts that
+        item over: its completed tasks from past days are removed. The alert
+        threshold can change freely.
+      </p>
       <div className="flex items-center justify-between gap-2">
         <ThresholdInput value={threshold} onChange={setThreshold} />
         <button className="btn-primary">Add rule</button>
@@ -455,7 +473,7 @@ function RuleEditForm({
   onSave,
   onCancel,
 }: {
-  rule: RecurringRuleView;
+  rule: RecurringRule;
   onSave: (replacement: RecurringRule) => void;
   onCancel: () => void;
 }) {

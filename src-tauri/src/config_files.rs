@@ -12,7 +12,7 @@ use croner::Cron;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::error::Result;
+use crate::error::{IoContext, Result};
 use crate::reminders::{DayReminder, ScheduleBlock};
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -30,7 +30,7 @@ pub(crate) struct RecurringFile {
     pub(crate) tasks: Vec<RecurringRule>,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
 pub struct RecurringRule {
     pub schedule: String,
@@ -332,7 +332,14 @@ fn splice_item<T: serde::Serialize>(
     check: impl Fn(&str) -> Option<String>,
 ) -> Result<()> {
     let path = config_dir.join(file);
-    let mut raw = fs::read_to_string(&path).unwrap_or_default();
+    // Only a missing file starts empty. Anything else that stops the read
+    // (a lock, bytes that are not UTF-8) must not be taken for "no rules
+    // yet": the splice would write the new item over everything there.
+    let mut raw = match fs::read_to_string(&path) {
+        Ok(raw) => raw,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e).at(&path),
+    };
     if raw.trim().is_empty() {
         raw = format!("{key}:\n");
     }
@@ -470,28 +477,51 @@ pub fn append_birthday(config_dir: &Path, entry: BirthdayEntry) -> Result<()> {
     )
 }
 
+/// Loads a file an edit is about to splice into; a file that does not
+/// parse is refused rather than spliced blind.
+fn load_for_edit<T: serde::de::DeserializeOwned + Default>(
+    config_dir: &Path,
+    file: &str,
+) -> Result<T> {
+    let mut errors = Vec::new();
+    load_yaml::<T>(config_dir, file, &mut errors).ok_or_else(|| {
+        crate::error::Error::State(format!(
+            "{file} is invalid, fix it before editing it here: {}",
+            errors.first().map(|e| e.message.as_str()).unwrap_or("")
+        ))
+    })
+}
+
+/// An index edit lands only on the item the editor was opened on: the
+/// file can change under an open editor (a sync pass, an edit in Notes),
+/// and a bare index would then overwrite or delete a different item.
+fn ensure_unchanged<T: PartialEq>(
+    items: &[T],
+    index: usize,
+    original: &T,
+    file: &str,
+) -> Result<()> {
+    if items.get(index) == Some(original) {
+        return Ok(());
+    }
+    Err(crate::error::Error::State(format!(
+        "{file} changed since this item was opened (item {} is no longer the one being edited); \
+         nothing was written - reopen it and try again",
+        index + 1
+    )))
+}
+
 /// Replaces (or, with `None`, removes) the rule at `index` in file
-/// order; the Recurring view lists rules unfiltered, so the index is
-/// stable.
+/// order, provided it is still `original`; the Recurring view lists
+/// rules unfiltered, so the index is file order.
 pub fn edit_recurring(
     config_dir: &Path,
     index: usize,
+    original: &RecurringRule,
     replacement: Option<RecurringRule>,
 ) -> Result<()> {
-    let mut errors = Vec::new();
-    let file =
-        load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors).ok_or_else(|| {
-            crate::error::Error::State(format!(
-                "recurring.yml is invalid, fix it before editing rules: {}",
-                errors.first().map(|e| e.message.as_str()).unwrap_or("")
-            ))
-        })?;
-    if index >= file.tasks.len() {
-        return Err(crate::error::Error::State(format!(
-            "rule {} not found in recurring.yml (edited externally?)",
-            index + 1
-        )));
-    }
+    let file = load_for_edit::<RecurringFile>(config_dir, "recurring.yml")?;
+    ensure_unchanged(&file.tasks, index, original, "recurring.yml")?;
     match replacement {
         Some(mut rule) => {
             Cron::new(&rule.schedule).parse().map_err(|e| {
@@ -700,8 +730,16 @@ pub fn append_focus_phrase(config_dir: &Path, phrase: String) -> Result<()> {
 pub fn edit_focus_phrase(
     config_dir: &Path,
     index: usize,
+    original: &str,
     replacement: Option<String>,
 ) -> Result<()> {
+    let file = load_for_edit::<crate::reminders::WeeklyFocusFile>(config_dir, "weekly-focus.yml")?;
+    ensure_unchanged(
+        &file.phrases,
+        index,
+        &original.to_string(),
+        "weekly-focus.yml",
+    )?;
     match replacement {
         Some(phrase) => {
             let phrase = phrase.trim().to_string();
@@ -743,8 +781,12 @@ pub fn append_day_reminder(config_dir: &Path, entry: DayReminder) -> Result<()> 
 pub fn edit_day_reminder(
     config_dir: &Path,
     index: usize,
+    original: &DayReminder,
     replacement: Option<DayReminder>,
 ) -> Result<()> {
+    let file =
+        load_for_edit::<crate::reminders::DayRemindersFile>(config_dir, "day-reminders.yml")?;
+    ensure_unchanged(&file.reminders, index, original, "day-reminders.yml")?;
     match replacement {
         Some(entry) => {
             validate_reminder(&entry)?;
@@ -783,8 +825,14 @@ pub fn append_schedule_block(config_dir: &Path, mut block: ScheduleBlock) -> Res
 pub fn edit_schedule_block(
     config_dir: &Path,
     index: usize,
+    original: &ScheduleBlock,
     replacement: Option<ScheduleBlock>,
 ) -> Result<()> {
+    // the Reminders view shows the blocks zero-padded, so compare the
+    // file's blocks the way the view saw them
+    let file = load_for_edit::<crate::reminders::DayScheduleFile>(config_dir, "day-schedule.yml")?;
+    let blocks = crate::reminders::normalized_blocks(file);
+    ensure_unchanged(&blocks, index, original, "day-schedule.yml")?;
     match replacement {
         Some(mut block) => {
             validate_block(&mut block)?;

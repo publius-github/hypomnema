@@ -119,7 +119,10 @@ export default function ListModal({
   const addTask = () => {
     const title = newTitle.trim();
     if (!title) return;
-    void createTask({ title, list_id: list.id });
+    // a refused add gives the text back unless something new was typed
+    void createTask({ title, list_id: list.id }).then((ok) => {
+      if (!ok) setNewTitle((now) => now || title);
+    });
     setNewTitle("");
   };
 

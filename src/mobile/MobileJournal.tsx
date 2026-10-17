@@ -80,7 +80,12 @@ export default function MobileJournal() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await flush();
+      if (!(await flush())) {
+        // the shown entry's save failed: going to another day would let
+        // the next keystroke there replace it - stay on it
+        if (!cancelled && loadedDate.current) setDate(loadedDate.current);
+        return;
+      }
       try {
         const entry = await invoke(
           "journal_open",

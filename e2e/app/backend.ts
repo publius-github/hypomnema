@@ -9,9 +9,10 @@
 // What it does not do is the core's business logic: no task
 // generation, carry-over or sync. Those are covered by the Rust tests;
 // this suite covers what the window does with the answers - the
-// refusals included: `?fail=<command>:<kind>,...` makes each listed
-// command's first call reject the way the core does (`{ kind, message }`,
-// error.rs `Wire`), so a retry goes through; `?configerror` reports a
+// refusals included: `?fail=<command>:<kind>[:<times>],...` makes each
+// listed command's first call (or first <times> calls) reject the way the
+// core does (`{ kind, message }`, error.rs `Wire`), so a retry after that
+// goes through; `?configerror` reports a
 // broken config file from every engine pass; `?signedin` is a desktop
 // signed in to Google.
 
@@ -146,6 +147,25 @@ function findList(id: unknown): List {
   return list;
 }
 
+/** The core's `home_listless`: a manual task left with no day and no
+ *  list would show nowhere, so it goes to the inbox (created, or an
+ *  auto list of that name promoted, like `ensure_inbox`). */
+function homeListless(task: Task): Task {
+  if (task.origin !== "manual" || task.parent_task_id !== null) return task;
+  if (task.list_id !== null || task.scheduled_date !== null) return task;
+  const name = state.config.capture_list;
+  let inbox = state.lists.find(
+    (l) => !l.archived && l.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (!inbox) {
+    inbox = makeList(name);
+    state.lists.push(inbox);
+  }
+  Object.assign(inbox, { auto: false, favorite: true });
+  task.list_id = inbox.id;
+  return task;
+}
+
 function kbTree(): KbNode[] {
   return [...state.notes.keys()].sort().map((path) => ({
     name: path,
@@ -157,13 +177,14 @@ function kbTree(): KbNode[] {
 
 const noErrors = { errors: [] };
 
-/** `?fail=` as command -> the error kind its first call rejects with. */
+/** `?fail=` as command -> the error kind its calls reject with, and how
+ *  many of them still will. */
 const failures = new Map(
   (params.get("fail") ?? "")
     .split(",")
     .filter(Boolean)
-    .map((entry) => entry.split(":") as [string, string?])
-    .map(([cmd, kind]) => [cmd, kind ?? "state"]),
+    .map((entry) => entry.split(":") as [string, string?, string?])
+    .map(([cmd, kind, times]) => [cmd, { kind: kind ?? "state", left: Number(times ?? 1) }]),
 );
 
 const configErrors = params.has("configerror")
@@ -217,7 +238,7 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
   },
   task_get: (a) => findTask(a.id),
   task_create: (a) => {
-    const task = makeTask(a.new as NewTask);
+    const task = homeListless(makeTask(a.new as NewTask));
     state.tasks.push(task);
     return task;
   },
@@ -228,7 +249,7 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
     if (patch.status) {
       task.completed_at = patch.status === "done" ? new Date().toISOString() : null;
     }
-    return task;
+    return homeListless(task);
   },
   task_delete: (a) => {
     const removed = state.tasks.filter((t) => t.id === a.id || t.parent_task_id === a.id);
@@ -236,7 +257,11 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
     return { tasks: removed, rule_run: null };
   },
   task_restore: (a) => {
-    const back = (a.deleted as { tasks: Task[] }).tasks;
+    const back = (a.deleted as { tasks: Task[] }).tasks.map((t) => {
+      // a list gone meanwhile is cleared, as the core does
+      const listGone = t.list_id !== null && !state.lists.some((l) => l.id === t.list_id);
+      return homeListless(listGone ? { ...t, list_id: null } : t);
+    });
     state.tasks.push(...back);
     return back;
   },
@@ -309,6 +334,9 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
     events: [{ date: isoDate(20), title: "Conference talk", time: "14:00", source: "scheduled.yml" }],
     ...noErrors,
   }),
+  // the edit itself is the core's (config_files.rs tests); the window's
+  // part is sending the row it opened, checked through __e2eCalls
+  recurring_edit: () => undefined,
   recurring_list: () => ({
     rules: [
       {
@@ -414,10 +442,10 @@ mockIPC(
     const args = (payload ?? {}) as Args;
     calls.push({ cmd, args });
     if (cmd.startsWith("plugin:")) return plugin(cmd);
-    const kind = failures.get(cmd);
-    if (kind !== undefined) {
-      failures.delete(cmd);
-      throw { kind, message: `e2e: ${cmd} refused (${kind})` };
+    const failure = failures.get(cmd);
+    if (failure !== undefined) {
+      if (--failure.left <= 0) failures.delete(cmd);
+      throw { kind: failure.kind, message: `e2e: ${cmd} refused (${failure.kind})` };
     }
     const handler = handlers[cmd as keyof Commands] as ((args: Args) => unknown) | undefined;
     if (!handler) throw new Error(`e2e backend: no handler for command "${cmd}"`);

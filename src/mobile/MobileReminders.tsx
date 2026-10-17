@@ -91,7 +91,11 @@ export default function MobileReminders() {
               <button
                 onClick={() =>
                   void act(() =>
-                    invoke("focus_phrase_edit", { index, replacement: null }),
+                    invoke("focus_phrase_edit", {
+                      index,
+                      original: text,
+                      replacement: null,
+                    }),
                   )
                 }
                 className="shrink-0 text-sm text-danger"
@@ -131,7 +135,11 @@ export default function MobileReminders() {
               <button
                 onClick={() =>
                   void act(() =>
-                    invoke("day_reminder_edit", { index, replacement: null }),
+                    invoke("day_reminder_edit", {
+                      index,
+                      original: reminder,
+                      replacement: null,
+                    }),
                   )
                 }
                 className="shrink-0 text-sm text-danger"
@@ -186,7 +194,11 @@ export default function MobileReminders() {
               <button
                 onClick={() =>
                   void act(() =>
-                    invoke("schedule_block_edit", { index, replacement: null }),
+                    invoke("schedule_block_edit", {
+                      index,
+                      original: block,
+                      replacement: null,
+                    }),
                   )
                 }
                 className="shrink-0 text-sm text-danger"

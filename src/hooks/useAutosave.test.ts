@@ -91,6 +91,40 @@ describe("useAutosave", () => {
     expect(result.current.saveState).toBe("saved");
   });
 
+  it("says a flush failed, so a document switch can stay put", async () => {
+    let fail = true;
+    const save = vi.fn(async () => {
+      if (fail) throw new Error("access denied");
+    });
+    const { result } = setup(save);
+
+    // nothing waiting: nothing to lose
+    expect(await act(() => result.current.flush())).toBe(true);
+
+    act(() => result.current.schedule("note A"));
+    expect(await act(() => result.current.flush())).toBe(false);
+    // asked again with the save still failing: still not safe to leave
+    expect(await act(() => result.current.flush())).toBe(false);
+    expect(save).toHaveBeenLastCalledWith("note A");
+
+    fail = false;
+    expect(await act(() => result.current.flush())).toBe(true);
+    expect(save).toHaveBeenLastCalledWith("note A");
+    expect(result.current.saveState).toBe("saved");
+  });
+
+  it("lets go once the failed edit's file is deleted", async () => {
+    const save = vi.fn(async () => {
+      throw new Error("access denied");
+    });
+    const { result } = setup(save);
+
+    act(() => result.current.schedule("notes/a.md"));
+    expect(await act(() => result.current.flush())).toBe(false);
+    act(() => result.current.drop((item) => item === "notes/a.md"));
+    expect(await act(() => result.current.flush())).toBe(true);
+  });
+
   it("leaves the editor dirty when the save refuses the edit", async () => {
     const { result } = setup(async () => false);
 
