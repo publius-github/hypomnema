@@ -182,7 +182,7 @@ At startup the desktop app checks `releases/latest/download/latest.json` of the 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 -->
 
-Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. Every release is approved by hand before it is signed and published.
+Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds and signs it as a draft release; a draft reaches users only once it is reviewed and published by hand.
 
 Team roles:
 

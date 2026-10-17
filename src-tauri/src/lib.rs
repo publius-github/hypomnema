@@ -15,6 +15,7 @@ mod google_link;
 mod ids;
 mod journal;
 mod kb;
+mod nav_guard;
 #[cfg(desktop)]
 mod oauth;
 mod reminders;
@@ -73,7 +74,8 @@ pub fn run() {
         // opener works on Android too, unlike open_external's xdg-open
         // fallback - the desktop's Google consent page opens through it.
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_notification::init());
+        .plugin(tauri_plugin_notification::init())
+        .plugin(nav_guard::init());
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_google_auth::init());
     // updater (GitHub-releases) and the global capture shortcut are

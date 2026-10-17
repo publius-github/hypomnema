@@ -18,12 +18,18 @@ jobs:
 
   build-windows:
     needs: checks
+    # The signing key and the client secret belong in this environment's
+    # secrets, behind a required reviewer, so a pushed tag alone cannot
+    # sign anything (set up under Settings > Environments).
+    environment: release
     permissions:
       contents: write
     runs-on: windows-2022
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       # The VERSION file is the source of truth; the tag must match it
       - name: Check tag matches VERSION file
         shell: bash
@@ -41,7 +47,13 @@ jobs:
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
           workspaces: src-tauri
+      # Third-party code runs here - install scripts, then tsc, vite and
+      # the postcss plugins - so it runs before any secret is in reach:
+      # checkout keeps no token, and these steps get no env. The tauri
+      # step below then skips beforeBuildCommand (tauri.release.conf.json)
+      # and bundles this dist/ as it is.
       - run: npm ci
+      - run: npm run build
       - uses: tauri-apps/tauri-action@42e9df6c59070d114bf90dcd3943a1b8f138b113 # v0.5.20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,3 +69,4 @@ jobs:
           tagName: v__VERSION__
           releaseName: Hypomnema v__VERSION__
           releaseDraft: true
+          args: --config src-tauri/tauri.release.conf.json

@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.109.1 - 2026-10-17
+
+Security pass before going public. The app window can no longer be navigated away from the app: a link the interface fails to catch opens in the browser instead of replacing the app with a web page. A backup id with a `:` is refused (on Windows `C:name` would have pointed outside the backups folder). The Android build opts out of Auto Backup, so the vault and the device id do not go to Google's cloud backup. The release workflow keeps secrets out of third-party build code: no checkout leaves a token behind, the frontend is built in its own step without secrets, and the signing step runs no npm script; it runs in a `release` environment. SECURITY.md and the privacy policy say plainly that the desktop's Google token is an unencrypted file (the privacy policy wrongly offered a passphrase the desktop has no screen for), and the README says when a release is signed.
+
 ## 0.109.0 - 2026-10-17
 
 Keyboard and screen-reader pass. Dialogs take focus when they open, keep Tab inside and give focus back on close; deleting a task from its card puts focus on Undo. Errors, Undo and due reminders are announced, and dragging a card with the keyboard says the task's and the day's names instead of internal ids. Task titles in the day columns stay readable (the hover buttons no longer reserve their width), the left bar fits the default window and scrolls on the smallest one, and the week's phrase no longer covers the header controls. Every text size follows Base font size, which Ctrl+= / Ctrl+- / Ctrl+0 now step; About and the README list the keyboard shortcuts. A due reminder opens its task on click. Each page has a heading for screen readers.

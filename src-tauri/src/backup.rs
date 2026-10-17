@@ -223,6 +223,20 @@ pub fn overview(root: &Path) -> Result<BackupsOverview> {
     })
 }
 
+/// A backup id is one plain file name inside the backups folder. On
+/// Windows a `:` would make `C:name` a drive-relative path that `join`
+/// lets escape the folder (and `name:stream` an alternate data stream),
+/// so it is refused on every platform alike.
+fn check_backup_id(id: &str) -> Result<()> {
+    let mut parts = Path::new(id).components();
+    let plain =
+        matches!(parts.next(), Some(std::path::Component::Normal(_))) && parts.next().is_none();
+    if !plain || id.contains(['/', '\\', ':']) {
+        return Err(Error::State(format!("invalid backup id: {id}")));
+    }
+    Ok(())
+}
+
 /// Restores app.db from a snapshot in backups/db/. The caller must have
 /// already closed the live connection - Windows refuses to overwrite a
 /// file that's still open, and SQLite must not see its file replaced
@@ -230,13 +244,6 @@ pub fn overview(root: &Path) -> Result<BackupsOverview> {
 /// itself copied aside first, so a restore is never a one-way door; the
 /// stale -wal/-shm siblings of the replaced database are dropped so no
 /// leftover frames apply to the restored file.
-fn check_backup_id(id: &str) -> Result<()> {
-    if id.is_empty() || id.contains(['/', '\\']) || id == "." || id == ".." {
-        return Err(Error::State(format!("invalid backup id: {id}")));
-    }
-    Ok(())
-}
-
 pub fn restore_db_backup(root: &Path, id: &str, now: DateTime<Local>) -> Result<()> {
     check_backup_id(id)?;
     let dir = vault::work_dir(root).join("backups").join("db");
@@ -547,6 +554,27 @@ mod tests {
         rotate(&backup_dir, "app-", 1).unwrap();
         assert!(safety.exists());
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_backup_id_names_one_file_inside_the_backups_folder() {
+        for id in ["app-20260901.db", "recurring.yml.20260901-090000.bak"] {
+            assert!(check_backup_id(id).is_ok(), "{id}");
+        }
+        for id in [
+            "",
+            ".",
+            "..",
+            "../app.db",
+            "a/b.db",
+            "a\\b.db",
+            "/etc/passwd",
+            "C:app.db",
+            "C:\\app.db",
+            "app.db:stream",
+        ] {
+            assert!(check_backup_id(id).is_err(), "{id}");
+        }
     }
 
     #[test]

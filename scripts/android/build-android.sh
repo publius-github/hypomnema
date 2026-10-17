@@ -321,6 +321,44 @@ print("storage permissions injected")
 MANIFEST_PY
 }
 
+function configure_backup() {
+  printf "\n"
+  log_info "function configure_backup - keep the vault out of Android's cloud backup"
+  local manifest="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+  if [ ! -f "$manifest" ]; then
+    log_error "expected $manifest to exist after 'tauri android init'"
+    exit 1
+  fi
+  if grep -q "android:allowBackup" "$manifest"; then
+    log_info "backup already turned off"
+    return
+  fi
+  # Android's Auto Backup is on unless the manifest says otherwise, and it
+  # copies the app's internal files and getExternalFilesDir() - where the
+  # default vault lives - to the user's Google backup. A journal must not
+  # leave the device behind the user's back, and a restored device-id
+  # would give a new phone the old one's identity in the sync log. Drive
+  # sync is the app's one way to move a vault, and the user turns it on.
+  python3 - "$manifest" <<'MANIFEST_PY'
+import sys
+
+path = sys.argv[1]
+source = open(path, encoding="utf-8").read()
+anchor = "    <application\n"
+if anchor not in source:
+    raise SystemExit("AndroidManifest.xml has no <application> element to patch")
+source = source.replace(
+    anchor,
+    anchor
+    + '        android:allowBackup="false"\n'
+    + '        android:fullBackupContent="false"\n',
+    1,
+)
+open(path, "w", encoding="utf-8").write(source)
+print("backup turned off")
+MANIFEST_PY
+}
+
 function configure_signing() {
   printf "\n"
   log_info "function configure_signing - wire a release keystore if one is given"
@@ -507,6 +545,7 @@ function main() {
   ensure_android_project
   sync_launcher_icons
   configure_storage_permission
+  configure_backup
   configure_signing
   build_apk
   collect_artifacts
