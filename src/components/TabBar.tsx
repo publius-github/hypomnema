@@ -120,7 +120,7 @@ function syncedLines(iso: string): [string, string] {
     sameDay
       ? "Today"
       : when.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
-    when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+    when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
   ];
 }
 

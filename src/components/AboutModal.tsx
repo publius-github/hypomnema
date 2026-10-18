@@ -32,7 +32,7 @@ export default function AboutModal({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-label="About Hypomnema"
-        className="max-h-full w-80 overflow-y-auto rounded-xl border border-line bg-surface-alt p-6 shadow-xl"
+        className="max-h-full w-[40rem] max-w-full overflow-y-auto rounded-xl border border-line bg-surface-alt p-6 shadow-xl"
       >
         <AboutContent />
         {/* desktop only: the phone's About (Settings) has no keyboard */}

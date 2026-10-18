@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.2 - 2026-10-18
+
+The sync time under the Sync button is always 24-hour HH:MM; the About window is twice as wide.
+
 ## 0.110.1 - 2026-10-18
 
 Settings search bar fills the row and Show advanced settings closes it at the tab line's right end; a task row's drop and delete hover buttons stand left of the time and Priority/Overdue badges, so the badges no longer shift on hover.
