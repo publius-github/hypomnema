@@ -20,7 +20,7 @@ Technical map of the shared core (modules, config schemas, engine invariants): `
 
 - **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/app-hypomnema/releases/latest) and run it. It installs for the current user, without administrator rights; on a Windows 10 without WebView2 it downloads that first, so it needs a connection. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. The app then updates itself; every update is verified against the project's signing key before it is installed.
 - **Android** - no published build yet; see [`docs/android/ARCHITECTURE.md`](docs/android/ARCHITECTURE.md) (Prerequisites, Build) to build the APK yourself.
-- **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run tauri dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
+- **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run app:dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
 
 On first start the app asks for a vault folder - pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place. *Try it with an example* fills an empty folder with a few lists, tasks, rules, notes and a journal entry to look around in first.
 
@@ -143,10 +143,10 @@ Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-rem
 
 Development is checked on Windows and Linux (CI builds and tests the Rust core on both; macOS is untested); the release installer (NSIS `.exe`) is built by GitHub Actions on a Windows runner.
 
-Requirements: Node.js 22+, Rust stable (rustup). On Windows also VS Build Tools (Desktop C++), WebView2 and Git Bash; on Linux (Debian/Ubuntu names) `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf` - the set CI installs.
+Requirements: Node.js 22.22.2+ or 24.15+ (`engines` in `package.json`; CI runs the version in `.nvmrc`), Rust 1.98.0 via rustup (the version CI pins; a newer stable may bring clippy lints CI does not have yet). On Windows also VS Build Tools (Desktop C++), WebView2 and Git Bash; on Linux (Debian/Ubuntu names) `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf` - the set CI installs.
 
 ```bash
-npm ci && npm run tauri dev             # dev mode with hot reload
+npm ci && npm run app:dev               # dev mode with hot reload, a separate "Hypomnema Dev" app (CONTRIBUTING.md)
 ./scripts/windows/build.sh              # local installer build (build.ps1 for PowerShell)
 ./scripts/android/build-android.sh      # Android build, see docs/android/
 ```

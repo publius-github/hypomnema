@@ -274,3 +274,17 @@ summary:focus-visible,
 .closed-dim > :not(.status-box) {
   opacity: var(--closed-opacity, 1);
 }
+
+/* Windows' "Show animations" off (prefers-reduced-motion): the sync
+   spinner, drag-and-drop and toggle transitions stop moving; the Sync
+   label still says "..." while a pass runs */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::after,
+  ::before {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

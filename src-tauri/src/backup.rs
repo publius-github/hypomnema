@@ -12,7 +12,7 @@ use rusqlite::Connection;
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 use crate::vault;
 
 /// Snapshots app.db to backups/db/app-YYYY-MM-DD.db, at most once per
@@ -28,7 +28,7 @@ pub fn backup_db_daily(
         return Ok(None);
     }
     let dir = crate::vault::work_dir(root).join("backups").join("db");
-    fs::create_dir_all(&dir)?;
+    fs::create_dir_all(&dir).at(&dir)?;
     let target = dir.join(format!("app-{}.db", now.format("%Y-%m-%d")));
     if target.exists() {
         return Ok(None);
@@ -60,11 +60,11 @@ pub fn backup_config_file(
         return Ok(());
     };
     let dir = work_dir.join("backups").join("config");
-    fs::create_dir_all(&dir)?;
+    fs::create_dir_all(&dir).at(&dir)?;
     let flat = file.replace(['/', '\\'], "__");
     let prefix = format!("{flat}.");
     let target = dir.join(format!("{prefix}{}.bak", now.format("%Y%m%d-%H%M%S")));
-    fs::copy(&source, &target)?;
+    fs::copy(&source, &target).at(&target)?;
     rotate(&dir, &prefix, keep as usize)?;
     Ok(())
 }
@@ -85,7 +85,7 @@ pub fn backup_db_before_migration(
         return Ok(None);
     }
     let dir = crate::vault::work_dir(root).join("backups").join("db");
-    fs::create_dir_all(&dir)?;
+    fs::create_dir_all(&dir).at(&dir)?;
     let target = dir.join(format!(
         "{PRE_UPGRADE_PREFIX}{}-v{from_version}.db",
         now.format("%Y%m%d-%H%M%S")
@@ -101,7 +101,8 @@ const PRE_UPGRADE_PREFIX: &str = "pre-upgrade-";
 /// `prefix`. Names embed the timestamp, so lexicographic order is
 /// chronological.
 fn rotate(dir: &Path, prefix: &str, keep: usize) -> Result<()> {
-    let mut names: Vec<String> = fs::read_dir(dir)?
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .at(dir)?
         .flatten()
         .filter_map(|entry| entry.file_name().to_str().map(String::from))
         .filter(|name| name.starts_with(prefix))
@@ -147,7 +148,7 @@ fn list_entries(
         return Ok(Vec::new());
     }
     let mut entries = Vec::new();
-    for entry in fs::read_dir(dir)?.flatten() {
+    for entry in fs::read_dir(dir).at(dir)?.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         if !keep(&name) {
             continue;
@@ -260,7 +261,7 @@ pub fn restore_db_backup(root: &Path, id: &str, now: DateTime<Local>) -> Result<
             "pre-restore-app-{}.db",
             now.format("%Y%m%d-%H%M%S")
         ));
-        fs::copy(&target, &safety)?;
+        fs::copy(&target, &safety).at(&safety)?;
     }
     // copied beside the target and renamed over it: a copy cut short
     // must not leave a truncated app.db in place of a working one
@@ -301,9 +302,9 @@ pub fn restore_config_backup(root: &Path, id: &str, keep: u32, now: DateTime<Loc
     };
     let _ = backup_config_file(&backup_source_dir, &original, keep, now);
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).at(parent)?;
     }
-    let content = fs::read_to_string(&source)?;
+    let content = fs::read_to_string(&source).at(&source)?;
     crate::vault::write_atomic(&target, &content)?;
     Ok(())
 }

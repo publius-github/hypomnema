@@ -32,7 +32,7 @@ use std::path::Path;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 
 /// The snapshot files, in the order `export` writes them.
 pub const FILES: [&str; 6] = [
@@ -185,7 +185,7 @@ fn from_jsonl_optional<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<
 }
 
 fn from_jsonl<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<T>> {
-    let content = fs::read_to_string(path)?;
+    let content = fs::read_to_string(path).at(path)?;
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     parse_jsonl(&name, &content)
 }
@@ -352,7 +352,7 @@ pub fn export(conn: &Connection, state_dir: &Path) -> Result<()> {
 
 /// Writes a `snapshot` taken earlier.
 pub fn write(state_dir: &Path, files: &[(&str, String)]) -> Result<()> {
-    fs::create_dir_all(state_dir)?;
+    fs::create_dir_all(state_dir).at(state_dir)?;
     for (name, text) in files {
         write_if_changed(&state_dir.join(name), text)?;
     }

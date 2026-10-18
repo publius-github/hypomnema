@@ -6,7 +6,7 @@ use rusqlite::Connection;
 
 use crate::config::{AppConfig, SyncedPart};
 use crate::db;
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 
 pub(crate) const CONFIG_SAMPLES: &[(&str, &str)] = &[
     (
@@ -149,14 +149,14 @@ impl Vault {
 
         migrate_layout(root)?;
         let config_dir = config_dir(root);
-        fs::create_dir_all(&config_dir)?;
-        fs::create_dir_all(config_dir.join("templates"))?;
-        fs::create_dir_all(root.join("journal"))?;
+        fs::create_dir_all(&config_dir).at(&config_dir)?;
+        fs::create_dir_all(config_dir.join("templates")).at(&config_dir.join("templates"))?;
+        fs::create_dir_all(root.join("journal")).at(&root.join("journal"))?;
 
         for (file, sample) in CONFIG_SAMPLES {
             let path = config_dir.join(file);
             if !path.exists() {
-                fs::write(&path, sample)?;
+                fs::write(&path, sample).at(&path)?;
             }
         }
 
@@ -385,7 +385,7 @@ pub fn read_vault_path(app_config_dir: &Path) -> Option<PathBuf> {
 }
 
 pub fn write_vault_path(app_config_dir: &Path, vault: &Path) -> Result<()> {
-    fs::create_dir_all(app_config_dir)?;
+    fs::create_dir_all(app_config_dir).at(app_config_dir)?;
     fs::write(
         app_config_dir.join("vault-path.txt"),
         vault.to_string_lossy().as_bytes(),
@@ -686,6 +686,16 @@ mod tests {
 
         write_vault_path(&dir, Path::new("/data/pkb")).unwrap();
         assert_eq!(read_vault_path(&dir), Some(PathBuf::from("/data/pkb")));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_folder_that_cannot_be_made_is_named_in_the_error() {
+        let dir = temp_dir("vault-path-blocked");
+        let blocked = dir.join("app-config");
+        fs::write(&blocked, "a file where the folder should be").unwrap();
+        let err = write_vault_path(&blocked, Path::new("/data/pkb")).unwrap_err();
+        assert!(err.to_string().contains("app-config"), "{err}");
         let _ = fs::remove_dir_all(&dir);
     }
 }

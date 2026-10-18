@@ -471,10 +471,11 @@ function build_apk() {
   if [ "$BUILD_VARIANT" = "debug" ]; then
     variant_flag=(-d)
   fi
+  # --apk only: an APK, no AAB (Tauri CLI 2.11 takes both as bare flags)
   # ANDROID_ABIS is intentionally unquoted: tauri wants each ABI as its own
   # -t argument, and it's a space-separated word list, not a single token.
   # shellcheck disable=SC2086
-  npx tauri android build "${variant_flag[@]+"${variant_flag[@]}"}" -t $ANDROID_ABIS --apk true --aab false
+  npx tauri android build "${variant_flag[@]+"${variant_flag[@]}"}" -t $ANDROID_ABIS --apk
 }
 
 function collect_artifacts() {

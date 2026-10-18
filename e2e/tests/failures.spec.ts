@@ -65,3 +65,24 @@ test("a journal entry whose save keeps failing is not left for another day", asy
   await page.getByTitle("Next day (Alt+→)").click();
   await expect(page.locator(".cm-content")).toContainText("Not lost.");
 });
+
+test("a note whose save keeps failing is not left for another note", async ({ app }) => {
+  const page = await app("fail=kb_write:io:2");
+  await rail(page, "Notes").click();
+  await page.getByRole("button", { name: "Welcome.md" }).click();
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("Not lost.");
+  await expect(page.getByText("e2e: kb_write refused (io)").first()).toBeVisible();
+  // opening another note tries the save again, it fails again: the
+  // editor stays on the unsaved note
+  await page.getByRole("button", { name: "Ideas.md" }).click();
+  await expect(page.locator(".cm-content")).toContainText("Not lost.");
+  await expect(page.locator(".cm-content")).not.toContainText("a calmer weekly review");
+
+  // the third try goes through, and then the other note opens
+  await page.getByRole("button", { name: "Ideas.md" }).click();
+  await expect(page.locator(".cm-content")).toContainText("a calmer weekly review");
+  await page.getByRole("button", { name: "Welcome.md" }).click();
+  await expect(page.locator(".cm-content")).toContainText("Not lost.");
+});

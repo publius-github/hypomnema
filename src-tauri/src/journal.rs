@@ -152,13 +152,13 @@ pub fn list_entries(vault: &Path) -> Result<Vec<String>> {
     if !journal_dir.exists() {
         return Ok(dates);
     }
-    for year_entry in fs::read_dir(&journal_dir)? {
+    for year_entry in fs::read_dir(&journal_dir).at(&journal_dir)? {
         let year_entry = year_entry?;
         if !year_entry.file_type()?.is_dir() || year_entry.file_name() == "templates" {
             continue;
         }
         let year_name = year_entry.file_name().to_string_lossy().into_owned();
-        for file in fs::read_dir(year_entry.path())? {
+        for file in fs::read_dir(year_entry.path()).at(&year_entry.path())? {
             let file = file?;
             let name = file.file_name().to_string_lossy().into_owned();
             if let Some(date) = name.strip_suffix(".md") {
@@ -301,7 +301,7 @@ pub fn read_template(vault: &Path) -> Result<String> {
 pub fn save_template(vault: &Path, content: &str) -> Result<()> {
     let path = template_path(vault);
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).at(parent)?;
     }
     crate::vault::write_atomic(&path, content)?;
     Ok(())

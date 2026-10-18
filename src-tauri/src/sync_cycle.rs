@@ -32,7 +32,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 use crate::sync_bootstrap::{load_manifest, save_manifest, FileState, VaultRoot};
 use crate::sync_conflicts::{self, ConflictEntry};
 use crate::sync_merge::FieldConflict;
@@ -286,7 +286,7 @@ pub(crate) fn local_files(local_root: &Path, user_ignore: &[String]) -> Result<V
 }
 
 fn walk(root: &Path, dir: &Path, user_ignore: &[String], out: &mut Vec<String>) -> Result<()> {
-    for entry in fs::read_dir(dir)? {
+    for entry in fs::read_dir(dir).at(dir)? {
         let path = entry?.path();
         if path.is_dir() {
             walk(root, &path, user_ignore, out)?;
@@ -533,7 +533,7 @@ fn apply_duplicate(
 /// truncated.
 fn write_local(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).at(parent)?;
     }
     vault::write_atomic_bytes(path, bytes)
 }
@@ -624,7 +624,7 @@ fn apply_remote_deletions(
             // delete made on this device would - the remote keeps no
             // copy (Drive's app folder has no trash).
             if sync_state::state_file_of(relative).is_some() {
-                fs::remove_file(&target)?;
+                fs::remove_file(&target).at(&target)?;
             } else {
                 crate::kb::move_to_trash(local_root, &target, relative)?;
             }

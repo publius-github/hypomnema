@@ -42,7 +42,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 use crate::tasks::{self, NewTask, Task, TaskPatch};
 
 const SCHEDULED_MARKER: &str = "<!-- hypomnema:scheduled -->";
@@ -372,7 +372,7 @@ pub fn export(
 ) -> Result<Vec<(PathBuf, String)>> {
     let ids = opts.ids;
     let help = if ids { FORMAT_HELP } else { FORMAT_HELP_NO_IDS };
-    fs::create_dir_all(tasks_dir)?;
+    fs::create_dir_all(tasks_dir).at(tasks_dir)?;
     let lists = tasks::lists_all(conn)?;
     let groups = tasks::groups_all(conn)?;
     let parents = tasks::manual_parent_tasks(conn)?;
@@ -556,7 +556,7 @@ pub fn export(
     // the merge base follows every successful write; skipped files keep
     // their previous base (their content was never applied), and bases
     // of removed managed files go with them
-    fs::create_dir_all(base_dir)?;
+    fs::create_dir_all(base_dir).at(base_dir)?;
     for (path, content) in &written {
         // today.md is never merged, so it needs no base copy
         if path.file_name().and_then(|n| n.to_str()) == Some("today.md") {

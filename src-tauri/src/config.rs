@@ -4,7 +4,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::error::Result;
+use crate::error::{IoContext, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
@@ -975,7 +975,7 @@ impl AppConfig {
     /// their own files (`save_part`).
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).at(parent)?;
         }
         let mut map = self.to_mapping()?;
         map.retain(|key, _| !is_synced_key(key));
@@ -986,7 +986,7 @@ impl AppConfig {
     /// Writes a synced part's file.
     pub fn save_part(&self, part: SyncedPart, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).at(parent)?;
         }
         crate::vault::write_atomic(path, &serde_yaml::to_string(&self.part_mapping(part)?)?)?;
         Ok(())

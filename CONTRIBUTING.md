@@ -10,16 +10,16 @@ Thanks for taking the time. Bug reports, small fixes and documentation improveme
 
 ## Getting set up
 
-Requirements: Node.js 22+, Rust stable via rustup. On Windows also VS Build Tools (Desktop C++) and WebView2; on Linux (Debian/Ubuntu names) `build-essential pkg-config libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf` - the set CI installs. The pinned versions CI runs are in `.github/workflows/ci.yml` (Node, Rust); a newer Rust stable can bring clippy lints CI does not have yet.
+Requirements: Node.js 22.22.2+ or 24.15+ (`engines` in `package.json`; CI runs the version in `.nvmrc`), Rust 1.98.0 via rustup. On Windows also VS Build Tools (Desktop C++) and WebView2; on Linux (Debian/Ubuntu names) `build-essential pkg-config libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf` - the set CI installs. CI runs Node from `.nvmrc` and pins Rust in `.github/workflows/ci.yml`; a newer Rust stable can bring clippy lints CI does not have yet.
 
 ```bash
 npm ci
-npm run tauri dev     # the app with hot reload
+npm run app:dev       # the app with hot reload, as "Hypomnema Dev"
 ```
 
 Google Drive sync needs an OAuth client compiled in (see the README's *Building* section). Without one the app works fully, with sync reported unavailable - that is the normal state for a development build.
 
-Use a throwaway vault folder while developing, never your real one. Mind that the development build is the same app to Windows as an installed Hypomnema: it shares its per-device folder (`%APPDATA%\com.hypomnema.app` - the remembered vault path, the Google sign-in, the device id and the log), so on a machine where you use the installed app it opens your real vault, runs the engine and any new database migration on it, and - in a build with the OAuth client compiled in - syncs with your Google account. Develop under a separate Windows account or in a VM, or quit the installed app and move that folder aside first.
+Use a throwaway vault folder while developing, never your real one. `npm run app:dev` runs the development build as a separate app (`src-tauri/tauri.dev.conf.json`: identifier `com.hypomnema.app.dev`): its per-device folder is `%APPDATA%\com.hypomnema.app.dev` - its own remembered vault path, Google sign-in, device id and log - so it starts beside an installed Hypomnema and never opens that one's vault. The two still share the global capture shortcut: whichever starts second reports it cannot register it. Plain `npm run tauri dev` is the installed app's identity (`%APPDATA%\com.hypomnema.app`) - it opens the installed app's vault, runs any new migration on it and, with the OAuth client compiled in, syncs with your Google account; avoid it on a machine where you use the app.
 
 ## Where things live
 

@@ -125,7 +125,8 @@ pub(crate) fn is_ignored(patterns: &[String], name: &str, rel: &str, is_dir: boo
 }
 
 fn read_dir_sorted(dir: &Path) -> Result<Vec<fs::DirEntry>> {
-    let mut entries: Vec<fs::DirEntry> = fs::read_dir(dir)?.collect::<std::io::Result<_>>()?;
+    let mut entries: Vec<fs::DirEntry> =
+        fs::read_dir(dir).at(dir)?.collect::<std::io::Result<_>>()?;
     entries.sort_by_key(|e| e.file_name().to_string_lossy().to_lowercase());
     Ok(entries)
 }
@@ -669,13 +670,13 @@ pub fn rename(root: &Path, from: &str, to: &str) -> Result<()> {
 
 fn copy_recursive(src: &Path, dst: &Path) -> Result<()> {
     if src.is_dir() {
-        fs::create_dir_all(dst)?;
-        for entry in fs::read_dir(src)? {
+        fs::create_dir_all(dst).at(dst)?;
+        for entry in fs::read_dir(src).at(src)? {
             let entry = entry?;
             copy_recursive(&entry.path(), &dst.join(entry.file_name()))?;
         }
     } else {
-        fs::copy(src, dst)?;
+        fs::copy(src, dst).at(dst)?;
     }
     Ok(())
 }
@@ -709,7 +710,7 @@ pub fn copy_into(root: &Path, from: &str, to_dir: &str) -> Result<String> {
     } else {
         resolve(root, to_dir)?
     };
-    fs::create_dir_all(&dir_abs)?;
+    fs::create_dir_all(&dir_abs).at(&dir_abs)?;
     let (stem, ext) = match name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() && !source.is_dir() => (s.to_string(), format!(".{e}")),
         _ => (name.clone(), String::new()),
