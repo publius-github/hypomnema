@@ -5,7 +5,7 @@
 // target dir grows by gigabytes a week (each `cargo test` binary alone is
 // hundreds of MB). The build scripts run this before every build.
 //
-// Usage: node scripts/general/prune-target.mjs [--days N] [--dry-run]
+// Usage: node scripts/general/prune-target.mjs [--days N] [--dry-run] [--help]
 //   --days N    age limit in days (default: PRUNE_DAYS or 7)
 //   --dry-run   report what would go without deleting anything
 // The target dir is CARGO_TARGET_DIR when set, else src-tauri/target.
@@ -26,6 +26,19 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const args = process.argv.slice(2);
+const USAGE = "usage: node scripts/general/prune-target.mjs [--days N] [--dry-run]";
+if (args.includes("--help") || args.includes("-h")) {
+  console.log(USAGE);
+  process.exit(0);
+}
+// an unknown or misspelled flag must not fall through to a real prune
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--days") i++;
+  else if (args[i] !== "--dry-run") {
+    console.error(`prune-target: unknown argument: ${args[i]}\n${USAGE}`);
+    process.exit(1);
+  }
+}
 const dryRun = args.includes("--dry-run");
 const daysArg = args.indexOf("--days");
 const days = Number(daysArg >= 0 ? args[daysArg + 1] : (process.env.PRUNE_DAYS ?? 7));

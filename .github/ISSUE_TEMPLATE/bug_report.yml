@@ -12,7 +12,7 @@ body:
     attributes:
       label: App version
       description: Shown in the About dialog.
-      placeholder: "0.103.0"
+      placeholder: "x.y.z"
     validations:
       required: true
   - type: dropdown

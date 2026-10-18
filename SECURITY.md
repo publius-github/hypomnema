@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest released version receives security fixes. The desktop app updates itself; on Android, install the newest release.
+Only the latest released version receives security fixes. The desktop app updates itself. The Android app is not published; if you build it yourself, rebuild from the latest release tag.
 
 ## Reporting a vulnerability
 

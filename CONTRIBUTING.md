@@ -19,7 +19,7 @@ npm run tauri dev     # the app with hot reload
 
 Google Drive sync needs an OAuth client compiled in (see the README's *Building* section). Without one the app works fully, with sync reported unavailable - that is the normal state for a development build.
 
-Use a throwaway vault folder while developing, never your real one.
+Use a throwaway vault folder while developing, never your real one. Mind that the development build is the same app to Windows as an installed Hypomnema: it shares its per-device folder (`%APPDATA%\com.hypomnema.app` - the remembered vault path, the Google sign-in, the device id and the log), so on a machine where you use the installed app it opens your real vault, runs the engine and any new database migration on it, and - in a build with the OAuth client compiled in - syncs with your Google account. Develop under a separate Windows account or in a VM, or quit the installed app and move that folder aside first.
 
 ## Where things live
 
@@ -39,7 +39,7 @@ The ground rules of the codebase:
 
 ## Before opening a pull request
 
-CI runs exactly these, and clippy warnings are errors:
+CI runs these (with `cargo fmt --check` and `npm run coverage` in place of `cargo fmt` and `npm test`), and clippy warnings are errors:
 
 ```bash
 npm run lint && npm run typecheck && npm test && npm run build

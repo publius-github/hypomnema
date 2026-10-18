@@ -245,7 +245,7 @@ pub(crate) async fn config_set(
 }
 
 /// Factory defaults - the frontend's only source of "is this field at
-/// its default?" for progressive disclosure and the Profiles tab.
+/// its default?" for the Settings groups and their reset.
 #[tauri::command]
 pub(crate) async fn config_default() -> Result<AppConfig> {
     Ok(AppConfig::default())

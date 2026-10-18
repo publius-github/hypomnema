@@ -8,7 +8,7 @@ A local-first personal productivity app: a weekly task planner, a daily journal 
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
 
-- [Install](#install) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Troubleshooting](#troubleshooting) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
+- [Install](#install) · [Status](#status) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Troubleshooting](#troubleshooting) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
 Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
 
@@ -26,6 +26,13 @@ On first start the app asks for a vault folder - pick an empty folder for a fres
 
 Uninstalling (Windows *Apps & features*) removes the program; your vault folder is never touched. The uninstaller's optional "Delete the application data" box clears only the per-device files under `%APPDATA%\com.hypomnema.app` (the remembered vault path, the Google sign-in, the diagnostic log).
 
+## Status
+
+- Pre-1.0: versions below 1.0 are development builds, released often; see the [changelog](CHANGELOG.md). Before an update changes the database format the app snapshots it, and a device whose app is older than the one that last synced stops syncing instead of merging data it cannot read.
+- Windows 10/11 is the shipped platform. The Android app can be built from source but is not published; macOS and Linux are not released.
+- The Windows installer is not code-signed yet (see [Code signing policy](#code-signing-policy)).
+- One maintainer; issues and pull requests are reviewed as time allows ([CONTRIBUTING.md](CONTRIBUTING.md)). There is no roadmap or support commitment beyond [SECURITY.md](SECURITY.md).
+
 ## Sections
 
 A vertical rail on the left; the section order is configurable and Settings always sits at the bottom. The rail also holds global search (Ctrl/Cmd+K), Sync (runs the task engine and, when a Google account is signed in, a Drive sync pass) and About.
@@ -36,7 +43,7 @@ A vertical rail on the left; the section order is configurable and Settings alwa
 - **Review** and **History** - how the week went, and a month-by-month archive with completion stats and streaks for daily rules.
 - **Journal** - one Markdown entry per date (`journal/<year>/<YYYY-MM-DD>.md`), created from a configurable template on first save, with "on this day" entries from earlier years.
 - **Notes** - a knowledge base: a tree of Markdown files (the vault root or a folder set in Settings), an editor with live highlighting, `[[wiki links]]` and backlinks, full-text search, a `.trash` folder (emptied after 30 days) and a `.hypomnemaignore` file to hide paths from the tree. The config files are edited here too, validated on save.
-- **Settings** - profiles, appearance, pages, task cards, columns, recurring & calendar, capture & alerts, data and sync, with a search over every setting; everything is stored in `.hypomnema/settings/app.yml`.
+- **Settings** - six tabs (General, Tasks, Recurring & calendar, Capture & alerts, Data, Sync) with a search over every setting. They are stored in `.hypomnema/settings/app.yml` (per device), except the task rules every device must share, which go to the synced `.hypomnema/config/shared.yml`. The color scheme (`config/colors.yml`) and fine-tuning without a Settings control are edited in Notes > Config, validated on save.
 
 On Windows there is also a tray icon and a global shortcut for a quick-capture window.
 
@@ -69,11 +76,13 @@ The app keeps its working files in a hidden `.hypomnema` folder inside the vault
   journal/                # journal entries
   <notes>                 # knowledge base (unless another folder is set)
   .hypomnemaignore        # hides paths from the notes tree
-  .trash/                 # deleted notes
+  .hypomnemasyncignore    # paths sync leaves on this device (same syntax)
+  .trash/                 # deleted notes, and files deleted on another device
   .hypomnema/
-    app.db                # SQLite: tasks, lists, state
-    settings/app.yml      # app settings
-    config/               # your YAML config files (see below)
+    app.db                # SQLite: tasks, lists, state (a cache, rebuilt from state/)
+    state/                # text snapshot of the database, the copy that syncs
+    settings/app.yml      # this device's app settings
+    config/               # your YAML config files (see below), synced
     tasks/                # Markdown mirror of manual tasks (editable both ways)
     backups/              # daily database snapshot + copies of configs before overwrite
 ```
@@ -82,7 +91,7 @@ The `tasks/` mirror (enabled in Settings) holds one file per list plus `schedule
 
 ### Sync
 
-Signing in with Google syncs the vault between your devices through a hidden app-data folder in your own Drive (scope `drive.appdata` - the app cannot see any other file there). Notes and other text files edited on two devices are merged line by line; a real clash leaves a `(conflicted copy ...)` file next to the original, which Settings lets you compare and resolve. A note or journal entry deleted on the other device lands in this vault's `.trash/` folder (kept 30 days) rather than vanishing. Keep every device on the same version: a device whose app is older than the one that last synced stops syncing with "update the app on this device" instead of merging data it cannot fully read. See the [privacy policy](site/privacy.html) for exactly what goes where.
+Signing in with Google syncs the vault between your devices through a hidden app-data folder in your own Drive (scope `drive.appdata` - the app cannot see any other file there). Notes and other text files edited on two devices are merged line by line; a real clash leaves a `(conflicted copy ...)` file next to the original, which Settings lets you compare and resolve. Paths listed in `.hypomnemasyncignore` stay on this device. A note or journal entry deleted on the other device lands in this vault's `.trash/` folder (kept 30 days) rather than vanishing. Keep every device on the same version: a device whose app is older than the one that last synced stops syncing with "update the app on this device" instead of merging data it cannot fully read. See the [privacy policy](site/privacy.html) for exactly what goes where.
 
 ## YAML configuration
 
@@ -109,7 +118,7 @@ birthdays:
     year: 1985                   # optional, to show the age
 ```
 
-Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-reminders.yml` (reminders by day type: workday / weekend / weekday), `day-schedule.yml` (blocks of the daily schedule) and `templates/journal.md` (the journal template, supports `{{date}}`).
+Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-reminders.yml` (reminders by day type: workday / weekend / weekday), `day-schedule.yml` (blocks of the daily schedule), `templates/journal.md` (the journal template, supports `{{date}}`), and two files that sync so every device matches: `colors.yml` (the color scheme, edited in Notes > Config; absent means the defaults) and `shared.yml` (retention, catch-up and the other task rules, written by their Settings controls).
 
 ## Troubleshooting
 
@@ -132,7 +141,7 @@ Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-rem
 
 ## Building and releasing
 
-Development works on Windows, macOS or Linux; the release installer (NSIS `.exe`) is built by GitHub Actions on a Windows runner.
+Development is checked on Windows and Linux (CI builds and tests the Rust core on both; macOS is untested); the release installer (NSIS `.exe`) is built by GitHub Actions on a Windows runner.
 
 Requirements: Node.js 22+, Rust stable (rustup). On Windows also VS Build Tools (Desktop C++), WebView2 and Git Bash; on Linux (Debian/Ubuntu names) `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf` - the set CI installs.
 
@@ -185,7 +194,7 @@ At startup the desktop app checks `releases/latest/download/latest.json` of the 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 -->
 
-Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds and signs it as a draft release; a draft reaches users only once it is reviewed and published by hand.
+Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds it, signs the update artifacts with the project's updater key (the installer itself is not code-signed yet) and attaches them to a draft release; a draft reaches users only once it is reviewed and published by hand.
 
 Team roles:
 
