@@ -1,0 +1,6 @@
+# The Sponsor button on the repository page. Uncomment the platforms in
+# use and keep DONATE_URL in src/lib/legal.ts in step (About shows it).
+# github: [publius-github]
+# ko_fi: <username>
+# buy_me_a_coffee: <username>
+# custom: ["https://example.com/donate"]

@@ -189,6 +189,34 @@ jobs:
         run: cargo test --locked
         working-directory: src-tauri
 
+  # Developer Certificate of Origin: every commit a pull request adds
+  # carries a Signed-off-by line (CONTRIBUTING.md). Dependabot's commits
+  # are exempt - it cannot sign off.
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Signed-off-by on every commit
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=0
+          for c in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            author=$(git log -1 --format='%an <%ae>' "$c")
+            case "$author" in *'dependabot[bot]'*) continue ;; esac
+            if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$c" | grep -qF "$author"; then
+              echo "::error::$(git log -1 --format='%h %s' "$c") has no 'Signed-off-by: $author' (git commit -s)"
+              missing=1
+            fi
+          done
+          exit $missing
+
   audit:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

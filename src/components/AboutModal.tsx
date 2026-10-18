@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "../lib/ipc";
-import { COPYRIGHT, LICENSE_URL, SOURCE_URL } from "../lib/legal";
+import { COPYRIGHT, DONATE_URL, LICENSE_URL, SOURCE_URL } from "../lib/legal";
 import { SHORTCUTS } from "../lib/shortcuts";
 import { useAppStore } from "../store";
 import AppLogo from "./AppLogo";
@@ -139,6 +139,12 @@ function LegalNotice() {
       <p className="mt-1">
         Source code: <span className="select-text">{SOURCE_URL}</span>
       </p>
+      {DONATE_URL && (
+        <p className="mt-1">
+          Support development:{" "}
+          <span className="select-text">{DONATE_URL}</span>
+        </p>
+      )}
       {licenses === null ? (
         <button
           className="mt-2 underline hover:text-content"

@@ -55,6 +55,10 @@ cd src-tauri && cargo fmt && cargo clippy --all-targets -- -D warnings && cargo 
 - Keep one topic per PR; a refactor mixed into a fix is hard to review.
 - UI changes keep the accessibility checks green: `npm run lint` includes `jsx-a11y`, and `npm run e2e` runs axe-core over every screen. Everything a mouse can do needs a keyboard path (see *Accessibility* in `docs/general/ARCHITECTURE.md`).
 
-## License
+## License and sign-off
 
-Hypomnema is GPL-3.0-only. By submitting a contribution you agree that it is licensed under the same terms.
+Hypomnema is GPL-3.0-only with an additional permission for linking with Google Play services ([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). A contribution is accepted under the same terms, the permission included.
+
+Every commit in a pull request carries a `Signed-off-by` line - the [Developer Certificate of Origin](https://developercertificate.org/): by adding it you certify that you wrote the change, or otherwise have the right to submit it under the project's license. `git commit -s` adds the line from your `user.name` and `user.email`; `git rebase --signoff <base>` adds it to commits already made. CI fails a pull request with a commit that lacks it.
+
+The name and logo are not part of the license: a fork you distribute needs its own ([TRADEMARKS.md](TRADEMARKS.md)).

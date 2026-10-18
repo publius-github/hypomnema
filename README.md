@@ -12,6 +12,10 @@ A local-first personal productivity app: a weekly task planner, a daily journal 
 
 Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
 
+<!-- TODO(owner): once a donation page exists, set DONATE_URL in src/lib/legal.ts and .github/FUNDING.yml, and uncomment:
+Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you, you can [support its development](https://example.com/donate).
+-->
+
 <!-- TODO(owner): add a screenshot, e.g. docs/screenshot.png, and uncomment:
 ![Hypomnema - the dashboard](docs/screenshot.png)
 -->
@@ -209,10 +213,12 @@ Privacy: this program does not transfer any information to other networked syste
 
 ## License
 
-Copyright (C) 2026 &lt;COPYRIGHT HOLDER&gt;
+Copyright (C) 2026 Siarhei Zverau
 
-Hypomnema is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3, as published by the Free Software Foundation. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text, and [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the licenses of the libraries it is built on.
+Hypomnema is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 only, as published by the Free Software Foundation, with an additional permission under section 7 for linking with Google Play services ([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text, and [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the licenses of the libraries it is built on.
 
 Not everything in a build is open source. The Windows binary links Microsoft's WebView2 loader (BSD-3-Clause). The Android build includes Google Play services, which is proprietary and comes under the Android Software Development Kit License. `THIRD_PARTY_LICENSES.txt` lists both.
+
+The name Hypomnema and its logo are not covered by the GPL: a modified version you distribute needs its own name and icon ([TRADEMARKS.md](TRADEMARKS.md)).
 
 Google and Google Drive are trademarks of Google LLC; Windows and WebView2 are trademarks of Microsoft Corporation. Hypomnema is not affiliated with or endorsed by either.
