@@ -182,6 +182,26 @@ export function weekdayShort(dateISO: string): string {
   });
 }
 
+/**
+ * A weekday marker split around the day its task fired on, so that day
+ * can be set in bold: "MON,SAT" fired on a Saturday gives "MON," then
+ * "SAT" as the hit. Only a list of days gets a hit - a single day or a
+ * range (MON-FRI) says nothing more with one of its days stressed, and
+ * EVERYDAY has none to stress.
+ */
+export function dowLabelParts(
+  label: string,
+  firedOn: string | null,
+): { text: string; hit: boolean }[] {
+  if (!firedOn || !label.includes(",")) return [{ text: label, hit: false }];
+  const day = weekdayShort(firedOn).toUpperCase();
+  return label.split(/(,)/).map((token) => ({
+    text: token,
+    // "SAT#1" fires on a Saturday too
+    hit: token.split("#")[0] === day,
+  }));
+}
+
 export interface CadenceGroup {
   key: string;
   label: string;
@@ -471,8 +491,8 @@ export function tintStyle(color: string): {
 
 /**
  * Size of a section plate in the day and list columns: the whole plate
- * - its 12px label and the 2px padding either side - grows by
- * `list_view_plate_scale` %, so the text stays in proportion to the
+ * - its label (the task text size, 14px) and the 2px padding either
+ * side - grows by `list_view_plate_scale` %, so the text stays in proportion to the
  * plate instead of a small label floating in a tall bar. In rem, so the
  * base font size scales the plates along with the rest of the text.
  */
@@ -483,7 +503,7 @@ export function listViewPlateStyle(config: AppConfig | null): {
 } {
   const scale = (config?.list_view_plate_scale ?? 100) / 100;
   return {
-    fontSize: `${0.75 * scale}rem`,
+    fontSize: `${0.875 * scale}rem`,
     paddingTop: `${0.125 * scale}rem`,
     paddingBottom: `${0.125 * scale}rem`,
   };

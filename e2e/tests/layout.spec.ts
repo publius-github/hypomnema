@@ -38,7 +38,7 @@ test("task titles in the day columns stay readable by default", async ({ app, pa
   const widths = await page.locator('[aria-roledescription="task"] .truncate').evaluateAll((els) =>
     els.map((el) => [el.textContent, Math.round(el.getBoundingClientRect().width)] as const),
   );
-  // a 200px day column with a time, a subtask count or an OVERDUE chip
+  // a 200px day column with a time, a subtask count or an Overdue chip
   // beside the title: the start of the title has to show (it was cut
   // to nothing while the hover-only buttons kept their width)
   const checked = widths.filter(([t]) => t === "Plan the week" || t?.includes("Renew"));

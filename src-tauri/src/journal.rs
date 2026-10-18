@@ -6,7 +6,28 @@ use serde::Serialize;
 
 use crate::error::{Error, IoContext, Result};
 
+/// A short evening review: a one-line check-in, then what worked, what
+/// did not and what it taught, gratitude, and one thing for tomorrow -
+/// the common core of reflection practice without a form to fill in.
 pub(crate) const DEFAULT_TEMPLATE: &str = "\
+# {{date}}
+
+Mood: /5 · Energy: /5
+
+## Went well
+
+## Could be better
+
+## Learned
+
+## Grateful for
+
+## Tomorrow's one thing
+";
+
+/// The default template of earlier versions: a vault still holding it
+/// word for word never chose it, so it moves to the current default.
+const PREVIOUS_DEFAULT_TEMPLATE: &str = "\
 # {{date}}
 
 ## What I did today
@@ -86,6 +107,8 @@ fn template_path(vault: &Path) -> PathBuf {
         if !new.exists() {
             let _ = fs::write(&new, DEFAULT_TEMPLATE);
         }
+    } else if fs::read_to_string(&new).is_ok_and(|c| c == PREVIOUS_DEFAULT_TEMPLATE) {
+        let _ = crate::vault::write_atomic(&new, DEFAULT_TEMPLATE);
     }
     new
 }
@@ -348,6 +371,20 @@ mod tests {
         let hits = backlinks(&vault, "ab", "ab.md").unwrap();
         assert!(hits.is_empty());
         let _ = fs::remove_dir_all(&vault);
+    }
+
+    #[test]
+    fn untouched_previous_default_template_moves_to_the_current_one() {
+        let vault = &vault("previous-default");
+        let path = crate::vault::config_dir(vault)
+            .join("templates")
+            .join("journal.md");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, PREVIOUS_DEFAULT_TEMPLATE).unwrap();
+        assert_eq!(read_template(vault).unwrap(), DEFAULT_TEMPLATE);
+        // an edited one is the user's own and stays
+        fs::write(&path, "# {{date}}\n\n## Mine\n").unwrap();
+        assert_eq!(read_template(vault).unwrap(), "# {{date}}\n\n## Mine\n");
     }
 
     #[test]

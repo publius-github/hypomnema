@@ -97,7 +97,7 @@ function GroupColumn({
       >
         <h2 className="flex min-w-0 flex-1">
           <button
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold text-content hover:text-accent"
             title={`Open group "${group.name}"`}
             onClick={() => onOpen()}
           >

@@ -62,14 +62,10 @@ export default function Settings() {
   };
 
   return (
-    // The column is exactly as wide as the tab strip on one line (w-fit
-    // over a nowrap strip; the search and the tab body are sized 0 with
-    // min-w-full, so they take that width instead of setting it) - every
-    // tab fits at any font size, and nothing gets wider than that. A
-    // window narrower than the strip caps it at the window and the
-    // strip wraps.
-    <div className="mx-auto flex h-full w-fit min-w-0 max-w-full flex-col gap-4 p-6">
-      <div className="relative flex w-0 min-w-full flex-col gap-2">
+    // One column width with Upcoming (max-w-4xl): wide enough that a
+    // hint reads on a line or two, capped at the window
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
+      <div className="relative flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <input
             className="input w-full max-w-md"
@@ -122,7 +118,7 @@ export default function Settings() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-1 whitespace-nowrap border-b border-line">
+      <div className="flex flex-wrap gap-1 border-b border-line">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -143,7 +139,7 @@ export default function Settings() {
       </div>
 
       <SettingsFocusContext.Provider value={focus}>
-        <div className="flex min-h-0 w-0 min-w-full flex-1 flex-col gap-5 overflow-y-auto pb-10">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-10">
           {shownTab === "general" && <GeneralTab />}
           {shownTab === "tasks" && <TasksTab />}
           {shownTab === "recurring" && <RecurringTab />}

@@ -21,6 +21,7 @@ import {
 import type { Task } from "../types";
 import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
 import { readable } from "../lib/color";
+import DowLabelText from "./DowLabelText";
 
 function TaskCard({
   task,
@@ -347,7 +348,7 @@ function TaskCard({
               }
               title="Weekday pinned by the rule's cron"
             >
-              [{dowLabel}]{" "}
+              [<DowLabelText label={dowLabel} task={task} />]{" "}
             </span>
           )}
           {text}
@@ -364,7 +365,7 @@ function TaskCard({
             // a list column it stays a star toggle
             (task.priority && showList ? (
               <button
-                className="rounded-sm bg-warn/15 px-1 font-semibold uppercase text-warn"
+                className="rounded-sm bg-warn/15 px-1 text-sm font-semibold text-warn"
                 title="Remove priority"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -374,7 +375,7 @@ function TaskCard({
                   );
                 }}
               >
-                priority
+                Priority
               </button>
             ) : (
               <button
@@ -410,8 +411,8 @@ function TaskCard({
             ))}
           {task.time && <span>{task.time}</span>}
           {task.overdue && !closed && (
-            <span className="rounded-sm bg-danger/15 px-1 font-semibold uppercase text-danger">
-              overdue
+            <span className="rounded-sm bg-danger/15 px-1 text-sm font-semibold text-danger">
+              Overdue
             </span>
           )}
           {habitRate && (habitRate.alert || !rateAlertOnly) && (

@@ -2,6 +2,16 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.0 - 2026-10-18
+
+- Settings is as wide as Upcoming, so hints no longer wrap into narrow columns.
+- New setting Tasks > Task cards > "General tasks get the overdue mark": off, a one-off task left unfinished moves to today without the Overdue badge (recurring instances keep it; a mark already given clears).
+- Section plates (Daily, Weekly, Priority...), list and group names are no longer uppercased: plates read in their own capitalization, names exactly as typed; plate labels, the Priority and the Overdue badges are bold at the task text size.
+- In a recurring task's day list marker such as [MON,SAT] the day it fired on is bold.
+- + New list and + New group are the same height.
+- The completion-rate hint in Settings spells out when the Rate chip shows and when it does not.
+- A new default journal template: a short evening review (mood and energy, went well, could be better, learned, grateful for, tomorrow's one thing). A vault still on the old default gets the new one; an edited template stays.
+
 ## 0.109.8 - 2026-10-18
 
 The local Windows build (`scripts/windows/build.ps1`) no longer reinstalls `node_modules` on every run: it runs `npm ci` only when the folder is missing, was installed for another OS (after the WSL-side Android build), or holds packages that differ from `package-lock.json` (`scripts/general/node-modules-current.mjs`; a version bump alone does not count).

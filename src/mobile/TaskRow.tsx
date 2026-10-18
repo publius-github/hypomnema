@@ -26,11 +26,12 @@ import {
 import { useEditTask } from "./editing";
 import type { Task } from "../types";
 import { readable } from "../lib/color";
+import DowLabelText from "../components/DowLabelText";
 
 /** A status badge in the row's right-hand column: small enough not to
  * outweigh the title, narrow enough for the column's fixed width. */
 const BADGE =
-  "whitespace-nowrap rounded-sm px-1 text-[0.5625rem] font-semibold uppercase leading-4";
+  "whitespace-nowrap rounded-sm px-1 text-[0.5625rem] font-semibold leading-4";
 
 /**
  * One task, sized for a thumb and legible at a glance.
@@ -47,7 +48,7 @@ const BADGE =
  * the card's colour rules (`TaskCard` is the reference: a change there
  * lands here too): the colour stripe, the date chips, the list and
  * `{Category}` chips on the alternating palette, the weekday marker,
- * the PRIORITY / OVERDUE / Rate badges and the subtask count that folds
+ * the Priority / Overdue / Rate badges and the subtask count that folds
  * the subtasks open. A phone shows fewer tasks at once than a desktop,
  * not less distinguishable ones - only the geometry is the phone's own.
  */
@@ -258,7 +259,7 @@ export default function TaskRow({
                         : { opacity: (config?.dow_label_opacity ?? 60) / 100 }
                     }
                   >
-                    [{dowLabel}]{" "}
+                    [<DowLabelText label={dowLabel} task={task} />]{" "}
                   </span>
                 )}
                 {text}
@@ -282,11 +283,11 @@ export default function TaskRow({
             style={{ opacity: dim }}
           >
             {task.priority && showList && (
-              <span className={`${BADGE} bg-warn/15 text-warn`}>priority</span>
+              <span className={`${BADGE} bg-warn/15 text-warn`}>Priority</span>
             )}
             {task.overdue && !closed && (
               <span className={`${BADGE} bg-danger/15 text-danger`}>
-                overdue
+                Overdue
               </span>
             )}
             {habitRate && (habitRate.alert || !rateAlertOnly) && (

@@ -58,14 +58,14 @@ export default function NewListForm({ groupId }: { groupId?: number }) {
     return (
       <div className="flex w-40 shrink-0 flex-col gap-1.5">
         <button
-          className="h-9 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
+          className="h-8 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
           onClick={() => setOpen("list")}
         >
           + New list
         </button>
         {groupId === undefined ? (
           <button
-            className="h-7 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
+            className="h-8 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
             title="A group folds several lists into one panel slot"
             onClick={() => setOpen("group")}
           >
@@ -74,7 +74,7 @@ export default function NewListForm({ groupId }: { groupId?: number }) {
         ) : (
           outsiders.length > 0 && (
             <button
-              className="h-7 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
+              className="h-8 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
               title="Move a list that already exists into this group"
               onClick={() => setOpen("existing")}
             >

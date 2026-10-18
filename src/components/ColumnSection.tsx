@@ -57,7 +57,7 @@ export default function SectionBlock({
     >
       <button
         type="button"
-        className={`flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left font-bold uppercase tracking-wider ${
+        className={`flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left font-bold ${
           tone === "warn"
             ? "bg-warn/15 text-warn"
             : color

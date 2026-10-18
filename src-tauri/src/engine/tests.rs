@@ -670,6 +670,53 @@ fn priority_carry_over_overdue_follows_the_setting() {
 }
 
 #[test]
+fn general_carry_over_overdue_follows_the_setting() {
+    let seed = |conn: &Connection| {
+        conn.execute(
+            "INSERT INTO tasks (title, scheduled_date, priority, cadence, created_at)
+                 VALUES ('one-off', '2026-08-27', 0, NULL, '2026-08-27T00:00:00+00:00'),
+                        ('starred', '2026-08-27', 1, NULL, '2026-08-27T00:00:00+00:00'),
+                        ('weekly', '2026-08-27', 0, 'weekly', '2026-08-27T00:00:00+00:00')",
+            [],
+        )
+        .unwrap();
+    };
+    let rows = |conn: &Connection| -> Vec<(String, i64)> {
+        let mut stmt = conn
+            .prepare("SELECT title, overdue FROM tasks ORDER BY title")
+            .unwrap();
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        rows.collect::<std::result::Result<_, _>>().unwrap()
+    };
+
+    // setting off: the one-off moves silently, the starred task follows
+    // its own setting and a cadence task keeps the mark
+    let (conn, dir) = setup("general-carry-off");
+    seed(&conn);
+    let cfg = AppConfig {
+        general_overdue: false,
+        ..config(1, 7, 0)
+    };
+    run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
+    assert_eq!(
+        rows(&conn),
+        vec![
+            ("one-off".to_string(), 0),
+            ("starred".to_string(), 1),
+            ("weekly".to_string(), 1),
+        ]
+    );
+
+    // turning it off later clears a mark already given
+    let (conn, dir) = setup("general-carry-later");
+    seed(&conn);
+    run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "12:00:00")).unwrap();
+    assert_eq!(rows(&conn)[0], ("one-off".to_string(), 1));
+    run(&conn, &dir, &cfg, at("2026-08-28", "13:00:00")).unwrap();
+    assert_eq!(rows(&conn)[0], ("one-off".to_string(), 0));
+}
+
+#[test]
 fn done_list_backlog_tasks_clear_on_day_rollover() {
     let (conn, dir) = setup("clear-done-lists");
     conn.execute(

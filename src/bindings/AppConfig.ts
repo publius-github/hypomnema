@@ -411,6 +411,12 @@ clear_done_list_tasks: boolean,
  */
 priority_overdue: boolean, 
 /**
+ * A General task (a manual one-off, not a rule's instance or an
+ * exact-date item) left unfinished past its day gets the overdue
+ * mark; off = it carries over to today silently.
+ */
+general_overdue: boolean, 
+/**
  * Cadence bucket thresholds: a recurring rule counts as
  * daily/weekly/monthly when it fires at least this many times over
  * the next year (anything below monthly is yearly).

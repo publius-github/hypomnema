@@ -141,7 +141,7 @@ export default function Review() {
         </span>
         {task.overdue && !isClosed(task.status) && (
           <span className="rounded-sm bg-danger/15 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-danger">
-            OVERDUE
+            Overdue
           </span>
         )}
         {task.time && (

@@ -55,9 +55,17 @@ export default function TasksTab() {
           </select>
         </Field>
         <span className="-mt-1 text-xs text-content-muted">
-          A Rate: 82% chip - how many of the item&apos;s recent instances
-          were done. Done and waiting count as done; dropped and a missed
-          daily count as not done.
+          A Rate: 82% chip - the share of the item&apos;s{" "}
+          {config.habit_rate_window > 0
+            ? `last ${config.habit_rate_window}`
+            : "all"}{" "}
+          closed instances that were done. Done
+          and waiting count as done; dropped and a missed daily count as
+          not done; an open weekly or monthly instance does not count yet.
+          An item with fewer than {config.habit_rate_min_instances} closed
+          instances has no chip, and under &quot;Only below&quot; an item
+          at or above its threshold shows none either - so two items in
+          one section can differ.
         </span>
         {config.habit_rate_display !== "off" && (
           <div className="pl-6">
@@ -81,8 +89,14 @@ export default function TasksTab() {
         <Toggle
           checked={config.priority_overdue}
           label="Priority tasks get the overdue mark"
-          hint="A starred task left unfinished past its day is marked OVERDUE like any other task; off = it carries over silently."
+          hint="A starred task left unfinished past its day is marked Overdue like any other task; off = it carries over silently."
           onChange={(v) => void updateConfig({ priority_overdue: v })}
+        />
+        <Toggle
+          checked={config.general_overdue}
+          label="General tasks get the overdue mark"
+          hint="A one-off task in the General section left unfinished past its day is marked Overdue; off = it moves to today silently. Recurring instances keep the mark."
+          onChange={(v) => void updateConfig({ general_overdue: v })}
         />
       </SettingsGroup>
 

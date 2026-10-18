@@ -109,6 +109,7 @@ export const defaultConfig: AppConfig = {
   list_dialog_task_lines: 3,
   clear_done_list_tasks: true,
   priority_overdue: true,
+  general_overdue: true,
   cadence_daily_min_per_year: 183,
   cadence_weekly_min_per_year: 37,
   cadence_monthly_min_per_year: 4,

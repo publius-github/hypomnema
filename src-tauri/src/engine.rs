@@ -6,7 +6,7 @@ use std::path::Path;
 
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 use croner::Cron;
-use rusqlite::Connection;
+use rusqlite::{named_params, Connection};
 use serde::Serialize;
 use ts_rs::TS;
 
@@ -826,25 +826,45 @@ fn collapse_instance_twins(conn: &Connection) -> Result<usize> {
     Ok(pairs.len())
 }
 
-/// Moves every open pre-today task to today. With priority_overdue off,
-/// priority tasks ride along without the overdue mark (priority already
-/// says "do this now"); with it on they are marked like any other task.
-/// Dailies are exempt entirely.
-fn move_overdue_to_today(
-    conn: &Connection,
-    today_str: &str,
-    priority_overdue: bool,
-) -> Result<usize> {
+/// Which carried-over tasks keep quiet instead of wearing the overdue
+/// mark: priority tasks with priority_overdue off (priority already
+/// says "do this now"), and General tasks - the manual one-offs of a
+/// day column, not a rule's instance or an exact-date item - with
+/// general_overdue off.
+#[derive(Debug, Clone, Copy)]
+struct OverdueMarks {
+    priority: bool,
+    general: bool,
+}
+
+/// SQL for "this task is exempt from the overdue mark", bound by name
+/// (`:priority_overdue`, `:general_overdue`). General mirrors the
+/// day column's section (`cadenceKeyOf` in src/lib/tasks.ts): no rule
+/// cadence, not a scheduled event or birthday, not a dated list task.
+const OVERDUE_EXEMPT: &str = "(priority = 1 AND :priority_overdue = 0)
+     OR (priority = 0 AND :general_overdue = 0 AND cadence IS NULL
+         AND origin NOT IN ('scheduled', 'birthday')
+         AND NOT (origin = 'manual' AND list_id IS NOT NULL))";
+
+/// Moves every open pre-today task to today, marked overdue unless
+/// `OverdueMarks` exempts it. Dailies are exempt entirely.
+fn move_overdue_to_today(conn: &Connection, today_str: &str, marks: OverdueMarks) -> Result<usize> {
     Ok(conn.execute(
-        "UPDATE tasks SET scheduled_date = ?1,
-                overdue = CASE WHEN priority = 1 AND ?2 = 0 THEN 0 ELSE 1 END
-         WHERE status NOT IN ('done', 'dropped')
-           AND archived_at IS NULL
-           AND parent_task_id IS NULL
-           AND scheduled_date IS NOT NULL
-           AND scheduled_date < ?1
-           AND (cadence IS NULL OR cadence != 'daily')",
-        (today_str, priority_overdue as i64),
+        &format!(
+            "UPDATE tasks SET scheduled_date = :today,
+                    overdue = CASE WHEN {OVERDUE_EXEMPT} THEN 0 ELSE 1 END
+             WHERE status NOT IN ('done', 'dropped')
+               AND archived_at IS NULL
+               AND parent_task_id IS NULL
+               AND scheduled_date IS NOT NULL
+               AND scheduled_date < :today
+               AND (cadence IS NULL OR cadence != 'daily')"
+        ),
+        named_params! {
+            ":today": today_str,
+            ":priority_overdue": marks.priority,
+            ":general_overdue": marks.general,
+        },
     )?)
 }
 
@@ -878,13 +898,19 @@ fn collapse_carried_copies(conn: &Connection, today_str: &str) -> Result<usize> 
 }
 
 /// Dailies carried over by earlier app versions drop the overdue mark
-/// (with priority_overdue off, starred tasks do too); a daily moved off
-/// its firing day (older versions carried them over too) goes back home.
-fn rehome_dailies(conn: &Connection, priority_overdue: bool) -> Result<()> {
+/// (so do tasks `OverdueMarks` exempts, when the setting was just turned
+/// off); a daily moved off its firing day (older versions carried them
+/// over too) goes back home.
+fn rehome_dailies(conn: &Connection, marks: OverdueMarks) -> Result<()> {
     conn.execute(
-        "UPDATE tasks SET overdue = 0
-         WHERE overdue = 1 AND (cadence = 'daily' OR (priority = 1 AND ?1 = 0))",
-        [priority_overdue as i64],
+        &format!(
+            "UPDATE tasks SET overdue = 0
+             WHERE overdue = 1 AND (cadence = 'daily' OR {OVERDUE_EXEMPT})"
+        ),
+        named_params! {
+            ":priority_overdue": marks.priority,
+            ":general_overdue": marks.general,
+        },
     )?;
     conn.execute(
         "UPDATE tasks SET scheduled_date = origin_date
@@ -903,16 +929,12 @@ fn rehome_dailies(conn: &Connection, priority_overdue: bool) -> Result<()> {
 /// Daily-cadence tasks are exempt: a daily is never overdue, today has
 /// its own instance - a missed one just stays unchecked in its day.
 /// Returns (carried_over, deduped).
-fn carry_over(
-    conn: &Connection,
-    today: NaiveDate,
-    priority_overdue: bool,
-) -> Result<(usize, usize)> {
+fn carry_over(conn: &Connection, today: NaiveDate, marks: OverdueMarks) -> Result<(usize, usize)> {
     let today_str = today.format("%Y-%m-%d").to_string();
     let mut deduped = dedupe_instances(conn)?;
-    let moved = move_overdue_to_today(conn, &today_str, priority_overdue)?;
+    let moved = move_overdue_to_today(conn, &today_str, marks)?;
     deduped += collapse_carried_copies(conn, &today_str)?;
-    rehome_dailies(conn, priority_overdue)?;
+    rehome_dailies(conn, marks)?;
     Ok((moved, deduped))
 }
 
@@ -1021,7 +1043,14 @@ pub fn run(
         now,
         &mut outcome,
     )?;
-    let (carried_over, deduped) = carry_over(conn, today, config.priority_overdue)?;
+    let (carried_over, deduped) = carry_over(
+        conn,
+        today,
+        OverdueMarks {
+            priority: config.priority_overdue,
+            general: config.general_overdue,
+        },
+    )?;
     outcome.carried_over = carried_over;
     outcome.removed += deduped;
     outcome.pruned = prune(conn, config.retention_days, now)?;

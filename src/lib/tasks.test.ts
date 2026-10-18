@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  dowLabelParts,
   addDaysISO,
   cadenceColor,
   categoryBlockIndex,
@@ -552,6 +553,32 @@ describe("indexRows", () => {
       "> Work",
       "  Specs",
       "  Bugs",
+    ]);
+  });
+});
+
+describe("dowLabelParts", () => {
+  it("stresses the day a listed-days rule fired on", () => {
+    // 2026-10-17 is a Saturday
+    expect(dowLabelParts("MON,SAT", "2026-10-17")).toEqual([
+      { text: "MON", hit: false },
+      { text: ",", hit: false },
+      { text: "SAT", hit: true },
+    ]);
+    expect(dowLabelParts("SAT#1,SUN", "2026-10-17")[0]).toEqual({
+      text: "SAT#1",
+      hit: true,
+    });
+  });
+
+  it("leaves a single day, a range and EVERYDAY whole", () => {
+    for (const label of ["SAT", "MON-FRI", "EVERYDAY"]) {
+      expect(dowLabelParts(label, "2026-10-17")).toEqual([
+        { text: label, hit: false },
+      ]);
+    }
+    expect(dowLabelParts("MON,SAT", null)).toEqual([
+      { text: "MON,SAT", hit: false },
     ]);
   });
 });

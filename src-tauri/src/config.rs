@@ -287,6 +287,10 @@ pub struct AppConfig {
     /// A priority task left unfinished past its day gets the overdue
     /// mark like any other task; off = priority carries over silently.
     pub priority_overdue: bool,
+    /// A General task (a manual one-off, not a rule's instance or an
+    /// exact-date item) left unfinished past its day gets the overdue
+    /// mark; off = it carries over to today silently.
+    pub general_overdue: bool,
     /// Cadence bucket thresholds: a recurring rule counts as
     /// daily/weekly/monthly when it fires at least this many times over
     /// the next year (anything below monthly is yearly).
@@ -414,6 +418,7 @@ pub const SHARED_KEYS: &[&str] = &[
     "cron_ignore_time",
     "clear_done_list_tasks",
     "priority_overdue",
+    "general_overdue",
     "cadence_daily_min_per_year",
     "cadence_weekly_min_per_year",
     "cadence_monthly_min_per_year",
@@ -580,6 +585,7 @@ impl Default for AppConfig {
             list_dialog_task_lines: 3,
             clear_done_list_tasks: true,
             priority_overdue: true,
+            general_overdue: true,
             // every 1-2 days / up to ~10 days apart / up to a quarter apart
             cadence_daily_min_per_year: 183,
             cadence_weekly_min_per_year: 37,
@@ -1155,6 +1161,7 @@ impl AppConfig {
                 self.clear_done_list_tasks.to_string(),
             ),
             ("priority_overdue", self.priority_overdue.to_string()),
+            ("general_overdue", self.general_overdue.to_string()),
             (
                 "cadence_daily_min_per_year",
                 self.cadence_daily_min_per_year.to_string(),

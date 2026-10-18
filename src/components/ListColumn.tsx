@@ -121,7 +121,7 @@ function ListColumn({
         ) : (
           <h2 className="flex min-w-0 flex-1">
             <button
-              className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold uppercase tracking-wide text-content hover:text-accent"
+              className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-bold text-content hover:text-accent"
               onDoubleClick={() => {
                 setName(list.name);
                 setEditing(true);
@@ -144,7 +144,7 @@ function ListColumn({
         )}
         {group && (
           <button
-            className="max-w-[45%] shrink-0 truncate rounded-sm border border-line px-1 py-px text-[0.625rem] uppercase tracking-wide text-content-muted hover:border-accent hover:text-accent"
+            className="max-w-[45%] shrink-0 truncate rounded-sm border border-line px-1 py-px text-[0.625rem] text-content-muted hover:border-accent hover:text-accent"
             title={`In group "${group.name}"${onOpenGroup ? " - click to open it" : ""}`}
             onClick={() => onOpenGroup?.(group.id)}
           >
