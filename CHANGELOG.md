@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.109.8 - 2026-10-18
+
+The local Windows build (`scripts/windows/build.ps1`) no longer reinstalls `node_modules` on every run: it runs `npm ci` only when the folder is missing, was installed for another OS (after the WSL-side Android build), or holds packages that differ from `package-lock.json` (`scripts/general/node-modules-current.mjs`; a version bump alone does not count).
+
 ## 0.109.7 - 2026-10-18
 
 The development build is its own app: `npm run app:dev` runs "Hypomnema Dev" (identifier `com.hypomnema.app.dev`), with its own per-device folder, sign-in and device id, beside an installed Hypomnema and never on its vault; the dev server no longer crashes on Windows when Cargo rewrites its output. Windows' "Show animations" off stops the sync spinner and the drag and toggle transitions. File errors name the file everywhere (backups, settings, the snapshot, the task mirror, sync, Notes copies). Tauri CLI matches the Tauri crate (2.11.5), so the installer records its bundle type for the updater; the Android build passes `--apk` the way that CLI takes it. Node is pinned in `.nvmrc` (22.23.3, what CI runs) and `engines` (22.22.2+ or 24.15+); the docs name Rust 1.98.0. Tests: a reminder toast opens its task, a Notes save that keeps failing holds the editor, reduced motion and high-contrast themes.

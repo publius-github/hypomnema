@@ -102,8 +102,28 @@ function Invoke-PruneTarget {
   }
 }
 
+# node_modules is shared with the WSL side (scripts/android/build-android.sh
+# reinstalls it for Linux), so a present folder is not enough: it must hold
+# the Windows native binaries, with @esbuild/win32-x64 as the proxy for all
+# of them (npm/cli#4828 leaves out the other OS's). node-modules-current.mjs
+# checks the installed packages against package-lock.json. When both hold,
+# npm ci is skipped: it deletes and reinstalls everything on every run.
 function Install-FrontendDependencies {
-  Write-Info "Installing frontend dependencies (npm ci)"
+  $reason = $null
+  if (-not (Test-Path 'node_modules/@esbuild/win32-x64')) {
+    $reason = 'node_modules is missing or was installed for another OS (WSL build?)'
+  }
+  else {
+    $output = & node scripts/general/node-modules-current.mjs
+    if ($LASTEXITCODE -ne 0) {
+      $reason = "$output"
+    }
+  }
+  if (-not $reason) {
+    Write-Info "node_modules is up to date for Windows; skipping npm ci"
+    return
+  }
+  Write-Info "Installing frontend dependencies (npm ci): $reason"
   Invoke-Native 'npm ci' { npm ci }
 }
 
