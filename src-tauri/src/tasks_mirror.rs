@@ -16,7 +16,7 @@
 //! `.hypomnema/state/mirror-base/` - the merge base. An import compares
 //! the incoming file against that base and applies only the fields the
 //! file actually changed, and deletes only tasks the base knew: a stale
-//! file arriving from a file sync (Dropbox and friends) neither clobbers
+//! file arriving from a file sync (any folder-sync client) neither clobbers
 //! newer app-side edits nor deletes tasks it never saw.
 //!
 //! A list file's header also carries the list's group as a plain

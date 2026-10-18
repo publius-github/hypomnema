@@ -243,17 +243,17 @@ mod tests {
         dir
     }
 
-    const SECRETS: &[&str] = &["dropbox.json"];
+    const SECRETS: &[&str] = &["token.json"];
 
     #[test]
     fn with_no_passphrase_a_secret_is_a_plain_file() {
         let _guard = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         lock();
         let dir = temp_dir("plain");
-        write_secret(&dir, "dropbox.json", b"{\"refresh_token\":\"x\"}").unwrap();
+        write_secret(&dir, "token.json", b"{\"refresh_token\":\"x\"}").unwrap();
 
         assert_eq!(
-            fs::read_to_string(dir.join("dropbox.json")).unwrap(),
+            fs::read_to_string(dir.join("token.json")).unwrap(),
             "{\"refresh_token\":\"x\"}"
         );
         assert_eq!(
@@ -270,16 +270,16 @@ mod tests {
         let _guard = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         lock();
         let dir = temp_dir("seal-existing");
-        write_secret(&dir, "dropbox.json", b"refresh-token").unwrap();
+        write_secret(&dir, "token.json", b"refresh-token").unwrap();
 
         enable(&dir, "open sesame", SECRETS).unwrap();
 
         // Leaving the old plaintext behind would make the lock a
         // decoration: the token is what an attacker came for.
-        let on_disk = fs::read_to_string(dir.join("dropbox.json")).unwrap();
+        let on_disk = fs::read_to_string(dir.join("token.json")).unwrap();
         assert!(!on_disk.contains("refresh-token"));
         assert_eq!(
-            read_secret(&dir, "dropbox.json").unwrap().unwrap(),
+            read_secret(&dir, "token.json").unwrap().unwrap(),
             b"refresh-token"
         );
     }
@@ -289,7 +289,7 @@ mod tests {
         let _guard = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         lock();
         let dir = temp_dir("locked");
-        write_secret(&dir, "dropbox.json", b"refresh-token").unwrap();
+        write_secret(&dir, "token.json", b"refresh-token").unwrap();
         enable(&dir, "open sesame", SECRETS).unwrap();
         lock();
 
@@ -300,12 +300,12 @@ mod tests {
                 unlocked: false
             }
         );
-        assert!(read_secret(&dir, "dropbox.json").is_err());
+        assert!(read_secret(&dir, "token.json").is_err());
 
         assert!(unlock(&dir, "wrong").is_err());
         unlock(&dir, "open sesame").unwrap();
         assert_eq!(
-            read_secret(&dir, "dropbox.json").unwrap().unwrap(),
+            read_secret(&dir, "token.json").unwrap().unwrap(),
             b"refresh-token"
         );
     }
@@ -315,7 +315,7 @@ mod tests {
         let _guard = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         lock();
         let dir = temp_dir("disable");
-        write_secret(&dir, "dropbox.json", b"refresh-token").unwrap();
+        write_secret(&dir, "token.json", b"refresh-token").unwrap();
         enable(&dir, "open sesame", SECRETS).unwrap();
 
         // Otherwise "turn the lock off" would be the way around it.
@@ -323,7 +323,7 @@ mod tests {
 
         disable(&dir, "open sesame", SECRETS).unwrap();
         assert_eq!(
-            fs::read_to_string(dir.join("dropbox.json")).unwrap(),
+            fs::read_to_string(dir.join("token.json")).unwrap(),
             "refresh-token"
         );
         assert!(!state(&dir).enabled);
@@ -342,8 +342,8 @@ mod tests {
         let _guard = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         lock();
         let dir = temp_dir("absent");
-        assert!(read_secret(&dir, "dropbox.json").unwrap().is_none());
+        assert!(read_secret(&dir, "token.json").unwrap().is_none());
         enable(&dir, "open sesame", SECRETS).unwrap();
-        assert!(read_secret(&dir, "dropbox.json").unwrap().is_none());
+        assert!(read_secret(&dir, "token.json").unwrap().is_none());
     }
 }

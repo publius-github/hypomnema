@@ -143,7 +143,7 @@ const SYNC_DIR: &str = ".hypomnema/sync";
 /// are kept per remote: linking a different provider or a different
 /// account starts from a clean space and the first pass joins instead of
 /// reading another remote's revisions as its own. With no pointer the
-/// space is `SYNC_DIR` itself - where the retired Dropbox link kept them.
+/// space is `SYNC_DIR` itself - where the earliest sync versions kept them.
 const SPACE_FILE: &str = ".hypomnema/sync/space";
 
 /// Where the active space's manifest and merge base live.
@@ -401,7 +401,7 @@ mod tests {
         assert_eq!(detect_vault_root(&listing).unwrap(), VaultRoot("".into()));
     }
 
-    /// The layout a user actually ends up with: Dropbox's desktop.ini and
+    /// The layout a user actually ends up with: a file-sync client's desktop.ini and
     /// this app's marker live at the app-folder root, so keeping the vault
     /// in its own subfolder keeps them out of the notes tree.
     #[test]
@@ -586,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn without_a_pointer_the_space_is_where_the_dropbox_link_kept_it() {
+    fn without_a_pointer_the_space_is_the_sync_dir_itself() {
         let local = temp_dir("space-default");
         assert_eq!(space_dir(&local), local.join(".hypomnema/sync"));
         assert_eq!(
@@ -602,7 +602,7 @@ mod tests {
         manifest.insert(
             "journal/a.md".to_string(),
             FileState {
-                rev: "dropbox-rev".into(),
+                rev: "old-rev".into(),
                 hash: Some("h".into()),
             },
         );

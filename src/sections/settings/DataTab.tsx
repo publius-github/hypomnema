@@ -233,7 +233,7 @@ export default function DataTab() {
         <Toggle
           checked={config.tasks_mirror}
           label="Mirror tasks to Markdown files"
-          hint="Keeps vault/.hypomnema/tasks/ in two-way sync: one file per list plus scheduled.md with the dated tasks. Edit them in any editor for bulk changes; lines without a ^id become new tasks, deleting a line deletes the task. Imports merge against the last exported state, so a file arriving from a file sync (Dropbox etc.) never rolls back newer app-side edits or deletes tasks it did not know about."
+          hint="Keeps vault/.hypomnema/tasks/ in two-way sync: one file per list plus scheduled.md with the dated tasks. Edit them in any editor for bulk changes; lines without a ^id become new tasks, deleting a line deletes the task. Imports merge against the last exported state, so a file arriving from a folder-sync client never rolls back newer app-side edits or deletes tasks it did not know about."
           onChange={(v) => void updateConfig({ tasks_mirror: v })}
         />
 

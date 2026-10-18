@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.5 - 2026-10-18
+
+Leftovers of the retired Dropbox sync are gone from the code: comments, test fixtures, the phone's old-passphrase text and the task-mirror hint no longer name it. The warning for a vault inside a Dropbox, OneDrive or Google Drive folder stays.
+
 ## 0.110.4 - 2026-10-18
 
 Licensing settled for publication. Copyright Siarhei Zverau in About, the README, the website and the privacy policy; GPL-3.0-only with an additional permission under section 7 for linking with Google Play services (`LICENSE-EXCEPTION.md`), so the Android build can be shared under the GPL; the name and logo are kept for the official app (`TRADEMARKS.md`: a distributed fork takes its own). Security reports go through GitHub private vulnerability reporting, other contact to publius.it@gmail.com. Contributions are signed off under the Developer Certificate of Origin, and CI checks every pull-request commit for it. About shows a donation link once one is set (`DONATE_URL`), and `.github/FUNDING.yml` is ready for the Sponsor button.

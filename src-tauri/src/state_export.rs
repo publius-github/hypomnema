@@ -3,7 +3,7 @@
 //! from it. Together with the config YAMLs and the task mirror this
 //! makes the database a disposable cache: everything the app cannot
 //! re-derive lives in text files, so a vault carried by a file sync
-//! (Dropbox and friends) is complete without its .db file, and a second
+//! (any folder-sync client) is complete without its .db file, and a second
 //! device rebuilds its own local database from the same files.
 //!
 //! Format: one JSON object per line (JSONL), rows sorted by their stable

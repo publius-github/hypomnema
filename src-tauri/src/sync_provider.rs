@@ -2,7 +2,7 @@
 //! someone else". The sync engine (`sync_cycle.rs`, `sync_merge.rs`)
 //! consumes this trait without caring which backend moved the bytes; the
 //! one real implementation is `sync_gdrive.rs` (Google Drive's hidden
-//! app folder), Dropbox's having been retired; tests run the engine
+//! app folder); tests run the engine
 //! against the in-memory `mock` below.
 
 use crate::error::Result;
@@ -36,7 +36,7 @@ pub struct ChangedFile {
 
 /// Opaque delta-listing checkpoint a backend hands back from
 /// `list_changes` and accepts on the next call to resume from where it
-/// left off (Dropbox's `list_folder`/`continue` cursor; a filesystem
+/// left off (a remote's list cursor; a filesystem
 /// backend can synthesize one from a directory-wide scan timestamp).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SyncCursor(pub Option<String>);
@@ -82,7 +82,7 @@ pub trait SyncProvider {
     fn delete_file(&self, path: &str, expected_marker: Option<&ChangeMarker>) -> Result<()>;
 
     /// Extra copies of paths found by the last `list_changes`, with their
-    /// bytes. A backend that cannot hold two files under one path (Dropbox)
+    /// bytes. A backend that cannot hold two files under one path
     /// never has any.
     fn take_duplicates(&self) -> Result<Vec<Duplicate>> {
         Ok(Vec::new())
@@ -112,7 +112,7 @@ pub(crate) mod mock {
         // failure can be tested without a real flaky network.
         unreadable: Mutex<std::collections::HashSet<String>>,
         // Deleted paths, so listings can carry tombstones the way
-        // Dropbox's `include_deleted` does - a device that never hears
+        // a remote's deleted-entries listing does - a device that never hears
         // about a deletion keeps resurrecting the file.
         tombstones: Mutex<std::collections::HashSet<String>>,
         duplicates: Mutex<Vec<Duplicate>>,

@@ -5,10 +5,10 @@ import type { LockState } from "../types";
 /**
  * The passphrase section of phone Settings - now only the way out of it.
  *
- * The passphrase sealed the Dropbox refresh token, the one standing
- * secret a phone used to hold. Google sync keeps no token in this app on
- * Android (Play services holds the grant), so there is nothing left for
- * it to protect, and offering to set one would claim protection that
+ * The passphrase sealed the refresh token of an earlier sync backend, the
+ * one standing secret a phone used to hold. Google sync keeps no token in
+ * this app on Android (Play services holds the grant), so there is nothing
+ * left for it to protect, and offering to set one would claim protection that
  * does not exist. A phone that had it on keeps this panel until it is
  * removed.
  */
@@ -44,7 +44,7 @@ export function LockSettings({
   return (
     <section className="flex flex-col gap-2">
       <p className="text-sm text-content-muted">
-        A passphrase is still set from the Dropbox days. It protects nothing
+        A passphrase is still set from an earlier version. It protects nothing
         now - Google access on this phone is held by Play services, not by this
         app - so it can be removed.
       </p>

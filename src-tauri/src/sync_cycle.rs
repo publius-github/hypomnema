@@ -23,7 +23,7 @@
 //!
 //! The conflicted-copy fallback is deliberate. A note or a journal entry
 //! is prose, and merging two people's prose line by line invents a
-//! version neither of them wrote. Dropbox's own convention - keep both,
+//! version neither of them wrote. The usual file-sync convention - keep both,
 //! name the loser after the device that made it - is the one users
 //! already recognize, and it is what `tasks_mirror.rs` treats as a hard
 //! signal elsewhere in this app.

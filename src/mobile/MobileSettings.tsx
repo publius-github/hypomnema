@@ -97,7 +97,7 @@ export default function MobileSettings() {
       hint: "Backups, archived lists, cleanup",
     },
     { id: "vault", label: "Vault", hint: vaultPath ?? "none" },
-    // only while one is left over from the Dropbox days, to remove it
+    // only while one is left over from an earlier version, to remove it
     ...(lock?.enabled
       ? [{ id: "lock" as Panel, label: "Passphrase", hint: "On - no longer needed" }]
       : []),
