@@ -178,7 +178,7 @@ node scripts/general/prune-target.mjs [--days N] [--dry-run]
 
 ### Third-party licenses
 
-`THIRD_PARTY_LICENSES.txt` collects the license texts of every bundled Rust crate and npm package; the app compiles it in and shows it under About. Regenerate it after changing dependencies:
+`THIRD_PARTY_LICENSES.txt` collects the license texts of every bundled Rust crate and npm package, plus the prebuilt binaries and Android libraries listed by hand in `scripts/general/notices/`; the app compiles it in and shows it under About. Regenerate it after changing dependencies:
 
 ```bash
 node scripts/general/third-party-licenses.mjs
@@ -212,3 +212,7 @@ Privacy: this program does not transfer any information to other networked syste
 Copyright (C) 2026 &lt;COPYRIGHT HOLDER&gt;
 
 Hypomnema is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3, as published by the Free Software Foundation. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text, and [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the licenses of the libraries it is built on.
+
+Not everything in a build is open source. The Windows binary links Microsoft's WebView2 loader (BSD-3-Clause). The Android build includes Google Play services, which is proprietary and comes under the Android Software Development Kit License. `THIRD_PARTY_LICENSES.txt` lists both.
+
+Google and Google Drive are trademarks of Google LLC; Windows and WebView2 are trademarks of Microsoft Corporation. Hypomnema is not affiliated with or endorsed by either.

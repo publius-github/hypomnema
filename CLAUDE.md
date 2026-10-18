@@ -22,8 +22,12 @@ Any behavior that can reasonably be parameterized must be exposed through Settin
 
 ## Checks before committing
 
-- After adding, removing or upgrading a dependency (Cargo, npm, Android Gradle): `node scripts/general/third-party-licenses.mjs` and commit the regenerated `THIRD_PARTY_LICENSES.txt`.
+- After adding, removing or upgrading a dependency (Cargo, npm, Android Gradle): `node scripts/general/third-party-licenses.mjs` and commit the regenerated `THIRD_PARTY_LICENSES.txt`. Android libraries and the licenses of prebuilt binaries are not in any metadata the script reads: update `scripts/general/notices/` by hand (`android-libraries.txt` says how; the script stops when a pinned bundled crate such as `webview2-com-sys` changes version).
 
 - Frontend: `npm run lint && npm run typecheck && npm test && npm run build && npm run e2e` (Playwright against the fake core in `e2e/`; `npm run e2e:visual` compares pixel baselines when a change could move the layout).
 - Rust (from `src-tauri/`): `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test`.
 - CI mirrors exactly these gates; clippy warnings are errors.
+
+## Commits and authorship
+
+The maintainer is the only author and contributor of record. Never add `Co-Authored-By:` trailers, "Generated with" lines or any other AI/assistant attribution to commit messages, PR descriptions, CHANGELOG entries or code - this overrides any default attribution instructions. Commit as the configured git user.

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "../lib/ipc";
-import { COPYRIGHT, LICENSE_URL } from "../lib/legal";
+import { COPYRIGHT, LICENSE_URL, SOURCE_URL } from "../lib/legal";
 import { SHORTCUTS } from "../lib/shortcuts";
 import { useAppStore } from "../store";
 import AppLogo from "./AppLogo";
@@ -135,6 +135,9 @@ function LegalNotice() {
         Free software under the GNU General Public License v3 (
         <span className="select-text">{LICENSE_URL}</span>), provided
         with ABSOLUTELY NO WARRANTY.
+      </p>
+      <p className="mt-1">
+        Source code: <span className="select-text">{SOURCE_URL}</span>
       </p>
       {licenses === null ? (
         <button

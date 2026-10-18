@@ -15987,57 +15987,276 @@ misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 
 ------------------------------------------------------------------------
-Packages that ship no license file; their declared license applies:
+Packages that ship no license file. Their declared license applies; its
+standard text is reproduced above with other packages. The copyright
+holders are the authors the package names:
 ------------------------------------------------------------------------
 
   alloc-stdlib 0.2.4 - BSD-3-Clause
+    Copyright: Daniel Reiter Horn <danielrh@dropbox.com>
+    Source: https://github.com/dropbox/rust-alloc-no-stdlib
   block2 0.6.2 - MIT
+    Copyright: Mads Marquart <mads@marquart.dk>
+    Source: https://github.com/madsmtm/objc2
   defmt-parser 1.0.0 - MIT OR Apache-2.0
+    Copyright: The Knurling-rs developers
+    Source: https://github.com/knurling-rs/defmt
   dispatch2 0.3.1 - Zlib OR Apache-2.0 OR MIT
+    Copyright: Mads Marquart <mads@marquart.dk>, Mary <mary@mary.zone>
+    Source: https://github.com/madsmtm/objc2
   dlopen2 0.8.2 - MIT
+    Copyright: Szymon Wieloch <szymon.wieloch@gmail.com>, Ahmed Masud <ahmed.masud@saf.ai>, OpenByte <development.openbyte@gmail.com>
+    Source: https://github.com/OpenByteDev/dlopen2
   dlopen2_derive 0.4.3 - MIT
+    Copyright: Szymon Wieloch <szymon.wieloch@gmail.com>, OpenByte <development.openbyte@gmail.com>
+    Source: https://github.com/OpenByteDev/dlopen2
   jni 0.22.4 - MIT OR Apache-2.0
+    Copyright: jni team
+    Source: https://github.com/jni-rs/jni-rs
   jni-macros 0.22.4 - MIT OR Apache-2.0
+    Copyright: the package's authors
+    Source: https://github.com/jni-rs/jni-rs
   jni-sys-macros 0.4.1 - MIT OR Apache-2.0
+    Copyright: Robert Bragg <robert@sixbynine.org>
+    Source: https://github.com/jni-rs/jni-sys
   libappindicator-sys 0.9.0 - Apache-2.0 OR MIT
+    Copyright: the package's authors
   mac-notification-sys 0.6.15 - MIT/Apache-2.0
+    Copyright: Felix Döring <development@felixdoering.com>, Hendrik Sollich <hendrik@hoodie.de>
+    Source: https://github.com/h4llow3En/mac-notification-sys
   ndk 0.9.0 - MIT OR Apache-2.0
+    Copyright: The Rust Mobile contributors
+    Source: https://github.com/rust-mobile/ndk
   ndk-sys 0.6.0+11769913 - MIT OR Apache-2.0
+    Copyright: The Rust Windowing contributors
+    Source: https://github.com/rust-mobile/ndk
   objc2 0.6.4 - MIT
+    Copyright: Mads Marquart <mads@marquart.dk>
+    Source: https://github.com/madsmtm/objc2
   objc2-app-kit 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-cloud-kit 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-core-data 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-core-foundation 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-core-graphics 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-core-image 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-core-location 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-core-text 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-encode 4.1.0 - MIT
+    Copyright: Mads Marquart <mads@marquart.dk>
+    Source: https://github.com/madsmtm/objc2
   objc2-exception-helper 0.1.1 - Zlib OR Apache-2.0 OR MIT
+    Copyright: Mads Marquart <mads@marquart.dk>
+    Source: https://github.com/madsmtm/objc2
   objc2-foundation 0.3.2 - MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-io-surface 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-osa-kit 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-quartz-core 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-ui-kit 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-user-notifications 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   objc2-web-kit 0.3.2 - Zlib OR Apache-2.0 OR MIT
+    Copyright: the package's authors
+    Source: https://github.com/madsmtm/objc2
   r-efi 5.3.0 - MIT OR Apache-2.0 OR LGPL-2.1-or-later
+    Copyright: the package's authors
+    Source: https://github.com/r-efi/r-efi
   r-efi 6.0.0 - MIT OR Apache-2.0 OR LGPL-2.1-or-later
+    Copyright: the package's authors
+    Source: https://github.com/r-efi/r-efi
   rsqlite-vfs 0.1.1 - MIT
+    Copyright: the package's authors
   rustls-platform-verifier-android 0.1.1 - MIT OR Apache-2.0
+    Copyright: the package's authors
+    Source: https://github.com/rustls/rustls-platform-verifier
   selectors 0.36.1 - MPL-2.0
+    Copyright: The Servo Project Developers
+    Source: https://github.com/servo/stylo
   ts-rs 10.1.0 - MIT
+    Copyright: Moritz Bischof <moritz.bischof1@gmail.com>
+    Source: https://github.com/Aleph-Alpha/ts-rs
   ts-rs-macros 10.1.0 - MIT
+    Copyright: Moritz Bischof <moritz.bischof1@gmail.com>
+    Source: https://github.com/Aleph-Alpha/ts-rs
   unic-char-property 0.9.0 - MIT/Apache-2.0
+    Copyright: The UNIC Project Developers
+    Source: https://github.com/open-i18n/rust-unic/
   unic-char-range 0.9.0 - MIT/Apache-2.0
+    Copyright: The UNIC Project Developers
+    Source: https://github.com/open-i18n/rust-unic/
   unic-common 0.9.0 - MIT/Apache-2.0
+    Copyright: The UNIC Project Developers
+    Source: https://github.com/open-i18n/rust-unic/
   unic-ucd-ident 0.9.0 - MIT/Apache-2.0
+    Copyright: The UNIC Project Developers
+    Source: https://github.com/open-i18n/rust-unic/
   unic-ucd-version 0.9.0 - MIT/Apache-2.0
+    Copyright: The UNIC Project Developers
+    Source: https://github.com/open-i18n/rust-unic/
   webview2-com 0.38.2 - MIT
+    Copyright: the package's authors
+    Source: https://github.com/wravery/webview2-rs
   webview2-com-macros 0.8.1 - MIT
+    Copyright: the package's authors
+    Source: https://github.com/wravery/webview2-rs
   webview2-com-sys 0.38.2 - MIT
+    Copyright: the package's authors
+    Source: https://github.com/wravery/webview2-rs
   winapi-i686-pc-windows-gnu 0.4.0 - MIT/Apache-2.0
+    Copyright: Peter Atashian <retep998@gmail.com>
+    Source: https://github.com/retep998/winapi-rs
   winapi-x86_64-pc-windows-gnu 0.4.0 - MIT/Apache-2.0
+    Copyright: Peter Atashian <retep998@gmail.com>
+    Source: https://github.com/retep998/winapi-rs
+
+Bundled binaries (1)
+========================================================================
+
+  Microsoft WebView2 SDK 1.0.3650.58 - WebView2LoaderStatic.lib, linked into the Windows binary by webview2-com-sys - BSD-3-Clause
+
+------------------------------------------------------------------------
+Used by: webview2-com-sys 0.38.2
+------------------------------------------------------------------------
+
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * The name of Microsoft Corporation, or the names of its contributors
+may not be used to endorse or promote products derived from this
+software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+NOTICES AND INFORMATION
+Do Not Translate or Localize
+
+This software incorporates material from third parties. Microsoft makes certain
+open source code available at https://3rdpartysource.microsoft.com, or you may
+send a check or money order for US $5.00, including the product name, the open
+source component name, and version number, to:
+
+Source Code Compliance Team
+Microsoft Corporation
+One Microsoft Way
+Redmond, WA 98052
+USA
+
+Notwithstanding any other terms, you may reverse engineer this software to the
+extent required to debug changes to any libraries licensed under the GNU Lesser
+General Public License.
+
+----------------------------------------------------------------
+
+Antlr3.Runtime 3.5.2-rc1 - BSD 3-Clause
+
+[The "BSD license"]
+Copyright (c) 2011 The ANTLR Project
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+ 3. Neither the name of the copyright holder nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+StringTemplate4 4.0.9-rc1 - BSD 3-Clause
+
+[The "BSD license"]
+Copyright (c) 2011 The ANTLR Project
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+ 3. Neither the name of the copyright holder nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+---------------------------------------------------------
 
 JavaScript packages (152)
 ========================================================================
@@ -17449,13 +17668,90 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Android libraries (5)
+Android libraries (80)
 ========================================================================
 
-  androidx.appcompat:appcompat - Apache-2.0
-  androidx.core:core-ktx - Apache-2.0
-  com.google.android.material:material - Apache-2.0
-  com.fasterxml.jackson.core:jackson-databind - Apache-2.0
-  com.google.android.gms:play-services-auth - Android Software Development Kit License (https://developer.android.com/studio/terms)
+  androidx.activity:activity-ktx:1.10.1 - Apache-2.0
+  androidx.activity:activity:1.10.1 - Apache-2.0
+  androidx.annotation:annotation-experimental:1.4.1 - Apache-2.0
+  androidx.annotation:annotation-jvm:1.9.1 - Apache-2.0
+  androidx.annotation:annotation:1.9.1 - Apache-2.0
+  androidx.appcompat:appcompat-resources:1.7.1 - Apache-2.0
+  androidx.appcompat:appcompat:1.7.1 - Apache-2.0
+  androidx.arch.core:core-common:2.2.0 - Apache-2.0
+  androidx.arch.core:core-runtime:2.2.0 - Apache-2.0
+  androidx.browser:browser:1.8.0 - Apache-2.0
+  androidx.cardview:cardview:1.0.0 - Apache-2.0
+  androidx.collection:collection-jvm:1.4.2 - Apache-2.0
+  androidx.collection:collection:1.4.2 - Apache-2.0
+  androidx.concurrent:concurrent-futures:1.1.0 - Apache-2.0
+  androidx.constraintlayout:constraintlayout-core:1.0.0 - Apache-2.0
+  androidx.constraintlayout:constraintlayout:2.1.0 - Apache-2.0
+  androidx.coordinatorlayout:coordinatorlayout:1.1.0 - Apache-2.0
+  androidx.core:core-ktx:1.13.1 - Apache-2.0
+  androidx.core:core-viewtree:1.0.0 - Apache-2.0
+  androidx.core:core:1.13.1 - Apache-2.0
+  androidx.cursoradapter:cursoradapter:1.0.0 - Apache-2.0
+  androidx.customview:customview:1.1.0 - Apache-2.0
+  androidx.drawerlayout:drawerlayout:1.1.1 - Apache-2.0
+  androidx.dynamicanimation:dynamicanimation:1.1.0 - Apache-2.0
+  androidx.emoji2:emoji2-views-helper:1.3.0 - Apache-2.0
+  androidx.emoji2:emoji2:1.3.0 - Apache-2.0
+  androidx.fragment:fragment:1.5.7 - Apache-2.0
+  androidx.graphics:graphics-shapes-android:1.0.1 - Apache-2.0
+  androidx.graphics:graphics-shapes:1.0.1 - Apache-2.0
+  androidx.interpolator:interpolator:1.0.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-common-jvm:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-common:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-livedata-core:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-process:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-runtime-android:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-runtime-ktx-android:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-runtime-ktx:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-runtime:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-viewmodel-android:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-viewmodel-savedstate-android:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-viewmodel-savedstate:2.10.0 - Apache-2.0
+  androidx.lifecycle:lifecycle-viewmodel:2.10.0 - Apache-2.0
+  androidx.loader:loader:1.1.0 - Apache-2.0
+  androidx.profileinstaller:profileinstaller:1.4.0 - Apache-2.0
+  androidx.recyclerview:recyclerview:1.2.1 - Apache-2.0
+  androidx.resourceinspection:resourceinspection-annotation:1.0.1 - Apache-2.0
+  androidx.savedstate:savedstate-android:1.4.0 - Apache-2.0
+  androidx.savedstate:savedstate-ktx:1.4.0 - Apache-2.0
+  androidx.savedstate:savedstate:1.4.0 - Apache-2.0
+  androidx.startup:startup-runtime:1.1.1 - Apache-2.0
+  androidx.tracing:tracing:1.0.0 - Apache-2.0
+  androidx.transition:transition:1.5.0 - Apache-2.0
+  androidx.vectordrawable:vectordrawable-animated:1.1.0 - Apache-2.0
+  androidx.vectordrawable:vectordrawable:1.1.0 - Apache-2.0
+  androidx.versionedparcelable:versionedparcelable:1.1.1 - Apache-2.0
+  androidx.viewpager2:viewpager2:1.0.0 - Apache-2.0
+  androidx.viewpager:viewpager:1.0.0 - Apache-2.0
+  androidx.webkit:webkit:1.14.0 - Apache-2.0
+  com.fasterxml.jackson.core:jackson-annotations:2.15.3 - Apache-2.0
+  com.fasterxml.jackson.core:jackson-core:2.15.3 - Apache-2.0
+  com.fasterxml.jackson.core:jackson-databind:2.15.3 - Apache-2.0
+  com.google.android.gms:play-services-auth-api-phone:18.0.2 - Android Software Development Kit License (https://developer.android.com/studio/terms)
+  com.google.android.gms:play-services-auth-base:18.0.10 - Android Software Development Kit License (https://developer.android.com/studio/terms)
+  com.google.android.gms:play-services-auth:21.4.0 - Android Software Development Kit License (https://developer.android.com/studio/terms)
+  com.google.android.gms:play-services-base:18.5.0 - Android Software Development Kit License (https://developer.android.com/studio/terms)
+  com.google.android.gms:play-services-basement:18.5.0 - Android Software Development Kit License (https://developer.android.com/studio/terms)
+  com.google.android.gms:play-services-fido:20.0.1 - Android Software Development Kit License (https://developer.android.com/studio/terms)
+  com.google.android.gms:play-services-tasks:18.2.0 - Android Software Development Kit License (https://developer.android.com/studio/terms)
+  com.google.android.material:material:1.13.0 - Apache-2.0
+  com.google.errorprone:error_prone_annotations:2.15.0 - Apache-2.0
+  com.google.guava:listenablefuture:1.0 - Apache-2.0
+  org.jetbrains.kotlin:kotlin-stdlib:2.0.21 - Apache-2.0
+  org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0 - Apache-2.0
+  org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.9.0 - Apache-2.0
+  org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0 - Apache-2.0
+  org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3 - Apache-2.0
+  org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3 - Apache-2.0
+  org.jetbrains:annotations:23.0.0 - Apache-2.0
+  org.jspecify:jspecify:1.0.0 - Apache-2.0
 
 The Apache License 2.0 text is reproduced in the Rust crates section above.
+Google Play services is not open source; its terms are the Android Software
+Development Kit License at the address given.

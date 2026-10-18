@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.109.6 - 2026-10-18
+
+License notices are complete. The third-party notices now carry the license of Microsoft's WebView2 loader, which the Windows binary links statically; the full list of Android libraries in the APK (80, from the release build's dependency tree, Google Play services marked as proprietary); and the authors and source of every package that ships without a license file. About names where the source code lives. README and the website say which parts of a build are not open source and whose trademarks Google, Drive, Windows and WebView2 are.
+
 ## 0.109.5 - 2026-10-18
 
 Documentation that says only what is true. The README gains a Status section (pre-1.0, Windows the shipped platform, Android buildable but unpublished, installer not code-signed, one maintainer, no roadmap promised), names the six Settings tabs that exist (settings profiles were removed in 0.102.0), and shows the whole vault layout - `state/`, `.hypomnemasyncignore`, the synced `colors.yml` and `shared.yml`. It no longer claims macOS development works (only Windows and Linux are checked), and the code signing policy says CI signs the update artifacts, not the installer. CONTRIBUTING warns that a development build shares the installed app's per-device folder - remembered vault, Google sign-in, device id - and so opens the real vault; SECURITY no longer points Android users to a release that does not exist. The website's download button points at the latest release, its Android line says the app is not published yet, it links the source code, and the privacy policy's date matches its last change. The PR checklist includes the e2e run. `prune-target.mjs` rejects an unknown argument instead of pruning, and `--help` prints the usage.

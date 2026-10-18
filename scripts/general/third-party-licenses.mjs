@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // Regenerates THIRD_PARTY_LICENSES.txt at the repo root: the license texts
-// of every Rust crate and npm package that ships inside the app, which the
-// MIT/Apache/BSD/... licenses require to travel with the binary. The Rust
-// core compiles the file in (`include_str!`) and About shows it.
+// of every Rust crate, npm package, prebuilt binary and Android library that
+// ships inside the app, which the MIT/Apache/BSD/... licenses require to
+// travel with the binary. The Rust core compiles the file in
+// (`include_str!`) and About shows it. What package metadata cannot tell -
+// the Android list and the licenses of bundled binaries - lives in
+// scripts/general/notices/.
 //
 // Run after changing dependencies: node scripts/general/third-party-licenses.mjs
 // Needs the crate sources in the cargo registry (any build or `cargo fetch`
@@ -16,19 +19,31 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const outFile = path.join(root, "THIRD_PARTY_LICENSES.txt");
 
+const notices = path.join(root, "scripts/general/notices");
+
 // Gradle dependencies of the Android build: no metadata to read them from,
-// so they are listed by hand. Keep in step with
-// src-tauri/plugins/google-auth/android/build.gradle.kts and Tauri's own
-// Android library.
-const ANDROID = [
-  ["androidx.appcompat:appcompat", "Apache-2.0"],
-  ["androidx.core:core-ktx", "Apache-2.0"],
-  ["com.google.android.material:material", "Apache-2.0"],
-  ["com.fasterxml.jackson.core:jackson-databind", "Apache-2.0"],
-  [
-    "com.google.android.gms:play-services-auth",
-    "Android Software Development Kit License (https://developer.android.com/studio/terms)",
-  ],
+// so notices/android-libraries.txt lists them by hand (how to regenerate
+// it is in its header).
+function androidLibraries() {
+  return fs
+    .readFileSync(path.join(notices, "android-libraries.txt"), "utf8")
+    .split(/\r?\n/)
+    .filter((l) => l.trim() && !l.startsWith("#"))
+    .map((l) => l.split("\t"));
+}
+
+// Prebuilt binaries that a crate links into the app but whose license the
+// crate's own metadata does not carry. Pinned to the crate version the
+// text was checked against: when the crate moves, the generator stops
+// until the bundled binary's license is looked at again.
+const BUNDLED = [
+  {
+    crate: "webview2-com-sys",
+    version: "0.38.2",
+    what: "Microsoft WebView2 SDK 1.0.3650.58 - WebView2LoaderStatic.lib, linked into the Windows binary by webview2-com-sys",
+    license: "BSD-3-Clause",
+    file: "microsoft-webview2-sdk.txt",
+  },
 ];
 
 const LICENSE_FILE = /^(licen[cs]e|copying|notice|copyright)([-._].*)?$/i;
@@ -90,6 +105,8 @@ function rustPackages() {
       name: p.name,
       version: p.version,
       license: p.license ?? (p.license_file ? "see license file" : "unspecified"),
+      authors: (p.authors ?? []).join(", "),
+      repository: p.repository ?? "",
       texts: licenseTexts(path.dirname(p.manifest_path)),
     }));
 }
@@ -101,18 +118,20 @@ function npmPackages() {
     .filter(([key, p]) => key.startsWith("node_modules/") && !p.dev)
     .map(([key, p]) => {
       const dir = path.join(root, key);
-      let license = p.license;
-      if (!license) {
-        try {
-          license = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")).license;
-        } catch {
-          // fall through to "unspecified"
-        }
+      let manifest = {};
+      try {
+        manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+      } catch {
+        // license falls through to "unspecified"
       }
+      const author = manifest.author;
+      const repository = manifest.repository;
       return {
         name: key.slice(key.lastIndexOf("node_modules/") + "node_modules/".length),
         version: p.version,
-        license: license ?? "unspecified",
+        license: p.license ?? manifest.license ?? "unspecified",
+        authors: typeof author === "object" ? (author?.name ?? "") : (author ?? ""),
+        repository: typeof repository === "object" ? (repository?.url ?? "") : (repository ?? ""),
         texts: licenseTexts(dir),
       };
     });
@@ -152,15 +171,45 @@ function render(title, pkgs) {
   if (bare.length) {
     lines.push(
       "-".repeat(72),
-      "Packages that ship no license file; their declared license applies:",
+      "Packages that ship no license file. Their declared license applies; its",
+      "standard text is reproduced above with other packages. The copyright",
+      "holders are the authors the package names:",
       "-".repeat(72),
       "",
     );
-    for (const p of bare) lines.push(`  ${p.name} ${p.version} - ${p.license}`);
+    for (const p of bare) {
+      lines.push(`  ${p.name} ${p.version} - ${p.license}`);
+      lines.push(`    Copyright: ${p.authors || "the package's authors"}`);
+      if (p.repository) lines.push(`    Source: ${p.repository}`);
+    }
     lines.push("");
   }
   return lines.join("\n");
 }
+
+/** The bundled-binary notices, checked against the crate versions in the tree. */
+function bundled(rust) {
+  const lines = [`Bundled binaries (${BUNDLED.length})`, "=".repeat(72), ""];
+  for (const b of BUNDLED) {
+    const found = rust.filter((p) => p.name === b.crate).map((p) => p.version);
+    if (!found.includes(b.version)) {
+      throw new Error(
+        `${b.crate} is ${found.join(", ") || "gone"}, not ${b.version}: check the license of what it bundles, ` +
+          `update notices/${b.file} and BUNDLED in this script`,
+      );
+    }
+    lines.push(`  ${b.what} - ${b.license}`);
+  }
+  lines.push("");
+  for (const b of BUNDLED) {
+    const text = fs.readFileSync(path.join(notices, b.file), "utf8").replace(/\r\n/g, "\n").trim();
+    lines.push("-".repeat(72), `Used by: ${b.crate} ${b.version}`, "-".repeat(72), "", text, "");
+  }
+  return lines.join("\n");
+}
+
+const rust = dedupeByIdentity(rustPackages());
+const android = androidLibraries();
 
 const out = [
   "Hypomnema - third-party software notices",
@@ -171,14 +220,17 @@ const out = [
   "",
   "Generated by scripts/general/third-party-licenses.mjs - do not edit by hand.",
   "",
-  render("Rust crates", dedupeByIdentity(rustPackages())),
+  render("Rust crates", rust),
+  bundled(rust),
   render("JavaScript packages", dedupeByIdentity(npmPackages())),
-  `Android libraries (${ANDROID.length})`,
+  `Android libraries (${android.length})`,
   "=".repeat(72),
   "",
-  ...ANDROID.map(([n, l]) => `  ${n} - ${l}`),
+  ...android.map(([n, l]) => `  ${n} - ${l}`),
   "",
   "The Apache License 2.0 text is reproduced in the Rust crates section above.",
+  "Google Play services is not open source; its terms are the Android Software",
+  "Development Kit License at the address given.",
   "",
 ].join("\n");
 
