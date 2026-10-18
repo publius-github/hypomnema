@@ -409,6 +409,41 @@ function TaskCard({
                 {task.priority ? "★" : "☆"}
               </button>
             ))}
+          {!overlay && !closed && !checklist && (
+            // "not done, dropped": off the plan without pretending it
+            // was done - the review counts it as not done. The hold
+            // keeps the card in place long enough to undo a misclick.
+            // Drop and delete sit left of the time and badges: the
+            // row grows leftward on hover, so the badges never shift.
+            <button
+              className="hidden text-base leading-none hover:text-content group-focus-within:inline group-hover:inline"
+              title="Not done, drop it"
+              aria-label="Not done, drop it"
+              onClick={(e) => {
+                e.stopPropagation();
+                void updateTask(task.id, { status: "dropped" });
+                holdStatus(task.id, task.status);
+              }}
+            >
+              ⊘
+            </button>
+          )}
+          {!overlay && (
+            // hard delete, gone from the database; a deleted generated
+            // instance of a still-live rule regenerates on the next
+            // engine run - the config file is where a rule dies
+            <button
+              className="hidden text-base leading-none hover:text-danger group-focus-within:inline group-hover:inline"
+              title="Delete task"
+              aria-label="Delete task"
+              onClick={(e) => {
+                e.stopPropagation();
+                void useAppStore.getState().deleteTask(task.id);
+              }}
+            >
+              ×
+            </button>
+          )}
           {task.time && <span>{task.time}</span>}
           {task.overdue && !closed && (
             <span className="rounded-sm bg-danger/15 px-1 text-sm font-semibold text-danger">
@@ -439,39 +474,6 @@ function TaskCard({
               {expanded ? "▾" : "▸"}{" "}
               {subtasks.filter((s) => s.status === "done").length}/
               {subtasks.length}
-            </button>
-          )}
-          {!overlay && !closed && !checklist && (
-            // "not done, dropped": off the plan without pretending it
-            // was done - the review counts it as not done. The hold
-            // keeps the card in place long enough to undo a misclick.
-            <button
-              className="hidden text-base leading-none hover:text-content group-focus-within:inline group-hover:inline"
-              title="Not done, drop it"
-              aria-label="Not done, drop it"
-              onClick={(e) => {
-                e.stopPropagation();
-                void updateTask(task.id, { status: "dropped" });
-                holdStatus(task.id, task.status);
-              }}
-            >
-              ⊘
-            </button>
-          )}
-          {!overlay && (
-            // hard delete, gone from the database; a deleted generated
-            // instance of a still-live rule regenerates on the next
-            // engine run - the config file is where a rule dies
-            <button
-              className="hidden text-base leading-none hover:text-danger group-focus-within:inline group-hover:inline"
-              title="Delete task"
-              aria-label="Delete task"
-              onClick={(e) => {
-                e.stopPropagation();
-                void useAppStore.getState().deleteTask(task.id);
-              }}
-            >
-              ×
             </button>
           )}
         </div>

@@ -66,9 +66,11 @@ export default function Settings() {
     // hint reads on a line or two, capped at the window
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
       <div className="relative flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {/* the search takes the row, the advanced switch closes it at
+            the tab line's right end */}
+        <div className="flex items-center gap-4">
           <input
-            className="input w-full max-w-md"
+            className="input min-w-0 flex-1"
             placeholder="Search settings..."
             value={query}
             onChange={(e) => {
@@ -80,7 +82,7 @@ export default function Settings() {
               if (e.key === "Enter" && hits.length > 0) jump(hits[0]);
             }}
           />
-          <label className="flex items-center gap-2 text-sm text-content-muted">
+          <label className="flex shrink-0 items-center gap-2 text-sm text-content-muted">
             <input
               type="checkbox"
               checked={showAdvanced}
@@ -92,7 +94,7 @@ export default function Settings() {
           </label>
         </div>
         {query.trim() !== "" && (
-          <div className="absolute top-10 z-20 flex w-full max-w-md flex-col overflow-hidden rounded-md border border-line bg-surface-alt shadow-lg">
+          <div className="absolute top-10 z-20 flex w-full flex-col overflow-hidden rounded-md border border-line bg-surface-alt shadow-lg">
             {hits.length === 0 ? (
               <span className="px-3 py-2 text-xs text-content-muted">
                 Nothing matches &quot;{query}&quot;.
