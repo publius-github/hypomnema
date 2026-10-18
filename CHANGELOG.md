@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.3 - 2026-10-18
+
+A task row's priority star, drop and delete hover buttons close the row, after the time and the Priority/Overdue/Rate badges, and close the row with delete last; in a card at least 17rem wide they hold their room while unseen, so no badge shifts on hover (a narrower card cannot spare it from the title).
+
 ## 0.110.2 - 2026-10-18
 
 The sync time under the Sync button is always 24-hour HH:MM; the About window is twice as wide.

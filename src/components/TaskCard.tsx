@@ -23,6 +23,14 @@ import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
 import { readable } from "../lib/color";
 import DowLabelText from "./DowLabelText";
 
+// Hover actions (priority star, drop, delete) are out of the layout until
+// the card is hovered or focused; a card at least 17rem wide reserves
+// their room instead, so the time and badges never shift on hover. A
+// narrower one (the default 200px day column) cannot spare it from the
+// title.
+const HOVER_ACTION =
+  "hidden group-focus-within:inline group-hover:inline @[17rem]:inline @[17rem]:invisible @[17rem]:group-focus-within:visible @[17rem]:group-hover:visible";
+
 function TaskCard({
   task,
   overlay = false,
@@ -203,7 +211,7 @@ function TaskCard({
             () => onOpen?.(task.id),
             listeners,
           ))}
-      className={`group text-sm ${
+      className={`group @container text-sm ${
         overlay
           ? // the drag overlay floats over the page, so it keeps a
             // frame and fill of its own
@@ -359,89 +367,20 @@ function TaskCard({
           }`}
           style={{ fontSize: chipSize }}
         >
-          {!overlay &&
-            // any task can carry priority, generated ones included; in
-            // a day column priority reads as a loud yellow label, in
-            // a list column it stays a star toggle
-            (task.priority && showList ? (
-              <button
-                className="rounded-sm bg-warn/15 px-1 text-sm font-semibold text-warn"
-                title="Remove priority"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void updateTask(
-                    task.id,
-                    priorityPatch(task, false, useAppStore.getState().today),
-                  );
-                }}
-              >
-                Priority
-              </button>
-            ) : (
-              <button
-                className={`text-base leading-none ${
-                  task.priority
-                    ? "text-warn"
-                    : "hidden hover:text-warn group-focus-within:inline group-hover:inline"
-                }`}
-                title={
-                  task.priority
-                    ? "Remove priority"
-                    : "Priority: pin to today's column"
-                }
-                aria-label={
-                  task.priority
-                    ? "Remove priority"
-                    : "Priority: pin to today's column"
-                }
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void updateTask(
-                    task.id,
-                    priorityPatch(
-                      task,
-                      !task.priority,
-                      useAppStore.getState().today,
-                    ),
-                  );
-                }}
-              >
-                {task.priority ? "★" : "☆"}
-              </button>
-            ))}
-          {!overlay && !closed && !checklist && (
-            // "not done, dropped": off the plan without pretending it
-            // was done - the review counts it as not done. The hold
-            // keeps the card in place long enough to undo a misclick.
-            // Drop and delete sit left of the time and badges: the
-            // row grows leftward on hover, so the badges never shift.
+          {!overlay && task.priority && showList && (
+            // in a day column priority reads as a loud yellow label
             <button
-              className="hidden text-base leading-none hover:text-content group-focus-within:inline group-hover:inline"
-              title="Not done, drop it"
-              aria-label="Not done, drop it"
+              className="rounded-sm bg-warn/15 px-1 text-sm font-semibold text-warn"
+              title="Remove priority"
               onClick={(e) => {
                 e.stopPropagation();
-                void updateTask(task.id, { status: "dropped" });
-                holdStatus(task.id, task.status);
+                void updateTask(
+                  task.id,
+                  priorityPatch(task, false, useAppStore.getState().today),
+                );
               }}
             >
-              ⊘
-            </button>
-          )}
-          {!overlay && (
-            // hard delete, gone from the database; a deleted generated
-            // instance of a still-live rule regenerates on the next
-            // engine run - the config file is where a rule dies
-            <button
-              className="hidden text-base leading-none hover:text-danger group-focus-within:inline group-hover:inline"
-              title="Delete task"
-              aria-label="Delete task"
-              onClick={(e) => {
-                e.stopPropagation();
-                void useAppStore.getState().deleteTask(task.id);
-              }}
-            >
-              ×
+              Priority
             </button>
           )}
           {task.time && <span>{task.time}</span>}
@@ -474,6 +413,75 @@ function TaskCard({
               {expanded ? "▾" : "▸"}{" "}
               {subtasks.filter((s) => s.status === "done").length}/
               {subtasks.length}
+            </button>
+          )}
+          {/* hover actions close the row; in a card wide enough they
+              keep their room while unseen, so nothing shifts on hover */}
+          {!overlay && !(task.priority && showList) && (
+            // a day column shows priority as the label above; a list
+            // column keeps a star toggle
+            <button
+              className={`text-base leading-none ${
+                task.priority
+                  ? "text-warn"
+                  : `${HOVER_ACTION} hover:text-warn`
+              }`}
+              title={
+                task.priority
+                  ? "Remove priority"
+                  : "Priority: pin to today's column"
+              }
+              aria-label={
+                task.priority
+                  ? "Remove priority"
+                  : "Priority: pin to today's column"
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                void updateTask(
+                  task.id,
+                  priorityPatch(
+                    task,
+                    !task.priority,
+                    useAppStore.getState().today,
+                  ),
+                );
+              }}
+            >
+              {task.priority ? "★" : "☆"}
+            </button>
+          )}
+          {!overlay && !closed && !checklist && (
+            // "not done, dropped": off the plan without pretending it
+            // was done - the review counts it as not done. The hold
+            // keeps the card in place long enough to undo a misclick.
+            <button
+              className={`${HOVER_ACTION} text-base leading-none hover:text-content`}
+              title="Not done, drop it"
+              aria-label="Not done, drop it"
+              onClick={(e) => {
+                e.stopPropagation();
+                void updateTask(task.id, { status: "dropped" });
+                holdStatus(task.id, task.status);
+              }}
+            >
+              ⊘
+            </button>
+          )}
+          {!overlay && (
+            // hard delete, gone from the database; a deleted generated
+            // instance of a still-live rule regenerates on the next
+            // engine run - the config file is where a rule dies
+            <button
+              className={`${HOVER_ACTION} text-base leading-none hover:text-danger`}
+              title="Delete task"
+              aria-label="Delete task"
+              onClick={(e) => {
+                e.stopPropagation();
+                void useAppStore.getState().deleteTask(task.id);
+              }}
+            >
+              ×
             </button>
           )}
         </div>
