@@ -27,10 +27,11 @@ reasoning no longer holds.
   whole-product decision (both clients, key distribution, losing the key
   means losing the vault), not a hardening step. At-rest protection is the
   OS's: disk encryption on the desktop, app-private storage under
-  file-based encryption on Android. The one app-level lock
-  (`secret_store.rs`) covers only the desktop's stored Google refresh
-  token, with no UI to turn it on yet; the phone stores no token (Play
-  services holds the grant).
+  file-based encryption on Android. The one secret, the desktop's Google
+  refresh token, sits in Windows Credential Manager (`google_link.rs`);
+  the app-level passphrase lock (`secret_store.rs`) only covers the
+  token file of other desktops and older builds, with no UI to turn it
+  on; the phone stores no token (Play services holds the grant).
 - **One vault at a time, one app instance.** `vault-path.txt` is a single
   pointer in the OS app-config dir; there's no multi-vault switcher or
   concept of multiple vaults open at once. Matches the single-user usage

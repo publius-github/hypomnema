@@ -8,6 +8,12 @@
 //! restarts and every expiry in between. Somebody holding a phone they
 //! did not buy is the threat this answers.
 //!
+//! On Windows that token no longer passes through here: it lives in
+//! Credential Manager (`google_link::token_vault`), and this module only
+//! reads a `google.json` an older build left behind, once, for the move.
+//! Other desktops (not shipped) still keep the file through these
+//! functions.
+//!
 //! Off by default. App-private storage on Android is already sandboxed
 //! from other apps and covered by the OS's file-based encryption while
 //! the device is locked; a passphrase adds cover for a rooted or

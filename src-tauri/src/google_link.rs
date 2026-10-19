@@ -1,14 +1,18 @@
 //! This device's Google sign-in: which account, and a usable access token.
 //!
-//! Two files in the app's private config dir (never the vault, never
-//! anything synced; on Android only the first, since Play services keeps
-//! the grant there):
-//! - `google-account.json` - email, name and Drive permission id. Plain:
-//!   it is what the screen shows, and it must be readable on a locked
-//!   device to say who is signed in.
-//! - `google.json` - the tokens, through `secret_store.rs`, so the device
-//!   passphrase seals them. The refresh token is a
-//!   standing grant to the app's Drive folder.
+//! The account is a file in the app's private config dir (never the
+//! vault, never anything synced): `google-account.json` - email, name and
+//! Drive permission id. Plain: it is what the screen shows, and it must be
+//! readable on a locked device to say who is signed in.
+//!
+//! The tokens are a standing grant to the app's Drive folder, and live
+//! where the OS keeps such things: on Windows a generic credential in
+//! Credential Manager (`token_vault`), named after the app identifier so a
+//! dev build beside the installed app has its own. A `google.json` left
+//! by an older build is read once, moved into the credential store and
+//! deleted. Other desktops (not shipped) keep that file through
+//! `secret_store.rs`; Android stores no tokens at all - Play services
+//! holds the grant.
 //!
 //! `valid_access_token` refreshes ahead of expiry, so a sync pass never
 //! has to unwind halfway through on a 401.
@@ -24,8 +28,6 @@ use crate::error::{Error, Result};
 use crate::google_auth::{self, GoogleTokens};
 #[cfg(desktop)]
 use crate::oauth::OauthTransport;
-#[cfg(desktop)]
-use crate::secret_store;
 use crate::sync_gdrive::DriveUser;
 
 const TOKENS_FILE: &str = "google.json";
@@ -35,8 +37,143 @@ const ACCOUNT_FILE: &str = "google-account.json";
 #[cfg(desktop)]
 const EXPIRY_SKEW_SECS: i64 = 300;
 
-/// Every file `secret_store` seals when the lock is turned on.
+/// Every file `secret_store` seals when the lock is turned on. On
+/// Windows the token file only exists until the first read moves it into
+/// Credential Manager.
 pub const SECRET_FILES: &[&str] = &[TOKENS_FILE];
+
+/// Where the tokens are kept, and the one place that knows.
+///
+/// Three backends behind two functions: Windows Credential Manager for
+/// the shipped desktop, the config-dir file for other desktops, and
+/// keyring-core's in-memory mock under `cargo test` - so the tests
+/// exercise the credential-store path (migration included) on every CI
+/// runner without touching the runner's own credential store.
+#[cfg(desktop)]
+mod token_vault {
+    use std::path::Path;
+
+    use crate::error::{Error, Result};
+    #[cfg(not(any(windows, test)))]
+    use crate::secret_store;
+
+    use super::TOKENS_FILE;
+
+    /// Shown as the credential's service in Credential Manager; the
+    /// app identifier (the config dir's name) is its user, so the entry
+    /// is listed as `<identifier>.Hypomnema`.
+    #[cfg(any(windows, test))]
+    const SERVICE: &str = "Hypomnema";
+
+    #[cfg(any(windows, test))]
+    fn ensure_store() -> Result<()> {
+        use std::sync::OnceLock;
+        static STORE: OnceLock<std::result::Result<(), String>> = OnceLock::new();
+        STORE
+            .get_or_init(|| {
+                #[cfg(test)]
+                let store = keyring_core::mock::Store::new();
+                #[cfg(not(test))]
+                let store = windows_native_keyring_store::Store::new();
+                match store {
+                    Ok(store) => {
+                        keyring_core::set_default_store(store);
+                        Ok(())
+                    }
+                    Err(e) => Err(e.to_string()),
+                }
+            })
+            .clone()
+            .map_err(|e| Error::State(format!("the credential store is not available: {e}")))
+    }
+
+    #[cfg(any(windows, test))]
+    fn entry(config_dir: &Path) -> Result<keyring_core::Entry> {
+        ensure_store()?;
+        let user = config_dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .filter(|n| !n.is_empty())
+            .ok_or_else(|| Error::State("the app config dir has no name".into()))?;
+        // `Local`: the credential stays on this machine. The default,
+        // `Enterprise`, lets a domain profile roam it - the one copy of
+        // the token a plain file in Roaming AppData used to make.
+        #[cfg(not(test))]
+        let built = keyring_core::Entry::new_with_modifiers(
+            SERVICE,
+            user,
+            &std::collections::HashMap::from([("persistence", "Local")]),
+        );
+        // the mock store takes no modifiers
+        #[cfg(test)]
+        let built = keyring_core::Entry::new(SERVICE, user);
+        built.map_err(|e| Error::State(format!("cannot address the credential store: {e}")))
+    }
+
+    /// The stored tokens, or `None` when this device has none. On the
+    /// first read after an upgrade the older build's `google.json` is
+    /// moved into the credential store.
+    #[cfg(any(windows, test))]
+    pub fn load(config_dir: &Path) -> Result<Option<Vec<u8>>> {
+        let entry = entry(config_dir)?;
+        match entry.get_secret() {
+            Ok(bytes) => return Ok(Some(bytes)),
+            Err(keyring_core::Error::NoEntry) => {}
+            Err(e) => {
+                return Err(Error::State(format!(
+                    "cannot read the Google sign-in from the credential store: {e}"
+                )))
+            }
+        }
+        let Some(bytes) = crate::secret_store::read_secret(config_dir, TOKENS_FILE)? else {
+            return Ok(None);
+        };
+        entry.set_secret(&bytes).map_err(|e| {
+            Error::State(format!(
+                "cannot move the Google sign-in into the credential store: {e}"
+            ))
+        })?;
+        // the plain file is what the move is for; a delete that fails
+        // here is retried on the next read, which finds the entry first
+        // and never reads the file again
+        let _ = std::fs::remove_file(config_dir.join(TOKENS_FILE));
+        Ok(Some(bytes))
+    }
+
+    #[cfg(any(windows, test))]
+    pub fn save(config_dir: &Path, bytes: &[u8]) -> Result<()> {
+        entry(config_dir)?
+            .set_secret(bytes)
+            .map_err(|e| Error::State(format!("cannot store the Google sign-in: {e}")))
+    }
+
+    /// Forgets the tokens. No entry is success.
+    #[cfg(any(windows, test))]
+    pub fn clear(config_dir: &Path) -> Result<()> {
+        match entry(config_dir)?.delete_credential() {
+            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+            Err(e) => Err(Error::State(format!(
+                "cannot remove the Google sign-in from the credential store: {e}"
+            ))),
+        }
+    }
+
+    #[cfg(not(any(windows, test)))]
+    pub fn load(config_dir: &Path) -> Result<Option<Vec<u8>>> {
+        secret_store::read_secret(config_dir, TOKENS_FILE)
+    }
+
+    #[cfg(not(any(windows, test)))]
+    pub fn save(config_dir: &Path, bytes: &[u8]) -> Result<()> {
+        secret_store::write_secret(config_dir, TOKENS_FILE, bytes)
+    }
+
+    /// The file itself goes with `super::clear`.
+    #[cfg(not(any(windows, test)))]
+    pub fn clear(_config_dir: &Path) -> Result<()> {
+        Ok(())
+    }
+}
 
 #[cfg(desktop)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -135,19 +272,19 @@ pub fn store_account(config_dir: &Path, user: &DriveUser) -> Result<Account> {
 
 #[cfg(desktop)]
 fn load_tokens(config_dir: &Path) -> Result<Option<StoredTokens>> {
-    let Some(bytes) = secret_store::read_secret(config_dir, TOKENS_FILE)? else {
+    let Some(bytes) = token_vault::load(config_dir)? else {
         return Ok(None);
     };
     serde_json::from_slice(&bytes)
         .map(Some)
-        .map_err(|e| Error::State(format!("unreadable Google token file: {e}")))
+        .map_err(|e| Error::State(format!("unreadable stored Google tokens: {e}")))
 }
 
 #[cfg(desktop)]
 fn save_tokens(config_dir: &Path, tokens: &StoredTokens) -> Result<()> {
     let text = serde_json::to_string_pretty(tokens)
         .map_err(|e| Error::State(format!("cannot serialize Google tokens: {e}")))?;
-    secret_store::write_secret(config_dir, TOKENS_FILE, text.as_bytes())
+    token_vault::save(config_dir, text.as_bytes())
 }
 
 /// The refresh token, for revoking it on sign-out.
@@ -159,8 +296,11 @@ pub fn refresh_token(config_dir: &Path) -> Option<String> {
         .map(|t| t.refresh_token)
 }
 
-/// Forgets the sign-in. Missing files are success.
+/// Forgets the sign-in. Missing files and a missing credential are
+/// success.
 pub fn clear(config_dir: &Path) -> Result<()> {
+    #[cfg(desktop)]
+    token_vault::clear(config_dir)?;
     for name in [TOKENS_FILE, ACCOUNT_FILE] {
         let path = config_dir.join(name);
         if path.is_file() {
@@ -256,6 +396,27 @@ mod tests {
 
         clear(&dir).unwrap();
         assert!(!is_signed_in(&dir));
+        assert!(refresh_token(&dir).is_none());
+    }
+
+    #[test]
+    fn a_token_file_from_an_older_build_is_moved_into_the_credential_store() {
+        let dir = temp_dir("migrate");
+        let old = StoredTokens {
+            refresh_token: "old-rt".into(),
+            access_token: "old-at".into(),
+            expires_at_unix: 1000,
+        };
+        fs::write(dir.join(TOKENS_FILE), serde_json::to_string(&old).unwrap()).unwrap();
+
+        assert_eq!(refresh_token(&dir).as_deref(), Some("old-rt"));
+        assert!(
+            !dir.join(TOKENS_FILE).exists(),
+            "the plain file goes once the credential store holds the tokens"
+        );
+        // from here on the store answers, with nothing on disk
+        assert_eq!(refresh_token(&dir).as_deref(), Some("old-rt"));
+        clear(&dir).unwrap();
         assert!(refresh_token(&dir).is_none());
     }
 

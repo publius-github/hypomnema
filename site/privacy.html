@@ -35,10 +35,10 @@ device only:</p>
   <li>if you sign in to Google: your Google account's email address, name
   and Drive user id (to show who is signed in), and on Windows the OAuth
   tokens that let the app reach your Drive. On Windows the tokens are a
-  plain file in your user profile's application-data folder, readable by
-  programs running under your Windows account; signing out revokes them
-  at Google and deletes the file. On Android, Google Play services keeps
-  those tokens instead.</li>
+  credential in Windows Credential Manager, which programs running under
+  your Windows account can read; signing out revokes them at Google and
+  deletes the credential. On Android, Google Play services keeps those
+  tokens instead.</li>
 </ul>
 <p>We have no access to any of this. On Android the app opts out of the
 system's automatic cloud backup, so your vault does not leave the phone

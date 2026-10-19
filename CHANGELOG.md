@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.8 - 2026-10-19
+
+On Windows the Google refresh token now lives in Credential Manager (a generic credential named `com.hypomnema.app.Hypomnema`, kept local to the machine) instead of a plain `google.json` in the roaming profile folder. The first sync or sign-out after upgrading moves an existing token file into the credential store and deletes it; signing out deletes the credential. SECURITY.md and the privacy page say so, and that uninstalling leaves the credential in place unless you sign out first. `keyring-core` and `windows-native-keyring-store` join the dependencies (notices regenerated); the tests run the same path against keyring-core's in-memory store.
+
 ## 0.110.7 - 2026-10-19
 
 The phone's Journal and Notes editors are covered end to end: typing is saved once it pauses, a day switch saves what is still waiting, and an entry or note whose save keeps failing is not left behind for the next one (the same contract the desktop editors already had under test). `build-android.sh` resolves the release runtime classpath through Gradle before every build and stops when `scripts/general/notices/android-libraries.txt` differs from it, so the Android part of the third-party notices can no longer drift.
