@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.9 - 2026-10-19
+
+The release workflow records a SLSA build provenance attestation for the Windows installer (`actions/attest-build-provenance`), so `gh attestation verify Hypomnema_<version>_x64-setup.exe --repo publius-github/app-hypomnema` proves a download came out of this repository's workflow on the tagged commit; README's Install and Code signing policy say how. The step is skipped while the repository is private.
+
 ## 0.110.8 - 2026-10-19
 
 On Windows the Google refresh token now lives in Credential Manager (a generic credential named `com.hypomnema.app.Hypomnema`, kept local to the machine) instead of a plain `google.json` in the roaming profile folder. The first sync or sign-out after upgrading moves an existing token file into the credential store and deletes it; signing out deletes the credential. SECURITY.md and the privacy page say so, and that uninstalling leaves the credential in place unless you sign out first. `keyring-core` and `windows-native-keyring-store` join the dependencies (notices regenerated); the tests run the same path against keyring-core's in-memory store.

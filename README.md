@@ -22,7 +22,7 @@ Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you
 
 ## Install
 
-- **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/app-hypomnema/releases/latest) and run it. It installs for the current user, without administrator rights; on a Windows 10 without WebView2 it downloads that first, so it needs a connection. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. The app then updates itself; every update is verified against the project's signing key before it is installed.
+- **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/app-hypomnema/releases/latest) and run it. It installs for the current user, without administrator rights; on a Windows 10 without WebView2 it downloads that first, so it needs a connection. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. To check that a download really came out of this repository's release workflow, run `gh attestation verify Hypomnema_<version>_x64-setup.exe --repo publius-github/app-hypomnema` with the [GitHub CLI](https://cli.github.com). The app then updates itself; every update is verified against the project's signing key before it is installed.
 - **Android** - no published build yet; see [`docs/android/ARCHITECTURE.md`](docs/android/ARCHITECTURE.md) (Prerequisites, Build) to build the APK yourself.
 - **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run app:dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
 
@@ -198,7 +198,7 @@ At startup the desktop app checks `releases/latest/download/latest.json` of the 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 -->
 
-Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds it, signs the update artifacts with the project's updater key (the installer itself is not code-signed yet) and attaches them to a draft release; a draft reaches users only once it is reviewed and published by hand.
+Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds it, signs the update artifacts with the project's updater key (the installer itself is not code-signed yet), records a [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) for the installer and attaches the files to a draft release; a draft reaches users only once it is reviewed and published by hand. `gh attestation verify <installer> --repo publius-github/app-hypomnema` checks a download against that attestation.
 
 Team roles:
 
