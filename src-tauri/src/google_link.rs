@@ -53,7 +53,9 @@ pub const SECRET_FILES: &[&str] = &[TOKENS_FILE];
 mod token_vault {
     use std::path::Path;
 
-    use crate::error::{Error, Result};
+    #[cfg(any(windows, test))]
+    use crate::error::Error;
+    use crate::error::Result;
     #[cfg(not(any(windows, test)))]
     use crate::secret_store;
 
