@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.13 - 2026-10-19
+
+Dependency updates Dependabot proposed, taken in one step: the CodeMirror packages (view 6.43.14, state 6.7.6, language 6.13.1, commands, search, lang-markdown, language-data, lezer highlight), the Tauri JavaScript side (api 2.12.3, CLI 2.12.2, the dialog, notification, opener, process and updater plugins), `@types/node` 26 and jsdom 30.1.2; third-party notices regenerated. `@vitejs/plugin-react` stays at 4: version 6 needs Vite 8.
+
 ## 0.110.12 - 2026-10-19
 
 The repository is `publius-github/hypomnema` now: the updater endpoint, the website, README, SECURITY.md, the issue template, the About links and the crate metadata point at the new name (GitHub redirects the old one). The GitHub Pages address becomes `https://publius-github.github.io/hypomnema/`.
