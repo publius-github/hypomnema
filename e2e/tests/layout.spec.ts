@@ -46,6 +46,16 @@ test("task titles in the day columns stay readable by default", async ({ app, pa
   for (const [title, width] of checked) {
     expect(width, `${title}`).toBeGreaterThanOrEqual(48);
   }
+  // hovering brings the action buttons into the row; the title keeps
+  // its floor instead of being squeezed out (it went to zero width on
+  // a Linux font, where the click then never reached it)
+  const plan = page.getByRole("group", { name: "Plan the week" });
+  await plan.hover();
+  const hovered = await plan
+    .locator(".truncate")
+    .first()
+    .evaluate((el) => Math.round(el.getBoundingClientRect().width));
+  expect(hovered).toBeGreaterThanOrEqual(48);
 });
 
 test("the week's phrase never covers the header controls", async ({ app, page }) => {

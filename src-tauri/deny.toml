@@ -44,10 +44,14 @@ ignore = true
 # report them, but fail only on actual vulnerabilities.
 unmaintained = "none"
 ignore = [
-    # glib 0.18 comes with Tauri's GTK stack, which is only linked into
-    # Linux builds - not a platform the app ships on. Clears when Tauri
-    # moves to gtk4-rs.
-    { id = "RUSTSEC-2024-0429", reason = "Linux-only GTK dependency of tauri; Linux is not shipped" },
+    # zip 4 is pinned by tauri-plugin-updater (every 2.x and the 3.0
+    # alphas require ^4) and is only reached when an update ships as a
+    # .zip bundle. This app ships NSIS .exe installers, which the updater
+    # downloads and runs without extracting an archive. Clears when the
+    # plugin moves to zip 9.
+    { id = "RUSTSEC-2026-0367", reason = "zip extraction is not used: NSIS .exe updates are not archives" },
+    { id = "RUSTSEC-2026-0368", reason = "zip extraction is not used: NSIS .exe updates are not archives" },
+    { id = "RUSTSEC-2026-0369", reason = "zip extraction is not used: NSIS .exe updates are not archives" },
 ]
 
 [bans]

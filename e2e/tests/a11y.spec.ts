@@ -45,7 +45,9 @@ for (const theme of ["dark", "light"]) {
 
 test("task dialog", async ({ app }) => {
   const page = await app();
-  await page.getByText("Plan the week", { exact: true }).click();
+  // the keyboard path: the mouse path is tasks.spec's "opening a task"
+  await page.getByRole("group", { name: "Plan the week" }).focus();
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "Task" })).toBeVisible();
   expect(await violations(page)).toEqual([]);
 });

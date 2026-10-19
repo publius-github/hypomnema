@@ -304,7 +304,10 @@ function TaskCard({
           </span>
         )}
         <div
-          className={`min-w-0 flex-1 cursor-pointer leading-snug ${
+          // the floor keeps the hover actions from squeezing the title
+          // to nothing in a narrow column (zero width is also where a
+          // click stops reaching it)
+          className={`min-w-12 flex-1 cursor-pointer leading-snug ${
             multiline ? "wrap-break-word" : "truncate"
           } ${closed ? "text-content-muted line-through" : ""}`}
           // multi-line titles clamp at the configured line count

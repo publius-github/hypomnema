@@ -63,7 +63,8 @@ test("search finds a task from anywhere", async ({ app }) => {
 
 test("a day task whose date is cleared moves to the inbox instead of vanishing", async ({ app }) => {
   const page = await app();
-  await page.getByText("Renew the passport", { exact: true }).click();
+  await page.getByRole("group", { name: "Renew the passport" }).focus();
+  await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Task" });
   await dialog.getByLabel("Date").fill("");
   await dialog.getByLabel("Date").blur();
