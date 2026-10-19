@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
 import ConflictList from "../../components/ConflictList";
+import GoogleSignInButton from "../../components/GoogleSignInButton";
 import { errorKind, errorMessage, invoke } from "../../lib/ipc";
 import { useAppStore } from "../../store";
 import type {
@@ -159,13 +160,11 @@ export default function SyncTab() {
                 app sees nothing else there.
               </p>
               <div className="flex items-center gap-2">
-                <button
-                  className="btn-primary w-fit px-3 py-1 text-sm disabled:opacity-50"
-                  disabled={signingIn}
+                <GoogleSignInButton
+                  busy={signingIn}
+                  busyLabel="Waiting for the browser..."
                   onClick={() => void signIn()}
-                >
-                  {signingIn ? "Waiting for the browser..." : "Sign in with Google"}
-                </button>
+                />
                 {signingIn && (
                   <button
                     className="btn-ghost px-3 py-1 text-xs"

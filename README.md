@@ -217,7 +217,7 @@ Copyright (C) 2026 Siarhei Zverau
 
 Hypomnema is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 only, as published by the Free Software Foundation, with an additional permission under section 7 for linking with Google Play services ([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text, and [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the licenses of the libraries it is built on.
 
-Not everything in a build is open source. The Windows binary links Microsoft's WebView2 loader (BSD-3-Clause). The Android build includes Google Play services, which is proprietary and comes under the Android Software Development Kit License. `THIRD_PARTY_LICENSES.txt` lists both.
+Not everything in a build is open source. The Windows binary links Microsoft's WebView2 loader (BSD-3-Clause). The Android build includes Google Play services, which is proprietary and comes under the Android Software Development Kit License. The "Sign in with Google" button carries Google's "G" logo, a trademark of Google LLC used under its [sign-in branding guidelines](https://developers.google.com/identity/branding-guidelines), not under the GPL. `THIRD_PARTY_LICENSES.txt` lists all three.
 
 The name Hypomnema and its logo are not covered by the GPL: a modified version you distribute needs its own name and icon ([TRADEMARKS.md](TRADEMARKS.md)).
 

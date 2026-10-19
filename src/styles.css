@@ -97,6 +97,29 @@
   @apply rounded-md border border-danger/50 px-3 py-1.5 text-sm text-danger hover:bg-danger/10;
 }
 
+/* "Sign in with Google" (components/GoogleSignInButton.tsx) in Google's
+   own schemes, not the app palette: light #FFFFFF/#747775/#1F1F1F, dark
+   #131314/#8E918F/#E3E3E3, hover and press as the text color at 8% and
+   12% over the fill - the branding guidelines' figures */
+.google-signin {
+  --gsi-fill: #ffffff;
+  --gsi-text: #1f1f1f;
+  background-color: var(--gsi-fill);
+  border-color: #747775;
+  color: var(--gsi-text);
+}
+.dark .google-signin {
+  --gsi-fill: #131314;
+  --gsi-text: #e3e3e3;
+  border-color: #8e918f;
+}
+.google-signin:enabled:hover {
+  background-color: color-mix(in srgb, var(--gsi-text) 8%, var(--gsi-fill));
+}
+.google-signin:enabled:active {
+  background-color: color-mix(in srgb, var(--gsi-text) 12%, var(--gsi-fill));
+}
+
 :root {
   /* native widgets (scrollbars, pickers) follow the app theme */
   color-scheme: light;

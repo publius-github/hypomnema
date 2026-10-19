@@ -232,6 +232,14 @@ const out = [
   "Google Play services is not open source; its terms are the Android Software",
   "Development Kit License at the address given.",
   "",
+  "Brand assets",
+  "=".repeat(72),
+  "",
+  "  The \"Sign in with Google\" button shows Google's \"G\" logo, a trademark of",
+  "  Google LLC, drawn as its sign-in branding guidelines prescribe",
+  "  (https://developers.google.com/identity/branding-guidelines). It is used",
+  "  under those guidelines and is not covered by this program's license.",
+  "",
 ].join("\n");
 
 fs.writeFileSync(outFile, out);

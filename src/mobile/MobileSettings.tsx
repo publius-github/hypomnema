@@ -8,6 +8,7 @@ import { NumberField, Toggle } from "./controls";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
 import ConflictList from "../components/ConflictList";
+import GoogleSignInButton from "../components/GoogleSignInButton";
 import { AboutContent, useAppVersion } from "../components/AboutModal";
 
 import type {
@@ -257,13 +258,12 @@ function SyncPanel({
           through a hidden app folder in your Google Drive; the app sees
           nothing else there. Sign in with the same account on every device.
         </p>
-        <button
-          disabled={busy || google?.available === false}
+        <GoogleSignInButton
+          disabled={google?.available === false}
+          busy={busy}
           onClick={() => void signIn()}
-          className="rounded-lg bg-accent-fill px-4 py-3 font-medium text-white disabled:opacity-50"
-        >
-          {busy ? "Signing in..." : "Sign in with Google"}
-        </button>
+          className="justify-center"
+        />
         {progress && (
           <p className="text-sm text-content-muted">
             {progress[0]} / {progress[1]} files

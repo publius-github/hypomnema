@@ -4,6 +4,7 @@ import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { warn } from "../lib/log";
 import MobileVaultFolder from "./MobileVaultFolder";
+import GoogleSignInButton from "../components/GoogleSignInButton";
 
 /**
  * First run on a phone.
@@ -102,13 +103,12 @@ export default function MobileVaultSetup() {
         >
           Choose a folder…
         </button>
-        <button
-          disabled={busy || signingIn}
+        <GoogleSignInButton
+          disabled={busy}
+          busy={signingIn}
           onClick={() => void signIn()}
-          className="rounded-lg border border-line px-5 py-3 disabled:opacity-50"
-        >
-          {signingIn ? "Signing in..." : "Sign in with Google"}
-        </button>
+          className="justify-center"
+        />
         {progress && (
           <p className="text-sm text-content-muted">
             Bringing the vault down: {progress[0]} / {progress[1]} files
