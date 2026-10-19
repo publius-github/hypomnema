@@ -8,7 +8,7 @@ A local-first personal productivity app: a weekly task planner, a daily journal 
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
 
-- [Install](#install) · [Status](#status) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Troubleshooting](#troubleshooting) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](site/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
+- [Install](#install) · [Status](#status) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Troubleshooting](#troubleshooting) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](https://publius-github.github.io/app-hypomnema/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
 Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
 
@@ -95,7 +95,7 @@ The `tasks/` mirror (enabled in Settings) holds one file per list plus `schedule
 
 ### Sync
 
-Signing in with Google syncs the vault between your devices through a hidden app-data folder in your own Drive (scope `drive.appdata` - the app cannot see any other file there). Notes and other text files edited on two devices are merged line by line; a real clash leaves a `(conflicted copy ...)` file next to the original, which Settings lets you compare and resolve. Paths listed in `.hypomnemasyncignore` stay on this device. A note or journal entry deleted on the other device lands in this vault's `.trash/` folder (kept 30 days) rather than vanishing. Keep every device on the same version: a device whose app is older than the one that last synced stops syncing with "update the app on this device" instead of merging data it cannot fully read. See the [privacy policy](site/privacy.html) for exactly what goes where.
+Signing in with Google syncs the vault between your devices through a hidden app-data folder in your own Drive (scope `drive.appdata` - the app cannot see any other file there). Notes and other text files edited on two devices are merged line by line; a real clash leaves a `(conflicted copy ...)` file next to the original, which Settings lets you compare and resolve. Paths listed in `.hypomnemasyncignore` stay on this device. A note or journal entry deleted on the other device lands in this vault's `.trash/` folder (kept 30 days) rather than vanishing. Keep every device on the same version: a device whose app is older than the one that last synced stops syncing with "update the app on this device" instead of merging data it cannot fully read. See the [privacy policy](https://publius-github.github.io/app-hypomnema/privacy.html) for exactly what goes where.
 
 ## YAML configuration
 
@@ -205,11 +205,11 @@ Team roles:
 - Committers and reviewers: [@publius-github](https://github.com/publius-github)
 - Approvers: [@publius-github](https://github.com/publius-github)
 
-Privacy: this program does not transfer any information to other networked systems unless the user asks it to - Google Drive sync runs only after the user signs in. The one exception is the update check at startup, which downloads a version file from GitHub, sends no personal data or app content, and can be turned off in Settings > General > Updates. Details in the [privacy policy](site/privacy.html).
+Privacy: this program does not transfer any information to other networked systems unless the user asks it to - Google Drive sync runs only after the user signs in. The one exception is the update check at startup, which downloads a version file from GitHub, sends no personal data or app content, and can be turned off in Settings > General > Updates. Details in the [privacy policy](https://publius-github.github.io/app-hypomnema/privacy.html).
 
 ## Website
 
-`site/` is the static project website (home page and privacy policy) - plain HTML and CSS, host it anywhere. Google's OAuth verification needs both pages on a domain you own.
+`site/` is the static project website (home page and privacy policy) - plain HTML and CSS. `pages.yml` publishes it to GitHub Pages at <https://publius-github.github.io/app-hypomnema/> on every push to `main` that touches it (Settings > Pages > Source must be set to GitHub Actions once). It can be hosted anywhere else as well; Google's OAuth verification needs both pages on a domain you own.
 
 ## License
 

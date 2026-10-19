@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.10 - 2026-10-19
+
+The project website in `site/` deploys to GitHub Pages (`pages.yml`, on every push to `main` that touches it), and README's three privacy-policy links point at <https://publius-github.github.io/app-hypomnema/privacy.html> instead of the HTML source in the repository.
+
 ## 0.110.9 - 2026-10-19
 
 The release workflow records a SLSA build provenance attestation for the Windows installer (`actions/attest-build-provenance`), so `gh attestation verify Hypomnema_<version>_x64-setup.exe --repo publius-github/app-hypomnema` proves a download came out of this repository's workflow on the tagged commit; README's Install and Code signing policy say how. The step is skipped while the repository is private.
