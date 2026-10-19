@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.7 - 2026-10-19
+
+The phone's Journal and Notes editors are covered end to end: typing is saved once it pauses, a day switch saves what is still waiting, and an entry or note whose save keeps failing is not left behind for the next one (the same contract the desktop editors already had under test). `build-android.sh` resolves the release runtime classpath through Gradle before every build and stops when `scripts/general/notices/android-libraries.txt` differs from it, so the Android part of the third-party notices can no longer drift.
+
 ## 0.110.6 - 2026-10-19
 
 A task title keeps at least 3rem of its row when the hover buttons come in, so a narrow day column with a wide font no longer squeezes it to nothing (where a click could not reach it; CI's Linux font did). The e2e suite opens the task dialog from the keyboard where the mouse path is not what is under test, and the width check now also measures a hovered row. `cargo deny` ignores the three `zip` 4 advisories with the reason: the updater only extracts archives, and this app's updates are NSIS executables; the stale glib ignore is gone.

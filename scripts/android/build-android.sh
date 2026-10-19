@@ -464,6 +464,55 @@ print("release signing config injected")
 PYTHON
 }
 
+function check_android_notices() {
+  printf "\n"
+  log_info "function check_android_notices - compare notices/android-libraries.txt with the release runtime classpath"
+  local notices="$REPO_ROOT/scripts/general/notices/android-libraries.txt"
+  local resolved listed
+  # Gradle prints the resolved tree; one coordinate per line comes out of
+  # it: "a:b:1.0 -> 1.2" resolves to 1.2, "(c)" constraints and "(*)"
+  # repeats keep their coordinate, "(n)" unresolved lines and project
+  # modules are not libraries, BOMs ship no code (same rule as the list).
+  resolved="$(cd "$REPO_ROOT/src-tauri/gen/android" && ./gradlew -q :app:dependencies --configuration universalReleaseRuntimeClasspath | awk '
+    /^[|+\\ -]*--- / {
+      line = $0
+      sub(/^[|+\\ -]*--- /, "", line)
+      if (line ~ /^project /) next
+      if (line ~ /\(n\)$/) next
+      sub(/ \([*c]\)$/, "", line)
+      if (index(line, " -> ") > 0) {
+        split(line, halves, " -> ")
+        split(halves[1], parts, ":")
+        line = parts[1] ":" parts[2] ":" halves[2]
+      }
+      if (line !~ /^[^:]+:[^:]+:[^:]+$/) next
+      if (line ~ /-bom:/) next
+      print line
+    }' | sort -u)"
+  if [ -z "$resolved" ]; then
+    log_error "gradle reported no resolved libraries; the classpath configuration name may have changed"
+    exit 1
+  fi
+  listed="$(grep -v '^#' "$notices" | grep -v '^[[:space:]]*$' | cut -f1 | sort -u)"
+  local missing extra
+  missing="$(comm -23 <(printf '%s\n' "$resolved") <(printf '%s\n' "$listed"))"
+  extra="$(comm -13 <(printf '%s\n' "$resolved") <(printf '%s\n' "$listed"))"
+  if [ -n "$missing" ] || [ -n "$extra" ]; then
+    log_error "scripts/general/notices/android-libraries.txt does not match the release runtime classpath"
+    if [ -n "$missing" ]; then
+      log_error "in the APK but not in the list (add with the license its POM declares):"
+      printf '%s\n' "$missing" >&2
+    fi
+    if [ -n "$extra" ]; then
+      log_error "in the list but not in the APK (remove):"
+      printf '%s\n' "$extra" >&2
+    fi
+    log_error "then run: node scripts/general/third-party-licenses.mjs"
+    exit 1
+  fi
+  log_info "android-libraries.txt matches the classpath ($(printf '%s\n' "$resolved" | wc -l | tr -d ' ') libraries)"
+}
+
 function build_apk() {
   printf "\n"
   log_info "function build_apk - tauri android build ($BUILD_VARIANT, $ANDROID_ABIS)"
@@ -548,6 +597,7 @@ function main() {
   configure_storage_permission
   configure_backup
   configure_signing
+  check_android_notices
   build_apk
   collect_artifacts
   log_info "build finished"

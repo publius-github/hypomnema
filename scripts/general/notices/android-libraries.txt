@@ -4,7 +4,8 @@
 # build.gradle.kts, or a Tauri upgrade): from src-tauri/gen/android run
 #   ./gradlew -q :app:dependencies --configuration universalReleaseRuntimeClasspath
 # and take each resolved group:artifact:version (BOMs left out - they ship
-# no code) with the license its POM declares.
+# no code) with the license its POM declares. build-android.sh runs that
+# command before every build and stops when this list differs from it.
 # Format: group:artifact:version<TAB>license
 androidx.activity:activity-ktx:1.10.1	Apache-2.0
 androidx.activity:activity:1.10.1	Apache-2.0
