@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.110.12 - 2026-10-19
+
+The repository is `publius-github/hypomnema` now: the updater endpoint, the website, README, SECURITY.md, the issue template, the About links and the crate metadata point at the new name (GitHub redirects the old one). The GitHub Pages address becomes `https://publius-github.github.io/hypomnema/`.
+
 ## 0.110.11 - 2026-10-19
 
 The "Sign in with Google" button (Settings > Sync, the phone's first-run screen and its Settings) follows Google's sign-in branding guidelines: the four-color "G", 40px, Google's light and dark schemes, hover and press as the guidelines specify (`components/GoogleSignInButton.tsx`). README and `THIRD_PARTY_LICENSES.txt` note that the "G" is Google's trademark, used under those guidelines rather than the GPL.

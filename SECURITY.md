@@ -6,7 +6,7 @@ Only the latest released version receives security fixes. The desktop app update
 
 ## Reporting a vulnerability
 
-Please report security problems privately through GitHub's [private vulnerability reporting](https://github.com/publius-github/app-hypomnema/security/advisories/new) rather than in a public issue. Include the app version, the platform (Windows / Android), what an attacker could do, and the steps to reproduce.
+Please report security problems privately through GitHub's [private vulnerability reporting](https://github.com/publius-github/hypomnema/security/advisories/new) rather than in a public issue. Include the app version, the platform (Windows / Android), what an attacker could do, and the steps to reproduce.
 
 You can expect an acknowledgement within a week. Once a fix is released, the report is credited in the changelog unless you prefer otherwise.
 

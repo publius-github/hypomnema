@@ -1,7 +1,7 @@
 name: pages
 
 # The project website (site/: home page and privacy policy) on GitHub
-# Pages, at https://publius-github.github.io/app-hypomnema/. Pages must be
+# Pages, at https://publius-github.github.io/hypomnema/. Pages must be
 # set to deploy from GitHub Actions once (Settings > Pages > Source), which
 # a free account can only do on a public repository.
 on:

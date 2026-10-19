@@ -1,14 +1,14 @@
 # Hypomnema
 
-[![ci](https://github.com/publius-github/app-hypomnema/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/publius-github/app-hypomnema/actions/workflows/ci.yml)
-[![latest release](https://img.shields.io/github/v/release/publius-github/app-hypomnema)](https://github.com/publius-github/app-hypomnema/releases/latest)
+[![ci](https://github.com/publius-github/hypomnema/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/publius-github/hypomnema/actions/workflows/ci.yml)
+[![latest release](https://img.shields.io/github/v/release/publius-github/hypomnema)](https://github.com/publius-github/hypomnema/releases/latest)
 [![license: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 A local-first personal productivity app: a weekly task planner, a daily journal and a Markdown knowledge base in one window. Windows first, with an Android companion. Everything lives in a folder you choose, as plain files and a local database - no account, no server, no telemetry. Sync between your devices is optional and goes through your own Google Drive.
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
 
-- [Install](#install) · [Status](#status) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Troubleshooting](#troubleshooting) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](https://publius-github.github.io/app-hypomnema/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
+- [Install](#install) · [Status](#status) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Troubleshooting](#troubleshooting) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](https://publius-github.github.io/hypomnema/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
 Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
 
@@ -22,7 +22,7 @@ Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you
 
 ## Install
 
-- **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/app-hypomnema/releases/latest) and run it. It installs for the current user, without administrator rights; on a Windows 10 without WebView2 it downloads that first, so it needs a connection. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. To check that a download really came out of this repository's release workflow, run `gh attestation verify Hypomnema_<version>_x64-setup.exe --repo publius-github/app-hypomnema` with the [GitHub CLI](https://cli.github.com). The app then updates itself; every update is verified against the project's signing key before it is installed.
+- **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/hypomnema/releases/latest) and run it. It installs for the current user, without administrator rights; on a Windows 10 without WebView2 it downloads that first, so it needs a connection. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. To check that a download really came out of this repository's release workflow, run `gh attestation verify Hypomnema_<version>_x64-setup.exe --repo publius-github/hypomnema` with the [GitHub CLI](https://cli.github.com). The app then updates itself; every update is verified against the project's signing key before it is installed.
 - **Android** - no published build yet; see [`docs/android/ARCHITECTURE.md`](docs/android/ARCHITECTURE.md) (Prerequisites, Build) to build the APK yourself.
 - **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run app:dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
 
@@ -95,7 +95,7 @@ The `tasks/` mirror (enabled in Settings) holds one file per list plus `schedule
 
 ### Sync
 
-Signing in with Google syncs the vault between your devices through a hidden app-data folder in your own Drive (scope `drive.appdata` - the app cannot see any other file there). Notes and other text files edited on two devices are merged line by line; a real clash leaves a `(conflicted copy ...)` file next to the original, which Settings lets you compare and resolve. Paths listed in `.hypomnemasyncignore` stay on this device. A note or journal entry deleted on the other device lands in this vault's `.trash/` folder (kept 30 days) rather than vanishing. Keep every device on the same version: a device whose app is older than the one that last synced stops syncing with "update the app on this device" instead of merging data it cannot fully read. See the [privacy policy](https://publius-github.github.io/app-hypomnema/privacy.html) for exactly what goes where.
+Signing in with Google syncs the vault between your devices through a hidden app-data folder in your own Drive (scope `drive.appdata` - the app cannot see any other file there). Notes and other text files edited on two devices are merged line by line; a real clash leaves a `(conflicted copy ...)` file next to the original, which Settings lets you compare and resolve. Paths listed in `.hypomnemasyncignore` stay on this device. A note or journal entry deleted on the other device lands in this vault's `.trash/` folder (kept 30 days) rather than vanishing. Keep every device on the same version: a device whose app is older than the one that last synced stops syncing with "update the app on this device" instead of merging data it cannot fully read. See the [privacy policy](https://publius-github.github.io/hypomnema/privacy.html) for exactly what goes where.
 
 ## YAML configuration
 
@@ -126,7 +126,7 @@ Plus `weekly-focus.yml` (the week's focus phrase, rotated by ISO week), `day-rem
 
 ## Troubleshooting
 
-- **Something failed or looks wrong** - About > *Copy diagnostics* puts the app version, the platform and the end of the diagnostic log on the clipboard; read it, remove anything private, and paste it into a [bug report](https://github.com/publius-github/app-hypomnema/issues/new?template=bug_report.yml) (About > *Report a problem* opens the form). The app never sends the log anywhere by itself.
+- **Something failed or looks wrong** - About > *Copy diagnostics* puts the app version, the platform and the end of the diagnostic log on the clipboard; read it, remove anything private, and paste it into a [bug report](https://github.com/publius-github/hypomnema/issues/new?template=bug_report.yml) (About > *Report a problem* opens the form). The app never sends the log anywhere by itself.
 - **Where the log is** - `%APPDATA%\com.hypomnema.app\hypomnema.log` on Windows (About > *Show log file*); it rotates to `hypomnema.log.1` at `log_max_kb` (app.yml, 1 MiB by default).
 - **A task with no day and no list** - goes to the quick-capture list (Inbox by default) rather than out of sight, for example when you clear the date of a task added under a day.
 - **Tasks or lists went missing** - Settings > Data > Backups restores a daily database snapshot; the database being replaced is copied aside first, so a restore can itself be undone. Before an app update changes the database format, a `before upgrade` snapshot is taken as well.
@@ -198,18 +198,18 @@ At startup the desktop app checks `releases/latest/download/latest.json` of the 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 -->
 
-Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds it, signs the update artifacts with the project's updater key (the installer itself is not code-signed yet), records a [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) for the installer and attaches the files to a draft release; a draft reaches users only once it is reviewed and published by hand. `gh attestation verify <installer> --repo publius-github/app-hypomnema` checks a download against that attestation.
+Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds it, signs the update artifacts with the project's updater key (the installer itself is not code-signed yet), records a [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) for the installer and attaches the files to a draft release; a draft reaches users only once it is reviewed and published by hand. `gh attestation verify <installer> --repo publius-github/hypomnema` checks a download against that attestation.
 
 Team roles:
 
 - Committers and reviewers: [@publius-github](https://github.com/publius-github)
 - Approvers: [@publius-github](https://github.com/publius-github)
 
-Privacy: this program does not transfer any information to other networked systems unless the user asks it to - Google Drive sync runs only after the user signs in. The one exception is the update check at startup, which downloads a version file from GitHub, sends no personal data or app content, and can be turned off in Settings > General > Updates. Details in the [privacy policy](https://publius-github.github.io/app-hypomnema/privacy.html).
+Privacy: this program does not transfer any information to other networked systems unless the user asks it to - Google Drive sync runs only after the user signs in. The one exception is the update check at startup, which downloads a version file from GitHub, sends no personal data or app content, and can be turned off in Settings > General > Updates. Details in the [privacy policy](https://publius-github.github.io/hypomnema/privacy.html).
 
 ## Website
 
-`site/` is the static project website (home page and privacy policy) - plain HTML and CSS. `pages.yml` publishes it to GitHub Pages at <https://publius-github.github.io/app-hypomnema/> on every push to `main` that touches it (Settings > Pages > Source must be set to GitHub Actions once). It can be hosted anywhere else as well; Google's OAuth verification needs both pages on a domain you own.
+`site/` is the static project website (home page and privacy policy) - plain HTML and CSS. `pages.yml` publishes it to GitHub Pages at <https://publius-github.github.io/hypomnema/> on every push to `main` that touches it (Settings > Pages > Source must be set to GitHub Actions once). It can be hosted anywhere else as well; Google's OAuth verification needs both pages on a domain you own.
 
 ## License
 

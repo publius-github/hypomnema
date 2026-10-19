@@ -3,7 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { errorMessage, invoke } from "../lib/ipc";
 
 const NEW_ISSUE_URL =
-  "https://github.com/publius-github/app-hypomnema/issues/new?template=bug_report.yml";
+  "https://github.com/publius-github/hypomnema/issues/new?template=bug_report.yml";
 
 /**
  * "Something is wrong" tools, shared by About and the crash screen: copy
