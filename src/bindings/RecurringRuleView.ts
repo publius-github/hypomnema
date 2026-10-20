@@ -10,4 +10,10 @@ threshold: number | null,
  * file the rule lives in, relative to config/; only rules from the
  * root recurring.yml are editable through the UI
  */
-source: string, };
+source: string, 
+/**
+ * "YYYY-MM-DD HH:MM" of the next firing after now, local time; None
+ * for a cron that does not parse or never fires again. The phone
+ * orders the list by it.
+ */
+next_occurrence: string | null, };

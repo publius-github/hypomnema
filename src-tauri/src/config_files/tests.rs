@@ -125,11 +125,11 @@ fn edit_and_delete_config_entries_round_trip() {
     )
     .unwrap();
     assert!(edit_recurring(&dir, 5, &rule_at(&dir, 0), None).is_err());
-    let listed = recurring_list(&dir);
+    let listed = recurring_list(&dir, chrono::Local::now());
     assert_eq!(listed.rules.len(), 1);
     assert_eq!(listed.rules[0].schedule, "0 0 * * 1");
     edit_recurring(&dir, 0, &rule_at(&dir, 0), None).unwrap();
-    assert!(recurring_list(&dir).rules.is_empty());
+    assert!(recurring_list(&dir, chrono::Local::now()).rules.is_empty());
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn splice_preserves_comments_and_blank_lines() {
     let after = fs::read_to_string(dir.join("recurring.yml")).unwrap();
     assert!(!after.contains("Monthly"));
     assert!(after.contains("# morning block"));
-    assert_eq!(recurring_list(&dir).rules.len(), 2);
+    assert_eq!(recurring_list(&dir, chrono::Local::now()).rules.len(), 2);
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn subfolder_yaml_merges_by_top_level_key() {
     assert!(bdays.is_empty());
     assert!(errors.is_empty());
 
-    let listed = recurring_list(&dir);
+    let listed = recurring_list(&dir, chrono::Local::now());
     assert_eq!(listed.rules.len(), 1);
     assert_eq!(listed.rules[0].source, "packs/work.yml");
 }

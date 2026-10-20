@@ -345,6 +345,7 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
         items: ["Water the plants"],
         threshold: 80,
         source: "recurring.yml",
+        next_occurrence: "2026-10-15 00:00",
       },
     ],
     ...noErrors,

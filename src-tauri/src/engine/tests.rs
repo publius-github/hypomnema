@@ -1538,7 +1538,7 @@ fn recurring_quick_add_validates_and_lists() {
     )
     .is_err());
 
-    let listed = recurring_list(&dir);
+    let listed = recurring_list(&dir, chrono::Local::now());
     assert_eq!(listed.rules.len(), 1);
     assert_eq!(listed.rules[0].items, vec!["{Home} water plants"]);
     assert!(listed.errors.is_empty());

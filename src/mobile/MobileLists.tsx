@@ -99,8 +99,10 @@ export default function MobileLists() {
       <li key={list.id} className="border-b border-line/60">
         <button
           onClick={() => setOpenId(list.id)}
+          // a member list's name starts one step right of its group's
+          // (marker column + gap + the step), as in the desktop index
           className={`flex w-full items-center justify-between py-4 pr-4 text-left ${
-            nested ? "pl-10" : "pl-4"
+            nested ? "pl-16" : "pl-4"
           }`}
         >
           <span className="flex min-w-0 items-center gap-2">
@@ -348,7 +350,7 @@ export default function MobileLists() {
                   >
                     <span
                       aria-hidden
-                      className="w-4 shrink-0 text-center text-xs text-content-muted"
+                      className="w-6 shrink-0 text-center text-lg leading-none text-content-muted"
                     >
                       {folded ? "▸" : "▾"}
                     </span>

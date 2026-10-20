@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import type {
@@ -6,6 +6,7 @@ import type {
   BirthdaysResult,
   RecurringResult,
   RecurringRule,
+  RecurringRuleView,
   ScheduledEvent,
   UpcomingResult,
 } from "../types";
@@ -119,41 +120,79 @@ function Scheduled({
     time: null,
   });
 
+  const open = (event: ScheduledEvent & { source: string }, key: string) => {
+    setEditing(editing === key ? null : key);
+    setDraft({ date: event.date, title: event.title, time: event.time });
+  };
+
   return (
     <div className="flex flex-col">
+      <AddBox
+        onAdd={() => {
+          if (!date || !title.trim()) return;
+          const event: ScheduledEvent = {
+            date,
+            title: title.trim(),
+            time: time || null,
+          };
+          void act(() => invoke("scheduled_add", { event })).then(() => {
+            setTitle("");
+            setTime("");
+          });
+        }}
+      >
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What happens"
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+      </AddBox>
       <ul>
         {result?.events.length === 0 && <Empty>Nothing scheduled.</Empty>}
         {result?.events.map((event) => {
           const key = `${event.date}-${event.title}-${event.source}`;
+          const opened = editing === key;
           return (
           <li key={key} className="border-b border-line/60 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
-              <span className="min-w-0">
-                <span className="block wrap-break-word">{event.title}</span>
+              {/* the row opens on a tap; closed, a long title stops at
+                  two lines so one event never fills the screen */}
+              <button
+                onClick={() => open(event, key)}
+                aria-expanded={opened}
+                className="min-w-0 flex-1 text-left"
+              >
+                <span
+                  className={`block wrap-break-word ${
+                    opened ? "" : "line-clamp-2"
+                  }`}
+                >
+                  {event.title}
+                </span>
                 <span className="text-xs text-content-muted">
                   {event.date}
                   {event.time && ` · ${event.time}`}
                   {event.source !== "scheduled.yml" && ` · ${event.source}`}
                 </span>
-              </span>
+              </button>
               {/* Only rows that live in the root scheduled.yml can be
                   spliced back by index; a pack's row is shown but not
                   edited, exactly as on the desktop. */}
               {event.source === "scheduled.yml" && (
                 <span className="flex shrink-0 gap-3">
-                  <button
-                    onClick={() => {
-                      setEditing(editing === key ? null : key);
-                      setDraft({
-                        date: event.date,
-                        title: event.title,
-                        time: event.time,
-                      });
-                    }}
-                    className="text-sm text-content-muted"
-                  >
-                    Edit
-                  </button>
                   <button
                     onClick={() =>
                       void act(() =>
@@ -174,7 +213,7 @@ function Scheduled({
                 </span>
               )}
             </div>
-            {editing === key && (
+            {opened && event.source === "scheduled.yml" && (
               <div className="mt-2 flex flex-col gap-2">
                 <input
                   type="date"
@@ -224,39 +263,6 @@ function Scheduled({
           );
         })}
       </ul>
-      <AddBox
-        onAdd={() => {
-          if (!date || !title.trim()) return;
-          const event: ScheduledEvent = {
-            date,
-            title: title.trim(),
-            time: time || null,
-          };
-          void act(() => invoke("scheduled_add", { event })).then(() => {
-            setTitle("");
-            setTime("");
-          });
-        }}
-      >
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-        />
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="What happens"
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-        />
-        <input
-          type="time"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-        />
-      </AddBox>
     </div>
   );
 }
@@ -278,37 +284,76 @@ function Birthdays({
     year: null,
   });
 
+  const open = (entry: BirthdayEntry, key: string) => {
+    setEditing(editing === key ? null : key);
+    setDraft({ name: entry.name, date: entry.date, year: entry.year });
+  };
+
   return (
     <div className="flex flex-col">
+      <AddBox
+        onAdd={() => {
+          if (!name.trim() || !/^\d{2}-\d{2}$/.test(date)) return;
+          const entry: BirthdayEntry = {
+            name: name.trim(),
+            date,
+            year: year ? Number(year) : null,
+          };
+          void act(() => invoke("birthday_add", { entry })).then(() => {
+            setName("");
+            setDate("");
+            setYear("");
+          });
+        }}
+      >
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Whose birthday"
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+        <input
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          placeholder="MM-DD"
+          inputMode="numeric"
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+        <input
+          value={year}
+          onChange={(e) => setYear(e.target.value)}
+          placeholder="Year born (optional)"
+          inputMode="numeric"
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+      </AddBox>
       <ul>
         {result?.birthdays.length === 0 && <Empty>No birthdays yet.</Empty>}
         {result?.birthdays.map((entry) => {
           const key = `${entry.name}-${entry.date}`;
+          const opened = editing === key;
           return (
           <li key={key} className="border-b border-line/60 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
-              <span className="min-w-0">
-                <span className="block wrap-break-word">{entry.name}</span>
+              <button
+                onClick={() => open(entry, key)}
+                aria-expanded={opened}
+                className="min-w-0 flex-1 text-left"
+              >
+                <span
+                  className={`block wrap-break-word ${
+                    opened ? "" : "line-clamp-2"
+                  }`}
+                >
+                  {entry.name}
+                </span>
                 <span className="text-xs text-content-muted">
                   {entry.next_occurrence} · in {entry.days_until} d
                   {entry.turns !== null && ` · turns ${entry.turns}`}
                 </span>
-              </span>
+              </button>
               {entry.source === "birthdays.yml" && (
                 <span className="flex shrink-0 gap-3">
-                  <button
-                    onClick={() => {
-                      setEditing(editing === key ? null : key);
-                      setDraft({
-                        name: entry.name,
-                        date: entry.date,
-                        year: entry.year,
-                      });
-                    }}
-                    className="text-sm text-content-muted"
-                  >
-                    Edit
-                  </button>
                   <button
                     onClick={() =>
                       void act(() =>
@@ -329,7 +374,7 @@ function Birthdays({
                 </span>
               )}
             </div>
-            {editing === key && (
+            {opened && entry.source === "birthdays.yml" && (
               <div className="mt-2 flex flex-col gap-2">
                 <input
                   value={draft.name}
@@ -384,42 +429,6 @@ function Birthdays({
           );
         })}
       </ul>
-      <AddBox
-        onAdd={() => {
-          if (!name.trim() || !/^\d{2}-\d{2}$/.test(date)) return;
-          const entry: BirthdayEntry = {
-            name: name.trim(),
-            date,
-            year: year ? Number(year) : null,
-          };
-          void act(() => invoke("birthday_add", { entry })).then(() => {
-            setName("");
-            setDate("");
-            setYear("");
-          });
-        }}
-      >
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Whose birthday"
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-        />
-        <input
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          placeholder="MM-DD"
-          inputMode="numeric"
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-        />
-        <input
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-          placeholder="Year born (optional)"
-          inputMode="numeric"
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-        />
-      </AddBox>
     </div>
   );
 }
@@ -448,52 +457,100 @@ function Recurring({
     threshold?: number;
   }>({ schedule: "", description: "", items: "" });
 
+  const open = (rule: RecurringRuleView, index: number) => {
+    setEditing(
+      editing?.index === index ? null : { index, original: ruleOf(rule) },
+    );
+    setDraft({
+      schedule: rule.schedule,
+      description: rule.description,
+      items: rule.items.join("\n"),
+      // the view type spells "no threshold" as null, the rule payload
+      // as an absent key
+      threshold: rule.threshold ?? undefined,
+    });
+  };
+
+  // Calendar order from January, not from today: a rule that fires in
+  // March sits before one that fires in November even in October, so
+  // the year reads the same way up whenever the list is opened. The
+  // index stays the rule's place in its file, which is what an edit
+  // sends back.
+  const rows = useMemo(() => orderByCalendar(result?.rules ?? []), [result]);
+
   return (
     <div className="flex flex-col">
+      <AddBox
+        onAdd={() => {
+          const lines = items
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean);
+          if (!schedule.trim() || lines.length === 0) return;
+          const rule: RecurringRule = {
+            schedule: schedule.trim(),
+            description: "",
+            items: lines,
+          };
+          void act(() => invoke("recurring_add", { rule })).then(() => {
+            setSchedule("");
+            setItems("");
+          });
+        }}
+      >
+        <input
+          value={schedule}
+          onChange={(e) => setSchedule(e.target.value)}
+          placeholder="Cron, e.g. 0 9 * * 1-5"
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2 font-mono text-sm"
+        />
+        <textarea
+          value={items}
+          onChange={(e) => setItems(e.target.value)}
+          rows={2}
+          placeholder="One task per line; {List} prefix picks a list"
+          className="resize-none rounded-lg border border-line bg-surface-alt px-3 py-2"
+        />
+      </AddBox>
       <ul>
         {result?.rules.length === 0 && <Empty>No recurring rules yet.</Empty>}
-        {result?.rules.map((rule, index) => (
+        {rows.map(({ rule, index }) => {
+          const opened = editing?.index === index;
+          return (
           <li
             key={`${rule.source}-${index}`}
             className="border-b border-line/60 px-4 py-3"
           >
             <div className="flex items-start justify-between gap-3">
-              <span className="min-w-0">
-                <span className="block wrap-break-word">
+              <button
+                onClick={() => open(rule, index)}
+                aria-expanded={opened}
+                className="min-w-0 flex-1 text-left"
+              >
+                <span
+                  className={`block wrap-break-word ${
+                    opened ? "" : "line-clamp-2"
+                  }`}
+                >
                   {rule.description || rule.items.join(", ")}
                 </span>
                 <span className="block wrap-break-word text-xs text-content-muted">
+                  {rule.next_occurrence && `${rule.next_occurrence} · `}
                   {rule.schedule}
                   {rule.source !== "recurring.yml" && ` · ${rule.source}`}
                 </span>
                 {rule.description && (
-                  <span className="block wrap-break-word text-xs text-content-muted">
+                  <span
+                    className={`block wrap-break-word text-xs text-content-muted ${
+                      opened ? "" : "line-clamp-2"
+                    }`}
+                  >
                     {rule.items.join(", ")}
                   </span>
                 )}
-              </span>
+              </button>
               {rule.source === "recurring.yml" && (
                 <span className="flex shrink-0 gap-3">
-                  <button
-                    onClick={() => {
-                      setEditing(
-                        editing?.index === index
-                          ? null
-                          : { index, original: ruleOf(rule) },
-                      );
-                      setDraft({
-                        schedule: rule.schedule,
-                        description: rule.description,
-                        items: rule.items.join("\n"),
-                        // the view type spells "no threshold" as null,
-                        // the rule payload as an absent key
-                        threshold: rule.threshold ?? undefined,
-                      });
-                    }}
-                    className="text-sm text-content-muted"
-                  >
-                    Edit
-                  </button>
                   <button
                     onClick={() =>
                       void act(() =>
@@ -511,7 +568,7 @@ function Recurring({
                 </span>
               )}
             </div>
-            {editing?.index === index && (
+            {opened && editing && rule.source === "recurring.yml" && (
               <div className="mt-2 flex flex-col gap-2">
                 <input
                   value={draft.schedule}
@@ -568,42 +625,30 @@ function Recurring({
               </div>
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
-      <AddBox
-        onAdd={() => {
-          const lines = items
-            .split("\n")
-            .map((line) => line.trim())
-            .filter(Boolean);
-          if (!schedule.trim() || lines.length === 0) return;
-          const rule: RecurringRule = {
-            schedule: schedule.trim(),
-            description: "",
-            items: lines,
-          };
-          void act(() => invoke("recurring_add", { rule })).then(() => {
-            setSchedule("");
-            setItems("");
-          });
-        }}
-      >
-        <input
-          value={schedule}
-          onChange={(e) => setSchedule(e.target.value)}
-          placeholder="Cron, e.g. 0 9 * * 1-5"
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2 font-mono text-sm"
-        />
-        <textarea
-          value={items}
-          onChange={(e) => setItems(e.target.value)}
-          rows={2}
-          placeholder="One task per line; {List} prefix picks a list"
-          className="resize-none rounded-lg border border-line bg-surface-alt px-3 py-2"
-        />
-      </AddBox>
     </div>
   );
+}
+
+/**
+ * Rules in the order their next firing falls within a calendar year
+ * (month, day, time), ties by file order; rules with no next firing
+ * (a cron that does not parse) go last, in file order.
+ */
+export function orderByCalendar(
+  rules: RecurringRuleView[],
+): { rule: RecurringRuleView; index: number }[] {
+  return rules
+    .map((rule, index) => ({ rule, index }))
+    .sort((a, b) => {
+      const at = a.rule.next_occurrence?.slice(5) ?? "";
+      const bt = b.rule.next_occurrence?.slice(5) ?? "";
+      if (!at && bt) return 1;
+      if (at && !bt) return -1;
+      return at.localeCompare(bt) || a.index - b.index;
+    });
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -615,8 +660,9 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The add form, folded away until asked for. On a phone an open form
- * under every list would push the list itself off the screen.
+ * The add form, folded away until asked for, at the top of its list:
+ * open, it would push the list down; at the bottom it would sit under
+ * a long list's worth of scrolling.
  */
 function AddBox({
   children,
@@ -637,7 +683,7 @@ function AddBox({
     );
   }
   return (
-    <div className="flex flex-col gap-2 border-t border-line p-3">
+    <div className="flex flex-col gap-2 border-b border-line p-3">
       {children}
       <div className="flex gap-2">
         <button

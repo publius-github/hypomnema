@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.112.0 - 2026-10-20
+
+Phone polish. More > Upcoming: the Add form sits at the top of each list instead of under it, a row opens on a tap (the Edit button is gone; Delete stays beside the row) and a closed row's text stops at two lines, and the Recurring list is ordered by where each rule's next firing falls in the calendar year - January first whatever the month - with that date shown on the row (`RecurringRuleView.next_occurrence`, "YYYY-MM-DD HH:MM" local, null for a cron that does not parse). The Day header gets a sync button on the right of the day navigation, for a phone signed in to Google: it runs a pass on demand, spins while one runs (automatic passes included) and carries the last pass's time under the icon ("12:40" today, "14 Oct" earlier, "never"); a failed last pass tints it. The Lists index draws a bigger fold triangle on a group row and indents the group's member lists one step further, as the desktop's All lists index does.
+
 ## 0.111.0 - 2026-10-20
 
 Settings > Vault on the phone gets "Save a copy to Downloads": the vault as one zip archive (notes, journal, configs, the task mirror and the `state/` snapshot the database is rebuilt from; `app.db`, `backups/` and `.trash/` stay out) written to `Download/Hypomnema/` through `MediaStore`, which needs no permission on Android 10+. A vault kept in the app's own folder is deleted together with the app, and the panel now says so next to the button. The `vault_export` command takes a target path on other platforms; no desktop control yet.

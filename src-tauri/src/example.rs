@@ -239,8 +239,15 @@ mod tests {
         assert_eq!(count, 9);
 
         let config_dir = vault::config_dir(&root);
-        assert_eq!(recurring_list(&config_dir).rules.len(), 3);
-        assert!(recurring_list(&config_dir).errors.is_empty());
+        assert_eq!(
+            recurring_list(&config_dir, chrono::Local::now())
+                .rules
+                .len(),
+            3
+        );
+        assert!(recurring_list(&config_dir, chrono::Local::now())
+            .errors
+            .is_empty());
         let (events, errors) = upcoming_events(&vault.conn, &config_dir, today).unwrap();
         assert_eq!(events.len(), 1);
         assert!(errors.is_empty(), "{errors:?}");

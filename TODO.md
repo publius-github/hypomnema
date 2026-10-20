@@ -22,6 +22,7 @@ Open items left after the audit (state as of 2026-10-20). Audit reports themselv
 - [ ] O-31: Calendar/History/Review on edge dates, mobile "back" navigation, tray and quick capture, task mirror after an edit from the phone, Windows high-contrast theme in WebView2. Confirm the icon origin.
 - [ ] O-10: two-device sync on 0.109.7 or newer. Install the APK from the Dropbox folder on the phone, edit on the phone, focus the desktop right away: the edit must be kept. Make sure the phone runs a build not older than the desktop.
 - [ ] Vault export (0.111.0, Settings > Vault > "Save a copy to Downloads"): not run on a device yet. Check on the phone: the file appears in Files > Downloads > Hypomnema, opens as a zip, and the archive restores a vault when unpacked into a folder and opened. The Android cross-compile of `android_storage::save_to_downloads` is unverified until the next `build-android.sh`. Import from a zip is not built; unpacking by hand into a folder and opening it is the restore path.
+- [ ] 0.112.0 phone polish (Upcoming add-on-top and tap-to-open, Recurring calendar order, Day header sync button, Lists indent): not seen on a device yet; the e2e fake is signed out, so the sync button has no visual baseline. Check the header still centres the day on the test phone with Today showing.
 - [ ] F-091: the Android library list check in `build-android.sh` is FIXED but unverified; confirm on the next APK build.
 
 ## First release

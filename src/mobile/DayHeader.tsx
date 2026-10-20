@@ -55,18 +55,28 @@ const Chevron = ({ back }: { back?: boolean }) => (
   </svg>
 );
 
+export const SyncIcon = () => (
+  <svg {...ICON} width={20} height={20}>
+    <path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2" />
+    <path d="M3 4v5h5M21 20v-5h-5" />
+  </svg>
+);
+
 /**
  * The header the day-at-a-time screens (Day, Journal) share, so they
  * read the same: a left action, the day's name over its date with
  * ‹ › around it - the label doubles as the date picker - and Today on
- * the right only away from today. Three columns with equal side slots
- * keep the day in the true centre whatever the side buttons hold.
+ * the right only away from today, next to whatever the screen puts in
+ * the right slot (the Day's sync button). The side slots are equal
+ * while the right one holds a single control, which keeps the day in
+ * the true centre; with Today beside it the centre gives a little.
  */
 export default function DayHeader({
   date,
   today,
   onDate,
   left,
+  right,
   status,
 }: {
   date: string;
@@ -74,11 +84,13 @@ export default function DayHeader({
   onDate: (date: string) => void;
   /** The left slot's button (search on Day, the entry list on Journal). */
   left: ReactNode;
+  /** The right slot's own control, kept beside Today. */
+  right?: ReactNode;
   /** A short mark after the date line ("Saving..."), if any. */
   status?: ReactNode;
 }) {
   return (
-    <header className="grid grid-cols-[3.25rem_1fr_3.25rem] items-center border-b border-line px-1 py-1.5">
+    <header className="grid grid-cols-[3.25rem_1fr_auto] items-center border-b border-line px-1 py-1.5">
       <div className="flex justify-center">{left}</div>
       <div className="flex min-w-0 items-center justify-center">
         <button
@@ -114,18 +126,20 @@ export default function DayHeader({
           <Chevron />
         </button>
       </div>
-      {/* only away from today; the slot stays so nothing shifts */}
-      {date !== today ? (
-        <button
-          onClick={() => onDate(today)}
-          aria-label="Back to today"
-          className="h-11 text-sm font-semibold text-accent"
-        >
-          Today
-        </button>
-      ) : (
-        <span />
-      )}
+      {/* Today only away from today; the slot keeps its width so
+          nothing shifts while the day changes */}
+      <div className="flex min-w-[3.25rem] items-center justify-end">
+        {date !== today && (
+          <button
+            onClick={() => onDate(today)}
+            aria-label="Back to today"
+            className="h-11 px-2 text-sm font-semibold text-accent"
+          >
+            Today
+          </button>
+        )}
+        {right}
+      </div>
     </header>
   );
 }

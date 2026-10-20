@@ -64,7 +64,10 @@ pub(crate) async fn calendar_outlook(
 pub(crate) async fn recurring_list(state: State<'_, AppState>) -> Result<views::RecurringResult> {
     let guard = state.vault.lock_or_recover();
     let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
-    Ok(views::recurring_list(&vault.config_dir()))
+    Ok(views::recurring_list(
+        &vault.config_dir(),
+        chrono::Local::now(),
+    ))
 }
 
 #[tauri::command]

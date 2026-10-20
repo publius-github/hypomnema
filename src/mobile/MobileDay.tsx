@@ -3,7 +3,13 @@ import { useAppStore } from "../store";
 import { addDaysISO, daysBetweenISO } from "../lib/tasks";
 import { DayAmbientLines, useDayAmbient } from "../components/DayAmbient";
 import { useBackStep } from "./back";
-import DayHeader, { dayLabel, HeaderButton, SearchIcon } from "./DayHeader";
+import DayHeader, {
+  dayLabel,
+  HeaderButton,
+  SearchIcon,
+  SyncIcon,
+} from "./DayHeader";
+import { useSyncButton } from "./sync";
 import { useDaySections } from "../hooks/useColumnSections";
 import { useMobileNav } from "./nav";
 import Sections from "./Sections";
@@ -25,6 +31,7 @@ export default function MobileDay() {
   const offset = useAppStore((s) => s.gridOffset);
   const setGridOffset = useAppStore((s) => s.setGridOffset);
   const { openSearch } = useMobileNav();
+  const sync = useSyncButton();
 
   const date = addDaysISO(today, offset);
   const sections = useDaySections(date);
@@ -56,6 +63,27 @@ export default function MobileDay() {
           <HeaderButton label="Search" onClick={openSearch}>
             <SearchIcon />
           </HeaderButton>
+        }
+        right={
+          // a pass on demand, with the last pass's time under the icon:
+          // the one place a phone needs to say "am I up to date" is the
+          // screen it opens on
+          sync.shown && (
+            <button
+              onClick={sync.run}
+              disabled={sync.running}
+              aria-label={sync.running ? "Syncing" : "Sync now"}
+              title={sync.label}
+              className={`flex h-11 w-[3.25rem] flex-col items-center justify-center gap-0.5 ${
+                sync.error ? "text-warn" : "text-content-muted"
+              } disabled:opacity-50`}
+            >
+              <span className={sync.running ? "animate-spin" : ""}>
+                <SyncIcon />
+              </span>
+              <span className="text-[0.625rem] leading-none">{sync.label}</span>
+            </button>
+          )
         }
       />
 

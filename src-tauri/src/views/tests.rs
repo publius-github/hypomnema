@@ -336,9 +336,20 @@ fn recurring_list_keeps_broken_rules_and_names_their_error() {
         "tasks:\n  - schedule: \"0 8 * * *\"\n    items: [\"{Home} water\"]\n",
     )
     .unwrap();
-    let result = recurring_list(&dir);
+    // a Wednesday: the weekly Monday rule fires five days on
+    let now = Local.with_ymd_and_hms(2026, 10, 14, 12, 0, 0).unwrap();
+    let result = recurring_list(&dir, now);
     assert_eq!(result.rules.len(), 3);
+    assert_eq!(
+        result.rules[0].next_occurrence.as_deref(),
+        Some("2026-10-19 09:00")
+    );
     assert_eq!(result.rules[1].description, "broken");
+    assert_eq!(result.rules[1].next_occurrence, None);
+    assert_eq!(
+        result.rules[2].next_occurrence.as_deref(),
+        Some("2026-10-15 08:00")
+    );
     assert_eq!(result.rules[2].source, "packs/home.yml");
     assert_eq!(result.errors.len(), 1);
     assert_eq!(result.errors[0].file, "recurring.yml");

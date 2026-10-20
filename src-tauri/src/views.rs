@@ -28,6 +28,10 @@ pub struct RecurringRuleView {
     /// file the rule lives in, relative to config/; only rules from the
     /// root recurring.yml are editable through the UI
     pub source: String,
+    /// "YYYY-MM-DD HH:MM" of the next firing after now, local time; None
+    /// for a cron that does not parse or never fires again. The phone
+    /// orders the list by it.
+    pub next_occurrence: Option<String>,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -642,7 +646,7 @@ pub fn habit_rates(
 
 /// All recurring rules with cron validation errors surfaced, so the
 /// Recurring view shows broken rules next to working ones.
-pub fn recurring_list(config_dir: &Path) -> RecurringResult {
+pub fn recurring_list(config_dir: &Path, now: DateTime<Local>) -> RecurringResult {
     let mut errors = Vec::new();
     let root =
         load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut errors).unwrap_or_default();
@@ -655,24 +659,32 @@ pub fn recurring_list(config_dir: &Path) -> RecurringResult {
     let mut rules = Vec::new();
     for (source, file) in sources {
         for (index, rule) in file.tasks.into_iter().enumerate() {
-            if let Err(e) = Cron::new(&rule.schedule).parse() {
-                errors.push(ConfigError {
-                    file: source.clone(),
-                    line: None,
-                    message: format!(
-                        "rule {} ('{}'): invalid cron '{}': {e}",
-                        index + 1,
-                        rule.description,
-                        rule.schedule
-                    ),
-                });
-            }
+            let next_occurrence = match Cron::new(&rule.schedule).parse() {
+                Ok(cron) => cron
+                    .find_next_occurrence(&now, false)
+                    .ok()
+                    .map(|at| at.format("%Y-%m-%d %H:%M").to_string()),
+                Err(e) => {
+                    errors.push(ConfigError {
+                        file: source.clone(),
+                        line: None,
+                        message: format!(
+                            "rule {} ('{}'): invalid cron '{}': {e}",
+                            index + 1,
+                            rule.description,
+                            rule.schedule
+                        ),
+                    });
+                    None
+                }
+            };
             rules.push(RecurringRuleView {
                 schedule: rule.schedule,
                 description: rule.description,
                 items: rule.items,
                 threshold: rule.threshold,
                 source: source.clone(),
+                next_occurrence,
             });
         }
     }
