@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.113.2 - 2026-10-20
+
+The phone's Day header sync button gets the desktop's sync icon: the old one's arrowheads sat away from the ends of its arcs, and the arcs ran against the direction the spinner turns. The time under it is always 24-hour ("12:40", "15:05"), whatever the device locale.
+
 ## 0.113.1 - 2026-10-20
 
 The Windows build stopped on Tauri's version check: 0.110.13 had moved the Tauri JS packages forward without the Rust crates. The crates now match the JS packages' major.minor - tauri 2.12, dialog 2.8, notification 2.6, opener 2.7, process 2.4, updater 2.13 - with notification and updater held at 2.6 and 2.13 rather than the newer 2.7 and 2.14, so they don't get ahead of npm. This pulls in webview2-com-sys 0.39.1, which bundles WebView2 SDK 1.0.3800.47; the SDK's license and notice text are unchanged, and the notices are regenerated.

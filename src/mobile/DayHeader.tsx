@@ -57,8 +57,10 @@ const Chevron = ({ back }: { back?: boolean }) => (
 
 export const SyncIcon = () => (
   <svg {...ICON} width={20} height={20}>
-    <path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2" />
-    <path d="M3 4v5h5M21 20v-5h-5" />
+    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+    <path d="M21 3v5h-5" />
+    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+    <path d="M3 21v-5h5" />
   </svg>
 );
 

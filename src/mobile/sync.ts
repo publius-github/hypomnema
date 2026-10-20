@@ -72,9 +72,10 @@ export function passLabel(at: string | null, now = new Date()): string {
   const when = new Date(at);
   if (Number.isNaN(when.getTime())) return "never";
   if (when.toDateString() === now.toDateString()) {
-    return when.toLocaleTimeString(undefined, {
+    return when.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
   }
   return when.toLocaleDateString(undefined, { day: "numeric", month: "short" });
