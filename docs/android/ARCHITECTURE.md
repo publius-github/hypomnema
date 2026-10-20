@@ -28,7 +28,7 @@ Google sign-in on a self-built APK does not work out of the box: the project's A
 
 ## Native code
 
-- Plain Android API calls need no Kotlin: `PlatformWebview::jni_handle().exec()` hands the JNI environment to tracked Rust - `android_storage.rs` checks `Environment.isExternalStorageManager()` and opens the all-files-access settings screen that way (`MANAGE_EXTERNAL_STORAGE` has no runtime dialog).
+- Plain Android API calls need no Kotlin: `PlatformWebview::jni_handle().exec()` hands the JNI environment to tracked Rust - `android_storage.rs` checks `Environment.isExternalStorageManager()` and opens the all-files-access settings screen that way (`MANAGE_EXTERNAL_STORAGE` has no runtime dialog), and writes the vault export into `Download/Hypomnema/` through `MediaStore.Downloads` (Android 10+, no permission; the copy of a vault kept in the app-specific folder, which an uninstall deletes).
 - Anything the OS instantiates itself (a service, a worker, an intent filter) or that needs an activity *result* lives in a Tauri plugin with its own tracked `android/` module, which Tauri's build wires into `gen/android` on every build and whose `AndroidManifest.xml` merges into the app's. Today that is `src-tauri/plugins/google-auth/`: Google sign-in through `AuthorizationClient` and `SyncKeepAliveService`, the `dataSync` foreground service that keeps a sync pass alive while the app is put away (details in the general map's Sync entry).
 - Desktop-only chrome (tray, global shortcut, updater, the capture window) is `#[cfg(desktop)]` in `lib.rs`, with `#[cfg(mobile)]` no-op stubs of the same signatures - see `docs/windows/ARCHITECTURE.md`.
 

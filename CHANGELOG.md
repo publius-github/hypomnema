@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.111.0 - 2026-10-20
+
+Settings > Vault on the phone gets "Save a copy to Downloads": the vault as one zip archive (notes, journal, configs, the task mirror and the `state/` snapshot the database is rebuilt from; `app.db`, `backups/` and `.trash/` stay out) written to `Download/Hypomnema/` through `MediaStore`, which needs no permission on Android 10+. A vault kept in the app's own folder is deleted together with the app, and the panel now says so next to the button. The `vault_export` command takes a target path on other platforms; no desktop control yet.
+
 ## 0.110.13 - 2026-10-19
 
 Dependency updates Dependabot proposed, taken in one step: the CodeMirror packages (view 6.43.14, state 6.7.6, language 6.13.1, commands, search, lang-markdown, language-data, lezer highlight), the Tauri JavaScript side (api 2.12.3, CLI 2.12.2, the dialog, notification, opener, process and updater plugins), `@types/node` 26 and jsdom 30.1.2; third-party notices regenerated. `@vitejs/plugin-react` stays at 4: version 6 needs Vite 8. The workflows move to `actions/checkout` 7, `setup-node` 7, `upload-artifact` 7, `rust-cache` 2.9, `gitleaks-action` 3 (Node 24 runtime, same behavior) and `tauri-action` 1.0 (the inputs this workflow uses are unchanged; `latest.json` now carries GitHub asset URLs).

@@ -49,9 +49,9 @@ ignore = [
     # .zip bundle. This app ships NSIS .exe installers, which the updater
     # downloads and runs without extracting an archive. Clears when the
     # plugin moves to zip 9.
-    { id = "RUSTSEC-2026-0367", reason = "zip extraction is not used: NSIS .exe updates are not archives" },
-    { id = "RUSTSEC-2026-0368", reason = "zip extraction is not used: NSIS .exe updates are not archives" },
-    { id = "RUSTSEC-2026-0369", reason = "zip extraction is not used: NSIS .exe updates are not archives" },
+    { id = "RUSTSEC-2026-0367", reason = "zip extraction is not used: NSIS .exe updates are not archives, and the vault export only writes archives" },
+    { id = "RUSTSEC-2026-0368", reason = "zip extraction is not used: NSIS .exe updates are not archives, and the vault export only writes archives" },
+    { id = "RUSTSEC-2026-0369", reason = "zip extraction is not used: NSIS .exe updates are not archives, and the vault export only writes archives" },
 ]
 
 [bans]

@@ -19,6 +19,8 @@
 
 #![allow(dead_code)]
 
+use std::path::Path;
+
 use crate::error::{Error, Result};
 
 /// How long to wait for the UI thread to answer. The work is a couple of
@@ -27,6 +29,15 @@ use crate::error::{Error, Result};
 /// answer than "no".
 #[cfg(target_os = "android")]
 const UI_THREAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The export copies a whole vault through the UI thread, and a vault
+/// with attachments is not a couple of JNI calls.
+#[cfg(target_os = "android")]
+const EXPORT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// Where the export lands, relative to shared storage; the folder the
+/// Files app opens first.
+const DOWNLOADS_SUBDIR: &str = "Download/Hypomnema";
 
 /// Whether this app may read and write ordinary folders on shared
 /// storage.
@@ -44,6 +55,16 @@ pub fn all_files_access<R: tauri::Runtime>(_app: &tauri::AppHandle<R>) -> bool {
 pub fn request_all_files_access<R: tauri::Runtime>(_app: &tauri::AppHandle<R>) -> Result<()> {
     Err(Error::State(
         "this platform has no all-files-access setting".into(),
+    ))
+}
+
+#[cfg(not(target_os = "android"))]
+pub fn save_to_downloads<R: tauri::Runtime>(
+    _app: &tauri::AppHandle<R>,
+    _archive: &Path,
+) -> Result<String> {
+    Err(Error::State(
+        "this platform has no Downloads collection to save into".into(),
     ))
 }
 
@@ -112,6 +133,154 @@ pub fn request_all_files_access<R: tauri::Runtime>(app: &tauri::AppHandle<R>) ->
             "Android did not open the permission screen".into(),
         )),
     }
+}
+
+/// Copies `archive` into the phone's Downloads through `MediaStore`,
+/// which needs no permission on Android 10+ and leaves a file the user
+/// can see in the Files app and that outlives this app. Returns the
+/// path as the Files app shows it.
+///
+/// Below Android 10 the public Downloads folder needs a storage
+/// permission this build does not ask for at runtime, so the answer
+/// there is an error the screen can show.
+#[cfg(target_os = "android")]
+pub fn save_to_downloads<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    archive: &Path,
+) -> Result<String> {
+    use crate::error::IoContext;
+    use jni::objects::{JObject, JValue};
+    use std::io::Read;
+
+    let name = archive
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .ok_or_else(|| Error::State("the archive has no file name".into()))?;
+    let source = archive.to_path_buf();
+    on_ui_thread_within(app, EXPORT_TIMEOUT, move |env, activity| {
+        if sdk_int(env)? < 29 {
+            return Err(Error::State(
+                "saving to Downloads needs Android 10 or newer".into(),
+            ));
+        }
+        let resolver = env
+            .call_method(
+                activity,
+                "getContentResolver",
+                "()Landroid/content/ContentResolver;",
+                &[],
+            )?
+            .l()?;
+        let values = env.new_object("android/content/ContentValues", "()V", &[])?;
+        put_string(env, &values, "_display_name", &name)?;
+        put_string(env, &values, "mime_type", "application/zip")?;
+        put_string(env, &values, "relative_path", DOWNLOADS_SUBDIR)?;
+        put_int(env, &values, "is_pending", 1)?;
+        let downloads = env.find_class("android/provider/MediaStore$Downloads")?;
+        let collection = env
+            .get_static_field(downloads, "EXTERNAL_CONTENT_URI", "Landroid/net/Uri;")?
+            .l()?;
+        let uri = env
+            .call_method(
+                &resolver,
+                "insert",
+                "(Landroid/net/Uri;Landroid/content/ContentValues;)Landroid/net/Uri;",
+                &[JValue::Object(&collection), JValue::Object(&values)],
+            )?
+            .l()?;
+        if uri.is_null() {
+            return Err(Error::State(
+                "Android refused to create the file in Downloads".into(),
+            ));
+        }
+        let stream = env
+            .call_method(
+                &resolver,
+                "openOutputStream",
+                "(Landroid/net/Uri;)Ljava/io/OutputStream;",
+                &[JValue::Object(&uri)],
+            )?
+            .l()?;
+        if stream.is_null() {
+            return Err(Error::State(
+                "Android did not open the file in Downloads for writing".into(),
+            ));
+        }
+        let mut file = std::fs::File::open(&source).at(&source)?;
+        let mut buf = vec![0u8; 256 * 1024];
+        loop {
+            let n = file.read(&mut buf).at(&source)?;
+            if n == 0 {
+                break;
+            }
+            let chunk = env.byte_array_from_slice(&buf[..n])?;
+            env.call_method(
+                &stream,
+                "write",
+                "([BII)V",
+                &[
+                    JValue::Object(&chunk),
+                    JValue::Int(0),
+                    JValue::Int(n as i32),
+                ],
+            )?;
+        }
+        env.call_method(&stream, "close", "()V", &[])?;
+        // Pending hides the entry from other apps until it is complete;
+        // clearing it is what publishes the file.
+        env.call_method(&values, "clear", "()V", &[])?;
+        put_int(env, &values, "is_pending", 0)?;
+        env.call_method(
+            &resolver,
+            "update",
+            "(Landroid/net/Uri;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I",
+            &[
+                JValue::Object(&uri),
+                JValue::Object(&values),
+                JValue::Object(&JObject::null()),
+                JValue::Object(&JObject::null()),
+            ],
+        )?;
+        Ok(format!("{DOWNLOADS_SUBDIR}/{name}"))
+    })
+}
+
+#[cfg(target_os = "android")]
+fn put_string(
+    env: &mut jni::JNIEnv<'_>,
+    values: &jni::objects::JObject<'_>,
+    key: &str,
+    value: &str,
+) -> Result<()> {
+    use jni::objects::JValue;
+    let key = env.new_string(key)?;
+    let value = env.new_string(value)?;
+    env.call_method(
+        values,
+        "put",
+        "(Ljava/lang/String;Ljava/lang/String;)V",
+        &[JValue::Object(&key), JValue::Object(&value)],
+    )?;
+    Ok(())
+}
+
+#[cfg(target_os = "android")]
+fn put_int(
+    env: &mut jni::JNIEnv<'_>,
+    values: &jni::objects::JObject<'_>,
+    key: &str,
+    value: i32,
+) -> Result<()> {
+    use jni::objects::JValue;
+    let key = env.new_string(key)?;
+    let boxed = env.new_object("java/lang/Integer", "(I)V", &[JValue::Int(value)])?;
+    env.call_method(
+        values,
+        "put",
+        "(Ljava/lang/String;Ljava/lang/Integer;)V",
+        &[JValue::Object(&key), JValue::Object(&boxed)],
+    )?;
+    Ok(())
 }
 
 #[cfg(target_os = "android")]
@@ -184,6 +353,20 @@ where
     F: FnOnce(&mut jni::JNIEnv<'_>, &jni::objects::JObject<'_>) -> Result<T> + Send + 'static,
     T: Send + 'static,
 {
+    on_ui_thread_within(app, UI_THREAD_TIMEOUT, work)
+}
+
+#[cfg(target_os = "android")]
+fn on_ui_thread_within<R, F, T>(
+    app: &tauri::AppHandle<R>,
+    timeout: std::time::Duration,
+    work: F,
+) -> Result<T>
+where
+    R: tauri::Runtime,
+    F: FnOnce(&mut jni::JNIEnv<'_>, &jni::objects::JObject<'_>) -> Result<T> + Send + 'static,
+    T: Send + 'static,
+{
     use tauri::Manager;
 
     let webview = app
@@ -204,7 +387,7 @@ where
             });
         })
         .map_err(|e| Error::State(format!("cannot reach Android from the webview: {e}")))?;
-    rx.recv_timeout(UI_THREAD_TIMEOUT)
+    rx.recv_timeout(timeout)
         .map_err(|_| Error::State("Android did not answer in time".into()))?
 }
 

@@ -204,6 +204,7 @@ export interface Commands {
   third_party_licenses: { args: void; result: string };
   upcoming_events: { args: void; result: UpcomingResult };
   vault_browse: { args: { path: string | null }; result: DirListing };
+  vault_export: { args: { target: string | null }; result: string };
   vault_browse_mkdir: {
     args: { parent: string; name: string };
     result: string;

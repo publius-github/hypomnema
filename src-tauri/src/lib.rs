@@ -35,6 +35,7 @@ mod tasks;
 mod tasks_mirror;
 mod text_merge;
 mod vault;
+mod vault_export;
 mod vault_places;
 mod views;
 
@@ -181,6 +182,7 @@ pub fn run() {
             cmd_vault::diagnostics,
             cmd_vault::log_reveal,
             cmd_vault::vault_use_path,
+            cmd_vault::vault_export,
             cmd_vault::config_get,
             cmd_vault::config_set,
             cmd_vault::config_default,

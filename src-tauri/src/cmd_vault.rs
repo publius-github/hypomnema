@@ -3,14 +3,17 @@
 
 use std::path::{Path, PathBuf};
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::config::AppConfig;
 use crate::desktop::*;
-use crate::error::{Error, Result};
+use crate::error::{Error, IoContext, Result};
 use crate::state::*;
 use crate::watchers::*;
-use crate::{android_storage, applog, backup, config_files, example, vault, vault_places};
+use crate::{
+    android_storage, applog, backup, config_files, example, state_export, vault, vault_export,
+    vault_places,
+};
 
 #[tauri::command]
 pub(crate) async fn vault_status(
@@ -151,6 +154,48 @@ pub(crate) async fn vault_use_path(
     open_vault(&app, &state, &root)?;
     vault::write_vault_path(&app_config_dir(&app)?, &root)?;
     Ok(root.to_string_lossy().into_owned())
+}
+
+/// Saves a copy of the open vault as one zip archive.
+///
+/// On Android the archive lands in the phone's Downloads, the one place
+/// a file survives this app being uninstalled without any permission
+/// being granted - which is the case this exists for: a vault in the
+/// app-specific folder goes with the app. Elsewhere `target` names the
+/// file to write.
+///
+/// The state snapshot is refreshed first, under the vault lock, so the
+/// archive restores the database as it is now and not as of the last
+/// debounced export.
+#[tauri::command]
+pub(crate) async fn vault_export(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    target: Option<String>,
+) -> Result<String> {
+    let root = with_vault(&state, |vault| {
+        state_export::export(&vault.conn, &vault::state_dir(&vault.root))?;
+        Ok(vault.root.clone())
+    })?;
+    let now = chrono::Local::now();
+    if cfg!(target_os = "android") {
+        let staging = app
+            .path()
+            .app_cache_dir()
+            .map_err(|e| Error::State(format!("cannot resolve the app cache dir: {e}")))?
+            .join("export");
+        let archive = vault_export::write_archive_file(&root, &staging, now)?;
+        let saved = android_storage::save_to_downloads(&app, &archive);
+        let _ = std::fs::remove_file(&archive);
+        return saved;
+    }
+    let target = PathBuf::from(target.unwrap_or_default());
+    if target.as_os_str().is_empty() {
+        return Err(Error::State("no file to export to".into()));
+    }
+    let file = std::fs::File::create(&target).at(&target)?;
+    vault_export::write_archive(&root, file)?;
+    Ok(target.to_string_lossy().into_owned())
 }
 
 #[tauri::command]

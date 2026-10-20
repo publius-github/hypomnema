@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.110.13"
+version = "0.111.0"
 description = "Weekly planner, journal, and personal knowledge base"
 license = "GPL-3.0-only"
 repository = "https://github.com/publius-github/hypomnema"
@@ -45,6 +45,9 @@ aes-gcm = "0.10"
 argon2 = "0.5"
 tauri-plugin-opener = "2.5.5"
 diffy = "0.4"
+# Writes the vault export archive. Deflate only, through the pure-Rust
+# backend, so the Android cross-compile stays free of native deps.
+zip = { version = "4", default-features = false, features = ["deflate"] }
 # The Google refresh token goes into the OS credential store on Windows;
 # keyring-core is the store-agnostic API (and its mock store the test
 # double), the Windows store below is the only backend this app ships.

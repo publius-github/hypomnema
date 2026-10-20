@@ -552,8 +552,27 @@ function GeneralPanel({ config }: { config: AppConfig }) {
 
 function VaultPanel({ vaultPath }: { vaultPath: string | null }) {
   const [folder, setFolder] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exported, setExported] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   // hardware back closes the vault-folder chooser before leaving the panel
   useBackStep(folder, () => setFolder(false));
+  // The app's own folder on Android goes with the app when it is
+  // uninstalled; a copy in Downloads does not. Said next to the button
+  // that makes one, where the question "and if I delete the app?" is
+  // actually asked.
+  const exportVault = async () => {
+    setExporting(true);
+    setExported(null);
+    setExportError(null);
+    try {
+      setExported(await invoke("vault_export", { target: null }));
+    } catch (e) {
+      setExportError(errorMessage(e));
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <div className="flex flex-col gap-1">
       <p className="break-all text-xs text-content-muted">
@@ -569,6 +588,27 @@ function VaultPanel({ vaultPath }: { vaultPath: string | null }) {
       >
         Move to another folder
       </button>
+      <p className="mt-3 text-xs text-content-muted">
+        A vault in the app's own folder is deleted together with the app.
+        Save a copy to Downloads before uninstalling, or keep it synced.
+      </p>
+      <button
+        onClick={() => void exportVault()}
+        disabled={exporting || !vaultPath}
+        className="self-start rounded-lg border border-line px-4 py-2 text-sm disabled:opacity-50"
+      >
+        {exporting ? "Saving…" : "Save a copy to Downloads"}
+      </button>
+      {exported && (
+        <p className="text-xs text-content-muted" role="status">
+          Saved as {exported}
+        </p>
+      )}
+      {exportError && (
+        <p className="text-xs text-danger" role="alert">
+          {exportError}
+        </p>
+      )}
       {folder && (
         <MobileVaultFolder
           onChosen={() => setFolder(false)}
