@@ -1,7 +1,10 @@
-//! The example vault the welcome screen offers: a few lists and tasks, a
-//! recurring rule of each cadence, an upcoming event, a weekly focus, a
-//! reminder, two linked notes and a journal entry - enough that every
-//! section has something to show on a first look.
+//! The example vault the welcome screen offers: the starter content
+//! every new vault gets (`starter.rs` and the starter rules in
+//! `vault.rs`: two lists with tasks, a recurring rule of each cadence,
+//! a birthday, a weekly focus, reminders and a schedule) plus what a
+//! vault of one's own should not be given - two linked notes, a journal
+//! entry and a couple of tasks that point at them - so every section has
+//! something to show on a first look.
 //!
 //! Everything goes through the same functions a user's own edits do
 //! (`tasks::task_create`, `config_files::append_*`, `kb::write`,
@@ -13,12 +16,11 @@ use std::fs;
 use std::path::Path;
 
 use chrono::{Duration, NaiveDate};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
-use crate::config_files::{self, BirthdayEntry, RecurringRule, ScheduledEvent};
+use crate::config_files::{self, ScheduledEvent};
 use crate::error::{Error, Result};
-use crate::reminders::DayReminder;
-use crate::tasks::{self, NewTask};
+use crate::tasks::{self, NewTask, TaskPatch};
 use crate::{journal, kb, vault};
 
 const WELCOME_NOTE: &str = "\
@@ -65,7 +67,8 @@ pub fn ensure_empty(root: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Fills a freshly opened vault with the example content.
+/// Adds the example content on top of the starter content the opener
+/// already seeded into this fresh vault.
 pub fn seed(root: &Path, conn: &Connection, today: NaiveDate) -> Result<()> {
     let day = |offset: i64| {
         (today + Duration::days(offset))
@@ -74,89 +77,45 @@ pub fn seed(root: &Path, conn: &Connection, today: NaiveDate) -> Result<()> {
     };
     let config_dir = vault::config_dir(root);
 
-    // lists and the tasks in them
-    let home = tasks::list_create(conn, "Home", Some("#5194e6"), false)?;
-    let work = tasks::list_create(conn, "Work", Some("#0a8c81"), false)?;
-    let task = |title: &str, list: Option<i64>, date: Option<String>| NewTask {
+    let task = |title: &str, date: Option<String>| NewTask {
         title: title.into(),
         description_md: String::new(),
-        list_id: list,
+        list_id: None,
         scheduled_date: date,
         time: None,
         color: None,
         parent_task_id: None,
     };
-    tasks::task_create(conn, &task("Read the Welcome note", None, Some(day(0))))?;
+    tasks::task_create(conn, &task("Read the Welcome note", Some(day(0))))?;
     tasks::task_create(
         conn,
         &NewTask {
             time: Some("11:00".into()),
-            ..task("Call the bank about the card", None, Some(day(1)))
+            ..task("Call the bank about the card", Some(day(1)))
         },
     )?;
-    tasks::task_create(
-        conn,
-        &task("Try dragging this task to tomorrow", None, Some(day(0))),
-    )?;
-    tasks::task_create(
-        conn,
-        &task("{Errands} Buy coffee beans", Some(home.id), None),
-    )?;
-    tasks::task_create(
-        conn,
-        &task("{Errands} Return the library books", Some(home.id), None),
-    )?;
-    tasks::task_create(conn, &task("Fix the dripping tap", Some(home.id), None))?;
-    let outline = tasks::task_create(
-        conn,
-        &NewTask {
-            description_md: "Who it is for, what it changes, and the three steps that get it \
-                             there.\n\nSee [[Ideas]] for the parked ones."
-                .into(),
-            ..task("Draft the project outline", Some(work.id), None)
-        },
-    )?;
-    for step in ["Collect the open questions", "Book a review slot"] {
-        tasks::task_create(
+    // the starter's outline task gets a pointer at the notes
+    let outline: Option<(i64, String)> = conn
+        .query_row(
+            "SELECT id, description_md FROM tasks
+             WHERE title = 'Draft the project outline' AND parent_task_id IS NULL",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    if let Some((id, description)) = outline {
+        tasks::task_update(
             conn,
-            &NewTask {
-                parent_task_id: Some(outline.id),
-                ..task(step, Some(work.id), None)
+            id,
+            &TaskPatch {
+                description_md: Some(format!(
+                    "{description}\n\nSee [[Ideas]] for the parked ones."
+                )),
+                ..TaskPatch::default()
             },
         )?;
     }
 
-    // rules and the other YAML-backed views
-    config_files::append_recurring(
-        &config_dir,
-        RecurringRule {
-            schedule: "0 8 * * *".into(),
-            description: "Every morning".into(),
-            items: vec!["Water the plants".into()],
-            threshold: None,
-        },
-    )?;
-    config_files::append_recurring(
-        &config_dir,
-        RecurringRule {
-            schedule: "0 9 * * MON".into(),
-            description: "Weekly review".into(),
-            items: vec![
-                "Plan the week".into(),
-                "{Home} Take out the recycling".into(),
-            ],
-            threshold: None,
-        },
-    )?;
-    config_files::append_recurring(
-        &config_dir,
-        RecurringRule {
-            schedule: "0 9 1 * *".into(),
-            description: "Monthly bills".into(),
-            items: vec!["{Home} Pay the rent".into()],
-            threshold: None,
-        },
-    )?;
     config_files::append_scheduled(
         &config_dir,
         ScheduledEvent {
@@ -165,27 +124,7 @@ pub fn seed(root: &Path, conn: &Connection, today: NaiveDate) -> Result<()> {
             time: Some("10:30".into()),
         },
     )?;
-    config_files::append_birthday(
-        &config_dir,
-        BirthdayEntry {
-            name: "Ada Lovelace".into(),
-            date: "12-10".into(),
-            year: Some(1815),
-        },
-    )?;
-    config_files::append_focus_phrase(
-        &config_dir,
-        "Finish one thing before starting the next".into(),
-    )?;
-    config_files::append_day_reminder(
-        &config_dir,
-        DayReminder {
-            day_type: "workday".into(),
-            text: "Plan the first hour before opening mail".into(),
-        },
-    )?;
 
-    // notes and the journal
     kb::write_from(root, "Welcome.md", WELCOME_NOTE, None, false)?;
     kb::write_from(root, "Ideas.md", IDEAS_NOTE, None, false)?;
     journal::save_entry_from(root, &day(0), "Started with the example vault.\n", None)?;
@@ -228,10 +167,21 @@ mod tests {
         ensure_empty(&root).unwrap();
         let vault = vault::Vault::open(&root).unwrap();
         let today = NaiveDate::from_ymd_opt(2026, 10, 14).unwrap();
+        // what the opener does for every fresh vault, then the example
+        crate::starter::seed(&vault.conn, today).unwrap();
         seed(&root, &vault.conn, today).unwrap();
 
         let lists = tasks::lists_all(&vault.conn).unwrap();
         assert!(lists.iter().any(|l| l.name == "Home"));
+        let outline: String = vault
+            .conn
+            .query_row(
+                "SELECT description_md FROM tasks WHERE title = 'Draft the project outline'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(outline.contains("[[Ideas]]"));
         let count: i64 = vault
             .conn
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))

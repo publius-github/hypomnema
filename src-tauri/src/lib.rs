@@ -20,6 +20,7 @@ mod nav_guard;
 mod oauth;
 mod reminders;
 mod secret_store;
+mod starter;
 mod state_export;
 mod sync_bootstrap;
 mod sync_conflicts;

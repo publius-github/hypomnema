@@ -84,10 +84,11 @@ export default function VaultPicker() {
         </button>
       </div>
       <p className="max-w-md text-xs text-content-muted">
-        An existing folder of Markdown notes works too - the app adds its
-        own files under .hypomnema and leaves yours where they are. The
-        example needs an empty folder and fills it with a few lists, tasks,
-        rules, notes and a journal entry to look around in.
+        A new vault starts with a few lists, tasks and rules to edit or
+        delete. An existing folder of Markdown notes works too - the app
+        adds its own files under .hypomnema and leaves yours where they
+        are. The example needs an empty folder and adds a welcome note and
+        a journal entry to look around in.
       </p>
       {probeError && (
         <p className="max-w-md text-sm text-warn">

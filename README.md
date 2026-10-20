@@ -60,7 +60,7 @@ To check that a download really came out of this repository's release workflow, 
 gh attestation verify Hypomnema_<version>_x64-setup.exe --repo publius-github/hypomnema
 ```
 
-On first start the app asks for a vault folder: pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place. *Try it with an example* fills an empty folder with a few lists, tasks, rules, notes and a journal entry to look around in first.
+On first start the app asks for a vault folder: pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place. A new vault starts with a few lists, tasks and rules of each kind, all meant to be edited or deleted. *Try it with an example* fills an empty folder with those plus a welcome note and a journal entry to look around in first.
 
 <!-- TODO(owner): docs/screenshots/first-start.png - the vault chooser on first start. Then uncomment:
 <p align="center">

@@ -13,7 +13,9 @@ use crate::desktop::*;
 use crate::error::{Error, Result};
 use crate::state::*;
 use crate::vault::Vault;
-use crate::{applog, config_files, db, device, engine, journal, state_export, tasks_mirror, vault};
+use crate::{
+    applog, config_files, db, device, engine, journal, starter, state_export, tasks_mirror, vault,
+};
 
 /// Rewrites the state snapshot and the task mirror files from `conn`,
 /// as the config asks. Best effort by design: a failing export must not
@@ -390,6 +392,15 @@ pub(crate) fn open_vault(
     root: &Path,
 ) -> Result<AppConfig> {
     let vault = Vault::open(root)?;
+    // A vault nobody has used yet starts with the starter lists; the
+    // starter rules went into its config files with the open. Best
+    // effort: a vault that opens without them is still a vault.
+    if vault.fresh {
+        match starter::seed(&vault.conn, chrono::Local::now().date_naive()) {
+            Ok(()) => state.request_export(),
+            Err(e) => applog::warn(format!("starter content was not written: {e}")),
+        }
+    }
     // Tell this vault's database who is writing to it, so the merge
     // stamps (db.rs migration 016) carry a device and not a NULL. Best
     // effort: an unstamped row degrades a future merge, but failing to
