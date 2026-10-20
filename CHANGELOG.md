@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.115.0 - 2026-10-20
+
+A second Android home-screen widget, "Hypomnema today": the day's tasks as the Day screen lays them out - under its section plates in the configured order, Exact date, General, Daily and so on - with the same checklist rows as the list widget: a tap ticks a task off, the name opens the app on the Day, + opens it with the day's add field ready. No configuration: place it and it shows today. The list widget and its mechanics are unchanged; the widget data now carries the day alongside the lists.
+
 ## 0.114.0 - 2026-10-20
 
 A home-screen widget for Android: one list per widget, picked when the widget is placed (and again from the launcher's reconfigure). It shows the list's colour, name and open count over a scrolling checklist of its tasks; a row tap ticks the task (and unticks it on a checklist, where ticked items stay at the bottom), the name opens the app on that list, + opens it with the add field ready. The widget draws from a file the core publishes after every change and queues its taps for the core, which applies them while the app runs and otherwise at the next launch; it never needs the app open to tick a task. Light and dark follow the system. New plugin `src-tauri/plugins/widget/` (plain RemoteViews, no new Android libraries), `widget.rs` in the core with its tests, and one command, `widget_launch_target`, for the phone shell to follow a widget tap.

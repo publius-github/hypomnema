@@ -27,6 +27,8 @@ class PublishArgs {
  */
 @TauriPlugin
 class WidgetPlugin(private val activity: Activity) : Plugin(activity) {
+  /** "day" or "list" once a widget tap arrived, null otherwise. */
+  private var launchTarget: String? = null
   private var launchList: Long? = null
   private var launchAdd: Boolean = false
 
@@ -41,9 +43,16 @@ class WidgetPlugin(private val activity: Activity) : Plugin(activity) {
   private fun takeFrom(intent: Intent?) {
     if (intent == null || !intent.hasExtra(WidgetStore.EXTRA_LIST)) return
     val list = intent.getLongExtra(WidgetStore.EXTRA_LIST, -1L)
+    val day = intent.getBooleanExtra(WidgetStore.EXTRA_DAY, false)
     launchAdd = intent.getBooleanExtra(WidgetStore.EXTRA_ADD, false)
-    launchList = if (list >= 0) list else null
+    launchList = if (!day && list >= 0) list else null
+    launchTarget = when {
+      day -> "day"
+      launchList != null -> "list"
+      else -> null
+    }
     // consumed: an activity recreated from recents keeps its intent
+    intent.removeExtra(WidgetStore.EXTRA_DAY)
     intent.removeExtra(WidgetStore.EXTRA_LIST)
     intent.removeExtra(WidgetStore.EXTRA_ADD)
   }
@@ -64,14 +73,12 @@ class WidgetPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun takeLaunchTarget(invoke: Invoke) {
     val out = JSObject()
+    val target = launchTarget
     val list = launchList
-    if (list == null) {
-      out.put("list", JSONObject.NULL)
-      out.put("add", false)
-    } else {
-      out.put("list", list)
-      out.put("add", launchAdd)
-    }
+    out.put("target", target ?: JSONObject.NULL)
+    if (list == null) out.put("list", JSONObject.NULL) else out.put("list", list)
+    out.put("add", if (target == null) false else launchAdd)
+    launchTarget = null
     launchList = null
     launchAdd = false
     invoke.resolve(out)

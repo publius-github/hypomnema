@@ -43,6 +43,10 @@ export interface NavigationSlice {
   /// widget); `add` focuses the list's add field
   listOpen: { id: number; add: boolean } | null;
   openList: (id: number, add: boolean) => void;
+  /// set to jump to the Day on today (the phone's home-screen widget);
+  /// `add` focuses the day's add field
+  dayOpen: { add: boolean } | null;
+  openDay: (add: boolean) => void;
 }
 
 export const createNavigationSlice: StateCreator<
@@ -121,4 +125,6 @@ export const createNavigationSlice: StateCreator<
   openJournalDate: (date) => set({ section: "journal", journalOpenDate: date }),
   listOpen: null,
   openList: (id, add) => set({ section: "lists", listOpen: { id, add } }),
+  dayOpen: null,
+  openDay: (add) => set({ section: "dashboard", gridOffset: 0, dayOpen: { add } }),
 });

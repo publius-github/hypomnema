@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store";
 import { addDaysISO, daysBetweenISO } from "../lib/tasks";
 import { DayAmbientLines, useDayAmbient } from "../components/DayAmbient";
@@ -35,6 +35,16 @@ export default function MobileDay() {
 
   const date = addDaysISO(today, offset);
   const sections = useDaySections(date);
+
+  // the home-screen widget landed here: today (openDay reset the
+  // offset already), and for its + the add field
+  const dayOpen = useAppStore((s) => s.dayOpen);
+  const addField = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!dayOpen) return;
+    if (dayOpen.add) addField.current?.focus();
+    useAppStore.setState({ dayOpen: null });
+  }, [dayOpen]);
   // hardware back from another day returns to today before the press
   // that closes the app
   useBackStep(offset !== 0, () => setGridOffset(0));
@@ -116,6 +126,7 @@ export default function MobileDay() {
           full-width accent button was the loudest thing on the screen */}
       <div className="flex gap-2 border-t border-line p-3">
         <input
+          ref={addField}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}

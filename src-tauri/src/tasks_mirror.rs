@@ -163,7 +163,7 @@ pub struct ExportOptions {
 
 /// `{X}` title prefix as the category, like the day columns and the
 /// Calendar day list group it; the rest is the display text.
-fn split_category(title: &str) -> (Option<&str>, &str) {
+pub(crate) fn split_category(title: &str) -> (Option<&str>, &str) {
     let trimmed = title.trim_start();
     if let Some(rest) = trimmed.strip_prefix('{') {
         if let Some(end) = rest.find('}') {

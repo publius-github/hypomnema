@@ -12,14 +12,17 @@ import android.os.Build
 import android.widget.RemoteViews
 
 /**
- * The home-screen widget: one list, its name and open count over its
- * tasks as a scrolling checklist. A row tap ticks the task (or unticks
- * it on a checklist); the name opens the app on the list; + opens it
- * with the add field ready. The widget never runs the core: it draws
+ * The home-screen widgets: a name and open count over tasks as a
+ * scrolling checklist. A row tap ticks the task (or unticks it on a
+ * checklist); the name opens the app on the widget's screen; + opens it
+ * with the add field ready. A widget never runs the core: it draws
  * from the file the core publishes and queues its taps for the core to
- * apply (WidgetStore).
+ * apply (WidgetStore). ListWidgetProvider shows one list, picked at
+ * placement; DayWidgetProvider shows today, as the Day screen lays it
+ * out - the two are one class apart so the launcher offers them as two
+ * widgets.
  */
-class ListWidgetProvider : AppWidgetProvider() {
+abstract class TaskWidgetProvider : AppWidgetProvider() {
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
     ids.forEach { id -> draw(context, manager, id) }
   }
@@ -47,24 +50,32 @@ class ListWidgetProvider : AppWidgetProvider() {
     const val EXTRA_STATUS = "com.hypomnema.widget.STATUS"
     private const val FALLBACK_COLOR = 0xFF3B82F6.toInt()
 
-    /** Redraws every placed widget from the current data file. */
+    /** Redraws every placed widget of both kinds from the current data file. */
     fun refreshAll(context: Context) {
       val manager = AppWidgetManager.getInstance(context)
-      val ids = manager.getAppWidgetIds(ComponentName(context, ListWidgetProvider::class.java))
-      ids.forEach { id -> draw(context, manager, id) }
+      listOf(ListWidgetProvider::class.java, DayWidgetProvider::class.java).forEach { kind ->
+        manager.getAppWidgetIds(ComponentName(context, kind)).forEach { id -> draw(context, manager, id) }
+      }
     }
 
     fun draw(context: Context, manager: AppWidgetManager, widgetId: Int) {
       val views = RemoteViews(context.packageName, R.layout.hw_widget)
-      val list = WidgetStore.listFor(context, widgetId)
-      val listId = WidgetStore.listIdFor(context, widgetId)
+      val day = WidgetStore.isDay(context, widgetId)
+      val view = WidgetStore.viewFor(context, widgetId)
+      val listId = if (day) -1L else WidgetStore.listIdFor(context, widgetId)
 
-      views.setTextViewText(R.id.hw_name, list?.name ?: context.getString(R.string.hw_missing_list))
-      views.setTextViewText(R.id.hw_count, list?.open?.toString() ?: "")
-      views.setInt(R.id.hw_dot, "setColorFilter", parseColor(list?.color))
+      views.setTextViewText(R.id.hw_name, view?.name ?: context.getString(R.string.hw_missing_list))
+      views.setTextViewText(R.id.hw_count, view?.open?.toString() ?: "")
+      views.setInt(R.id.hw_dot, "setColorFilter", parseColor(view?.color))
       views.setTextViewText(
         R.id.hw_empty,
-        context.getString(if (list == null) R.string.hw_missing_hint else R.string.hw_empty),
+        context.getString(
+          when {
+            view == null && day -> R.string.hw_no_data
+            view == null -> R.string.hw_missing_hint
+            else -> R.string.hw_empty
+          },
+        ),
       )
 
       // the rows come from ListWidgetService; the intent's data URI makes
@@ -83,19 +94,21 @@ class ListWidgetProvider : AppWidgetProvider() {
         PendingIntent.getBroadcast(context, widgetId, toggle, mutableFlags()),
       )
 
-      views.setOnClickPendingIntent(R.id.hw_name, launch(context, widgetId * 2, listId, false))
-      views.setOnClickPendingIntent(R.id.hw_add, launch(context, widgetId * 2 + 1, listId, true))
+      views.setOnClickPendingIntent(R.id.hw_name, launch(context, widgetId * 2, day, listId, false))
+      views.setOnClickPendingIntent(R.id.hw_add, launch(context, widgetId * 2 + 1, day, listId, true))
 
       manager.updateAppWidget(widgetId, views)
       manager.notifyAppWidgetViewDataChanged(widgetId, R.id.hw_tasks)
     }
 
-    private fun launch(context: Context, code: Int, listId: Long, add: Boolean): PendingIntent? {
+    private fun launch(context: Context, code: Int, day: Boolean, listId: Long, add: Boolean): PendingIntent? {
       val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
       intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        .putExtra(WidgetStore.EXTRA_DAY, day)
         .putExtra(WidgetStore.EXTRA_LIST, listId)
         .putExtra(WidgetStore.EXTRA_ADD, add)
-      intent.data = Uri.parse("hypomnema-widget://open/$listId/${if (add) "add" else "view"}")
+      val where = if (day) "day" else "list/$listId"
+      intent.data = Uri.parse("hypomnema-widget://open/$where/${if (add) "add" else "view"}")
       return PendingIntent.getActivity(context, code, intent, immutableFlags())
     }
 
@@ -118,5 +131,16 @@ class ListWidgetProvider : AppWidgetProvider() {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) flags = flags or PendingIntent.FLAG_MUTABLE
       return flags
     }
+  }
+}
+
+/** One list, picked in ListWidgetConfigureActivity when the widget is placed. */
+class ListWidgetProvider : TaskWidgetProvider()
+
+/** Today, with no configuration: the widget marks itself as the day's on its first draw. */
+class DayWidgetProvider : TaskWidgetProvider() {
+  override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+    ids.forEach { id -> WidgetStore.setDay(context, id) }
+    super.onUpdate(context, manager, ids)
   }
 }

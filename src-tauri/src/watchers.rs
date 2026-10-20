@@ -104,7 +104,7 @@ pub(crate) fn start_export_worker(app: AppHandle) {
                 );
                 crate::sync_scheduler::poke();
                 #[cfg(target_os = "android")]
-                crate::widget::android::publish(&app, &conn);
+                crate::widget::android::publish(&app, &conn, &config);
             }
         }
     });

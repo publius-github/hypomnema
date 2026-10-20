@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="hw_widget_label">Hypomnema list</string>
+    <string name="hw_day_widget_label">Hypomnema today</string>
+    <string name="hw_day_widget_description">Today\'s tasks, ticked off from the home screen</string>
+    <string name="hw_today">Today</string>
     <string name="hw_widget_description">One list\'s open tasks, ticked off from the home screen</string>
     <string name="hw_choose_list">Choose a list</string>
     <string name="hw_no_data">Open Hypomnema once, then add the widget again.</string>

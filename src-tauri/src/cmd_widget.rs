@@ -6,7 +6,7 @@ use tauri::AppHandle;
 use crate::error::Result;
 use crate::widget::WidgetLaunch;
 
-/// The list a widget tap opened the app on, once per tap; `None` for a
+/// The Day or the list a widget tap opened the app on, once per tap; `None` for a
 /// launch from the icon, and always on the desktop.
 #[tauri::command]
 pub(crate) async fn widget_launch_target(_app: AppHandle) -> Result<Option<WidgetLaunch>> {
@@ -18,6 +18,7 @@ pub(crate) async fn widget_launch_target(_app: AppHandle) -> Result<Option<Widge
             .take_launch_target()
             .map_err(crate::error::Error::State)?
             .map(|t| WidgetLaunch {
+                day: t.day,
                 list: t.list,
                 add: t.add,
             }));

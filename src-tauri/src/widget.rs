@@ -17,14 +17,16 @@ use ts_rs::TS;
 
 use crate::error::Result;
 use crate::tasks::{self, TaskPatch};
+use crate::tasks_mirror::split_category;
 
-/// What a widget tap asked the app to open: a list, with the add field
-/// focused for the widget's + button.
+/// What a widget tap asked the app to open: the Day (today) or a list,
+/// with the add field focused for the widget's + button.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
 pub struct WidgetLaunch {
-    #[ts(type = "number")]
-    pub list: i64,
+    pub day: bool,
+    #[ts(type = "number | null")]
+    pub list: Option<i64>,
     pub add: bool,
 }
 
@@ -48,16 +50,34 @@ struct WidgetList {
 }
 
 #[derive(Serialize)]
+struct WidgetSection {
+    label: String,
+    tasks: Vec<WidgetTask>,
+}
+
+#[derive(Serialize)]
+struct WidgetDay {
+    date: String,
+    sections: Vec<WidgetSection>,
+}
+
+#[derive(Serialize)]
 struct WidgetData {
+    day: WidgetDay,
     lists: Vec<WidgetList>,
 }
 
-/// The JSON the widgets draw from: every active list, favorites first,
-/// with the tasks the phone's list screen shows as open - top-level,
-/// unscheduled or priority or manual - in that screen's order, and for
-/// a checklist its ticked items after them (a todo list sweeps its done
-/// tasks, a checklist keeps them until unticked).
-pub fn payload(conn: &Connection) -> Result<String> {
+/// The JSON the widgets draw from. `lists`: every active list,
+/// favorites first, with the tasks the phone's list screen shows as
+/// open - top-level, unscheduled or priority or manual - in that
+/// screen's order, and for a checklist its ticked items after them (a
+/// todo list sweeps its done tasks, a checklist keeps them until
+/// unticked). `day`: `today`'s open top-level tasks in the Day screen's
+/// sections - the cadence groups in `cadence_order` (the config's
+/// `cadence_group_order`), inside one grouped by category block then
+/// in column order, as `groupByCadence` lays them out.
+pub fn payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Result<String> {
+    let day = day_payload(conn, today, cadence_order)?;
     let groups = tasks::groups_all(conn)?;
     let mut lists = tasks::lists_all(conn)?;
     lists.sort_by(|a, b| {
@@ -102,8 +122,138 @@ pub fn payload(conn: &Connection) -> Result<String> {
             tasks,
         });
     }
-    serde_json::to_string(&WidgetData { lists: out })
+    serde_json::to_string(&WidgetData { day, lists: out })
         .map_err(|e| crate::error::Error::State(format!("widget payload: {e}")))
+}
+
+const CADENCE_LABELS: &[(&str, &str)] = &[
+    ("exact", "Exact date"),
+    ("general", "General"),
+    ("daily", "Daily"),
+    ("weekly", "Weekly"),
+    ("monthly", "Monthly"),
+    ("yearly", "Yearly"),
+];
+
+struct DayRow {
+    task: WidgetTask,
+    section: &'static str,
+    block: String,
+    time: Option<String>,
+    sort_order: i64,
+}
+
+/// `cadenceKeyOf` from `src/lib/tasks.ts`: scheduled events and
+/// birthdays are exact-date, so is a dated manual list task that is
+/// not a priority pin, rule instances go by their cadence, the rest is
+/// General.
+fn section_key(
+    origin: &str,
+    cadence: Option<&str>,
+    list_id: Option<i64>,
+    priority: bool,
+) -> &'static str {
+    if origin == "scheduled" || origin == "birthday" {
+        return "exact";
+    }
+    if origin == "manual" && list_id.is_some() && !priority {
+        return "exact";
+    }
+    match cadence {
+        Some("daily") => "daily",
+        Some("weekly") => "weekly",
+        Some("monthly") => "monthly",
+        Some("yearly") => "yearly",
+        _ => "general",
+    }
+}
+
+fn day_payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Result<WidgetDay> {
+    let lists = tasks::lists_all(conn)?;
+    let list_name = |id: Option<i64>| {
+        id.and_then(|id| lists.iter().find(|l| l.id == id))
+            .map(|l| l.name.clone())
+    };
+    let mut stmt = conn.prepare(
+        "SELECT id, title, priority, origin, cadence, list_id, time, sort_order FROM tasks
+         WHERE scheduled_date = ?1 AND parent_task_id IS NULL AND status = 'todo'",
+    )?;
+    let mut rows = stmt
+        .query_map([today], |row| {
+            let title: String = row.get(1)?;
+            let priority = row.get::<_, i64>(2)? != 0;
+            let origin: String = row.get(3)?;
+            let cadence: Option<String> = row.get(4)?;
+            let list_id: Option<i64> = row.get(5)?;
+            let block = split_category(&title)
+                .0
+                .map(str::to_string)
+                .or_else(|| list_name(list_id))
+                .unwrap_or_default();
+            Ok(DayRow {
+                task: WidgetTask {
+                    id: row.get(0)?,
+                    title,
+                    priority,
+                    done: false,
+                },
+                section: section_key(&origin, cadence.as_deref(), list_id, priority),
+                block,
+                time: row.get(6)?,
+                sort_order: row.get(7)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    rows.sort_by(|a, b| {
+        a.block
+            .cmp(&b.block)
+            .then_with(|| match (&a.time, &b.time) {
+                (None, None) => std::cmp::Ordering::Equal,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (Some(x), Some(y)) => x.cmp(y),
+            })
+            .then(a.sort_order.cmp(&b.sort_order))
+            .then(a.task.id.cmp(&b.task.id))
+    });
+    // the configured order, unknown names dropped, missing ones
+    // appended in default position - as the config sanitizes it
+    let mut order: Vec<&str> = cadence_order
+        .iter()
+        .map(String::as_str)
+        .filter(|k| CADENCE_LABELS.iter().any(|(key, _)| key == k))
+        .collect();
+    for (key, _) in CADENCE_LABELS {
+        if !order.contains(key) {
+            order.push(key);
+        }
+    }
+    let mut sections = Vec::new();
+    for key in order {
+        let tasks: Vec<WidgetTask> = rows
+            .iter()
+            .filter(|r| r.section == key)
+            .map(|r| WidgetTask {
+                id: r.task.id,
+                title: r.task.title.clone(),
+                priority: r.task.priority,
+                done: false,
+            })
+            .collect();
+        if tasks.is_empty() {
+            continue;
+        }
+        let label = CADENCE_LABELS
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, l)| l.to_string())
+            .unwrap_or_default();
+        sections.push(WidgetSection { label, tasks });
+    }
+    Ok(WidgetDay {
+        date: today.to_string(),
+        sections,
+    })
 }
 
 /// One line of the queue file: the widget asks for a status on a task.
@@ -152,8 +302,9 @@ pub(crate) mod android {
     use tauri_plugin_widget::WidgetExt;
 
     use crate::applog;
+    use crate::config::AppConfig;
     use crate::error::{Error, Result};
-    use crate::state::{app_config_dir, AppState, LockOrRecover};
+    use crate::state::{app_config_dir, today_string, AppState, LockOrRecover};
 
     const QUEUE_FILE: &str = "widget-actions.jsonl";
 
@@ -163,8 +314,8 @@ pub(crate) mod android {
 
     /// Hands the widgets a fresh payload. Best effort, like the exports
     /// it rides on: a widget a step behind is redrawn by the next one.
-    pub(crate) fn publish(app: &AppHandle, conn: &rusqlite::Connection) {
-        let json = match super::payload(conn) {
+    pub(crate) fn publish(app: &AppHandle, conn: &rusqlite::Connection, config: &AppConfig) {
+        let json = match super::payload(conn, &today_string(), &config.cadence_group_order) {
             Ok(json) => json,
             Err(e) => {
                 applog::error(format!("widget payload failed: {e}"));
@@ -302,7 +453,8 @@ mod tests {
         let eggs = task(&conn, check, "eggs");
         done(&conn, milk);
 
-        let data: Value = serde_json::from_str(&payload(&conn).unwrap()).unwrap();
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &[]).unwrap()).unwrap();
         let lists = data["lists"].as_array().unwrap();
         let work = lists.iter().find(|l| l["name"] == "Work").unwrap();
         let ids: Vec<i64> = work["tasks"]
@@ -333,12 +485,73 @@ mod tests {
         let group = tasks::group_create(&conn, "Home").unwrap().id;
         tasks::list_set_group(&conn, plain, Some(group)).unwrap();
 
-        let data: Value = serde_json::from_str(&payload(&conn).unwrap()).unwrap();
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &[]).unwrap()).unwrap();
         let lists = data["lists"].as_array().unwrap();
         assert_eq!(lists[0]["name"], "Starred");
         assert_eq!(lists[0]["favorite"], true);
         assert_eq!(lists[1]["name"], "Plain");
         assert_eq!(lists[1]["group"], "Home");
+    }
+
+    #[test]
+    fn the_day_carries_todays_open_tasks_in_the_day_screens_sections() {
+        let conn = conn();
+        let list = list_create(&conn, "Errands", None, false).unwrap().id;
+        let dated = |title: &str, list_id: Option<i64>| {
+            task_create(
+                &conn,
+                &NewTask {
+                    title: title.into(),
+                    list_id,
+                    scheduled_date: Some("2026-10-20".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .id
+        };
+        let general = dated("call back", None);
+        let errand = dated("post office", Some(list));
+        let closed = dated("done already", None);
+        done(&conn, closed);
+        let tomorrow = task_create(
+            &conn,
+            &NewTask {
+                title: "later".into(),
+                scheduled_date: Some("2026-10-21".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .id;
+        conn.execute(
+            "UPDATE tasks SET origin = 'recurring', cadence = 'daily' WHERE id = ?1",
+            [general],
+        )
+        .unwrap();
+        let note = dated("{Home} water plants", None);
+
+        let order = vec!["daily".to_string(), "exact".to_string()];
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &order).unwrap()).unwrap();
+        assert_eq!(data["day"]["date"], "2026-10-20");
+        let sections = data["day"]["sections"].as_array().unwrap();
+        let labels: Vec<&str> = sections
+            .iter()
+            .map(|s| s["label"].as_str().unwrap())
+            .collect();
+        assert_eq!(labels, vec!["Daily", "Exact date", "General"]);
+        assert_eq!(sections[0]["tasks"][0]["id"].as_i64().unwrap(), general);
+        assert_eq!(sections[1]["tasks"][0]["id"].as_i64().unwrap(), errand);
+        assert_eq!(sections[2]["tasks"][0]["id"].as_i64().unwrap(), note);
+        let all: Vec<i64> = sections
+            .iter()
+            .flat_map(|s| s["tasks"].as_array().unwrap().iter())
+            .map(|t| t["id"].as_i64().unwrap())
+            .collect();
+        assert!(!all.contains(&closed));
+        assert!(!all.contains(&tomorrow));
     }
 
     #[test]

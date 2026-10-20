@@ -115,8 +115,9 @@ export default function MobileApp() {
     return () => root.classList.remove("mobile");
   }, []);
 
-  // The home-screen widget opens the app on its list (its + on the
-  // list's add field). The target rides the launch intent, which the
+  // A home-screen widget opens the app on its screen - the Day for the
+  // today widget, the list for a list widget - and its + on that
+  // screen's add field. The target rides the launch intent, which the
   // core hands over once; asked on launch and on every return to the
   // foreground, since a tap on a widget resumes a running app as often
   // as it starts one.
@@ -126,8 +127,13 @@ export default function MobileApp() {
       try {
         const target = await invoke("widget_launch_target");
         if (!target) return;
-        useAppStore.getState().openList(target.list, target.add);
-        setTab("lists");
+        if (target.day) {
+          useAppStore.getState().openDay(target.add);
+          setTab("day");
+        } else if (target.list !== null) {
+          useAppStore.getState().openList(target.list, target.add);
+          setTab("lists");
+        }
       } catch (e) {
         warn("widget launch target", e);
       }

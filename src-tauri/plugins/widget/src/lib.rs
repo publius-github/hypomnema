@@ -18,17 +18,20 @@ use tauri::{
     Manager, Runtime,
 };
 
-/// What a widget tap asked the app to open.
+/// What a widget tap asked the app to open: the Day, or a list.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchTarget {
-    pub list: i64,
+    pub day: bool,
+    pub list: Option<i64>,
     pub add: bool,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LaunchReply {
+    /// "day", "list", or absent for no target.
+    target: Option<String>,
     list: Option<i64>,
     #[serde(default)]
     add: bool,
@@ -63,10 +66,19 @@ impl<R: Runtime> Widget<R> {
             .handle
             .run_mobile_plugin("takeLaunchTarget", ())
             .map_err(|e| format!("widget launch target failed: {e}"))?;
-        Ok(reply.list.map(|list| LaunchTarget {
-            list,
-            add: reply.add,
-        }))
+        Ok(match reply.target.as_deref() {
+            Some("day") => Some(LaunchTarget {
+                day: true,
+                list: None,
+                add: reply.add,
+            }),
+            Some("list") => reply.list.map(|list| LaunchTarget {
+                day: false,
+                list: Some(list),
+                add: reply.add,
+            }),
+            _ => None,
+        })
     }
 }
 

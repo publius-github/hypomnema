@@ -19,12 +19,12 @@ class ListWidgetService : RemoteViewsService() {
   }
 
   private class Factory(private val context: Context, private val widgetId: Int) : RemoteViewsFactory {
-    private var rows: List<WidgetTask> = emptyList()
+    private var rows: List<WidgetRow> = emptyList()
 
     override fun onCreate() {}
 
     override fun onDataSetChanged() {
-      rows = WidgetStore.listFor(context, widgetId)?.tasks ?: emptyList()
+      rows = WidgetStore.viewFor(context, widgetId)?.rows ?: emptyList()
     }
 
     override fun onDestroy() {}
@@ -32,7 +32,14 @@ class ListWidgetService : RemoteViewsService() {
     override fun getCount() = rows.size
 
     override fun getViewAt(position: Int): RemoteViews {
-      val row = rows[position]
+      val row = when (val entry = rows[position]) {
+        is WidgetRow.Header -> {
+          val header = RemoteViews(context.packageName, R.layout.hw_widget_header)
+          header.setTextViewText(R.id.hw_header, entry.label)
+          return header
+        }
+        is WidgetRow.Task -> entry.task
+      }
       val views = RemoteViews(context.packageName, R.layout.hw_widget_row)
       views.setImageViewResource(
         R.id.hw_check,
@@ -55,9 +62,12 @@ class ListWidgetService : RemoteViewsService() {
 
     override fun getLoadingView(): RemoteViews? = null
 
-    override fun getViewTypeCount() = 1
+    override fun getViewTypeCount() = 2
 
-    override fun getItemId(position: Int) = rows[position].id
+    override fun getItemId(position: Int) = when (val entry = rows[position]) {
+      is WidgetRow.Header -> -(position + 1).toLong()
+      is WidgetRow.Task -> entry.task.id
+    }
 
     override fun hasStableIds() = true
   }
