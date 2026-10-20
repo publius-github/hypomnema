@@ -9,14 +9,15 @@ import org.json.JSONObject
 /** One row the widget draws. */
 data class WidgetTask(val id: Long, val title: String, val priority: Boolean, val done: Boolean)
 
-/** A row of a widget: a section plate or a task. */
+/** A row of a widget: a section plate, a task or (on the lists widget) a list. */
 sealed class WidgetRow {
   data class Header(val label: String) : WidgetRow()
   data class Task(val task: WidgetTask) : WidgetRow()
+  data class ListEntry(val id: Long, val name: String, val color: String?, val open: Int) : WidgetRow()
 }
 
-/** What one widget draws: its name, tint and rows, pending taps applied. */
-data class WidgetView(val name: String, val color: String?, val open: Int, val rows: List<WidgetRow>)
+/** What one widget draws: its name, open count (none on the lists widget) and rows, pending taps applied. */
+data class WidgetView(val name: String, val open: Int?, val rows: List<WidgetRow>)
 
 /** Today as the core published it: the Day screen's sections. */
 data class WidgetDay(val date: String, val sections: List<Pair<String, List<WidgetTask>>>)
@@ -26,7 +27,6 @@ data class WidgetList(
   val id: Long,
   val name: String,
   val color: String?,
-  val checklist: Boolean,
   val group: String?,
   val tasks: List<WidgetTask>,
 ) {
@@ -35,7 +35,7 @@ data class WidgetList(
 
 /**
  * The widget's files and preferences, shared by the provider, the row
- * factory, the configure screen and the plugin.
+ * factory and the plugin.
  *
  * The core publishes the data file after every export; a tap appends a
  * line to the queue file the core watches. Until the core has applied a
@@ -46,7 +46,6 @@ data class WidgetList(
 object WidgetStore {
   private const val PREFS = "hypomnema.widget"
   private const val KEY_QUEUE = "queue"
-  private const val KEY_LIST = "list."
   private const val KEY_DAY = "day."
   private const val KEY_PENDING = "pending."
 
@@ -118,19 +117,11 @@ object WidgetStore {
         id = list.getLong("id"),
         name = list.getString("name"),
         color = list.optString("color", "").ifEmpty { null },
-        checklist = list.optString("kind") == "checklist",
         group = list.optString("group", "").ifEmpty { null },
         tasks = tasks(list.optJSONArray("tasks")),
       )
     }
     return today to parsed
-  }
-
-  fun listIdFor(context: Context, widgetId: Int): Long =
-    prefs(context).getLong(KEY_LIST + widgetId, -1L)
-
-  fun setListFor(context: Context, widgetId: Int, listId: Long) {
-    prefs(context).edit().putLong(KEY_LIST + widgetId, listId).apply()
   }
 
   fun isDay(context: Context, widgetId: Int): Boolean =
@@ -142,10 +133,7 @@ object WidgetStore {
 
   fun forget(context: Context, widgetIds: IntArray) {
     val editor = prefs(context).edit()
-    widgetIds.forEach {
-      editor.remove(KEY_LIST + it)
-      editor.remove(KEY_DAY + it)
-    }
+    widgetIds.forEach { editor.remove(KEY_DAY + it) }
     editor.apply()
   }
 
@@ -159,7 +147,7 @@ object WidgetStore {
       }
     }
 
-  /** What a widget draws, pending taps applied, or null when its source is gone. */
+  /** What a widget draws, pending taps applied, or null before the core has published. */
   fun viewFor(context: Context, widgetId: Int): WidgetView? {
     val pending = pending(context)
     if (isDay(context, widgetId)) {
@@ -174,15 +162,15 @@ object WidgetStore {
         shown.forEach { rows.add(WidgetRow.Task(it)) }
         open += shown.size
       }
-      return WidgetView(context.getString(R.string.hw_today), null, open, rows)
+      return WidgetView(context.getString(R.string.hw_today), open, rows)
     }
-    val id = listIdFor(context, widgetId)
-    val list = load(context).firstOrNull { it.id == id } ?: return null
-    val tasks = withPending(list.tasks, pending)
-    // a todo list sweeps a ticked task off the widget; a checklist keeps
-    // it at the bottom, as the core publishes it
-    val shown = if (list.checklist) tasks.sortedBy { it.done } else tasks.filter { !it.done }
-    return WidgetView(list.name, list.color, shown.count { !it.done }, shown.map { WidgetRow.Task(it) })
+    val (_, lists) = data(context) ?: return null
+    val rows = lists.map { list ->
+      val open = withPending(list.tasks, pending).count { !it.done }
+      val name = if (list.group != null) "${list.group} / ${list.name}" else list.name
+      WidgetRow.ListEntry(list.id, name, list.color, open)
+    }
+    return WidgetView(context.getString(R.string.hw_lists), null, rows)
   }
 
   /** Queues a tap for the core and remembers it until the core confirms. */

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <!-- The home-screen list widget: one list's open tasks, ticked off
-             from the home screen (ListWidgetProvider). -->
+        <!-- The home-screen widgets: every list with its open count
+             (ListWidgetProvider) and today's tasks (DayWidgetProvider). -->
         <receiver
             android:name="com.hypomnema.widget.ListWidgetProvider"
             android:exported="true"
@@ -29,14 +29,5 @@
             android:name="com.hypomnema.widget.ListWidgetService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
-        <activity
-            android:name="com.hypomnema.widget.ListWidgetConfigureActivity"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:theme="@style/HwConfigure">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
-            </intent-filter>
-        </activity>
     </application>
 </manifest>

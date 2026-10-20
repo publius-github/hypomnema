@@ -9,18 +9,18 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
+import android.view.View
 import android.widget.RemoteViews
 
 /**
- * The home-screen widgets: a name and open count over tasks as a
- * scrolling checklist. A row tap ticks the task (or unticks it on a
- * checklist); the name opens the app on the widget's screen; + opens it
- * with the add field ready. A widget never runs the core: it draws
- * from the file the core publishes and queues its taps for the core to
- * apply (WidgetStore). ListWidgetProvider shows one list, picked at
- * placement; DayWidgetProvider shows today, as the Day screen lays it
- * out - the two are one class apart so the launcher offers them as two
- * widgets.
+ * The home-screen widgets: a name over a scrolling list. A widget never
+ * runs the core: it draws from the file the core publishes and queues
+ * its taps for the core to apply (WidgetStore). DayWidgetProvider shows
+ * today as the Day screen lays it out: a row tap ticks the task, the
+ * name opens the app on the Day and + opens it with the add field
+ * ready. ListWidgetProvider shows every list with its open count: a row
+ * tap opens the app on that list, the name opens the app. The two are
+ * one class apart so the launcher offers them as two widgets.
  */
 abstract class TaskWidgetProvider : AppWidgetProvider() {
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
@@ -62,18 +62,22 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
       val views = RemoteViews(context.packageName, R.layout.hw_widget)
       val day = WidgetStore.isDay(context, widgetId)
       val view = WidgetStore.viewFor(context, widgetId)
-      val listId = if (day) -1L else WidgetStore.listIdFor(context, widgetId)
 
-      views.setTextViewText(R.id.hw_name, view?.name ?: context.getString(R.string.hw_missing_list))
+      views.setTextViewText(
+        R.id.hw_name,
+        view?.name ?: context.getString(if (day) R.string.hw_today else R.string.hw_lists),
+      )
       views.setTextViewText(R.id.hw_count, view?.open?.toString() ?: "")
-      views.setInt(R.id.hw_dot, "setColorFilter", parseColor(view?.color))
+      views.setInt(R.id.hw_dot, "setColorFilter", FALLBACK_COLOR)
+      views.setViewVisibility(R.id.hw_dot, if (day) View.VISIBLE else View.GONE)
+      views.setViewVisibility(R.id.hw_add, if (day) View.VISIBLE else View.GONE)
       views.setTextViewText(
         R.id.hw_empty,
         context.getString(
           when {
-            view == null && day -> R.string.hw_no_data
-            view == null -> R.string.hw_missing_hint
-            else -> R.string.hw_empty
+            view == null -> R.string.hw_no_data
+            day -> R.string.hw_empty
+            else -> R.string.hw_no_lists
           },
         ),
       )
@@ -86,33 +90,48 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
       views.setRemoteAdapter(R.id.hw_tasks, adapter)
       views.setEmptyView(R.id.hw_tasks, R.id.hw_empty)
 
-      // one template for every row; the row fills in the task and status
-      val toggle = Intent(context, ListWidgetProvider::class.java).setAction(ACTION_TOGGLE)
-      toggle.data = Uri.parse("hypomnema-widget://toggle/$widgetId")
-      views.setPendingIntentTemplate(
-        R.id.hw_tasks,
-        PendingIntent.getBroadcast(context, widgetId, toggle, mutableFlags()),
-      )
+      // one template for every row: a task row fills in the task and
+      // status of a tick, a list row the list to open the app on
+      if (day) {
+        val toggle = Intent(context, DayWidgetProvider::class.java).setAction(ACTION_TOGGLE)
+        toggle.data = Uri.parse("hypomnema-widget://toggle/$widgetId")
+        views.setPendingIntentTemplate(
+          R.id.hw_tasks,
+          PendingIntent.getBroadcast(context, widgetId, toggle, mutableFlags()),
+        )
+      } else {
+        launchIntent(context)?.let { open ->
+          open.data = Uri.parse("hypomnema-widget://open/list/$widgetId")
+          views.setPendingIntentTemplate(
+            R.id.hw_tasks,
+            PendingIntent.getActivity(context, widgetId, open, mutableFlags()),
+          )
+        }
+      }
 
-      views.setOnClickPendingIntent(R.id.hw_name, launch(context, widgetId * 2, day, listId, false))
-      views.setOnClickPendingIntent(R.id.hw_add, launch(context, widgetId * 2 + 1, day, listId, true))
+      views.setOnClickPendingIntent(R.id.hw_name, launch(context, widgetId * 2, day, false))
+      views.setOnClickPendingIntent(R.id.hw_add, launch(context, widgetId * 2 + 1, day, true))
 
       manager.updateAppWidget(widgetId, views)
       manager.notifyAppWidgetViewDataChanged(widgetId, R.id.hw_tasks)
     }
 
-    private fun launch(context: Context, code: Int, day: Boolean, listId: Long, add: Boolean): PendingIntent? {
-      val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
-      intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        .putExtra(WidgetStore.EXTRA_DAY, day)
-        .putExtra(WidgetStore.EXTRA_LIST, listId)
+    private fun launchIntent(context: Context): Intent? =
+      context.packageManager.getLaunchIntentForPackage(context.packageName)
+        ?.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+    /** Opens the app: on the Day for the today widget, as is for the lists widget. */
+    private fun launch(context: Context, code: Int, day: Boolean, add: Boolean): PendingIntent? {
+      val intent = launchIntent(context) ?: return null
+      intent.putExtra(WidgetStore.EXTRA_DAY, day)
+        .putExtra(WidgetStore.EXTRA_LIST, -1L)
         .putExtra(WidgetStore.EXTRA_ADD, add)
-      val where = if (day) "day" else "list/$listId"
+      val where = if (day) "day" else "app"
       intent.data = Uri.parse("hypomnema-widget://open/$where/${if (add) "add" else "view"}")
       return PendingIntent.getActivity(context, code, intent, immutableFlags())
     }
 
-    private fun parseColor(hex: String?): Int =
+    fun parseColor(hex: String?): Int =
       try {
         if (hex.isNullOrEmpty()) FALLBACK_COLOR else Color.parseColor(hex)
       } catch (e: IllegalArgumentException) {
@@ -134,7 +153,7 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
   }
 }
 
-/** One list, picked in ListWidgetConfigureActivity when the widget is placed. */
+/** Every list with its open count; a row opens the app on the list. */
 class ListWidgetProvider : TaskWidgetProvider()
 
 /** Today, with no configuration: the widget marks itself as the day's on its first draw. */

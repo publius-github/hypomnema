@@ -116,7 +116,7 @@ export default function MobileApp() {
   }, []);
 
   // A home-screen widget opens the app on its screen - the Day for the
-  // today widget, the list for a list widget - and its + on that
+  // today widget, the tapped list for the lists widget - and its + on that
   // screen's add field. The target rides the launch intent, which the
   // core hands over once; asked on launch and on every return to the
   // foreground, since a tap on a widget resumes a running app as often

@@ -17,12 +17,15 @@
         android:contentDescription="@null"
         android:src="@drawable/hw_check_empty" />
 
-    <View
+    <!-- an ImageView, not a View: RemoteViews inflates only the widget
+         classes it allows, and a plain View fails the whole row -->
+    <ImageView
         android:id="@+id/hw_priority"
         android:layout_width="3dp"
         android:layout_height="16dp"
         android:layout_marginStart="8dp"
         android:background="@color/hw_accent"
+        android:contentDescription="@null"
         android:visibility="gone" />
 
     <TextView

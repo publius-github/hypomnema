@@ -1,9 +1,9 @@
-//! The home-screen list widget on Android.
+//! The home-screen widgets on Android.
 //!
-//! The Kotlin half (`android/`) is the widget itself: an
-//! `AppWidgetProvider` drawing one list's open tasks from a JSON file in
-//! the app's private files, a configure screen that picks the list, and
-//! a tap handler that queues "mark done" actions in a file the Rust core
+//! The Kotlin half (`android/`) is the widgets themselves: two
+//! `AppWidgetProvider`s drawing from a JSON file in the app's private
+//! files - every list with its open count, and today's tasks with a tap
+//! handler that queues "mark done" actions in a file the Rust core
 //! watches. This half is the typed Rust face of it: the core pushes a
 //! fresh JSON after every export, and asks what a widget tap launched
 //! the app for.

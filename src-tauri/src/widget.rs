@@ -1,4 +1,4 @@
-//! The Android home-screen list widget's data and its action queue.
+//! The Android home-screen widgets' data and their action queue.
 //!
 //! The widget cannot run the WebView or the core, so it draws from a
 //! JSON file the core hands it after every export (`payload`), and it
