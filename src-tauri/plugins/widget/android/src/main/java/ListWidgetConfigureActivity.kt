@@ -56,7 +56,7 @@ class ListWidgetConfigureActivity : Activity() {
 
   private fun choose(list: WidgetList) {
     WidgetStore.setListFor(this, widgetId, list.id)
-    ListWidgetProvider.draw(this, AppWidgetManager.getInstance(this), widgetId)
+    TaskWidgetProvider.draw(this, AppWidgetManager.getInstance(this), widgetId)
     setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
     finish()
   }

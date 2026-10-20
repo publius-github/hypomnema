@@ -62,7 +62,7 @@ class WidgetPlugin(private val activity: Activity) : Plugin(activity) {
     val args = invoke.parseArgs(PublishArgs::class.java)
     try {
       WidgetStore.write(activity, args.json, args.queuePath)
-      ListWidgetProvider.refreshAll(activity)
+      TaskWidgetProvider.refreshAll(activity)
     } catch (e: Exception) {
       invoke.reject("widget data could not be written: ${e.message}")
       return

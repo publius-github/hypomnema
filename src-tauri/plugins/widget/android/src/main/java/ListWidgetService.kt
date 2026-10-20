@@ -54,8 +54,8 @@ class ListWidgetService : RemoteViewsService() {
       )
       views.setViewVisibility(R.id.hw_priority, if (row.priority && !row.done) View.VISIBLE else View.GONE)
       val fillIn = Intent()
-        .putExtra(ListWidgetProvider.EXTRA_TASK, row.id)
-        .putExtra(ListWidgetProvider.EXTRA_STATUS, if (row.done) "todo" else "done")
+        .putExtra(TaskWidgetProvider.EXTRA_TASK, row.id)
+        .putExtra(TaskWidgetProvider.EXTRA_STATUS, if (row.done) "todo" else "done")
       views.setOnClickFillInIntent(R.id.hw_row, fillIn)
       return views
     }
