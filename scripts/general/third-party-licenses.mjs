@@ -39,8 +39,8 @@ function androidLibraries() {
 const BUNDLED = [
   {
     crate: "webview2-com-sys",
-    version: "0.38.2",
-    what: "Microsoft WebView2 SDK 1.0.3650.58 - WebView2LoaderStatic.lib, linked into the Windows binary by webview2-com-sys",
+    version: "0.39.1",
+    what: "Microsoft WebView2 SDK 1.0.3800.47 - WebView2LoaderStatic.lib, linked into the Windows binary by webview2-com-sys",
     license: "BSD-3-Clause",
     file: "microsoft-webview2-sdk.txt",
   },
