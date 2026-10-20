@@ -5,7 +5,7 @@ Open items left after the audit (state as of 2026-10-20). Audit reports themselv
 ## Before the repository goes public
 
 - [ ] O-2: move `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and `HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET` from repository secrets into the GitHub environment `release` with a required reviewer; delete them from repository secrets. The workflow already references the environment. On the first tag check that the `release` job waits for approval and that `npm run build` runs before the tauri step.
-- [ ] Close Dependabot PR #2-#10 if any are still open (recreated after the history rewrite). The branch `dependabot/github_actions/development/actions-...` still exists on origin.
+- [x] Close Dependabot PR #2-#10: all closed, the leftover `dependabot/github_actions/development/actions-...` branch deleted from origin on 2026-10-20.
 - [ ] Decide what to do with the `audit` branch: deleted on 2026-10-20, backup in the bundle above.
 
 ## Right after going public
