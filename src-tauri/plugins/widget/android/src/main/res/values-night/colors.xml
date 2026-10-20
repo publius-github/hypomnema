@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="hw_bg">#FF1F2125</color>
+    <color name="hw_text">#FFE5E7EB</color>
+    <color name="hw_muted">#FF9CA3AF</color>
+    <color name="hw_line">#FF374151</color>
+    <color name="hw_accent">#FF60A5FA</color>
+</resources>

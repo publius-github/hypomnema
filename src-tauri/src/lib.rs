@@ -47,9 +47,11 @@ mod cmd_sync;
 mod cmd_tasks;
 mod cmd_vault;
 mod cmd_views;
+mod cmd_widget;
 mod desktop;
 mod state;
 mod watchers;
+mod widget;
 
 use tauri::Manager;
 
@@ -79,7 +81,9 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(nav_guard::init());
     #[cfg(target_os = "android")]
-    let builder = builder.plugin(tauri_plugin_google_auth::init());
+    let builder = builder
+        .plugin(tauri_plugin_google_auth::init())
+        .plugin(tauri_plugin_widget::init());
     // updater (GitHub-releases) and the global capture shortcut are
     // desktop-only concepts - mobile has no
     // equivalent plugin to register in their place.
@@ -95,6 +99,13 @@ pub fn run() {
             }
             start_export_worker(app.handle().clone());
             sync_scheduler::start(app.handle().clone());
+            // a tick on the home-screen widget lands here while the
+            // process lives; what was queued before launch waits for
+            // the vault to open
+            #[cfg(target_os = "android")]
+            if let Err(e) = widget::android::start_queue_watcher(app.handle().clone()) {
+                applog::warn(format!("widget taps are not read while the app runs: {e}"));
+            }
             // the quick-capture window is pre-created hidden: a WebView
             // spun up on demand takes long enough to defeat "quick".
             // Desktop-only - mobile's quick-add is in-app (§6), not a
@@ -260,6 +271,7 @@ pub fn run() {
             cmd_sync::sync_reset_space,
             cmd_sync::sync_now,
             cmd_sync::google_status,
+            cmd_widget::widget_launch_target,
             cmd_sync::google_sign_in,
             cmd_sync::google_sign_in_cancel,
             cmd_sync::google_sign_out,

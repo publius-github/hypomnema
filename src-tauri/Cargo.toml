@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.113.2"
+version = "0.114.0"
 description = "Weekly planner, journal, and personal knowledge base"
 license = "GPL-3.0-only"
 repository = "https://github.com/publius-github/hypomnema"
@@ -69,6 +69,8 @@ jni = "0.21"
 # lives in the plugin's own android/ source set, tracked here rather
 # than in the regenerated gen/android project.
 tauri-plugin-google-auth = { path = "plugins/google-auth" }
+# The home-screen list widget (AppWidgetProvider), same arrangement.
+tauri-plugin-widget = { path = "plugins/widget" }
 
 # Windows Credential Manager behind keyring-core. Without the default
 # `search` feature it is only CredRead/CredWrite/CredDelete through

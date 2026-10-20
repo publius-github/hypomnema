@@ -26,6 +26,7 @@ export type { SyncActivity } from "./bindings/SyncActivity";
 export type { SyncSummary } from "./bindings/SyncSummary";
 export type { LockState } from "./bindings/LockState";
 export type { VaultPlace } from "./bindings/VaultPlace";
+export type { WidgetLaunch } from "./bindings/WidgetLaunch";
 export type { DirListing } from "./bindings/DirListing";
 export type { DirEntryView } from "./bindings/DirEntryView";
 export type { EngineOutcome } from "./bindings/EngineOutcome";

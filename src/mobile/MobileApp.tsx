@@ -115,6 +115,29 @@ export default function MobileApp() {
     return () => root.classList.remove("mobile");
   }, []);
 
+  // The home-screen widget opens the app on its list (its + on the
+  // list's add field). The target rides the launch intent, which the
+  // core hands over once; asked on launch and on every return to the
+  // foreground, since a tap on a widget resumes a running app as often
+  // as it starts one.
+  useEffect(() => {
+    const follow = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const target = await invoke("widget_launch_target");
+        if (!target) return;
+        useAppStore.getState().openList(target.list, target.add);
+        setTab("lists");
+      } catch (e) {
+        warn("widget launch target", e);
+      }
+    };
+    const onVisible = () => void follow();
+    void follow();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   // The engine runs when the app comes back to the foreground. A phone
   // spends most of its life asleep, so "on launch" alone would leave a
   // day's recurring tasks unmade until the app was killed and reopened.

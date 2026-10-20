@@ -1,0 +1,17 @@
+[package]
+name = "tauri-plugin-widget"
+version = "0.1.0"
+description = "Hypomnema's home-screen list widget on Android: the Kotlin AppWidgetProvider behind a Tauri mobile plugin"
+edition = "2021"
+license = "GPL-3.0-only"
+publish = false
+# Tauri's build scripts find the plugin's Android library through this.
+links = "tauri-plugin-widget"
+
+[dependencies]
+tauri = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

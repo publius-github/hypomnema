@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../store";
 import { orderLists } from "../lib/tasks";
 import { useListSections } from "../hooks/useColumnSections";
@@ -87,6 +87,29 @@ export default function MobileLists() {
   useBackStep(groupSettings, () => setGroupSettings(false));
   // the desktop list column's own layout: Priority, backlog, closed
   const sections = useListSections(current);
+
+  // the home-screen widget landed here with a list to open; its + also
+  // wants the add field, which exists only once the list screen is up
+  const listOpen = useAppStore((s) => s.listOpen);
+  const addField = useRef<HTMLInputElement>(null);
+  const [focusAdd, setFocusAdd] = useState(false);
+  useEffect(() => {
+    if (!listOpen) return;
+    const target = lists.find((l) => l.id === listOpen.id && !l.archived);
+    if (target) {
+      setGroupId(null);
+      setGroupSettings(false);
+      setSettingsOpen(false);
+      setOpenId(target.id);
+      setFocusAdd(listOpen.add);
+    }
+    useAppStore.setState({ listOpen: null });
+  }, [listOpen, lists]);
+  useEffect(() => {
+    if (!focusAdd || !current) return;
+    addField.current?.focus();
+    setFocusAdd(false);
+  }, [focusAdd, current]);
 
   const listRow = (list: List, nested = false) => {
     const open = tasks.filter(
@@ -632,6 +655,7 @@ export default function MobileLists() {
       )}
       <div className="flex gap-2 border-t border-line p-3">
         <input
+          ref={addField}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}

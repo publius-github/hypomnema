@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.114.0 - 2026-10-20
+
+A home-screen widget for Android: one list per widget, picked when the widget is placed (and again from the launcher's reconfigure). It shows the list's colour, name and open count over a scrolling checklist of its tasks; a row tap ticks the task (and unticks it on a checklist, where ticked items stay at the bottom), the name opens the app on that list, + opens it with the add field ready. The widget draws from a file the core publishes after every change and queues its taps for the core, which applies them while the app runs and otherwise at the next launch; it never needs the app open to tick a task. Light and dark follow the system. New plugin `src-tauri/plugins/widget/` (plain RemoteViews, no new Android libraries), `widget.rs` in the core with its tests, and one command, `widget_launch_target`, for the phone shell to follow a widget tap.
+
 ## 0.113.2 - 2026-10-20
 
 The phone's Day header sync button gets the desktop's sync icon: the old one's arrowheads sat away from the ends of its arcs, and the arcs ran against the direction the spinner turns. The time under it is always 24-hour ("12:40", "15:05"), whatever the device locale.

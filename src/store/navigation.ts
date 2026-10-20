@@ -39,6 +39,10 @@ export interface NavigationSlice {
   /// set to jump to Journal with a date opened (search palette)
   journalOpenDate: string | null;
   openJournalDate: (date: string) => void;
+  /// set to jump to Lists with a list opened (the phone's home-screen
+  /// widget); `add` focuses the list's add field
+  listOpen: { id: number; add: boolean } | null;
+  openList: (id: number, add: boolean) => void;
 }
 
 export const createNavigationSlice: StateCreator<
@@ -115,4 +119,6 @@ export const createNavigationSlice: StateCreator<
   },
   journalOpenDate: null,
   openJournalDate: (date) => set({ section: "journal", journalOpenDate: date }),
+  listOpen: null,
+  openList: (id, add) => set({ section: "lists", listOpen: { id, add } }),
 });

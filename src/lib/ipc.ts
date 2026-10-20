@@ -45,6 +45,7 @@ import type {
   Task,
   TaskPatch,
   UpcomingResult,
+  WidgetLaunch,
 } from "../types";
 
 export interface Commands {
@@ -215,6 +216,7 @@ export interface Commands {
   vault_status: { args: void; result: string | null };
   vault_use_local: { args: void; result: string };
   vault_use_path: { args: { path: string }; result: string };
+  widget_launch_target: { args: void; result: WidgetLaunch | null };
 }
 
 export type CommandName = keyof Commands;

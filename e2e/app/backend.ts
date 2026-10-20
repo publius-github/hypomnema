@@ -420,6 +420,7 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
   diagnostics: () => "e2e diagnostics",
   log_write: () => undefined,
   vault_local_path: () => VAULT,
+  widget_launch_target: () => null,
 };
 
 /** Plugin commands the window makes on its own (theme, notifications,

@@ -103,6 +103,8 @@ pub(crate) fn start_export_worker(app: AppHandle) {
                     &state.mirror_written,
                 );
                 crate::sync_scheduler::poke();
+                #[cfg(target_os = "android")]
+                crate::widget::android::publish(&app, &conn);
             }
         }
     });
@@ -437,6 +439,13 @@ pub(crate) fn open_vault(
         }
     } else {
         *state.tasks_watcher.lock_or_recover() = None;
+    }
+    // the home-screen widget: taps queued while the app was closed go
+    // in now, and the widget is redrawn from this vault either way
+    #[cfg(target_os = "android")]
+    {
+        crate::widget::android::drain(app);
+        state.request_export();
     }
     Ok(config)
 }
