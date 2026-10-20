@@ -28,7 +28,7 @@ Open items left after the audit (state as of 2026-10-20). Audit reports themselv
 ## First release
 
 - [ ] O-17: `release.sh --check`, then `release.sh`. Verify that the `release` job starts, `verify` produces notes, `latest.json` contains the `nsis` key, anonymous `curl -I .../releases/latest/download/latest.json` returns 302/200 after publishing the draft, and `gh attestation verify <exe> --repo publius-github/hypomnema` passes.
-- [ ] O-18: screenshot for README (`docs/screenshot.png`, uncomment the TODO) from the "Try it with an example" vault, no personal data.
+- [ ] O-18: screenshots for README: `docs/screenshots/dashboard.png` (hero), `first-start.png`, `upcoming.png`, `notes.png`, `dark.png`, each with a TODO(owner) block to uncomment in README.md; from the "Try it with an example" vault, no personal data.
 - [ ] O-26: repeat the phase 12 synthesis prompt as a verification pass, once after going public and once after the first release.
 
 ## Android (does not block the source release)
