@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.115.2 - 2026-10-20
+
+Markdown editor (journal, notes): formatting warnings show as the wavy underline only; the warning triangles in the gutter beside every flagged line are gone. YAML config files keep their error markers.
+
 ## 0.115.1 - 2026-10-20
 
 Android widgets fixed and the list widget reworked. Both widgets showed "Couldn't add widget" in place of every row: a row's layout held a view class RemoteViews refuses (the priority bar), and a done task's strikethrough went through a setter RemoteViews may not call; the bar is now an image view and the strikethrough a text span. The list widget, now "Hypomnema lists", no longer asks for a list when placed: it shows every list - colour, group / name and open count - as a scrolling list, and a tap opens the app on that list; its name opens the app. The configure screen is gone.

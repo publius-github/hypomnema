@@ -402,10 +402,9 @@ export function modeExtensions(mode: EditorMode): Extension[] {
         // span nests inside the token span, not around it
         Prec.highest(plainBrackets),
         tableLines,
+        // squiggles only: a gutter marker on every glued list marker
+        // turns a half-written journal entry into a wall of warnings
         markdownLinter(),
-        // IDE-style gutter markers next to the squiggles, so broken
-        // formatting is visible without hovering the exact spot
-        lintGutter(),
       ];
     case "yaml":
       return [
