@@ -4,13 +4,13 @@
 [![latest release](https://img.shields.io/github/v/release/publius-github/hypomnema)](https://github.com/publius-github/hypomnema/releases/latest)
 [![license: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-A local-first personal productivity app: a weekly task planner, a daily journal and a Markdown knowledge base in one window. Windows first, with an Android companion. Everything lives in a folder you choose, as plain files and a local database - no account, no server, no telemetry. Sync between your devices is optional and goes through your own Google Drive.
+A local-first personal productivity app: a weekly task planner, a daily journal and a Markdown knowledge base in one window. Windows first. Everything lives in a folder you choose, as plain files and a local database - no account, no server, no telemetry. Sync between your devices is optional and goes through your own Google Drive.
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use.
 
 - [Install](#install) · [Status](#status) · [What it does](#sections) · [Your data](#data-the-vault) · [Configuration](#yaml-configuration) · [Troubleshooting](#troubleshooting) · [Building](#building-and-releasing) · [Contributing](CONTRIBUTING.md) · [Code signing policy](#code-signing-policy) · [Privacy](https://publius-github.github.io/hypomnema/privacy.html) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License](#license)
 
-Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`. Android build: `docs/android/ARCHITECTURE.md`.
+Technical map of the shared core (modules, config schemas, engine invariants): `docs/general/ARCHITECTURE.md`. Windows specifics (tray, quick-capture window, build and release): `docs/windows/ARCHITECTURE.md`.
 
 <!-- TODO(owner): once a donation page exists, set DONATE_URL in src/lib/legal.ts and .github/FUNDING.yml, and uncomment:
 Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you, you can [support its development](https://example.com/donate).
@@ -23,7 +23,6 @@ Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you
 ## Install
 
 - **Windows 10/11** - download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/hypomnema/releases/latest) and run it. It installs for the current user, without administrator rights; on a Windows 10 without WebView2 it downloads that first, so it needs a connection. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. To check that a download really came out of this repository's release workflow, run `gh attestation verify Hypomnema_<version>_x64-setup.exe --repo publius-github/hypomnema` with the [GitHub CLI](https://cli.github.com). The app then updates itself; every update is verified against the project's signing key before it is installed.
-- **Android** - no published build yet; see [`docs/android/ARCHITECTURE.md`](docs/android/ARCHITECTURE.md) (Prerequisites, Build) to build the APK yourself.
 - **macOS / Linux** - not released and not tested. The core is cross-platform Tauri, so `npm run app:dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
 
 On first start the app asks for a vault folder - pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place. *Try it with an example* fills an empty folder with a few lists, tasks, rules, notes and a journal entry to look around in first.
@@ -33,7 +32,7 @@ Uninstalling (Windows *Apps & features*) removes the program; your vault folder 
 ## Status
 
 - Pre-1.0: versions below 1.0 are development builds, released often; see the [changelog](CHANGELOG.md). Before an update changes the database format the app snapshots it, and a device whose app is older than the one that last synced stops syncing instead of merging data it cannot read.
-- Windows 10/11 is the shipped platform. The Android app can be built from source but is not published; macOS and Linux are not released.
+- Windows 10/11 is the shipped platform; macOS and Linux are not released.
 - The Windows installer is not code-signed yet (see [Code signing policy](#code-signing-policy)).
 - One maintainer; issues and pull requests are reviewed as time allows ([CONTRIBUTING.md](CONTRIBUTING.md)). There is no roadmap or support commitment beyond [SECURITY.md](SECURITY.md).
 
@@ -152,7 +151,6 @@ Requirements: Node.js 22.22.2+ or 24.15+ (`engines` in `package.json`; CI runs t
 ```bash
 npm ci && npm run app:dev               # dev mode with hot reload, a separate "Hypomnema Dev" app (CONTRIBUTING.md)
 ./scripts/windows/build.sh              # local installer build (build.ps1 for PowerShell)
-./scripts/android/build-android.sh      # Android build, see docs/android/
 ```
 
 Artifacts land in `src-tauri/target/release/bundle/`.
@@ -182,7 +180,7 @@ node scripts/general/prune-target.mjs [--days N] [--dry-run]
 
 ### Third-party licenses
 
-`THIRD_PARTY_LICENSES.txt` collects the license texts of every bundled Rust crate and npm package, plus the prebuilt binaries and Android libraries listed by hand in `scripts/general/notices/`; the app compiles it in and shows it under About. Regenerate it after changing dependencies:
+`THIRD_PARTY_LICENSES.txt` collects the license texts of every bundled Rust crate and npm package, plus the prebuilt binaries and libraries listed by hand in `scripts/general/notices/`; the app compiles it in and shows it under About. Regenerate it after changing dependencies:
 
 ```bash
 node scripts/general/third-party-licenses.mjs
@@ -217,7 +215,7 @@ Copyright (C) 2026 Siarhei Zverau
 
 Hypomnema is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 only, as published by the Free Software Foundation, with an additional permission under section 7 for linking with Google Play services ([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text, and [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the licenses of the libraries it is built on.
 
-Not everything in a build is open source. The Windows binary links Microsoft's WebView2 loader (BSD-3-Clause). The Android build includes Google Play services, which is proprietary and comes under the Android Software Development Kit License. The "Sign in with Google" button carries Google's "G" logo, a trademark of Google LLC used under its [sign-in branding guidelines](https://developers.google.com/identity/branding-guidelines), not under the GPL. `THIRD_PARTY_LICENSES.txt` lists all three.
+Not everything in a build is open source. The Windows binary links Microsoft's WebView2 loader (BSD-3-Clause). The "Sign in with Google" button carries Google's "G" logo, a trademark of Google LLC used under its [sign-in branding guidelines](https://developers.google.com/identity/branding-guidelines), not under the GPL. `THIRD_PARTY_LICENSES.txt` lists both.
 
 The name Hypomnema and its logo are not covered by the GPL: a modified version you distribute needs its own name and icon ([TRADEMARKS.md](TRADEMARKS.md)).
 
