@@ -527,6 +527,17 @@ function build_apk() {
   npx tauri android build "${variant_flag[@]+"${variant_flag[@]}"}" -t $ANDROID_ABIS --apk
 }
 
+function clear_previous_apks() {
+  printf "\n"
+  log_info "function clear_previous_apks - remove this variant's APKs from earlier runs"
+  # With no input changed Gradle calls packaging up to date and leaves
+  # the old APK in place, which collect_artifacts' staleness check then
+  # refuses as not produced by this run. With the output gone Gradle
+  # packages again, so a rebuild of an unchanged tree still yields an APK.
+  local apk_dir="$REPO_ROOT/src-tauri/gen/android/app/build/outputs/apk"
+  find "$apk_dir" -type f -name "*.apk" -path "*/${BUILD_VARIANT}/*" -delete 2>/dev/null || true
+}
+
 function collect_artifacts() {
   printf "\n"
   log_info "function collect_artifacts - copy produced APKs into releases/android"
@@ -598,6 +609,7 @@ function main() {
   configure_backup
   configure_signing
   check_android_notices
+  clear_previous_apks
   build_apk
   collect_artifacts
   log_info "build finished"
