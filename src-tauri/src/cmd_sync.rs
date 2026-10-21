@@ -316,27 +316,16 @@ pub(crate) async fn google_sign_in_cancel() -> Result<()> {
     Ok(())
 }
 
-/// Signs out: revokes the grant at Google (best effort - offline, the
-/// local sign-in is still forgotten) and drops the tokens. The vault and
-/// its sync space stay, so signing back in to the same account resumes
-/// where it left off.
+/// Signs out of this device only: forgets the tokens and the account.
+/// The grant at Google is deliberately not revoked - Google's revoke
+/// takes the whole grant down, and with it every other device signed in
+/// to the same account (it signed the phone out when the desktop did).
+/// Access can still be withdrawn from the Google account page. The vault
+/// and its sync space stay, so signing back in to the same account
+/// resumes where it left off.
 #[tauri::command]
 pub(crate) async fn google_sign_out(app: AppHandle) -> Result<google_link::GoogleStatus> {
     let dir = app_config_dir(&app)?;
-    #[cfg(desktop)]
-    if let Some(token) = google_link::refresh_token(&dir) {
-        let _ = google_auth::revoke(&google_auth::GoogleOauthTransport::new(), &token);
-    }
-    #[cfg(target_os = "android")]
-    if let Some(account) = google_link::account(&dir) {
-        use tauri_plugin_google_auth::GoogleAuthExt;
-        let handle = app.clone();
-        // blocks on Play services; off the async worker
-        let _ = tauri::async_runtime::spawn_blocking(move || {
-            handle.google_auth().revoke(&account.email)
-        })
-        .await;
-    }
     google_link::clear(&dir)?;
     Ok(google_link::status(&dir, google_available()))
 }

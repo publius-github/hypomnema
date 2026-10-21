@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.119.1 - 2026-10-21
+
+Signing out of Google on one device no longer signs the others out: sign-out only forgets this device's tokens and no longer revokes the grant at Google, which took the phone's sign-in down with the desktop's. Access can still be withdrawn from the Google account page; the privacy policy says so.
+
 ## 0.119.0 - 2026-10-21
 
 Settings > Data: the Vault row has a Change button like the Notes folder's. It opens another vault folder after a confirmation (an empty folder becomes a new vault, an existing vault is opened as it is); the current vault is not moved.

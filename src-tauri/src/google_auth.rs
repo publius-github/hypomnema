@@ -1,7 +1,7 @@
 //! Signing in with Google on the desktop: OAuth2 authorization code with
 //! PKCE, the redirect caught on a loopback port (`127.0.0.1:<free port>`),
 //! which is Google's flow for installed apps. The token endpoint, refresh
-//! and revoke live here too; storing the result is `google_link.rs`.
+//! live here too; storing the result is `google_link.rs`.
 //!
 //! The client is Google's "Desktop app" type. Google treats its secret as
 //! not confidential (it ships inside every installer), but secret
@@ -42,7 +42,6 @@ pub const SCOPE: &str = "https://www.googleapis.com/auth/drive.appdata";
 
 const AUTHORIZE_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
-const REVOKE_ENDPOINT: &str = "https://oauth2.googleapis.com/revoke";
 
 /// How long the app waits for the browser to come back before giving up.
 pub const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -117,13 +116,6 @@ pub fn refresh_access_token<T: OauthTransport>(
     tokens_from(&transport.post_form(TOKEN_ENDPOINT, &form)?)
 }
 
-/// Withdraws the app's access on Google's side. Revoking the refresh
-/// token revokes the grant as a whole.
-pub fn revoke<T: OauthTransport>(transport: &T, token: &str) -> Result<()> {
-    transport.post_form(REVOKE_ENDPOINT, &[("token", token)])?;
-    Ok(())
-}
-
 fn tokens_from(response: &Value) -> Result<GoogleTokens> {
     let access_token = response
         .get("access_token")
@@ -180,7 +172,7 @@ impl OauthTransport for GoogleOauthTransport {
         if !(200..300).contains(&code) {
             return Err(oauth_error(code, &String::from_utf8_lossy(&body)));
         }
-        // The revoke endpoint answers with an empty body.
+        // an endpoint may answer with an empty body
         Ok(serde_json::from_slice(&body).unwrap_or(Value::Null))
     }
 }
@@ -347,26 +339,6 @@ pub fn wait_for_redirect(
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::cell::RefCell;
-
-    type FormCall = (String, Vec<(String, String)>);
-
-    struct MockTransport {
-        response: Value,
-        calls: RefCell<Vec<FormCall>>,
-    }
-
-    impl OauthTransport for MockTransport {
-        fn post_form(&self, url: &str, form: &[(&str, &str)]) -> Result<Value> {
-            self.calls.borrow_mut().push((
-                url.to_string(),
-                form.iter()
-                    .map(|(k, v)| (k.to_string(), v.to_string()))
-                    .collect(),
-            ));
-            Ok(self.response.clone())
-        }
-    }
 
     #[test]
     fn the_authorize_url_asks_for_appdata_offline_with_pkce() {
@@ -389,18 +361,6 @@ mod tests {
         assert_eq!(tokens.refresh_token.as_deref(), Some("rt"));
         assert_eq!(tokens.expires_in_secs, 3599);
         assert!(tokens_from(&json!({ "error": "x" })).is_err());
-    }
-
-    #[test]
-    fn revoke_posts_the_token() {
-        let transport = MockTransport {
-            response: Value::Null,
-            calls: RefCell::new(Vec::new()),
-        };
-        revoke(&transport, "rt").unwrap();
-        let calls = transport.calls.borrow();
-        assert_eq!(calls[0].0, REVOKE_ENDPOINT);
-        assert_eq!(calls[0].1, vec![("token".to_string(), "rt".to_string())]);
     }
 
     #[test]

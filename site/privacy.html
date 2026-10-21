@@ -36,8 +36,8 @@ device only:</p>
   and Drive user id (to show who is signed in), and on Windows the OAuth
   tokens that let the app reach your Drive. On Windows the tokens are a
   credential in Windows Credential Manager, which programs running under
-  your Windows account can read; signing out revokes them at Google and
-  deletes the credential. On Android, Google Play services keeps those
+  your Windows account can read; signing out deletes the credential
+  (access is withdrawn at Google from your account page, see below). On Android, Google Play services keeps those
   tokens instead.</li>
 </ul>
 <p>We have no access to any of this. On Android the app opts out of the
@@ -85,8 +85,9 @@ runs once at startup and can be turned off in Settings &gt; General &gt; Updates
 <h2>Your control</h2>
 <ul>
   <li><strong>Stop syncing:</strong> Settings &rarr; Sync &rarr; Sign out. This
-  revokes the app's access to your Drive and deletes the tokens from the
-  device. You can also revoke access at
+  deletes the sign-in and its tokens from this device only; other devices
+  stay signed in. To withdraw the app's access to your Drive altogether,
+  revoke it at
   <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
   <li><strong>Delete synced data:</strong> in Google Drive, open Settings
   &rarr; Manage apps &rarr; Hypomnema &rarr; Options &rarr; Delete hidden app

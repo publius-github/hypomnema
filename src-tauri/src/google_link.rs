@@ -289,8 +289,8 @@ fn save_tokens(config_dir: &Path, tokens: &StoredTokens) -> Result<()> {
     token_vault::save(config_dir, text.as_bytes())
 }
 
-/// The refresh token, for revoking it on sign-out.
-#[cfg(desktop)]
+/// The stored refresh token, as the tests read it back.
+#[cfg(all(desktop, test))]
 pub fn refresh_token(config_dir: &Path) -> Option<String> {
     load_tokens(config_dir)
         .ok()
