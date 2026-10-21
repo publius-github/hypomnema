@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.116.1 - 2026-10-21
+
+Android today widget fixed and brought in line with the Day screen. A task without a category or weekday marker showed "null [null]" in front of its text (a JSON null read as the word); now only the text. The category is no longer a chip in front of the marker: as in the app it heads its block of rows, in its chip colour, under the section plate (which now wears its cadence colour and count, as the app's plates do); with category headers off in Settings it stays a chip. A row is clamped to two lines with an ellipsis. Both widgets now wear the app's colour scheme - the device's light or dark palette under colors.yml - instead of the launcher's: background, text, muted text, lines, accent, the weekday marker tone and the category colours.
+
 ## 0.116.0 - 2026-10-21
 
 Android widgets redrawn. "Hypomnema today" is now read-only: its rows no longer tick a task, a tap anywhere on a row opens the app on the Day (the name does the same, + still opens it with the add field ready). The rows are separated by a hairline and read as the Day screen reads them: the category in bold in its chip colour, the weekday marker ([MON,SAT]) muted, then the text; the header says "Hypomnema: today". "Hypomnema lists" shows only your own lists - the engine's category and Birthdays lists are gone from it - in alphabetical order, each as a card with its name, open count and its open tasks numbered under the name; a card tap opens the app on that list, and the header says "Hypomnema: lists". With neither widget editing anything the tap queue is gone from both halves: the Kotlin side writes nothing, the core no longer watches a queue file. Widget data now carries each task's category, chip colour and weekday marker.

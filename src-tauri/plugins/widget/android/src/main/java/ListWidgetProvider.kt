@@ -44,14 +44,22 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
 
     fun draw(context: Context, manager: AppWidgetManager, widgetId: Int) {
       val day = WidgetStore.isDay(context, widgetId)
-      val views = RemoteViews(context.packageName, if (day) R.layout.hw_widget_day else R.layout.hw_widget)
+      val views = RemoteViews(context.packageName, R.layout.hw_widget)
       val view = WidgetStore.viewFor(context, widgetId)
+      val theme = WidgetStore.data(context)?.theme ?: WidgetStore.fallbackTheme(context)
 
+      // the app's chrome, not the launcher's: the rounded background is a
+      // drawable tinted through the one image setter RemoteViews allows
+      views.setInt(R.id.hw_bg, "setColorFilter", theme.surface)
       views.setTextViewText(
         R.id.hw_name,
         view?.name ?: context.getString(if (day) R.string.hw_today else R.string.hw_lists),
       )
+      views.setTextColor(R.id.hw_name, theme.content)
       views.setTextViewText(R.id.hw_count, view?.open?.toString() ?: "")
+      views.setTextColor(R.id.hw_count, theme.contentMuted)
+      views.setInt(R.id.hw_add, "setColorFilter", theme.contentMuted)
+      views.setTextColor(R.id.hw_empty, theme.contentMuted)
       views.setViewVisibility(R.id.hw_add, if (day) View.VISIBLE else View.GONE)
       views.setTextViewText(
         R.id.hw_empty,
@@ -110,11 +118,11 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
       return PendingIntent.getActivity(context, code, intent, immutableFlags())
     }
 
-    fun parseColor(hex: String?): Int =
+    fun parseColor(hex: String?, fallback: Int = FALLBACK_COLOR): Int =
       try {
-        if (hex.isNullOrEmpty()) FALLBACK_COLOR else Color.parseColor(hex)
+        if (hex.isNullOrEmpty()) fallback else Color.parseColor(hex)
       } catch (e: IllegalArgumentException) {
-        FALLBACK_COLOR
+        fallback
       }
 
     private fun immutableFlags(): Int {

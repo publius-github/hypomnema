@@ -1,11 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/hw_header"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingTop="8dp"
-    android:paddingBottom="2dp"
-    android:textAllCaps="true"
-    android:textColor="@color/hw_muted"
-    android:textSize="11sp"
-    android:textStyle="bold" />
+    android:layout_marginEnd="8dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="2dp">
+
+    <ImageView
+        android:id="@+id/hw_header_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/hw_plate_bg" />
+
+    <TextView
+        android:id="@+id/hw_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="6dp"
+        android:paddingTop="2dp"
+        android:paddingEnd="6dp"
+        android:paddingBottom="2dp"
+        android:textColor="@color/hw_text"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+</FrameLayout>

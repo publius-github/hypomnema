@@ -55,22 +55,96 @@ struct WidgetList {
     tasks: Vec<WidgetTask>,
 }
 
+/// One Day section with the colour its plate wears in the app
+/// (`cadenceColor`: none while `cadence_colors` is off, or for General
+/// without a colour of its own - the neutral plate).
 #[derive(Serialize)]
 struct WidgetSection {
     label: String,
+    color: Option<String>,
     tasks: Vec<WidgetTask>,
 }
 
 #[derive(Serialize)]
 struct WidgetDay {
     date: String,
+    /// `category_headers`: the block's category named once over its
+    /// rows rather than as a chip on each.
+    category_headers: bool,
     sections: Vec<WidgetSection>,
+}
+
+/// The app's chrome as the widget paints it: the theme's palette
+/// (`src/styles.css`, the VS Code Light+/Dark+ sets) with the
+/// colors.yml overrides on top, so the widget reads like the app on
+/// this device rather than like the launcher. `dow_label` is the
+/// marker's colour resolved: the picked one at full strength, else the
+/// muted tone at `dow_label_opacity` %.
+#[derive(Serialize)]
+struct WidgetTheme {
+    dark: bool,
+    surface: String,
+    surface_alt: String,
+    content: String,
+    content_muted: String,
+    accent: String,
+    line: String,
+    dow_label: String,
+    dow_label_opacity: u32,
 }
 
 #[derive(Serialize)]
 struct WidgetData {
+    theme: WidgetTheme,
     day: WidgetDay,
     lists: Vec<WidgetList>,
+}
+
+fn theme(config: &AppConfig) -> WidgetTheme {
+    let dark = config.theme != "light";
+    let pick = |over: &str, dark_default: &str, light_default: &str| {
+        if !over.is_empty() {
+            over.to_string()
+        } else if dark {
+            dark_default.to_string()
+        } else {
+            light_default.to_string()
+        }
+    };
+    let content_muted = pick(&config.content_muted_color, "#bfbfbf", "#606060");
+    let (dow_label, dow_label_opacity) = if config.dow_label_color.is_empty() {
+        (content_muted.clone(), config.dow_label_opacity)
+    } else {
+        (config.dow_label_color.clone(), 100)
+    };
+    WidgetTheme {
+        dark,
+        surface: pick(&config.surface_color, "#1e1e1e", "#ffffff"),
+        surface_alt: pick(&config.surface_alt_color, "#252526", "#f3f3f3"),
+        content: pick(&config.content_color, "#d4d4d4", "#333333"),
+        content_muted,
+        accent: pick(&config.accent_color, "#55a5ff", "#005fb8"),
+        line: pick(&config.line_color, "#3c3c3c", "#e0e0e0"),
+        dow_label,
+        dow_label_opacity,
+    }
+}
+
+/// `cadenceColor` from `src/lib/tasks.ts`.
+fn cadence_color(config: &AppConfig, key: &str) -> Option<String> {
+    if !config.cadence_colors {
+        return None;
+    }
+    let color = match key {
+        "exact" => &config.cadence_color_exact,
+        "general" => &config.cadence_color_general,
+        "daily" => &config.cadence_color_daily,
+        "weekly" => &config.cadence_color_weekly,
+        "monthly" => &config.cadence_color_monthly,
+        "yearly" => &config.cadence_color_yearly,
+        _ => return None,
+    };
+    (!color.is_empty()).then(|| color.clone())
 }
 
 /// The JSON the widgets draw from. `lists`: the user's own lists
@@ -137,8 +211,12 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
             tasks,
         });
     }
-    serde_json::to_string(&WidgetData { day, lists: out })
-        .map_err(|e| crate::error::Error::State(format!("widget payload: {e}")))
+    serde_json::to_string(&WidgetData {
+        theme: theme(config),
+        day,
+        lists: out,
+    })
+    .map_err(|e| crate::error::Error::State(format!("widget payload: {e}")))
 }
 
 const CADENCE_LABELS: &[(&str, &str)] = &[
@@ -301,10 +379,15 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
             .find(|(k, _)| *k == key)
             .map(|(_, l)| l.to_string())
             .unwrap_or_default();
-        sections.push(WidgetSection { label, tasks });
+        sections.push(WidgetSection {
+            label,
+            color: cadence_color(config, key),
+            tasks,
+        });
     }
     Ok(WidgetDay {
         date: today.to_string(),
+        category_headers: config.category_headers,
         sections,
     })
 }
@@ -492,6 +575,9 @@ mod tests {
             .map(|s| s["label"].as_str().unwrap())
             .collect();
         assert_eq!(labels, vec!["Daily", "Exact date", "General"]);
+        assert_eq!(sections[0]["color"], config.cadence_color_daily);
+        assert!(sections[2]["color"].is_null());
+        assert_eq!(data["day"]["category_headers"], true);
         let daily = &sections[0]["tasks"][0];
         assert_eq!(daily["id"].as_i64().unwrap(), general);
         assert_eq!(daily["dow"], "MON,SAT");
@@ -512,6 +598,30 @@ mod tests {
             .collect();
         assert!(!all.contains(&closed));
         assert!(!all.contains(&tomorrow));
+    }
+
+    #[test]
+    fn the_theme_is_the_apps_palette_under_the_colors_yml_overrides() {
+        let conn = conn();
+        let mut config = config(&[]);
+        config.theme = "dark".into();
+        config.accent_color = "#123456".into();
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
+        assert_eq!(data["theme"]["dark"], true);
+        assert_eq!(data["theme"]["surface"], "#1e1e1e");
+        assert_eq!(data["theme"]["accent"], "#123456");
+        assert_eq!(data["theme"]["dow_label"], config.dow_label_color);
+        assert_eq!(data["theme"]["dow_label_opacity"], 100);
+
+        config.theme = "light".into();
+        config.dow_label_color = String::new();
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
+        assert_eq!(data["theme"]["dark"], false);
+        assert_eq!(data["theme"]["content"], "#333333");
+        assert_eq!(data["theme"]["dow_label"], "#606060");
+        assert_eq!(data["theme"]["dow_label_opacity"], config.dow_label_opacity);
     }
 
     #[test]
