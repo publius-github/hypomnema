@@ -13,13 +13,11 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="license: GPL-3.0"></a>
 </p>
 
-<!-- TODO(owner): docs/screenshots/dashboard.png - the Dashboard of the "Try it with an example" vault, light theme, no personal data. Then uncomment:
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="The Dashboard: a week of days over the backlog lists">
   <br>
   <em>The Dashboard: a week of days on top, your backlog lists below.</em>
 </p>
--->
 
 Hypomnema keeps a week of tasks, a journal and your notes together, and keeps all of it in a folder you choose: plain Markdown and YAML files plus a local database. There is no account, no server and no telemetry. Repeating tasks come from rules you write in YAML (cron for the schedule, a list name in braces), and the engine that generates them never duplicates a task or overwrites an edit. Syncing between your devices is optional and goes through a hidden app folder in your own Google Drive.
 
@@ -60,14 +58,6 @@ gh attestation verify Hypomnema_<version>_x64-setup.exe --repo publius-github/hy
 
 On first start the app asks for a vault folder: pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place. A new vault starts with a few lists, tasks and rules of each kind, all meant to be edited or deleted. *Try it with an example* fills an empty folder with those plus a welcome note and a journal entry to look around in first.
 
-<!-- TODO(owner): docs/screenshots/first-start.png - the vault chooser on first start. Then uncomment:
-<p align="center">
-  <img src="docs/screenshots/first-start.png" width="600" alt="First start: choosing a vault folder">
-  <br>
-  <em>First start: an empty folder, an existing folder of notes, or the example vault.</em>
-</p>
--->
-
 Uninstalling (Windows *Apps & features*) removes the program; your vault folder is never touched. The uninstaller's optional "Delete the application data" box clears only the per-device files under `%APPDATA%\com.hypomnema.app` (the remembered vault path, the Google sign-in, the diagnostic log).
 
 macOS and Linux are not released and not tested. The core is cross-platform Tauri, so `npm run app:dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
@@ -87,35 +77,23 @@ A vertical rail on the left holds the sections; their order is configurable and 
 
 **Upcoming** has three tabs: Scheduled (one-off dated events), Birthdays (with age when the year is known) and Recurring (cron rules). The forms write straight into the YAML files, keeping your comments. **Calendar** is a month grid with real tasks plus projections of future rule occurrences (the horizon is configurable per cadence). **Review** and **History** show how the week went, and a month-by-month archive with completion stats and streaks for daily rules.
 
-<!-- TODO(owner): docs/screenshots/upcoming.png - Upcoming > Recurring with a few rules. Then uncomment:
 <p align="center">
-  <img src="docs/screenshots/upcoming.png" alt="Upcoming: recurring rules">
+  <img src="docs/screenshots/recurring.png" alt="Upcoming: recurring rules">
   <br>
   <em>Upcoming: the rules behind the generated tasks, edited in place.</em>
 </p>
--->
 
 **Journal** keeps one Markdown entry per date (`journal/<year>/<YYYY-MM-DD>.md`), created from a configurable template on first save, with "on this day" entries from earlier years.
 
 **Notes** is the knowledge base: a tree of Markdown files (the vault root or a folder set in Settings), an editor with live highlighting, `[[wiki links]]` and backlinks, full-text search, a `.trash` folder (emptied after 30 days) and a `.hypomnemaignore` file to hide paths from the tree. The config files are edited here too, validated on save.
 
-<!-- TODO(owner): docs/screenshots/notes.png - Notes with a note open, backlinks visible. Then uncomment:
 <p align="center">
   <img src="docs/screenshots/notes.png" alt="Notes: the Markdown editor with backlinks">
   <br>
   <em>Notes: Markdown files in place, wiki links and backlinks.</em>
 </p>
--->
 
 **Settings** has six tabs (General, Tasks, Recurring & calendar, Capture & alerts, Data, Sync) with a search over every setting. They are stored in `.hypomnema/settings/app.yml` (per device), except the task rules every device must share, which go to the synced `.hypomnema/config/shared.yml`. The color scheme (`config/colors.yml`) and fine-tuning without a Settings control are edited in Notes > Config, validated on save.
-
-<!-- TODO(owner): docs/screenshots/dark.png - the Dashboard in the dark theme. Then uncomment:
-<p align="center">
-  <img src="docs/screenshots/dark.png" alt="The Dashboard in the dark theme">
-  <br>
-  <em>The same Dashboard in the dark theme.</em>
-</p>
--->
 
 ## Keyboard
 
