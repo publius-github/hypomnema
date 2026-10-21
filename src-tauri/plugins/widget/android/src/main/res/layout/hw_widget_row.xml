@@ -6,16 +6,9 @@
     android:gravity="center_vertical"
     android:minHeight="40dp"
     android:orientation="horizontal"
-    android:paddingTop="3dp"
+    android:paddingTop="5dp"
     android:paddingEnd="8dp"
-    android:paddingBottom="3dp">
-
-    <ImageView
-        android:id="@+id/hw_check"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:contentDescription="@null"
-        android:src="@drawable/hw_check_empty" />
+    android:paddingBottom="5dp">
 
     <!-- an ImageView, not a View: RemoteViews inflates only the widget
          classes it allows, and a plain View fails the whole row -->
@@ -23,7 +16,7 @@
         android:id="@+id/hw_priority"
         android:layout_width="3dp"
         android:layout_height="16dp"
-        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
         android:background="@color/hw_accent"
         android:contentDescription="@null"
         android:visibility="gone" />
@@ -32,7 +25,6 @@
         android:id="@+id/hw_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="2"

@@ -440,13 +440,9 @@ pub(crate) fn open_vault(
     } else {
         *state.tasks_watcher.lock_or_recover() = None;
     }
-    // the home-screen widget: taps queued while the app was closed go
-    // in now, and the widget is redrawn from this vault either way
+    // the home-screen widgets are redrawn from the vault that opened
     #[cfg(target_os = "android")]
-    {
-        crate::widget::android::drain(app);
-        state.request_export();
-    }
+    state.request_export();
     Ok(config)
 }
 

@@ -14,13 +14,13 @@ import android.widget.RemoteViews
 
 /**
  * The home-screen widgets: a name over a scrolling list. A widget never
- * runs the core: it draws from the file the core publishes and queues
- * its taps for the core to apply (WidgetStore). DayWidgetProvider shows
- * today as the Day screen lays it out: a row tap ticks the task, the
- * name opens the app on the Day and + opens it with the add field
- * ready. ListWidgetProvider shows every list with its open count: a row
- * tap opens the app on that list, the name opens the app. The two are
- * one class apart so the launcher offers them as two widgets.
+ * runs the core: it draws from the file the core publishes
+ * (WidgetStore), and every tap opens the app. DayWidgetProvider shows
+ * today as the Day screen lays it out - a row tap or the name opens the
+ * app on the Day, + opens it with the add field ready. ListWidgetProvider
+ * shows the user's lists, each a card with its open tasks: a card tap
+ * opens the app on that list, the name opens the app. The two are one
+ * class apart so the launcher offers them as two widgets.
  */
 abstract class TaskWidgetProvider : AppWidgetProvider() {
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
@@ -31,23 +31,7 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
     WidgetStore.forget(context, ids)
   }
 
-  override fun onReceive(context: Context, intent: Intent) {
-    if (intent.action == ACTION_TOGGLE) {
-      val task = intent.getLongExtra(EXTRA_TASK, -1L)
-      val status = intent.getStringExtra(EXTRA_STATUS)
-      if (task >= 0 && (status == "done" || status == "todo")) {
-        WidgetStore.queue(context, task, status)
-        refreshAll(context)
-      }
-      return
-    }
-    super.onReceive(context, intent)
-  }
-
   companion object {
-    const val ACTION_TOGGLE = "com.hypomnema.widget.TOGGLE"
-    const val EXTRA_TASK = "com.hypomnema.widget.TASK"
-    const val EXTRA_STATUS = "com.hypomnema.widget.STATUS"
     private const val FALLBACK_COLOR = 0xFF3B82F6.toInt()
 
     /** Redraws every placed widget of both kinds from the current data file. */
@@ -59,8 +43,8 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
     }
 
     fun draw(context: Context, manager: AppWidgetManager, widgetId: Int) {
-      val views = RemoteViews(context.packageName, R.layout.hw_widget)
       val day = WidgetStore.isDay(context, widgetId)
+      val views = RemoteViews(context.packageName, if (day) R.layout.hw_widget_day else R.layout.hw_widget)
       val view = WidgetStore.viewFor(context, widgetId)
 
       views.setTextViewText(
@@ -68,8 +52,6 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
         view?.name ?: context.getString(if (day) R.string.hw_today else R.string.hw_lists),
       )
       views.setTextViewText(R.id.hw_count, view?.open?.toString() ?: "")
-      views.setInt(R.id.hw_dot, "setColorFilter", FALLBACK_COLOR)
-      views.setViewVisibility(R.id.hw_dot, if (day) View.VISIBLE else View.GONE)
       views.setViewVisibility(R.id.hw_add, if (day) View.VISIBLE else View.GONE)
       views.setTextViewText(
         R.id.hw_empty,
@@ -90,23 +72,20 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
       views.setRemoteAdapter(R.id.hw_tasks, adapter)
       views.setEmptyView(R.id.hw_tasks, R.id.hw_empty)
 
-      // one template for every row: a task row fills in the task and
-      // status of a tick, a list row the list to open the app on
-      if (day) {
-        val toggle = Intent(context, DayWidgetProvider::class.java).setAction(ACTION_TOGGLE)
-        toggle.data = Uri.parse("hypomnema-widget://toggle/$widgetId")
+      // one template for every row: on the today widget it opens the
+      // Day as is and a row fills in nothing, on the lists widget a card
+      // fills in the list to open the app on
+      launchIntent(context)?.let { open ->
+        if (day) {
+          open.putExtra(WidgetStore.EXTRA_DAY, true)
+            .putExtra(WidgetStore.EXTRA_LIST, -1L)
+            .putExtra(WidgetStore.EXTRA_ADD, false)
+        }
+        open.data = Uri.parse("hypomnema-widget://open/${if (day) "day" else "list"}/$widgetId")
         views.setPendingIntentTemplate(
           R.id.hw_tasks,
-          PendingIntent.getBroadcast(context, widgetId, toggle, mutableFlags()),
+          PendingIntent.getActivity(context, widgetId, open, mutableFlags()),
         )
-      } else {
-        launchIntent(context)?.let { open ->
-          open.data = Uri.parse("hypomnema-widget://open/list/$widgetId")
-          views.setPendingIntentTemplate(
-            R.id.hw_tasks,
-            PendingIntent.getActivity(context, widgetId, open, mutableFlags()),
-          )
-        }
       }
 
       views.setOnClickPendingIntent(R.id.hw_name, launch(context, widgetId * 2, day, false))
@@ -153,7 +132,7 @@ abstract class TaskWidgetProvider : AppWidgetProvider() {
   }
 }
 
-/** Every list with its open count; a row opens the app on the list. */
+/** The user's lists, each with its open tasks; a card opens the app on the list. */
 class ListWidgetProvider : TaskWidgetProvider()
 
 /** Today, with no configuration: the widget marks itself as the day's on its first draw. */

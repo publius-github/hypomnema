@@ -14,13 +14,12 @@ import org.json.JSONObject
 @InvokeArg
 class PublishArgs {
   lateinit var json: String
-  lateinit var queuePath: String
 }
 
 /**
  * The core's door to the widget: `publish` replaces the data file and
- * redraws every placed widget, `takeLaunchTarget` says which list a
- * widget tap opened the app for. The target comes in the launch intent
+ * redraws every placed widget, `takeLaunchTarget` says what a widget
+ * tap opened the app for. The target comes in the launch intent
  * - the one the activity was created with, or a later one through
  * onNewIntent - and is handed over once, then forgotten, so a return
  * from recents does not reopen it.
@@ -61,7 +60,7 @@ class WidgetPlugin(private val activity: Activity) : Plugin(activity) {
   fun publish(invoke: Invoke) {
     val args = invoke.parseArgs(PublishArgs::class.java)
     try {
-      WidgetStore.write(activity, args.json, args.queuePath)
+      WidgetStore.write(activity, args.json)
       TaskWidgetProvider.refreshAll(activity)
     } catch (e: Exception) {
       invoke.reject("widget data could not be written: ${e.message}")

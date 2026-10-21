@@ -2,11 +2,9 @@
 //!
 //! The Kotlin half (`android/`) is the widgets themselves: two
 //! `AppWidgetProvider`s drawing from a JSON file in the app's private
-//! files - every list with its open count, and today's tasks with a tap
-//! handler that queues "mark done" actions in a file the Rust core
-//! watches. This half is the typed Rust face of it: the core pushes a
-//! fresh JSON after every export, and asks what a widget tap launched
-//! the app for.
+//! files - the user's lists with their open tasks, and today's tasks.
+//! This half is the typed Rust face of it: the core pushes a fresh JSON
+//! after every export, and asks what a widget tap launched the app for.
 //!
 //! Android only: the app depends on this crate for that target alone,
 //! and on any other the crate is empty.
@@ -44,17 +42,14 @@ pub struct Widget<R: Runtime> {
 
 impl<R: Runtime> Widget<R> {
     /// Hands the widgets a fresh data file (`json`, the lists and their
-    /// tasks) and the path of the action queue the core drains, then
-    /// redraws every placed widget.
-    pub fn publish(&self, json: &str, queue_path: &str) -> Result<(), String> {
+    /// tasks, and the day), then redraws every placed widget.
+    pub fn publish(&self, json: &str) -> Result<(), String> {
         #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
         struct Args<'a> {
             json: &'a str,
-            queue_path: &'a str,
         }
         self.handle
-            .run_mobile_plugin::<serde_json::Value>("publish", Args { json, queue_path })
+            .run_mobile_plugin::<serde_json::Value>("publish", Args { json })
             .map(|_| ())
             .map_err(|e| format!("widget publish failed: {e}"))
     }

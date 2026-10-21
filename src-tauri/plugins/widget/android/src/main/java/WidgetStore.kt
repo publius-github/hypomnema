@@ -6,17 +6,29 @@ import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** One row the widget draws. */
-data class WidgetTask(val id: Long, val title: String, val priority: Boolean, val done: Boolean)
+/**
+ * One task the widget draws: the title without its category, the
+ * category and the chip colour the app gives it, the weekday marker of
+ * a rule's task ("MON,SAT").
+ */
+data class WidgetTask(
+  val id: Long,
+  val title: String,
+  val category: String?,
+  val categoryColor: String?,
+  val dow: String?,
+  val priority: Boolean,
+  val done: Boolean,
+)
 
-/** A row of a widget: a section plate, a task or (on the lists widget) a list. */
+/** A row of a widget: a section plate or a task (today), or a whole list (lists). */
 sealed class WidgetRow {
   data class Header(val label: String) : WidgetRow()
   data class Task(val task: WidgetTask) : WidgetRow()
-  data class ListEntry(val id: Long, val name: String, val color: String?, val open: Int) : WidgetRow()
+  data class ListCard(val list: WidgetList) : WidgetRow()
 }
 
-/** What one widget draws: its name, open count (none on the lists widget) and rows, pending taps applied. */
+/** What one widget draws: its name, open count (none on the lists widget) and rows. */
 data class WidgetView(val name: String, val open: Int?, val rows: List<WidgetRow>)
 
 /** Today as the core published it: the Day screen's sections. */
@@ -35,19 +47,12 @@ data class WidgetList(
 
 /**
  * The widget's files and preferences, shared by the provider, the row
- * factory and the plugin.
- *
- * The core publishes the data file after every export; a tap appends a
- * line to the queue file the core watches. Until the core has applied a
- * tap and published again, the tap is remembered here as pending, so the
- * row flips at once and stays flipped through a republish that predates
- * the drain.
+ * factory and the plugin. The core publishes the data file after every
+ * export; the widgets only read it.
  */
 object WidgetStore {
   private const val PREFS = "hypomnema.widget"
-  private const val KEY_QUEUE = "queue"
   private const val KEY_DAY = "day."
-  private const val KEY_PENDING = "pending."
 
   const val EXTRA_LIST = "com.hypomnema.widget.LIST"
   const val EXTRA_DAY = "com.hypomnema.widget.DAY"
@@ -59,7 +64,7 @@ object WidgetStore {
   private fun dataFile(context: Context) = File(context.filesDir, "widget/data.json")
 
   /** Replaces the data file whole: a reader never sees a half-written one. */
-  fun write(context: Context, json: String, queuePath: String) {
+  fun write(context: Context, json: String) {
     val file = dataFile(context)
     file.parentFile?.mkdirs()
     val tmp = File(file.parentFile, ".data.json.tmp")
@@ -68,13 +73,7 @@ object WidgetStore {
       file.writeText(json)
       tmp.delete()
     }
-    prefs(context).edit().putString(KEY_QUEUE, queuePath).apply()
-    reconcilePending(context, load(context))
   }
-
-  fun load(context: Context): List<WidgetList> = data(context)?.second ?: emptyList()
-
-  fun loadDay(context: Context): WidgetDay? = data(context)?.first
 
   private fun data(context: Context): Pair<WidgetDay, List<WidgetList>>? {
     val file = dataFile(context)
@@ -93,6 +92,9 @@ object WidgetStore {
       WidgetTask(
         id = task.getLong("id"),
         title = task.getString("title"),
+        category = task.optString("category", "").ifEmpty { null },
+        categoryColor = task.optString("category_color", "").ifEmpty { null },
+        dow = task.optString("dow", "").ifEmpty { null },
         priority = task.optBoolean("priority"),
         done = task.optBoolean("done"),
       )
@@ -137,78 +139,20 @@ object WidgetStore {
     editor.apply()
   }
 
-  private fun withPending(tasks: List<WidgetTask>, pending: Map<Long, String>): List<WidgetTask> =
-    if (pending.isEmpty()) tasks
-    else tasks.map { task ->
-      when (pending[task.id]) {
-        "done" -> task.copy(done = true)
-        "todo" -> task.copy(done = false)
-        else -> task
-      }
-    }
-
-  /** What a widget draws, pending taps applied, or null before the core has published. */
+  /** What a widget draws, or null before the core has published. */
   fun viewFor(context: Context, widgetId: Int): WidgetView? {
-    val pending = pending(context)
+    val (day, lists) = data(context) ?: return null
     if (isDay(context, widgetId)) {
-      val day = loadDay(context) ?: return null
       val rows = ArrayList<WidgetRow>()
       var open = 0
       day.sections.forEach { (label, tasks) ->
-        // a ticked task leaves the day, as a done todo leaves a list
-        val shown = withPending(tasks, pending).filter { !it.done }
-        if (shown.isEmpty()) return@forEach
+        if (tasks.isEmpty()) return@forEach
         if (day.sections.size > 1) rows.add(WidgetRow.Header(label))
-        shown.forEach { rows.add(WidgetRow.Task(it)) }
-        open += shown.size
+        tasks.forEach { rows.add(WidgetRow.Task(it)) }
+        open += tasks.size
       }
       return WidgetView(context.getString(R.string.hw_today), open, rows)
     }
-    val (_, lists) = data(context) ?: return null
-    val rows = lists.map { list ->
-      val open = withPending(list.tasks, pending).count { !it.done }
-      val name = if (list.group != null) "${list.group} / ${list.name}" else list.name
-      WidgetRow.ListEntry(list.id, name, list.color, open)
-    }
-    return WidgetView(context.getString(R.string.hw_lists), null, rows)
-  }
-
-  /** Queues a tap for the core and remembers it until the core confirms. */
-  fun queue(context: Context, taskId: Long, status: String) {
-    val path = prefs(context).getString(KEY_QUEUE, null) ?: return
-    try {
-      val file = File(path)
-      file.parentFile?.mkdirs()
-      file.appendText("{\"task\":$taskId,\"status\":\"$status\"}\n")
-      prefs(context).edit().putString(KEY_PENDING + taskId, status).apply()
-    } catch (e: Exception) {
-      // nowhere to queue to: the next tap tries again
-    }
-  }
-
-  private fun pending(context: Context): Map<Long, String> =
-    prefs(context).all.entries
-      .filter { it.key.startsWith(KEY_PENDING) }
-      .mapNotNull { entry ->
-        val id = entry.key.removePrefix(KEY_PENDING).toLongOrNull() ?: return@mapNotNull null
-        val status = entry.value as? String ?: return@mapNotNull null
-        id to status
-      }
-      .toMap()
-
-  /** Drops every pending tap the published data already reflects. */
-  private fun reconcilePending(context: Context, lists: List<WidgetList>) {
-    val pending = pending(context)
-    if (pending.isEmpty()) return
-    val byId = HashMap<Long, WidgetTask>()
-    lists.forEach { list -> list.tasks.forEach { byId[it.id] = it } }
-    val editor = prefs(context).edit()
-    pending.forEach { (id, status) ->
-      val task = byId[id]
-      // gone from the data (swept, deleted) or already in the asked
-      // state: the core has it
-      if (task == null || task.done == (status == "done")) editor.remove(KEY_PENDING + id)
-    }
-    editor.apply()
+    return WidgetView(context.getString(R.string.hw_lists), null, lists.map { WidgetRow.ListCard(it) })
   }
 }

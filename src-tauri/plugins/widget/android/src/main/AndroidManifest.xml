@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <!-- The home-screen widgets: every list with its open count
+        <!-- The home-screen widgets: the user's lists with their open tasks
              (ListWidgetProvider) and today's tasks (DayWidgetProvider). -->
         <receiver
             android:name="com.hypomnema.widget.ListWidgetProvider"

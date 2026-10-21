@@ -31,10 +31,6 @@ pub(crate) struct AppState {
     /// the state snapshot itself, so the vault lock is held for the SQL
     /// alone and a burst of edits costs one export, not N.
     pub(crate) export_tx: Mutex<Option<mpsc::Sender<()>>>,
-    /// Watcher over the home-screen widget's action queue
-    /// (`widget::android`), draining a tap into the vault as it lands.
-    #[cfg(target_os = "android")]
-    pub(crate) widget_watcher: Mutex<Option<notify::RecommendedWatcher>>,
 }
 
 impl AppState {

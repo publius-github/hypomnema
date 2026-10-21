@@ -99,13 +99,6 @@ pub fn run() {
             }
             start_export_worker(app.handle().clone());
             sync_scheduler::start(app.handle().clone());
-            // a tick on the home-screen widget lands here while the
-            // process lives; what was queued before launch waits for
-            // the vault to open
-            #[cfg(target_os = "android")]
-            if let Err(e) = widget::android::start_queue_watcher(app.handle().clone()) {
-                applog::warn(format!("widget taps are not read while the app runs: {e}"));
-            }
             // the quick-capture window is pre-created hidden: a WebView
             // spun up on demand takes long enough to defeat "quick".
             // Desktop-only - mobile's quick-add is in-app (§6), not a

@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.116.0 - 2026-10-21
+
+Android widgets redrawn. "Hypomnema today" is now read-only: its rows no longer tick a task, a tap anywhere on a row opens the app on the Day (the name does the same, + still opens it with the add field ready). The rows are separated by a hairline and read as the Day screen reads them: the category in bold in its chip colour, the weekday marker ([MON,SAT]) muted, then the text; the header says "Hypomnema: today". "Hypomnema lists" shows only your own lists - the engine's category and Birthdays lists are gone from it - in alphabetical order, each as a card with its name, open count and its open tasks numbered under the name; a card tap opens the app on that list, and the header says "Hypomnema: lists". With neither widget editing anything the tap queue is gone from both halves: the Kotlin side writes nothing, the core no longer watches a queue file. Widget data now carries each task's category, chip colour and weekday marker.
+
 ## 0.115.2 - 2026-10-20
 
 Markdown editor (journal, notes): formatting warnings show as the wavy underline only; the warning triangles in the gutter beside every flagged line are gone. YAML config files keep their error markers.

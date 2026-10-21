@@ -2,12 +2,13 @@
 <resources>
     <string name="hw_widget_label">Hypomnema lists</string>
     <string name="hw_day_widget_label">Hypomnema today</string>
-    <string name="hw_day_widget_description">Today\'s tasks, ticked off from the home screen</string>
-    <string name="hw_today">Today</string>
-    <string name="hw_lists">Lists</string>
-    <string name="hw_widget_description">Your lists and their open tasks; a tap opens the list</string>
+    <string name="hw_day_widget_description">Today\'s tasks; a tap opens the day in the app</string>
+    <string name="hw_today">Hypomnema: today</string>
+    <string name="hw_lists">Hypomnema: lists</string>
+    <string name="hw_widget_description">Your lists with their open tasks; a tap opens the list</string>
     <string name="hw_no_data">Open Hypomnema once to fill the widget</string>
     <string name="hw_empty">All done</string>
     <string name="hw_no_lists">No lists yet</string>
+    <string name="hw_list_empty">Nothing open</string>
     <string name="hw_add">Add a task</string>
 </resources>

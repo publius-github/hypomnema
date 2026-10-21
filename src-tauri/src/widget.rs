@@ -1,22 +1,21 @@
-//! The Android home-screen widgets' data and their action queue.
+//! The Android home-screen widgets' data.
 //!
 //! The widget cannot run the WebView or the core, so it draws from a
-//! JSON file the core hands it after every export (`payload`), and it
-//! answers a tap by appending a line to a queue file the core watches
-//! and applies (`apply_actions`). Both halves are plain functions over a
-//! connection, so the desktop builds and tests them; the Android glue
-//! around them (the plugin calls, the queue watcher) is `android` below.
+//! JSON file the core hands it after every export (`payload`), a plain
+//! function over a connection, so the desktop builds and tests it; the
+//! Android glue around it (the plugin call) is `android` below.
 
 // on the desktop only the tests call the data functions: they are kept
 // building there so the desktop gates cover them
 #![cfg_attr(not(target_os = "android"), allow(dead_code))]
 
 use rusqlite::Connection;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use ts_rs::TS;
 
+use crate::config::AppConfig;
 use crate::error::Result;
-use crate::tasks::{self, TaskPatch};
+use crate::tasks;
 use crate::tasks_mirror::split_category;
 
 /// What a widget tap asked the app to open: the Day (today) or a list,
@@ -30,10 +29,18 @@ pub struct WidgetLaunch {
     pub add: bool,
 }
 
+/// One task as the widget draws it: `title` is the text without its
+/// `{Category}` prefix, which goes to `category` (for a generated task
+/// the name of its list, as the Day screen's block headers name it)
+/// with the chip colour the app would give it, and `dow` is the
+/// weekday marker a rule's task carries (`[MON,SAT]` in the app).
 #[derive(Serialize)]
 struct WidgetTask {
     id: i64,
     title: String,
+    category: Option<String>,
+    category_color: Option<String>,
+    dow: Option<String>,
     priority: bool,
     done: bool,
 }
@@ -44,7 +51,6 @@ struct WidgetList {
     name: String,
     color: Option<String>,
     kind: String,
-    favorite: bool,
     group: Option<String>,
     tasks: Vec<WidgetTask>,
 }
@@ -67,24 +73,29 @@ struct WidgetData {
     lists: Vec<WidgetList>,
 }
 
-/// The JSON the widgets draw from. `lists`: every active list,
-/// favorites first, with the tasks the phone's list screen shows as
-/// open - top-level, unscheduled or priority or manual - in that
-/// screen's order, and for a checklist its ticked items after them (a
-/// todo list sweeps its done tasks, a checklist keeps them until
-/// unticked). `day`: `today`'s open top-level tasks in the Day screen's
-/// sections - the cadence groups in `cadence_order` (the config's
-/// `cadence_group_order`), inside one grouped by category block then
-/// in column order, as `groupByCadence` lays them out.
-pub fn payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Result<String> {
-    let day = day_payload(conn, today, cadence_order)?;
+/// The JSON the widgets draw from. `lists`: the user's own lists
+/// (auto lists - `{Category}` prefixes, Birthdays - are the engine's
+/// and stay out), in alphabetical order, with the tasks the phone's
+/// list screen shows as open - top-level, unscheduled or priority or
+/// manual - in that screen's order, and for a checklist its ticked
+/// items after them (a todo list sweeps its done tasks, a checklist
+/// keeps them until unticked). `day`: `today`'s open top-level tasks in
+/// the Day screen's sections - the cadence groups in the config's
+/// `cadence_group_order`, inside one grouped by category block then in
+/// column order, as `groupByCadence` lays them out.
+pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<String> {
+    let day = day_payload(conn, today, config)?;
     let groups = tasks::groups_all(conn)?;
-    let mut lists = tasks::lists_all(conn)?;
+    let mut lists: Vec<_> = tasks::lists_all(conn)?
+        .into_iter()
+        .filter(|l| !l.auto)
+        .collect();
     lists.sort_by(|a, b| {
-        b.favorite
-            .cmp(&a.favorite)
-            .then(a.sort_order.cmp(&b.sort_order))
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
             .then_with(|| a.name.cmp(&b.name))
+            .then(a.id.cmp(&b.id))
     });
     let mut stmt = conn.prepare(
         "SELECT id, title, priority, status FROM tasks
@@ -98,9 +109,14 @@ pub fn payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Resu
         let checklist = list.kind == "checklist";
         let tasks = stmt
             .query_map([list.id], |row| {
+                let title: String = row.get(1)?;
+                let (category, text) = split_category(&title);
                 Ok(WidgetTask {
                     id: row.get(0)?,
-                    title: row.get(1)?,
+                    title: text.to_string(),
+                    category: category.map(str::to_string),
+                    category_color: category.map(|_| config.category_color.clone()),
+                    dow: None,
                     priority: row.get::<_, i64>(2)? != 0,
                     done: row.get::<_, String>(3)? == "done",
                 })
@@ -114,7 +130,6 @@ pub fn payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Resu
             name: list.name,
             color: list.color,
             kind: list.kind,
-            favorite: list.favorite,
             group: list
                 .group_id
                 .and_then(|id| groups.iter().find(|g| g.id == id))
@@ -143,6 +158,19 @@ struct DayRow {
     sort_order: i64,
 }
 
+/// `categoryChipColor` from `src/lib/tasks.ts` for the modes a widget
+/// can follow: one colour for every category, or the two alternating
+/// by category block counted straight through the sections. The
+/// `varied` palette is per list and hashed on the frontend; the widget
+/// falls back to the single colour for it.
+fn category_color(config: &AppConfig, block_index: usize) -> String {
+    match config.category_color_mode.as_str() {
+        "alternate" if block_index % 2 == 1 => config.category_color_b.clone(),
+        "alternate" => config.category_color_a.clone(),
+        _ => config.category_color.clone(),
+    }
+}
+
 /// `cadenceKeyOf` from `src/lib/tasks.ts`: scheduled events and
 /// birthdays are exact-date, so is a dated manual list task that is
 /// not a priority pin, rule instances go by their cadence, the rest is
@@ -168,14 +196,15 @@ fn section_key(
     }
 }
 
-fn day_payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Result<WidgetDay> {
+fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<WidgetDay> {
     let lists = tasks::lists_all(conn)?;
     let list_name = |id: Option<i64>| {
         id.and_then(|id| lists.iter().find(|l| l.id == id))
             .map(|l| l.name.clone())
     };
     let mut stmt = conn.prepare(
-        "SELECT id, title, priority, origin, cadence, list_id, time, sort_order FROM tasks
+        "SELECT id, title, priority, origin, cadence, list_id, time, sort_order, dow_label
+         FROM tasks
          WHERE scheduled_date = ?1 AND parent_task_id IS NULL AND status = 'todo'",
     )?;
     let mut rows = stmt
@@ -185,15 +214,21 @@ fn day_payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Resu
             let origin: String = row.get(3)?;
             let cadence: Option<String> = row.get(4)?;
             let list_id: Option<i64> = row.get(5)?;
-            let block = split_category(&title)
-                .0
+            let (category, text) = split_category(&title);
+            // the block is what the Day screen heads the rows with: the
+            // category, else the list of a generated task
+            let block = category
                 .map(str::to_string)
                 .or_else(|| list_name(list_id))
                 .unwrap_or_default();
+            let dow: Option<String> = row.get(8)?;
             Ok(DayRow {
                 task: WidgetTask {
                     id: row.get(0)?,
-                    title,
+                    title: text.to_string(),
+                    category: (!block.is_empty()).then(|| block.clone()),
+                    category_color: None,
+                    dow: dow.filter(|_| config.cron_weekday_labels),
                     priority,
                     done: false,
                 },
@@ -218,7 +253,8 @@ fn day_payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Resu
     });
     // the configured order, unknown names dropped, missing ones
     // appended in default position - as the config sanitizes it
-    let mut order: Vec<&str> = cadence_order
+    let mut order: Vec<&str> = config
+        .cadence_group_order
         .iter()
         .map(String::as_str)
         .filter(|k| CADENCE_LABELS.iter().any(|(key, _)| key == k))
@@ -228,18 +264,35 @@ fn day_payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Resu
             order.push(key);
         }
     }
+    // the chip colour alternates by category block counted down the
+    // whole column, across the sections; an uncategorized row takes the
+    // current index without advancing it (`categoryBlockIndex`)
+    let mut block_index = 0usize;
+    let mut last_block: Option<&str> = None;
     let mut sections = Vec::new();
     for key in order {
-        let tasks: Vec<WidgetTask> = rows
-            .iter()
-            .filter(|r| r.section == key)
-            .map(|r| WidgetTask {
+        let mut tasks = Vec::new();
+        for r in rows.iter().filter(|r| r.section == key) {
+            if !r.block.is_empty() {
+                if last_block.is_some_and(|b| b != r.block) {
+                    block_index += 1;
+                }
+                last_block = Some(r.block.as_str());
+            }
+            tasks.push(WidgetTask {
                 id: r.task.id,
                 title: r.task.title.clone(),
+                category: r.task.category.clone(),
+                category_color: r
+                    .task
+                    .category
+                    .as_ref()
+                    .map(|_| category_color(config, block_index)),
+                dow: r.task.dow.clone(),
                 priority: r.task.priority,
                 done: false,
-            })
-            .collect();
+            });
+        }
         if tasks.is_empty() {
             continue;
         }
@@ -256,145 +309,30 @@ fn day_payload(conn: &Connection, today: &str, cadence_order: &[String]) -> Resu
     })
 }
 
-/// One line of the queue file: the widget asks for a status on a task.
-#[derive(Deserialize)]
-struct Action {
-    task: i64,
-    status: String,
-}
-
-/// Applies the queued taps, one JSON object per line, and says how many
-/// took. A line that does not parse, names a status the model lacks or
-/// a task that is gone is skipped: the widget drew from a snapshot that
-/// may be stale, and a tap on a task deleted since is nothing to fail
-/// the rest over.
-pub fn apply_actions(conn: &Connection, lines: &str) -> usize {
-    let mut applied = 0;
-    for line in lines.lines().map(str::trim).filter(|l| !l.is_empty()) {
-        let Ok(action) = serde_json::from_str::<Action>(line) else {
-            continue;
-        };
-        if !matches!(action.status.as_str(), "todo" | "done") {
-            continue;
-        }
-        let patch = TaskPatch {
-            status: Some(action.status),
-            ..Default::default()
-        };
-        if tasks::task_update(conn, action.task, &patch).is_ok() {
-            applied += 1;
-        }
-    }
-    applied
-}
-
 #[cfg(target_os = "android")]
 pub(crate) mod android {
-    //! The glue: pushing the payload to the Kotlin side and draining the
-    //! queue it appends to.
+    //! The glue: pushing the payload to the Kotlin side.
 
-    use std::path::PathBuf;
-    use std::sync::mpsc;
-    use std::time::Duration;
-
-    use notify::{RecursiveMode, Watcher};
-    use tauri::{AppHandle, Manager};
+    use tauri::AppHandle;
     use tauri_plugin_widget::WidgetExt;
 
     use crate::applog;
     use crate::config::AppConfig;
-    use crate::error::{Error, Result};
-    use crate::state::{app_config_dir, today_string, AppState, LockOrRecover};
-
-    const QUEUE_FILE: &str = "widget-actions.jsonl";
-
-    fn queue_path(app: &AppHandle) -> Result<PathBuf> {
-        Ok(app_config_dir(app)?.join(QUEUE_FILE))
-    }
+    use crate::state::today_string;
 
     /// Hands the widgets a fresh payload. Best effort, like the exports
     /// it rides on: a widget a step behind is redrawn by the next one.
     pub(crate) fn publish(app: &AppHandle, conn: &rusqlite::Connection, config: &AppConfig) {
-        let json = match super::payload(conn, &today_string(), &config.cadence_group_order) {
+        let json = match super::payload(conn, &today_string(), config) {
             Ok(json) => json,
             Err(e) => {
                 applog::error(format!("widget payload failed: {e}"));
                 return;
             }
         };
-        let Ok(queue) = queue_path(app) else {
-            return;
-        };
-        if let Err(e) = app.widget().publish(&json, &queue.to_string_lossy()) {
+        if let Err(e) = app.widget().publish(&json) {
             applog::warn(e);
         }
-    }
-
-    /// Applies whatever the widgets queued since the last drain. The
-    /// queue is renamed away first, so a tap landing mid-drain goes
-    /// into a fresh file for the next round instead of being read half
-    /// written; a vault that is not open yet leaves the queue in place
-    /// for `open_vault` to drain.
-    pub(crate) fn drain(app: &AppHandle) {
-        let Ok(queue) = queue_path(app) else {
-            return;
-        };
-        if !queue.exists() {
-            return;
-        }
-        let state = app.state::<AppState>();
-        let guard = state.vault.lock_or_recover();
-        let Some(vault) = guard.as_ref() else {
-            return;
-        };
-        let taking = queue.with_extension("taking");
-        if let Err(e) = std::fs::rename(&queue, &taking) {
-            applog::warn(format!("widget queue could not be taken: {e}"));
-            return;
-        }
-        let lines = std::fs::read_to_string(&taking).unwrap_or_default();
-        let _ = std::fs::remove_file(&taking);
-        let applied = super::apply_actions(&vault.conn, &lines);
-        drop(guard);
-        if applied > 0 {
-            state.request_export();
-        }
-    }
-
-    /// Watches the app's config dir for the queue file the widget
-    /// appends to, and drains it on every change - so a tick on the
-    /// home screen lands in the vault while the app process lives,
-    /// put away or not. Replaces the tasks watcher's debounce with a
-    /// shorter one: a tap is one line, not a burst of saves.
-    pub(crate) fn start_queue_watcher(app: AppHandle) -> Result<()> {
-        let dir = app_config_dir(&app)?;
-        let _ = std::fs::create_dir_all(&dir);
-        let (tx, rx) = mpsc::channel::<()>();
-        let mut watcher =
-            notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-                if let Ok(event) = event {
-                    let ours = event
-                        .paths
-                        .iter()
-                        .any(|p| p.file_name().is_some_and(|n| n == QUEUE_FILE));
-                    if ours && !matches!(event.kind, notify::EventKind::Access(_)) {
-                        let _ = tx.send(());
-                    }
-                }
-            })
-            .map_err(|e| Error::State(format!("cannot start widget queue watcher: {e}")))?;
-        watcher
-            .watch(&dir, RecursiveMode::NonRecursive)
-            .map_err(|e| Error::State(format!("cannot watch the widget queue: {e}")))?;
-        *app.state::<AppState>().widget_watcher.lock_or_recover() = Some(watcher);
-        std::thread::spawn(move || {
-            while rx.recv().is_ok() {
-                std::thread::sleep(Duration::from_millis(100));
-                while rx.try_recv().is_ok() {}
-                drain(&app);
-            }
-        });
-        Ok(())
     }
 }
 
@@ -402,7 +340,7 @@ pub(crate) mod android {
 mod tests {
     use super::*;
     use crate::db;
-    use crate::tasks::{list_create, task_create, task_update, NewTask};
+    use crate::tasks::{list_create, task_create, task_update, NewTask, TaskPatch};
     use rusqlite::Connection;
     use serde_json::Value;
 
@@ -410,6 +348,14 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         db::migrate(&conn).unwrap();
         conn
+    }
+
+    fn config(order: &[&str]) -> AppConfig {
+        let mut config = AppConfig::default();
+        if !order.is_empty() {
+            config.cadence_group_order = order.iter().map(|s| s.to_string()).collect();
+        }
+        config
     }
 
     fn task(conn: &Connection, list: i64, title: &str) -> i64 {
@@ -446,7 +392,7 @@ mod tests {
             .id;
         conn.execute("UPDATE lists SET kind = 'checklist' WHERE id = ?1", [check])
             .unwrap();
-        let a = task(&conn, todo, "open");
+        let a = task(&conn, todo, "{Admin} open");
         let b = task(&conn, todo, "closed");
         done(&conn, b);
         let milk = task(&conn, check, "milk");
@@ -454,16 +400,18 @@ mod tests {
         done(&conn, milk);
 
         let data: Value =
-            serde_json::from_str(&payload(&conn, "2026-10-20", &[]).unwrap()).unwrap();
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config(&[])).unwrap()).unwrap();
         let lists = data["lists"].as_array().unwrap();
         let work = lists.iter().find(|l| l["name"] == "Work").unwrap();
-        let ids: Vec<i64> = work["tasks"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|t| t["id"].as_i64().unwrap())
-            .collect();
-        assert_eq!(ids, vec![a]);
+        let rows = work["tasks"].as_array().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["id"].as_i64().unwrap(), a);
+        assert_eq!(rows[0]["title"], "open");
+        assert_eq!(rows[0]["category"], "Admin");
+        assert_eq!(
+            rows[0]["category_color"],
+            AppConfig::default().category_color
+        );
         assert_eq!(work["kind"], "todo");
 
         let groceries = lists.iter().find(|l| l["name"] == "Groceries").unwrap();
@@ -477,21 +425,21 @@ mod tests {
     }
 
     #[test]
-    fn favorites_come_first_and_a_group_is_named() {
+    fn lists_go_alphabetically_without_the_engines_and_a_group_is_named() {
         let conn = conn();
-        let plain = list_create(&conn, "Plain", None, false).unwrap().id;
+        let plain = list_create(&conn, "plain", None, false).unwrap().id;
         let fav = list_create(&conn, "Starred", None, false).unwrap().id;
         tasks::list_set_favorite(&conn, fav, true).unwrap();
+        list_create(&conn, "Birthdays", None, true).unwrap();
         let group = tasks::group_create(&conn, "Home").unwrap().id;
         tasks::list_set_group(&conn, plain, Some(group)).unwrap();
 
         let data: Value =
-            serde_json::from_str(&payload(&conn, "2026-10-20", &[]).unwrap()).unwrap();
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config(&[])).unwrap()).unwrap();
         let lists = data["lists"].as_array().unwrap();
-        assert_eq!(lists[0]["name"], "Starred");
-        assert_eq!(lists[0]["favorite"], true);
-        assert_eq!(lists[1]["name"], "Plain");
-        assert_eq!(lists[1]["group"], "Home");
+        let names: Vec<&str> = lists.iter().map(|l| l["name"].as_str().unwrap()).collect();
+        assert_eq!(names, vec!["plain", "Starred"]);
+        assert_eq!(lists[0]["group"], "Home");
     }
 
     #[test]
@@ -526,15 +474,17 @@ mod tests {
         .unwrap()
         .id;
         conn.execute(
-            "UPDATE tasks SET origin = 'recurring', cadence = 'daily' WHERE id = ?1",
+            "UPDATE tasks SET origin = 'recurring', cadence = 'daily', dow_label = 'MON,SAT'
+             WHERE id = ?1",
             [general],
         )
         .unwrap();
         let note = dated("{Home} water plants", None);
 
-        let order = vec!["daily".to_string(), "exact".to_string()];
+        let mut config = config(&["daily", "exact"]);
+        config.category_color_mode = "alternate".into();
         let data: Value =
-            serde_json::from_str(&payload(&conn, "2026-10-20", &order).unwrap()).unwrap();
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
         assert_eq!(data["day"]["date"], "2026-10-20");
         let sections = data["day"]["sections"].as_array().unwrap();
         let labels: Vec<&str> = sections
@@ -542,9 +492,19 @@ mod tests {
             .map(|s| s["label"].as_str().unwrap())
             .collect();
         assert_eq!(labels, vec!["Daily", "Exact date", "General"]);
-        assert_eq!(sections[0]["tasks"][0]["id"].as_i64().unwrap(), general);
-        assert_eq!(sections[1]["tasks"][0]["id"].as_i64().unwrap(), errand);
-        assert_eq!(sections[2]["tasks"][0]["id"].as_i64().unwrap(), note);
+        let daily = &sections[0]["tasks"][0];
+        assert_eq!(daily["id"].as_i64().unwrap(), general);
+        assert_eq!(daily["dow"], "MON,SAT");
+        assert!(daily["category"].is_null());
+        let exact = &sections[1]["tasks"][0];
+        assert_eq!(exact["id"].as_i64().unwrap(), errand);
+        assert_eq!(exact["category"], "Errands");
+        assert_eq!(exact["category_color"], config.category_color_a);
+        let home = &sections[2]["tasks"][0];
+        assert_eq!(home["id"].as_i64().unwrap(), note);
+        assert_eq!(home["title"], "water plants");
+        assert_eq!(home["category"], "Home");
+        assert_eq!(home["category_color"], config.category_color_b);
         let all: Vec<i64> = sections
             .iter()
             .flat_map(|s| s["tasks"].as_array().unwrap().iter())
@@ -555,24 +515,27 @@ mod tests {
     }
 
     #[test]
-    fn queued_taps_apply_and_bad_lines_are_skipped() {
+    fn weekday_markers_follow_the_setting() {
         let conn = conn();
-        let list = list_create(&conn, "Work", None, false).unwrap().id;
-        let a = task(&conn, list, "a");
-        let b = task(&conn, list, "b");
-        let lines = format!(
-            "{{\"task\":{a},\"status\":\"done\"}}\nnot json\n\
-             {{\"task\":999999,\"status\":\"done\"}}\n\
-             {{\"task\":{b},\"status\":\"dropped\"}}\n\n"
-        );
-        assert_eq!(apply_actions(&conn, &lines), 1);
-        let status: String = conn
-            .query_row("SELECT status FROM tasks WHERE id = ?1", [a], |r| r.get(0))
-            .unwrap();
-        assert_eq!(status, "done");
-        let status: String = conn
-            .query_row("SELECT status FROM tasks WHERE id = ?1", [b], |r| r.get(0))
-            .unwrap();
-        assert_eq!(status, "todo");
+        let id = task_create(
+            &conn,
+            &NewTask {
+                title: "stretch".into(),
+                scheduled_date: Some("2026-10-20".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .id;
+        conn.execute(
+            "UPDATE tasks SET dow_label = 'EVERYDAY' WHERE id = ?1",
+            [id],
+        )
+        .unwrap();
+        let mut config = config(&[]);
+        config.cron_weekday_labels = false;
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
+        assert!(data["day"]["sections"][0]["tasks"][0]["dow"].is_null());
     }
 }

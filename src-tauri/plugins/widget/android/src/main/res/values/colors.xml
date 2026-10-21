@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="hw_bg">#FFFFFFFF</color>
+    <color name="hw_card">#FFF3F4F6</color>
+    <color name="hw_line">#FFE5E7EB</color>
     <color name="hw_text">#FF1F2937</color>
     <color name="hw_muted">#FF6B7280</color>
     <color name="hw_accent">#FF3B82F6</color>

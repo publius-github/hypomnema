@@ -3,14 +3,16 @@ package com.hypomnema.widget
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
-import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.text.style.StrikethroughSpan
+import android.text.style.StyleSpan
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 
-/** The widget's rows - plates and tasks, or lists - for the ListView in hw_widget. */
+/** The widget's rows - plates and tasks, or list cards - for the ListView in hw_widget. */
 class ListWidgetService : RemoteViewsService() {
   override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
     val widgetId = intent.getIntExtra(
@@ -33,48 +35,95 @@ class ListWidgetService : RemoteViewsService() {
 
     override fun getCount() = rows.size
 
-    override fun getViewAt(position: Int): RemoteViews {
-      val row = when (val entry = rows[position]) {
+    override fun getViewAt(position: Int): RemoteViews =
+      when (val entry = rows[position]) {
         is WidgetRow.Header -> {
           val header = RemoteViews(context.packageName, R.layout.hw_widget_header)
           header.setTextViewText(R.id.hw_header, entry.label)
-          return header
+          header
         }
-        is WidgetRow.ListEntry -> {
-          val list = RemoteViews(context.packageName, R.layout.hw_widget_list_row)
-          list.setTextViewText(R.id.hw_list_name, entry.name)
-          list.setTextViewText(R.id.hw_list_count, if (entry.open > 0) entry.open.toString() else "")
-          list.setInt(R.id.hw_list_dot, "setColorFilter", TaskWidgetProvider.parseColor(entry.color))
-          list.setOnClickFillInIntent(
-            R.id.hw_list_row,
-            Intent()
-              .putExtra(WidgetStore.EXTRA_DAY, false)
-              .putExtra(WidgetStore.EXTRA_LIST, entry.id)
-              .putExtra(WidgetStore.EXTRA_ADD, false),
-          )
-          return list
-        }
-        is WidgetRow.Task -> entry.task
+        is WidgetRow.Task -> taskRow(entry.task)
+        is WidgetRow.ListCard -> listCard(entry.list)
       }
-      val views = RemoteViews(context.packageName, R.layout.hw_widget_row)
-      views.setImageViewResource(
-        R.id.hw_check,
-        if (row.done) R.drawable.hw_check_done else R.drawable.hw_check_empty,
-      )
+
+    /** A task as the Day screen reads it: the category chip, the weekday marker, the text. */
+    private fun styled(task: WidgetTask): CharSequence {
+      val text = SpannableStringBuilder()
+      if (task.category != null) {
+        val start = text.length
+        text.append(task.category)
+        text.setSpan(StyleSpan(android.graphics.Typeface.BOLD), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(
+          ForegroundColorSpan(TaskWidgetProvider.parseColor(task.categoryColor)),
+          start,
+          text.length,
+          Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+        text.append("  ")
+      }
+      if (task.dow != null) {
+        val start = text.length
+        text.append("[").append(task.dow).append("] ")
+        text.setSpan(
+          ForegroundColorSpan(context.getColor(R.color.hw_muted)),
+          start,
+          text.length,
+          Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+      }
+      val start = text.length
+      text.append(task.title)
       // struck through by a span: setPaintFlags is not a method
       // RemoteViews may call, and a refused call fails the row
-      val title = SpannableString(row.title)
-      if (row.done) title.setSpan(StrikethroughSpan(), 0, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-      views.setTextViewText(R.id.hw_title, title)
-      views.setTextColor(
-        R.id.hw_title,
-        context.getColor(if (row.done) R.color.hw_muted else R.color.hw_text),
+      if (task.done) {
+        text.setSpan(StrikethroughSpan(), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.setSpan(
+          ForegroundColorSpan(context.getColor(R.color.hw_muted)),
+          start,
+          text.length,
+          Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+      }
+      return text
+    }
+
+    /** A row of the today widget; a tap opens the app on the Day. */
+    private fun taskRow(task: WidgetTask): RemoteViews {
+      val views = RemoteViews(context.packageName, R.layout.hw_widget_row)
+      views.setTextViewText(R.id.hw_title, styled(task))
+      views.setViewVisibility(R.id.hw_priority, if (task.priority) View.VISIBLE else View.GONE)
+      views.setOnClickFillInIntent(R.id.hw_row, Intent())
+      return views
+    }
+
+    /** One list with its tasks numbered under its name; a tap opens the app on the list. */
+    private fun listCard(list: WidgetList): RemoteViews {
+      val views = RemoteViews(context.packageName, R.layout.hw_widget_list_row)
+      views.setTextViewText(
+        R.id.hw_list_name,
+        if (list.group != null) "${list.group} / ${list.name}" else list.name,
       )
-      views.setViewVisibility(R.id.hw_priority, if (row.priority && !row.done) View.VISIBLE else View.GONE)
-      val fillIn = Intent()
-        .putExtra(TaskWidgetProvider.EXTRA_TASK, row.id)
-        .putExtra(TaskWidgetProvider.EXTRA_STATUS, if (row.done) "todo" else "done")
-      views.setOnClickFillInIntent(R.id.hw_row, fillIn)
+      views.setTextViewText(R.id.hw_list_count, if (list.open > 0) list.open.toString() else "")
+      views.setInt(R.id.hw_list_dot, "setColorFilter", TaskWidgetProvider.parseColor(list.color))
+      if (list.tasks.isEmpty()) {
+        views.setTextViewText(R.id.hw_list_items, context.getString(R.string.hw_list_empty))
+        views.setTextColor(R.id.hw_list_items, context.getColor(R.color.hw_muted))
+      } else {
+        val items = SpannableStringBuilder()
+        list.tasks.forEachIndexed { i, task ->
+          if (i > 0) items.append("\n")
+          items.append("${i + 1}. ").append(styled(task))
+        }
+        views.setTextViewText(R.id.hw_list_items, items)
+        views.setTextColor(R.id.hw_list_items, context.getColor(R.color.hw_text))
+      }
+      views.setOnClickFillInIntent(
+        R.id.hw_list_row,
+        Intent()
+          .putExtra(WidgetStore.EXTRA_DAY, false)
+          .putExtra(WidgetStore.EXTRA_LIST, list.id)
+          .putExtra(WidgetStore.EXTRA_ADD, false),
+      )
       return views
     }
 
@@ -85,7 +134,7 @@ class ListWidgetService : RemoteViewsService() {
     override fun getItemId(position: Int) = when (val entry = rows[position]) {
       is WidgetRow.Header -> -(position + 1).toLong()
       is WidgetRow.Task -> entry.task.id
-      is WidgetRow.ListEntry -> entry.id
+      is WidgetRow.ListCard -> entry.list.id
     }
 
     override fun hasStableIds() = true
