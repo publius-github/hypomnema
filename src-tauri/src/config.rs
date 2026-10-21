@@ -493,7 +493,7 @@ impl Default for AppConfig {
             surface_alt_color: String::new(),
             line_color: String::new(),
             color_min_contrast: 45,
-            grid_columns: 7,
+            grid_columns: 3,
             done_display: "separate".into(),
             retention_days: 0,
             catchup_days: 14,

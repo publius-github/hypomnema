@@ -267,5 +267,5 @@ fn horizon_follows_the_widest_day_grid() {
 fn partial_yaml_falls_back_to_defaults() {
     let config: AppConfig = serde_yaml::from_str("theme: light\n").unwrap();
     assert_eq!(config.theme, "light");
-    assert_eq!(config.grid_columns, 7);
+    assert_eq!(config.grid_columns, 3);
 }

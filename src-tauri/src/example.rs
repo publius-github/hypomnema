@@ -186,20 +186,22 @@ mod tests {
             .conn
             .query_row("SELECT COUNT(*) FROM tasks", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 9);
+        assert_eq!(count, 22);
 
         let config_dir = vault::config_dir(&root);
         assert_eq!(
             recurring_list(&config_dir, chrono::Local::now())
                 .rules
                 .len(),
-            3
+            9
         );
         assert!(recurring_list(&config_dir, chrono::Local::now())
             .errors
             .is_empty());
         let (events, errors) = upcoming_events(&vault.conn, &config_dir, today).unwrap();
-        assert_eq!(events.len(), 1);
+        // the example's own event plus the starter's dated list tasks
+        assert_eq!(events.len(), 7);
+        assert!(events.iter().any(|e| e.source == "scheduled.yml"));
         assert!(errors.is_empty(), "{errors:?}");
 
         assert!(root.join("Welcome.md").is_file());
