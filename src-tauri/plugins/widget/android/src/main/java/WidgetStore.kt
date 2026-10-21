@@ -251,33 +251,4 @@ object WidgetStore {
     }
     return WidgetView(context.getString(R.string.hw_lists), null, rows)
   }
-
-  /** Before the core has published: the widget's own light/dark pair (values / values-night). */
-  fun fallbackTheme(context: Context) = WidgetTheme(
-    surface = context.getColor(R.color.hw_bg),
-    surfaceAlt = context.getColor(R.color.hw_card),
-    content = context.getColor(R.color.hw_text),
-    contentMuted = context.getColor(R.color.hw_muted),
-    accent = context.getColor(R.color.hw_accent),
-    line = context.getColor(R.color.hw_line),
-    dowLabel = context.getColor(R.color.hw_muted),
-    postponed = 0xFFA97205.toInt(),
-    waiting = 0xFF0A88A5.toInt(),
-    done = 0xFF079042.toInt(),
-  )
-
-  fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
-
-  fun isDay(context: Context, widgetId: Int): Boolean =
-    prefs(context).getBoolean(KEY_DAY + widgetId, false)
-
-  fun setDay(context: Context, widgetId: Int) {
-    prefs(context).edit().putBoolean(KEY_DAY + widgetId, true).apply()
-  }
-
-  fun forget(context: Context, widgetIds: IntArray) {
-    val editor = prefs(context).edit()
-    widgetIds.forEach { editor.remove(KEY_DAY + it) }
-    editor.apply()
-  }
 }
