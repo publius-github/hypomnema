@@ -2,9 +2,9 @@
   <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Hypomnema">
 </p>
 
-<h1 align="center">Hypomnema</h1>
+<h3 align="center">Hypomnema</h3>
 
-<p align="center"><sub>YOUR MIND. ORGANIZED.</sub></p>
+<p align="center"><b>YOUR MIND. ORGANIZED.</b></p>
 
 <p align="center">A weekly task planner, a daily journal and a Markdown knowledge base in one local-first window.</p>
 
