@@ -1,8 +1,5 @@
-<p align="center">
-  <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Hypomnema">
-</p>
-
 <h1 align="center">
+  <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt=""><br>
   Hypomnema<br>
   <sup><sub>YOUR MIND. ORGANIZED.</sub></sup>
 </h1>
