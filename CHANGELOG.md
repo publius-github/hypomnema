@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.117.1 - 2026-10-21
+
+Support link: the About dialog, the README and the repository's Sponsor button point to the project's Ko-fi page.
+
 ## 0.117.0 - 2026-10-21
 
 Android widgets show postponed and waiting tasks. On the today widget as the Day screen does: under "separate" done display in their own Postponed and Done, waiting plates after the cadences (in the plate colours, sorted like the app's closed sections), otherwise in place in their section, each with the app's status box before the text. On the lists widget they follow the open tasks of their list, with the status box before the text and the text in the status colour; a checklist's ticked items keep their strikethrough. Done and dropped tasks stay out of the widgets, as before.

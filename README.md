@@ -25,9 +25,7 @@ Hypomnema keeps a week of tasks, a journal and your notes together, and keeps al
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use. Windows 10/11 is the shipped platform.
 
-<!-- TODO(owner): once a donation page exists, set DONATE_URL in src/lib/legal.ts and .github/FUNDING.yml, and uncomment:
-Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you, you can [support its development](https://example.com/donate).
--->
+Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you, you can [support its development](https://ko-fi.com/hypomnema).
 
 ## Contents
 

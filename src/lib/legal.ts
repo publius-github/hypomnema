@@ -10,4 +10,4 @@ export const SOURCE_URL = "https://github.com/publius-github/hypomnema";
 
 /** Donation page shown in About and README; empty hides the line. Keep it
  * in step with .github/FUNDING.yml. */
-export const DONATE_URL = "";
+export const DONATE_URL = "https://ko-fi.com/hypomnema";
