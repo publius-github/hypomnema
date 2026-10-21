@@ -113,12 +113,39 @@ class ListWidgetService : RemoteViewsService() {
       return text
     }
 
+    /** The app's status box: a square in the status colour with its white mark; none for a todo. */
+    private fun statusMark(views: RemoteViews, task: WidgetTask) {
+      val (icon, color) = when (task.status) {
+        "postponed" -> R.drawable.hw_status_postponed to theme.postponed
+        "waiting" -> R.drawable.hw_status_waiting to theme.waiting
+        "done" -> R.drawable.hw_status_done to theme.done
+        else -> {
+          views.setViewVisibility(R.id.hw_status, View.GONE)
+          return
+        }
+      }
+      views.setViewVisibility(R.id.hw_status, View.VISIBLE)
+      views.setImageViewResource(R.id.hw_status, icon)
+      views.setInt(R.id.hw_status, "setColorFilter", color)
+    }
+
+    /** The colour a list row's text takes: the status's, so the row reads its state at a glance. */
+    private fun statusText(task: WidgetTask): Int = when (task.status) {
+      "postponed" -> theme.postponed
+      "waiting" -> theme.waiting
+      "done" -> theme.contentMuted
+      else -> theme.content
+    }
+
     /** A task row: on the today widget a tap opens the Day, in a list card the list. */
     private fun taskRow(row: WidgetRow.Task): RemoteViews {
       val task = row.task
       val views = RemoteViews(context.packageName, R.layout.hw_widget_row)
       views.setTextViewText(R.id.hw_title, styled(task, row.chip))
-      views.setTextColor(R.id.hw_title, theme.content)
+      // the Day screen keeps a postponed or waiting row's text as is
+      // (only the box says); a list row is tinted as asked
+      views.setTextColor(R.id.hw_title, if (row.inCard) statusText(task) else theme.content)
+      statusMark(views, task)
       views.setInt(R.id.hw_priority, "setColorFilter", theme.accent)
       views.setViewVisibility(R.id.hw_priority, if (task.priority) View.VISIBLE else View.GONE)
       views.setInt(R.id.hw_rule, "setColorFilter", theme.line)

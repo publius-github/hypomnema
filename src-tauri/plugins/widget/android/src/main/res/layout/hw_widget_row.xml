@@ -32,6 +32,17 @@
             android:paddingTop="5dp"
             android:paddingBottom="5dp">
 
+            <!-- the status box: the drawable is the coloured square with
+                 its white mark, tinted with the status colour -->
+            <ImageView
+                android:id="@+id/hw_status"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="8dp"
+                android:contentDescription="@null"
+                android:src="@drawable/hw_status_done"
+                android:visibility="gone" />
+
             <!-- an ImageView, not a View: RemoteViews inflates only the widget
                  classes it allows, and a plain View fails the whole row -->
             <ImageView

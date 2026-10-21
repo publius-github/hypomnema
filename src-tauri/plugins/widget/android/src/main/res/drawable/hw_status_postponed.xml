@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's status box: a rounded square in the status colour (the
+     white square takes the colour filter) with the mark left as a hole
+     in it (evenOdd), so one tint paints the box and the mark stays the
+     surface showing through - RemoteViews tints the whole drawable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="12"
+    android:viewportHeight="12">
+    <path
+        android:fillColor="@android:color/white"
+        android:fillType="evenOdd"
+        android:pathData="M2,0h8a2,2 0 0,1 2,2v8a2,2 0 0,1 -2,2h-8a2,2 0 0,1 -2,-2v-8a2,2 0 0,1 2,-2z M1.8,5.3 h5.4 L5.6,3.7 L6.7,2.6 L10.1,6 L6.7,9.4 L5.6,8.3 L7.2,6.7 H1.8 Z" />
+</vector>

@@ -9,7 +9,8 @@ import org.json.JSONObject
 /**
  * One task the widget draws: the title without its category, the
  * category and the chip colour the app gives it, the weekday marker of
- * a rule's task ("MON,SAT").
+ * a rule's task ("MON,SAT"), its status ("todo", "postponed", "waiting"
+ * or, on a checklist, "done").
  */
 data class WidgetTask(
   val id: Long,
@@ -18,8 +19,10 @@ data class WidgetTask(
   val categoryColor: String?,
   val dow: String?,
   val priority: Boolean,
-  val done: Boolean,
-)
+  val status: String,
+) {
+  val done get() = status == "done"
+}
 
 /**
  * A row of a widget: a section plate, a category header or a task
@@ -53,6 +56,9 @@ data class WidgetTheme(
   val accent: Int,
   val line: Int,
   val dowLabel: Int,
+  val postponed: Int,
+  val waiting: Int,
+  val done: Int,
 )
 
 /** One list as the core published it. */
@@ -124,7 +130,7 @@ object WidgetStore {
         categoryColor = str(task, "category_color"),
         dow = str(task, "dow"),
         priority = task.optBoolean("priority"),
-        done = task.optBoolean("done"),
+        status = str(task, "status") ?: "todo",
       )
     }
   }
@@ -144,6 +150,9 @@ object WidgetStore {
       accent = color("accent", if (dark) 0xFF55A5FF.toInt() else 0xFF005FB8.toInt()),
       line = color("line", if (dark) 0xFF3C3C3C.toInt() else 0xFFE0E0E0.toInt()),
       dowLabel = withAlpha(color("dow_label", contentMuted), dowOpacity * 255 / 100),
+      postponed = color("postponed", if (dark) 0xFFFBBF24.toInt() else 0xFF92400E.toInt()),
+      waiting = color("waiting", 0xFF0A88A5.toInt()),
+      done = color("done", 0xFF079042.toInt()),
     )
     val day = root.optJSONObject("day")
     val sections = day?.optJSONArray("sections") ?: JSONArray()
@@ -181,6 +190,9 @@ object WidgetStore {
     accent = context.getColor(R.color.hw_accent),
     line = context.getColor(R.color.hw_line),
     dowLabel = context.getColor(R.color.hw_muted),
+    postponed = 0xFFA97205.toInt(),
+    waiting = 0xFF0A88A5.toInt(),
+    done = 0xFF079042.toInt(),
   )
 
   fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
@@ -249,6 +261,9 @@ object WidgetStore {
     accent = context.getColor(R.color.hw_accent),
     line = context.getColor(R.color.hw_line),
     dowLabel = context.getColor(R.color.hw_muted),
+    postponed = 0xFFA97205.toInt(),
+    waiting = 0xFF0A88A5.toInt(),
+    done = 0xFF079042.toInt(),
   )
 
   fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)

@@ -34,6 +34,9 @@ pub struct WidgetLaunch {
 /// the name of its list, as the Day screen's block headers name it)
 /// with the chip colour the app would give it, and `dow` is the
 /// weekday marker a rule's task carries (`[MON,SAT]` in the app).
+/// `status` is the task's own: `todo`, `postponed`, `waiting` or (on a
+/// checklist) `done`; a todo list's done tasks and every dropped task
+/// stay out, as the app's day and list columns show them folded away.
 #[derive(Serialize)]
 struct WidgetTask {
     id: i64,
@@ -42,7 +45,7 @@ struct WidgetTask {
     category_color: Option<String>,
     dow: Option<String>,
     priority: bool,
-    done: bool,
+    status: String,
 }
 
 #[derive(Serialize)]
@@ -88,6 +91,11 @@ struct WidgetTheme {
     line: String,
     dow_label: String,
     dow_label_opacity: u32,
+    /// The status marks: postponed wears the theme's warn tone, the
+    /// others their colors.yml colour.
+    postponed: String,
+    waiting: String,
+    done: String,
 }
 
 #[derive(Serialize)]
@@ -127,6 +135,9 @@ fn theme(config: &AppConfig) -> WidgetTheme {
         line: pick(&config.line_color, "#3c3c3c", "#e0e0e0"),
         dow_label,
         dow_label_opacity,
+        postponed: if dark { "#fbbf24" } else { "#92400e" }.to_string(),
+        waiting: config.waiting_color.clone(),
+        done: config.done_color.clone(),
     }
 }
 
@@ -175,8 +186,9 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
         "SELECT id, title, priority, status FROM tasks
          WHERE list_id = ?1 AND parent_task_id IS NULL
            AND (scheduled_date IS NULL OR priority = 1 OR origin = 'manual')
-           AND status IN ('todo', 'done')
-         ORDER BY status = 'done', priority DESC, time IS NULL, time, sort_order, id",
+           AND status IN ('todo', 'postponed', 'waiting', 'done')
+         ORDER BY CASE status WHEN 'todo' THEN 0 WHEN 'postponed' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END,
+           priority DESC, time IS NULL, time, sort_order, id",
     )?;
     let mut out = Vec::with_capacity(lists.len());
     for list in lists {
@@ -192,12 +204,12 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
                     category_color: None,
                     dow: None,
                     priority: row.get::<_, i64>(2)? != 0,
-                    done: row.get::<_, String>(3)? == "done",
+                    status: row.get(3)?,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?
             .into_iter()
-            .filter(|t| checklist || !t.done)
+            .filter(|t| checklist || t.status != "done")
             .collect();
         // the list is its own column: the chip colour alternates by
         // category block counted down the list (`categoryBlockIndex`)
@@ -233,6 +245,11 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
     })
     .map_err(|e| crate::error::Error::State(format!("widget payload: {e}")))
 }
+
+/// The Day screen's closed sections a widget shows (`closedSections`):
+/// Postponed and Done, waiting, in this order after the cadences; Done
+/// and Not done, dropped stay out of the widget.
+const CLOSED_LABELS: &[(&str, &str)] = &[("postponed", "Postponed"), ("waiting", "Done, waiting")];
 
 const CADENCE_LABELS: &[(&str, &str)] = &[
     ("exact", "Exact date"),
@@ -296,9 +313,10 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
             .map(|l| l.name.clone())
     };
     let mut stmt = conn.prepare(
-        "SELECT id, title, priority, origin, cadence, list_id, time, sort_order, dow_label
+        "SELECT id, title, priority, origin, cadence, list_id, time, sort_order, dow_label, status
          FROM tasks
-         WHERE scheduled_date = ?1 AND parent_task_id IS NULL AND status = 'todo'",
+         WHERE scheduled_date = ?1 AND parent_task_id IS NULL
+           AND status IN ('todo', 'postponed', 'waiting')",
     )?;
     let mut rows = stmt
         .query_map([today], |row| {
@@ -315,7 +333,19 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
                 .or_else(|| list_name(list_id))
                 .unwrap_or_default();
             let dow: Option<String> = row.get(8)?;
+            let status: String = row.get(9)?;
+            // `splitDone`: under done_display "separate" a postponed or
+            // waiting task leaves its cadence for its own section
+            let separate = config.done_display == "separate" && status != "todo";
             Ok(DayRow {
+                section: if separate {
+                    match status.as_str() {
+                        "postponed" => "postponed",
+                        _ => "waiting",
+                    }
+                } else {
+                    section_key(&origin, cadence.as_deref(), list_id, priority)
+                },
                 task: WidgetTask {
                     id: row.get(0)?,
                     title: text.to_string(),
@@ -323,9 +353,8 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
                     category_color: None,
                     dow: dow.filter(|_| config.cron_weekday_labels),
                     priority,
-                    done: false,
+                    status,
                 },
-                section: section_key(&origin, cadence.as_deref(), list_id, priority),
                 block,
                 time: row.get(6)?,
                 sort_order: row.get(7)?,
@@ -357,6 +386,7 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
             order.push(key);
         }
     }
+    order.extend(CLOSED_LABELS.iter().map(|(key, _)| *key));
     // the chip colour alternates by category block counted down the
     // whole column, across the sections; an uncategorized row takes the
     // current index without advancing it (`categoryBlockIndex`)
@@ -364,8 +394,25 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
     let mut last_block: Option<&str> = None;
     let mut sections = Vec::new();
     for key in order {
+        let closed = CLOSED_LABELS.iter().any(|(k, _)| *k == key);
+        let mut section_rows: Vec<&DayRow> = rows.iter().filter(|r| r.section == key).collect();
+        // `sortClosedAlpha`: a closed section reads by category, then
+        // title; the block counter runs on through it as in the column
+        if closed && config.closed_sections_sort_alpha {
+            section_rows.sort_by(|a, b| {
+                a.block
+                    .to_lowercase()
+                    .cmp(&b.block.to_lowercase())
+                    .then_with(|| {
+                        a.task
+                            .title
+                            .to_lowercase()
+                            .cmp(&b.task.title.to_lowercase())
+                    })
+            });
+        }
         let mut tasks = Vec::new();
-        for r in rows.iter().filter(|r| r.section == key) {
+        for r in section_rows {
             if !r.block.is_empty() {
                 if last_block.is_some_and(|b| b != r.block) {
                     block_index += 1;
@@ -383,7 +430,7 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
                     .map(|_| category_color(config, block_index)),
                 dow: r.task.dow.clone(),
                 priority: r.task.priority,
-                done: false,
+                status: r.task.status.clone(),
             });
         }
         if tasks.is_empty() {
@@ -391,12 +438,18 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
         }
         let label = CADENCE_LABELS
             .iter()
+            .chain(CLOSED_LABELS)
             .find(|(k, _)| *k == key)
             .map(|(_, l)| l.to_string())
             .unwrap_or_default();
+        let color = match key {
+            "postponed" => Some(config.postponed_plate_color.clone()),
+            "waiting" => Some(config.waiting_plate_color.clone()),
+            _ => cadence_color(config, key),
+        };
         sections.push(WidgetSection {
             label,
-            color: cadence_color(config, key),
+            color: color.filter(|c| !c.is_empty()),
             tasks,
         });
     }
@@ -518,9 +571,9 @@ mod tests {
         assert_eq!(groceries["color"], "#ef4444");
         assert_eq!(groceries["kind"], "checklist");
         assert_eq!(rows[0]["id"].as_i64().unwrap(), eggs);
-        assert_eq!(rows[0]["done"], false);
+        assert_eq!(rows[0]["status"], "todo");
         assert_eq!(rows[1]["id"].as_i64().unwrap(), milk);
-        assert_eq!(rows[1]["done"], true);
+        assert_eq!(rows[1]["status"], "done");
     }
 
     #[test]
@@ -638,6 +691,85 @@ mod tests {
         assert_eq!(data["theme"]["content"], "#333333");
         assert_eq!(data["theme"]["dow_label"], "#606060");
         assert_eq!(data["theme"]["dow_label_opacity"], config.dow_label_opacity);
+    }
+
+    fn set_status(conn: &Connection, id: i64, status: &str) {
+        task_update(
+            conn,
+            id,
+            &TaskPatch {
+                status: Some(status.into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn postponed_and_waiting_tasks_show_in_both_widgets_and_dropped_ones_do_not() {
+        let conn = conn();
+        let list = list_create(&conn, "Work", None, false).unwrap().id;
+        let open = task(&conn, list, "open");
+        let later = task(&conn, list, "later");
+        set_status(&conn, later, "postponed");
+        let asked = task(&conn, list, "asked");
+        set_status(&conn, asked, "waiting");
+        let gone = task(&conn, list, "gone");
+        set_status(&conn, gone, "dropped");
+        let dated = |title: &str, status: &str| {
+            let id = task_create(
+                &conn,
+                &NewTask {
+                    title: title.into(),
+                    scheduled_date: Some("2026-10-20".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .id;
+            set_status(&conn, id, status);
+            id
+        };
+        let today = dated("today", "todo");
+        let day_later = dated("{B} day later", "postponed");
+        let day_later_a = dated("{A} earlier block", "postponed");
+        let day_asked = dated("day asked", "waiting");
+        dated("day gone", "dropped");
+
+        let mut config = config(&[]);
+        config.done_display = "separate".into();
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
+        assert_eq!(data["theme"]["waiting"], config.waiting_color);
+        let rows = data["lists"][0]["tasks"].as_array().unwrap();
+        let got: Vec<(i64, &str)> = rows
+            .iter()
+            .map(|t| (t["id"].as_i64().unwrap(), t["status"].as_str().unwrap()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![(open, "todo"), (later, "postponed"), (asked, "waiting")]
+        );
+        let sections = data["day"]["sections"].as_array().unwrap();
+        let labels: Vec<&str> = sections
+            .iter()
+            .map(|s| s["label"].as_str().unwrap())
+            .collect();
+        assert_eq!(labels, vec!["General", "Postponed", "Done, waiting"]);
+        assert_eq!(sections[0]["tasks"][0]["id"].as_i64().unwrap(), today);
+        assert_eq!(sections[1]["color"], config.postponed_plate_color);
+        assert_eq!(sections[1]["tasks"][0]["id"].as_i64().unwrap(), day_later_a);
+        assert_eq!(sections[1]["tasks"][1]["id"].as_i64().unwrap(), day_later);
+        assert_eq!(sections[2]["tasks"][0]["id"].as_i64().unwrap(), day_asked);
+        assert_eq!(sections[2]["tasks"][0]["status"], "waiting");
+
+        // inline: a postponed task keeps its cadence section
+        config.done_display = "inline".into();
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
+        let sections = data["day"]["sections"].as_array().unwrap();
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0]["tasks"].as_array().unwrap().len(), 4);
     }
 
     #[test]
