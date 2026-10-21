@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:minHeight="36dp"
+        android:minHeight="40dp"
         android:orientation="horizontal"
         android:paddingTop="5dp"
         android:paddingBottom="5dp">
@@ -20,7 +20,7 @@
         <ImageView
             android:id="@+id/hw_priority"
             android:layout_width="3dp"
-            android:layout_height="16dp"
+            android:layout_height="18dp"
             android:layout_marginEnd="8dp"
             android:contentDescription="@null"
             android:src="@drawable/hw_fill"
@@ -34,7 +34,7 @@
             android:ellipsize="end"
             android:maxLines="2"
             android:textColor="@color/hw_text"
-            android:textSize="14sp" />
+            android:textSize="16sp" />
     </LinearLayout>
 
     <ImageView

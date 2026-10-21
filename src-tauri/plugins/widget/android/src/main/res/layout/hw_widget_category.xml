@@ -9,5 +9,5 @@
     android:paddingEnd="8dp"
     android:paddingBottom="1dp"
     android:textColor="@color/hw_accent"
-    android:textSize="13sp"
+    android:textSize="14sp"
     android:textStyle="bold" />

@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.116.2 - 2026-10-21
+
+Android widgets: larger text throughout - the name, the section plates and category headers, the task rows (16sp, the phone screens' size) and the list cards.
+
 ## 0.116.1 - 2026-10-21
 
 Android today widget fixed and brought in line with the Day screen. A task without a category or weekday marker showed "null [null]" in front of its text (a JSON null read as the word); now only the text. The category is no longer a chip in front of the marker: as in the app it heads its block of rows, in its chip colour, under the section plate (which now wears its cadence colour and count, as the app's plates do); with category headers off in Settings it stays a chip. A row is clamped to two lines with an ellipsis. Both widgets now wear the app's colour scheme - the device's light or dark palette under colors.yml - instead of the launcher's: background, text, muted text, lines, accent, the weekday marker tone and the category colours.
