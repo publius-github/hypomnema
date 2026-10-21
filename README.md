@@ -4,7 +4,7 @@
 
 <h3 align="center">Hypomnema</h3>
 
-<p align="center"><b>YOUR MIND. ORGANIZED.</b></p>
+<p align="center">YOUR MIND. ORGANIZED.</p>
 
 <p align="center">A weekly task planner, a daily journal and a Markdown knowledge base in one local-first window.</p>
 
