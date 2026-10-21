@@ -2,7 +2,7 @@
   <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Hypomnema">
 </p>
 
-<h2 align="center">Hypomnema</h2>
+<h3 align="center">Hypomnema</h3>
 
 <p align="center">YOUR MIND. ORGANIZED.</p>
 
