@@ -17,3 +17,9 @@ In practice: change `productName` and `identifier` in `src-tauri/tauri.conf.json
 ## Questions
 
 For anything not covered here, write to publius.it@gmail.com.
+
+## Third-party components and marks
+
+Not everything in a build is open source. The Windows binary links Microsoft's WebView2 loader (BSD-3-Clause). The "Sign in with Google" button carries Google's "G" logo, a trademark of Google LLC used under its [sign-in branding guidelines](https://developers.google.com/identity/branding-guidelines), not under the GPL. `THIRD_PARTY_LICENSES.txt` lists both.
+
+Google and Google Drive are trademarks of Google LLC; Windows and WebView2 are trademarks of Microsoft Corporation. Hypomnema is not affiliated with or endorsed by either.

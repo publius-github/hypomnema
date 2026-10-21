@@ -29,7 +29,7 @@ function custom_cleanup() {
 }
 
 REQUIRED_PROGRAMS=(node npm cargo rustc)
-# The Debian/Ubuntu packages README and CONTRIBUTING list and CI installs
+# The Debian/Ubuntu packages CONTRIBUTING lists and CI installs
 LINUX_PACKAGES="build-essential pkg-config libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf"
 EXTERNAL_ENV_VARIABLES=()
 ARGUMENT_ENV_VARIABLES=()

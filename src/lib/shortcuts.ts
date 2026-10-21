@@ -1,7 +1,7 @@
 /**
  * The desktop's keyboard shortcuts, as the About dialog lists them. The
  * handlers live where they act (App.tsx for the global ones, the task
- * card, the editor, the Journal); README's Keyboard section repeats this
+ * card, the editor, the Journal); docs/general/USAGE.md's Keyboard section repeats this
  * list - change both together.
  */
 export const SHORTCUTS: { keys: string; action: string }[] = [

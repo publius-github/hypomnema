@@ -17,7 +17,7 @@ npm ci
 npm run app:dev       # the app with hot reload, as "Hypomnema Dev"
 ```
 
-Google Drive sync needs an OAuth client compiled in (see the README's *Building* section). Without one the app works fully, with sync reported unavailable - that is the normal state for a development build.
+Google Drive sync needs an OAuth client compiled in (see *Build from source* below). Without one the app works fully, with sync reported unavailable - that is the normal state for a development build.
 
 Use a throwaway vault folder while developing, never your real one. `npm run app:dev` runs the development build as a separate app (`src-tauri/tauri.dev.conf.json`: identifier `com.hypomnema.app.dev`): its per-device folder is `%APPDATA%\com.hypomnema.app.dev` - its own remembered vault path, Google sign-in, device id and log - so it starts beside an installed Hypomnema and never opens that one's vault. The two still share the global capture shortcut: whichever starts second reports it cannot register it. Plain `npm run tauri dev` is the installed app's identity (`%APPDATA%\com.hypomnema.app`) - it opens the installed app's vault, runs any new migration on it and, with the OAuth client compiled in, syncs with your Google account; avoid it on a machine where you use the app.
 
@@ -62,3 +62,49 @@ Hypomnema is GPL-3.0-only with an additional permission for linking with Google 
 Every commit in a pull request carries a `Signed-off-by` line - the [Developer Certificate of Origin](https://developercertificate.org/): by adding it you certify that you wrote the change, or otherwise have the right to submit it under the project's license. `git commit -s` adds the line from your `user.name` and `user.email`; `git rebase --signoff <base>` adds it to commits already made. CI fails a pull request with a commit that lacks it.
 
 The name and logo are not part of the license: a fork you distribute needs its own ([TRADEMARKS.md](TRADEMARKS.md)).
+
+## Build from source
+
+Development is checked on Windows and Linux (CI builds and tests the Rust core on both; macOS is untested); the release installer (NSIS `.exe`) is built by GitHub Actions on a Windows runner.
+
+Requirements: Node.js 22.22.2+ or 24.15+ (`engines` in `package.json`; CI runs the version in `.nvmrc`), Rust 1.98.0 via rustup (the version CI pins; a newer stable may bring clippy lints CI does not have yet). On Windows also VS Build Tools (Desktop C++), WebView2 and Git Bash; on Linux (Debian/Ubuntu names) `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`, the set CI installs.
+
+```bash
+npm ci && npm run app:dev               # dev mode with hot reload, a separate "Hypomnema Dev" app (CONTRIBUTING.md)
+./scripts/windows/build.sh              # local installer build (build.ps1 for PowerShell)
+```
+
+Artifacts land in `src-tauri/target/release/bundle/`.
+
+Google sign-in on the desktop needs an OAuth client secret compiled in from the `HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_SECRET` environment variable (see `docs/windows/ARCHITECTURE.md`); a build without it simply has no Google sync. If you build your own copy, register your own "Desktop app" OAuth client in Google Cloud (scope `drive.appdata`) and set `HYPOMNEMA_GOOGLE_DESKTOP_CLIENT_ID` alongside the secret at build time; no source edit is needed.
+
+Cargo never deletes old build output, so `src-tauri/target` grows with every version bump. The build scripts prune output untouched for 7 days before each build (`PRUNE_DAYS` changes the limit); to prune by hand:
+
+```bash
+node scripts/general/prune-target.mjs [--days N] [--dry-run]
+```
+
+`THIRD_PARTY_LICENSES.txt` collects the license texts of every bundled Rust crate and npm package, plus the prebuilt binaries and libraries listed by hand in `scripts/general/notices/`; the app compiles it in and shows it under About. Regenerate it after changing dependencies:
+
+```bash
+node scripts/general/third-party-licenses.mjs
+```
+
+## Version and release
+
+The `VERSION` file at the root is the single source of truth for the version; never edit it or the manifests' versions by hand:
+
+```bash
+./scripts/general/bump.sh [major|minor|patch]   # bump + sync manifests, no commit
+./scripts/windows/release.sh [--check]          # tag v<VERSION> + push; --check only checks (release.ps1 [-Check] for PowerShell)
+```
+
+A release ships the version already in `VERSION`: bump with `bump.sh`, add its `## <version> - <date>` entry to `CHANGELOG.md`, commit, then run `release.sh`. It refuses a dirty tree, manifests out of step with `VERSION`, a missing CHANGELOG entry, a branch behind `origin` and an existing tag.
+
+The `release.yml` workflow, on a `v*` tag, first checks the tag against `VERSION` and takes the CHANGELOG entry as the release notes, then builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend, fmt/clippy/test for the Rust core on Linux and clippy/test again on Windows (the shipped platform), plus an audit job: `cargo-deny` (advisories and licenses, policy in `src-tauri/deny.toml`), `npm audit` of the runtime dependencies and a `gitleaks` secret scan, on pull requests, pushes to `main` and `development` and once a week; it also fails when the committed TypeScript bindings or `THIRD_PARTY_LICENSES.txt` are stale. `release.yml` runs the same gates on the tagged commit before it builds anything. Third-party actions and the Rust toolchain are pinned to exact commits and versions; Dependabot proposes the updates (to `development`, a week after a version is published).
+
+At startup the desktop app checks `releases/latest/download/latest.json` of the release repository and offers to update. The manifest is signed: GitHub Secrets need `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/hypomnema.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is in `src-tauri/tauri.conf.json`. Without the secrets the release workflow fails at signing. A local build (`scripts/windows/build.ps1` or `build.sh`) signs the updater artifacts only when `TAURI_SIGNING_PRIVATE_KEY` is set, or when the key is at `~/.tauri/hypomnema.key` *and* `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is set; otherwise it builds the installer without updater artifacts. Updates reach users only once the draft release is published: `latest.json` is served from published releases only.
+
+## Website
+
+`site/` is the static project website (home page and privacy policy), plain HTML and CSS. `pages.yml` publishes it to GitHub Pages at <https://publius-github.github.io/hypomnema/> on every push to `main` that touches it (Settings > Pages > Source must be set to GitHub Actions once). It can be hosted anywhere else as well; Google's OAuth verification needs both pages on a domain you own.
