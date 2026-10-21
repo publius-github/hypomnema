@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A list card's head; its tasks follow as hw_widget_row rows on the
+     card's surface and hw_widget_list_foot closes it. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/hw_list_row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginEnd="8dp"
-    android:layout_marginBottom="6dp">
+    android:layout_marginEnd="8dp">
 
     <ImageView
         android:id="@+id/hw_list_bg"
@@ -12,7 +13,7 @@
         android:layout_height="match_parent"
         android:contentDescription="@null"
         android:scaleType="fitXY"
-        android:src="@drawable/hw_card_bg"
+        android:src="@drawable/hw_card_top"
         android:tint="@color/hw_card" />
 
     <LinearLayout
@@ -21,14 +22,14 @@
         android:orientation="vertical"
         android:paddingStart="10dp"
         android:paddingTop="8dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="8dp">
+        android:paddingEnd="10dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingBottom="6dp">
 
             <ImageView
                 android:id="@+id/hw_list_dot"
@@ -59,12 +60,20 @@
         </LinearLayout>
 
         <TextView
-            android:id="@+id/hw_list_items"
+            android:id="@+id/hw_list_empty"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:lineSpacingExtra="4dp"
-            android:textColor="@color/hw_text"
-            android:textSize="15sp" />
+            android:paddingBottom="4dp"
+            android:textColor="@color/hw_muted"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/hw_list_rule"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:contentDescription="@null"
+            android:scaleType="fitXY"
+            android:src="@drawable/hw_fill" />
     </LinearLayout>
 </FrameLayout>

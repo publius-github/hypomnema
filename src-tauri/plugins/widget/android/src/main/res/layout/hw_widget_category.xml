@@ -1,13 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/hw_category"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/hw_category_row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:ellipsize="end"
-    android:maxLines="1"
-    android:paddingTop="6dp"
-    android:paddingEnd="8dp"
-    android:paddingBottom="1dp"
-    android:textColor="@color/hw_accent"
-    android:textSize="14sp"
-    android:textStyle="bold" />
+    android:layout_marginEnd="8dp">
+
+    <ImageView
+        android:id="@+id/hw_category_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/hw_fill"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/hw_category"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:paddingStart="10dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="1dp"
+        android:textColor="@color/hw_accent"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+</FrameLayout>

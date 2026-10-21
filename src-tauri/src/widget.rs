@@ -68,9 +68,6 @@ struct WidgetSection {
 #[derive(Serialize)]
 struct WidgetDay {
     date: String,
-    /// `category_headers`: the block's category named once over its
-    /// rows rather than as a chip on each.
-    category_headers: bool,
     sections: Vec<WidgetSection>,
 }
 
@@ -96,6 +93,9 @@ struct WidgetTheme {
 #[derive(Serialize)]
 struct WidgetData {
     theme: WidgetTheme,
+    /// `category_headers`: a block's category named once over its rows
+    /// rather than as a chip on each, on the day and in the lists.
+    category_headers: bool,
     day: WidgetDay,
     lists: Vec<WidgetList>,
 }
@@ -181,7 +181,7 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
     let mut out = Vec::with_capacity(lists.len());
     for list in lists {
         let checklist = list.kind == "checklist";
-        let tasks = stmt
+        let mut tasks: Vec<WidgetTask> = stmt
             .query_map([list.id], |row| {
                 let title: String = row.get(1)?;
                 let (category, text) = split_category(&title);
@@ -189,7 +189,7 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
                     id: row.get(0)?,
                     title: text.to_string(),
                     category: category.map(str::to_string),
-                    category_color: category.map(|_| config.category_color.clone()),
+                    category_color: None,
                     dow: None,
                     priority: row.get::<_, i64>(2)? != 0,
                     done: row.get::<_, String>(3)? == "done",
@@ -199,6 +199,20 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
             .into_iter()
             .filter(|t| checklist || !t.done)
             .collect();
+        // the list is its own column: the chip colour alternates by
+        // category block counted down the list (`categoryBlockIndex`)
+        let mut block_index = 0usize;
+        let mut last_block: Option<String> = None;
+        for task in &mut tasks {
+            let Some(category) = &task.category else {
+                continue;
+            };
+            if last_block.as_ref().is_some_and(|b| b != category) {
+                block_index += 1;
+            }
+            last_block = Some(category.clone());
+            task.category_color = Some(category_color(config, block_index));
+        }
         out.push(WidgetList {
             id: list.id,
             name: list.name,
@@ -213,6 +227,7 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
     }
     serde_json::to_string(&WidgetData {
         theme: theme(config),
+        category_headers: config.category_headers,
         day,
         lists: out,
     })
@@ -387,7 +402,6 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
     }
     Ok(WidgetDay {
         date: today.to_string(),
-        category_headers: config.category_headers,
         sections,
     })
 }
@@ -478,23 +492,25 @@ mod tests {
         let a = task(&conn, todo, "{Admin} open");
         let b = task(&conn, todo, "closed");
         done(&conn, b);
+        let c = task(&conn, todo, "{Ops} second block");
         let milk = task(&conn, check, "milk");
         let eggs = task(&conn, check, "eggs");
         done(&conn, milk);
 
+        let mut config = config(&[]);
+        config.category_color_mode = "alternate".into();
         let data: Value =
-            serde_json::from_str(&payload(&conn, "2026-10-20", &config(&[])).unwrap()).unwrap();
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
         let lists = data["lists"].as_array().unwrap();
         let work = lists.iter().find(|l| l["name"] == "Work").unwrap();
         let rows = work["tasks"].as_array().unwrap();
-        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["id"].as_i64().unwrap(), a);
         assert_eq!(rows[0]["title"], "open");
         assert_eq!(rows[0]["category"], "Admin");
-        assert_eq!(
-            rows[0]["category_color"],
-            AppConfig::default().category_color
-        );
+        assert_eq!(rows[0]["category_color"], config.category_color_a);
+        assert_eq!(rows[1]["id"].as_i64().unwrap(), c);
+        assert_eq!(rows[1]["category_color"], config.category_color_b);
         assert_eq!(work["kind"], "todo");
 
         let groceries = lists.iter().find(|l| l["name"] == "Groceries").unwrap();
@@ -577,7 +593,7 @@ mod tests {
         assert_eq!(labels, vec!["Daily", "Exact date", "General"]);
         assert_eq!(sections[0]["color"], config.cadence_color_daily);
         assert!(sections[2]["color"].is_null());
-        assert_eq!(data["day"]["category_headers"], true);
+        assert_eq!(data["category_headers"], true);
         let daily = &sections[0]["tasks"][0];
         assert_eq!(daily["id"].as_i64().unwrap(), general);
         assert_eq!(daily["dow"], "MON,SAT");

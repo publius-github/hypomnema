@@ -23,13 +23,16 @@ data class WidgetTask(
 
 /**
  * A row of a widget: a section plate, a category header or a task
- * (today), or a whole list (lists).
+ * (today); a list's head, its category headers and tasks, and its foot
+ * (lists). `inCard` paints the row on the card's surface, `last` drops
+ * the hairline under the card's last task.
  */
 sealed class WidgetRow {
   data class Header(val label: String, val color: String?, val count: Int) : WidgetRow()
-  data class Category(val label: String, val color: String?) : WidgetRow()
-  data class Task(val task: WidgetTask, val chip: Boolean) : WidgetRow()
-  data class ListCard(val list: WidgetList) : WidgetRow()
+  data class Category(val label: String, val color: String?, val inCard: Boolean) : WidgetRow()
+  data class Task(val task: WidgetTask, val chip: Boolean, val inCard: Boolean, val last: Boolean) : WidgetRow()
+  data class ListHead(val list: WidgetList) : WidgetRow()
+  data class ListFoot(val list: WidgetList) : WidgetRow()
 }
 
 /** What one widget draws: its name, open count (none on the lists widget) and rows. */
@@ -39,7 +42,7 @@ data class WidgetView(val name: String, val open: Int?, val rows: List<WidgetRow
 data class WidgetSection(val label: String, val color: String?, val tasks: List<WidgetTask>)
 
 /** Today as the core published it: the Day screen's sections. */
-data class WidgetDay(val date: String, val categoryHeaders: Boolean, val sections: List<WidgetSection>)
+data class WidgetDay(val date: String, val sections: List<WidgetSection>)
 
 /** The app's chrome on this device, as the core resolved it (theme palette under colors.yml). */
 data class WidgetTheme(
@@ -93,8 +96,8 @@ object WidgetStore {
     }
   }
 
-  /** The published data: the theme, the day and the lists. */
-  data class Data(val theme: WidgetTheme, val day: WidgetDay, val lists: List<WidgetList>)
+  /** The published data: the theme, the category-headers rule, the day and the lists. */
+  data class Data(val theme: WidgetTheme, val categoryHeaders: Boolean, val day: WidgetDay, val lists: List<WidgetList>)
 
   fun data(context: Context): Data? {
     val file = dataFile(context)
@@ -146,7 +149,6 @@ object WidgetStore {
     val sections = day?.optJSONArray("sections") ?: JSONArray()
     val today = WidgetDay(
       date = day?.optString("date", "") ?: "",
-      categoryHeaders = day?.optBoolean("category_headers", true) ?: true,
       sections = (0 until sections.length()).map { i ->
         val section = sections.getJSONObject(i)
         WidgetSection(
@@ -167,7 +169,7 @@ object WidgetStore {
         tasks = tasks(list.optJSONArray("tasks")),
       )
     }
-    return Data(parsedTheme, today, parsed)
+    return Data(parsedTheme, root.optBoolean("category_headers", true), today, parsed)
   }
 
   /** Before the core has published: the widget's own light/dark pair (values / values-night). */
@@ -196,29 +198,71 @@ object WidgetStore {
     editor.apply()
   }
 
+  /**
+   * The rows of a block of tasks as the app's columns lay them out: the
+   * block's category named once over its rows under `category_headers`,
+   * else a chip on each row (`layout` in useColumnSections.ts).
+   */
+  private fun blockRows(tasks: List<WidgetTask>, headers: Boolean, inCard: Boolean): List<WidgetRow> {
+    val rows = ArrayList<WidgetRow>()
+    var block: String? = null
+    tasks.forEachIndexed { i, task ->
+      // a header where the label changes, on the first row included
+      if (headers && task.category != null && (i == 0 || task.category != block)) {
+        rows.add(WidgetRow.Category(task.category, task.categoryColor, inCard))
+      }
+      block = task.category
+      rows.add(WidgetRow.Task(task, chip = !headers, inCard = inCard, last = i == tasks.size - 1))
+    }
+    return rows
+  }
+
   /** What a widget draws, or null before the core has published. */
   fun viewFor(context: Context, widgetId: Int): WidgetView? {
-    val (_, day, lists) = data(context) ?: return null
+    val data = data(context) ?: return null
     if (isDay(context, widgetId)) {
       val rows = ArrayList<WidgetRow>()
       var open = 0
-      day.sections.forEach { section ->
+      data.day.sections.forEach { section ->
         if (section.tasks.isEmpty()) return@forEach
-        if (day.sections.size > 1) rows.add(WidgetRow.Header(section.label, section.color, section.tasks.size))
-        // as the Day screen: the block's category named once over its
-        // rows, else as a chip on each row
-        var block: String? = null
-        section.tasks.forEach { task ->
-          if (day.categoryHeaders && task.category != null && task.category != block) {
-            rows.add(WidgetRow.Category(task.category, task.categoryColor))
-          }
-          if (task.category != null) block = task.category
-          rows.add(WidgetRow.Task(task, chip = !day.categoryHeaders))
-        }
+        if (data.day.sections.size > 1) rows.add(WidgetRow.Header(section.label, section.color, section.tasks.size))
+        rows.addAll(blockRows(section.tasks, data.categoryHeaders, inCard = false))
         open += section.tasks.size
       }
       return WidgetView(context.getString(R.string.hw_today), open, rows)
     }
-    return WidgetView(context.getString(R.string.hw_lists), null, lists.map { WidgetRow.ListCard(it) })
+    val rows = ArrayList<WidgetRow>()
+    data.lists.forEach { list ->
+      rows.add(WidgetRow.ListHead(list))
+      rows.addAll(blockRows(list.tasks, data.categoryHeaders, inCard = true))
+      rows.add(WidgetRow.ListFoot(list))
+    }
+    return WidgetView(context.getString(R.string.hw_lists), null, rows)
+  }
+
+  /** Before the core has published: the widget's own light/dark pair (values / values-night). */
+  fun fallbackTheme(context: Context) = WidgetTheme(
+    surface = context.getColor(R.color.hw_bg),
+    surfaceAlt = context.getColor(R.color.hw_card),
+    content = context.getColor(R.color.hw_text),
+    contentMuted = context.getColor(R.color.hw_muted),
+    accent = context.getColor(R.color.hw_accent),
+    line = context.getColor(R.color.hw_line),
+    dowLabel = context.getColor(R.color.hw_muted),
+  )
+
+  fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)
+
+  fun isDay(context: Context, widgetId: Int): Boolean =
+    prefs(context).getBoolean(KEY_DAY + widgetId, false)
+
+  fun setDay(context: Context, widgetId: Int) {
+    prefs(context).edit().putBoolean(KEY_DAY + widgetId, true).apply()
+  }
+
+  fun forget(context: Context, widgetIds: IntArray) {
+    val editor = prefs(context).edit()
+    widgetIds.forEach { editor.remove(KEY_DAY + it) }
+    editor.apply()
   }
 }
