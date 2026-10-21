@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.119.0 - 2026-10-21
+
+Settings > Data: the Vault row has a Change button like the Notes folder's. It opens another vault folder after a confirmation (an empty folder becomes a new vault, an existing vault is opened as it is); the current vault is not moved.
+
 ## 0.118.0 - 2026-10-21
 
 Settings > General has a Reset all settings button again: after a confirmation every setting, the colors and the fine-tuning in app.yml go back to factory values. The notes folder and this device's safe-area floors stay, and app.yml is copied to backups/config/ first.

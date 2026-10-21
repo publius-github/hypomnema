@@ -80,6 +80,7 @@ export default function DataTab() {
     null,
   );
   const [restoring, setRestoring] = useState(false);
+  const [newVault, setNewVault] = useState<string | null>(null);
 
   const loadArchived = useCallback(async () => {
     try {
@@ -100,7 +101,8 @@ export default function DataTab() {
   useEffect(() => {
     void loadArchived();
     void loadBackups();
-  }, [loadArchived, loadBackups]);
+    // another vault has other archives and other backups
+  }, [loadArchived, loadBackups, vaultPath]);
 
   const deleteDone = async () => {
     setConfirming(false);
@@ -158,9 +160,29 @@ export default function DataTab() {
       <SettingsGroup id="data.vault">
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Vault</span>
-          <span className="select-text text-sm text-content-muted">
-            {vaultPath}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 select-text truncate text-sm text-content-muted">
+              {vaultPath}
+            </span>
+            <button
+              className="btn-ghost px-3 py-1 text-xs"
+              onClick={async () => {
+                try {
+                  const path = await open({
+                    directory: true,
+                    title: "Select vault folder",
+                  });
+                  if (typeof path === "string" && path !== vaultPath) {
+                    setNewVault(path);
+                  }
+                } catch (e) {
+                  useAppStore.getState().setError(errorMessage(e));
+                }
+              }}
+            >
+              Change
+            </button>
+          </div>
         </section>
 
         <section className="flex flex-col gap-1">
@@ -353,6 +375,20 @@ export default function DataTab() {
           confirmLabel="Restore"
           onConfirm={() => void confirmRestore()}
           onCancel={() => setRestoreTarget(null)}
+        />
+      )}
+
+      {newVault && (
+        <ConfirmModal
+          title="Open another vault?"
+          message={`Switches Hypomnema to ${newVault}. An empty folder becomes a new vault, a folder that already holds one is opened as it is. The current vault is not moved or changed - to move it, copy its folder there first.`}
+          confirmLabel="Open"
+          onConfirm={() => {
+            const path = newVault;
+            setNewVault(null);
+            void useAppStore.getState().selectVault(path);
+          }}
+          onCancel={() => setNewVault(null)}
         />
       )}
     </>

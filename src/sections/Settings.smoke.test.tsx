@@ -161,6 +161,31 @@ describe("Settings smoke", () => {
     expect(invokeMock).toHaveBeenCalledWith("settings_backup", undefined);
   });
 
+  it("switches to another vault folder from Data after a confirmation", async () => {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    vi.mocked(open).mockResolvedValueOnce("D:/other-vault");
+    seed();
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        config_set: () => undefined,
+        vault_select: () => defaultConfig,
+        backups_list: () => ({ db: [], config: [] }),
+        lists_archived: () => [],
+        engine_run: () => ({ errors: [] }),
+      }),
+    );
+    render(<Settings />);
+    fireEvent.click(screen.getByRole("button", { name: "Data" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Change" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Open" }));
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("vault_select", {
+        path: "D:/other-vault",
+      }),
+    );
+  });
+
   it("offers a reset only for a group that left its defaults", async () => {
     // a changed done display lives in the columns group; the cards
     // group is untouched
