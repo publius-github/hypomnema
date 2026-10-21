@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { Field, NumberInput, TextInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
-import type { Theme } from "../../types";
+import { ConfirmModal } from "../../components/dialogs";
+import { invoke } from "../../lib/ipc";
+import { RESET_ALL_KEEPS } from "../../lib/settingsCatalog";
+import type { AppConfig, Theme } from "../../types";
 import { useAppStore } from "../../store";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -153,6 +157,42 @@ export default function GeneralTab() {
           onChange={(v) => void updateConfig({ update_check: v })}
         />
       </SettingsGroup>
+
+      <ResetAll />
     </>
+  );
+}
+
+/** Every setting back to its factory default - the sum of the per-group
+ * resets, plus the fields no group shows (colors, fine-tuning). The
+ * notes folder and this device's inset floors stay. */
+function ResetAll() {
+  const defaults = useAppStore((s) => s.defaults);
+  const updateConfig = useAppStore((s) => s.updateConfig);
+  const [asking, setAsking] = useState(false);
+  if (!defaults) return null;
+  const reset = async () => {
+    setAsking(false);
+    // best effort, like every config backup: it must not block the reset
+    await invoke("settings_backup").catch(() => {});
+    const patch: Partial<AppConfig> = { ...defaults };
+    for (const key of RESET_ALL_KEEPS) delete patch[key];
+    await updateConfig(patch);
+  };
+  return (
+    <section className="mt-6 border-t border-line pt-4">
+      <button className="btn-ghost text-sm" onClick={() => setAsking(true)}>
+        Reset all settings
+      </button>
+      {asking && (
+        <ConfirmModal
+          title="Reset all settings to their defaults?"
+          message="Every setting on these tabs, the colors and the fine-tuning in app.yml go back to factory values. The notes folder, your vault, tasks, notes and rules stay. A backup copy of app.yml is written to backups/config/ first."
+          confirmLabel="Reset"
+          onConfirm={() => void reset()}
+          onCancel={() => setAsking(false)}
+        />
+      )}
+    </section>
   );
 }

@@ -234,6 +234,15 @@ pub(crate) async fn config_file_set(
     Ok(errors)
 }
 
+/// Copies app.yml to backups/config/ before a bulk reset of the settings
+/// (Settings > General > Reset all settings); the synced color and rule
+/// files are backed up by the save itself.
+#[tauri::command]
+pub(crate) async fn settings_backup(state: State<'_, AppState>) -> Result<()> {
+    backup_config(&state, "app.yml");
+    Ok(())
+}
+
 /// Copies the file aside before a programmatic rewrite. Best effort by
 /// design: a failing backup must not block the edit itself.
 pub(crate) fn backup_config(state: &State<'_, AppState>, file: &str) {

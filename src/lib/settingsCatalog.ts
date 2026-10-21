@@ -322,6 +322,16 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
   { key: "streak_strip_days", why: IN_APP_YML },
 ];
 
+/**
+ * What "Reset all settings" leaves alone: the notes folder path and the
+ * per-device inset floors are this machine's, not a look or a behavior.
+ */
+export const RESET_ALL_KEEPS: (keyof AppConfig)[] = [
+  "kb_path",
+  "mobile_safe_area_top",
+  "mobile_safe_area_bottom",
+];
+
 const BY_GROUP = SETTINGS_CATALOG.reduce<
   Partial<Record<SettingsGroupId, (keyof AppConfig)[]>>
 >((acc, entry) => {

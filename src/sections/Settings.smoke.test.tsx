@@ -141,6 +141,26 @@ describe("Settings smoke", () => {
     expect(screen.getByText(/Nothing matches/)).toBeTruthy();
   });
 
+  it("resets every setting but the notes folder from General", async () => {
+    seed({ theme: "light", ui_font: "Comic Sans", kb_path: "D:/notes" });
+    render(<Settings />);
+    fireEvent.click(screen.getByRole("button", { name: "Reset all settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        "config_set",
+        expect.objectContaining({
+          config: expect.objectContaining({
+            theme: defaultConfig.theme,
+            ui_font: defaultConfig.ui_font,
+            kb_path: "D:/notes",
+          }),
+        }),
+      ),
+    );
+    expect(invokeMock).toHaveBeenCalledWith("settings_backup", undefined);
+  });
+
   it("offers a reset only for a group that left its defaults", async () => {
     // a changed done display lives in the columns group; the cards
     // group is untouched

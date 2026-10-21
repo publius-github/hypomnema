@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.118.0 - 2026-10-21
+
+Settings > General has a Reset all settings button again: after a confirmation every setting, the colors and the fine-tuning in app.yml go back to factory values. The notes folder and this device's safe-area floors stay, and app.yml is copied to backups/config/ first.
+
 ## 0.117.1 - 2026-10-21
 
 Support link: the About dialog, the README and the repository's Sponsor button point to the project's Ko-fi page.

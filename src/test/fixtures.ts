@@ -198,6 +198,7 @@ export function baseHandlers(overrides: CommandHandlers = {}): CommandHandlers {
     vault_status: () => "/test/vault",
     config_get: () => defaultConfig,
     config_default: () => defaultConfig,
+    settings_backup: () => undefined,
     engine_run: () => emptyOutcome,
     lists_all: () => [],
     list_groups_all: () => [],

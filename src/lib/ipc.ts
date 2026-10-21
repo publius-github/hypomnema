@@ -76,6 +76,7 @@ export interface Commands {
   };
   config_get: { args: void; result: AppConfig };
   config_set: { args: { config: AppConfig }; result: void };
+  settings_backup: { args: void; result: void };
   daily_streaks: { args: void; result: DailyStreak[] };
   dashboard_context: { args: { dates: string[] }; result: DashboardContext };
   diagnostics: { args: void; result: string };

@@ -238,6 +238,7 @@ pub fn run() {
             cmd_views::birthdays_list,
             cmd_views::calendar_outlook,
             cmd_views::recurring_list,
+            cmd_rules::settings_backup,
             cmd_rules::recurring_add,
             cmd_rules::scheduled_add,
             cmd_rules::birthday_add,

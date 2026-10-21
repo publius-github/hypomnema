@@ -219,6 +219,7 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
   platform_is_mobile: () => params.has("mobile"),
   config_get: () => state.config,
   config_default: () => defaultConfig,
+  settings_backup: () => undefined,
   config_set: (a) => {
     state.config = a.config as AppConfig;
   },
