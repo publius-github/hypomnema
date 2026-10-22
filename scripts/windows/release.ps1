@@ -1,8 +1,6 @@
 param(
   # Run every check, tag and push nothing
-  [switch]$Check,
-  # Kept only to point a caller of the old bumping script at bump.sh
-  [string]$BumpType = ''
+  [switch]$Check
 )
 
 $ErrorActionPreference = 'Stop'
@@ -143,10 +141,6 @@ function Push-Release {
 }
 
 function Main {
-  if ($BumpType) {
-    throw "release.ps1 no longer bumps: run scripts/general/bump.sh $BumpType, write the CHANGELOG.md entry, commit, then release."
-  }
-
   $repoRoot = Get-RepoRoot
   Set-Location $repoRoot
 

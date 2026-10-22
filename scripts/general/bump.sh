@@ -71,7 +71,7 @@ function validate_env_variables() {
   case "$BUMP_TYPE" in
     major|minor|patch) ;;
     *)
-      log_error "usage: scripts/bump.sh [major|minor|patch] (default: patch)"
+      log_error "usage: scripts/general/bump.sh [major|minor|patch] (default: patch)"
       exit 1
       ;;
   esac

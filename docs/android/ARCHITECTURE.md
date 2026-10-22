@@ -13,7 +13,7 @@ The script is run from Linux or WSL - the setups it is built and tested on. What
 
 Google sign-in on a self-built APK does not work out of the box: the project's Android OAuth client is registered for the maintainer's signing-key SHA-1 (see Open items). A build of your own needs its own Android OAuth client in Google Cloud for your key's SHA-1 (`keytool -list -v` on the keystore); without one the app works fully, with sync unavailable.
 
-## Build (`scripts/android/build-android.sh`)
+## Build (`scripts/android/build.sh`)
 
 - `src-tauri/gen/android` is generated (`tauri android init`) and **not tracked**: the CLI recreates it from `tauri.conf.json` and rewrites parts of it during a build (a new plugin's Gradle module, for one). Nothing in it is hand-edited; everything a build needs there is written by the script on every run:
   - `ensure_android_project` generates the project when it is missing;
@@ -23,7 +23,7 @@ Google sign-in on a self-built APK does not work out of the box: the project's A
   - `configure_signing` signs a release with the keystore named by `ANDROID_KEYSTORE` (+ `ANDROID_KEYSTORE_PASS`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASS`), writing `keystore.properties` and a `signingConfigs` block. Without the variable a release is signed with the debug key - installable for testing, not publishable - and the script says so;
   - `check_android_notices` resolves `universalReleaseRuntimeClasspath` through Gradle and stops the build when it differs from `scripts/general/notices/android-libraries.txt`, printing what to add or remove - the Android half of `THIRD_PARTY_LICENSES.txt` has no CI job, so this is where it is checked.
 - APKs are named `Hypomnema-<version>-b<build>-<variant>-<abi>.apk`; the build number lives in `releases/android/.build-number` and increments per run, so a test device can tell two builds of one version apart. `collect_artifacts` copies them into `releases/android/` and, when `APK_COPY_DIR` is set, into that folder too (say a synced folder a test phone installs from). The script header lists the remaining environment overrides (`ANDROID_ABIS`, default `aarch64`; SDK/NDK/JDK roots; `CARGO_TARGET_DIR`; the release keystore).
-- `prune_target` runs `scripts/general/prune-target.mjs` first, the same stale-output prune the Windows build scripts do (see the Build section of `docs/windows/ARCHITECTURE.md`); it covers `target/aarch64-linux-android/` and honors `CARGO_TARGET_DIR` and `PRUNE_DAYS`.
+- `prune_target` runs `scripts/general/prune-target.mjs` first, the same stale-output prune the Windows build script does (see the Build section of `docs/windows/ARCHITECTURE.md`); it covers `target/aarch64-linux-android/` and honors `CARGO_TARGET_DIR` and `PRUNE_DAYS`.
 - There is no Android CI job: `release.yml` builds the Windows installer only.
 
 ## Native code
@@ -37,6 +37,6 @@ Google sign-in on a self-built APK does not work out of the box: the project's A
 
 - **OS-scheduled background sync** is not built. Sync runs on resume, on leaving the app, on reconnect, on a heartbeat while open and after an edit; a WorkManager worker would go into a plugin as above.
 - **Share-sheet capture** is not built; its intent filter would go into a plugin manifest the same way.
-- **The widget's checks** run only on a device: there is no Android CI job and the Kotlin half compiles only in `build-android.sh`. The core half (`widget.rs`) has desktop unit tests. Two points to confirm on the first build: that the generated `TauriActivity` forwards `onNewIntent` to the plugins (Tauri's `PluginManager.onNewIntent` exists for it), and that the launcher honours `FLAG_ACTIVITY_SINGLE_TOP` on the launch intent so a widget tap resumes the running activity rather than recreating it.
+- **The widget's checks** run only on a device: there is no Android CI job and the Kotlin half compiles only in `scripts/android/build.sh`. The core half (`widget.rs`) has desktop unit tests. Two points to confirm on the first build: that the generated `TauriActivity` forwards `onNewIntent` to the plugins (Tauri's `PluginManager.onNewIntent` exists for it), and that the launcher honours `FLAG_ACTIVITY_SINGLE_TOP` on the launch intent so a widget tap resumes the running activity rather than recreating it.
 - **History** is not ported: Review answers "how did the week go?" on a phone. Revisit if phone use shows the need.
 - **Release keystore**: none exists yet. The Google OAuth Android client is registered for the debug key's SHA-1, so a release keystore also needs its own Android client registered for its SHA-1.

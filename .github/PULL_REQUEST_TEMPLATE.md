@@ -10,4 +10,4 @@
 - [ ] The matching `docs/*/ARCHITECTURE.md` section is updated, if behavior or structure changed
 - [ ] `THIRD_PARTY_LICENSES.txt` is regenerated, if dependencies changed
 - [ ] No version bump (the maintainer does that on merge)
-- [ ] Every commit is signed off (`git commit -s`, see CONTRIBUTING.md)
+- [ ] Every commit is signed off (`git commit -s`, see docs/CONTRIBUTING.md)

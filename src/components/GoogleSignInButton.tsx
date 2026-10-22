@@ -3,7 +3,7 @@
 // 40px tall, the four-color "G" at 20px, 1px border, light and dark
 // schemes in Google's own colors rather than the app palette, and the
 // exact wording. The "G" is Google's trademark, used here under those
-// guidelines and not under the app's license (TRADEMARKS.md).
+// guidelines and not under the app's license (docs/TRADEMARKS.md).
 
 const G_LOGO = (
   <svg aria-hidden viewBox="0 0 48 48" width="20" height="20" className="shrink-0">

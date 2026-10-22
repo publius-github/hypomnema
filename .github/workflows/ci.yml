@@ -190,7 +190,7 @@ jobs:
         working-directory: src-tauri
 
   # Developer Certificate of Origin: every commit a pull request adds
-  # carries a Signed-off-by line (CONTRIBUTING.md). Dependabot's commits
+  # carries a Signed-off-by line (docs/CONTRIBUTING.md). Dependabot's commits
   # are exempt - it cannot sign off.
   dco:
     if: github.event_name == 'pull_request'

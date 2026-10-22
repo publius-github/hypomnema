@@ -102,7 +102,7 @@ function Invoke-PruneTarget {
   }
 }
 
-# node_modules is shared with the WSL side (scripts/android/build-android.sh
+# node_modules is shared with the WSL side (scripts/android/build.sh
 # reinstalls it for Linux), so a present folder is not enough: it must hold
 # the Windows native binaries, with @esbuild/win32-x64 as the proxy for all
 # of them (npm/cli#4828 leaves out the other OS's). node-modules-current.mjs

@@ -99,12 +99,11 @@ The engine runs at startup, on Sync, when the day changes and when a config file
 - [Using Hypomnema](docs/general/USAGE.md) - keyboard shortcuts, sync, troubleshooting.
 - [Vault, configuration and engine rules](docs/general/CONFIG.md) - the vault layout, every config file, how recurring tasks are generated.
 - [Architecture](docs/general/ARCHITECTURE.md) and [Windows specifics](docs/windows/ARCHITECTURE.md) - the technical map.
-- [Decisions](docs/general/DECISIONS.md) - what the app deliberately does not do, and why.
-- [Changelog](CHANGELOG.md), [Contributing](CONTRIBUTING.md) (setup, build, release), [Security](SECURITY.md).
+- [Changelog](CHANGELOG.md), [Contributing](docs/CONTRIBUTING.md) (setup, build, release), [Security](docs/SECURITY.md).
 
 ## Status
 
-Pre-1.0: development builds, released often (see the [changelog](CHANGELOG.md)). Windows 10/11 is the shipped platform. An Android build of the same project exists in the tree ([docs/android](docs/android/ARCHITECTURE.md)) and is not published. One maintainer; issues and pull requests are reviewed as time allows, with no roadmap or support commitment beyond [SECURITY.md](SECURITY.md).
+Pre-1.0: development builds, released often (see the [changelog](CHANGELOG.md)). Windows 10/11 is the shipped platform. An Android build of the same project exists in the tree ([docs/android](docs/android/ARCHITECTURE.md)) and is not published. One maintainer; issues and pull requests are reviewed as time allows, with no roadmap or support commitment beyond [SECURITY.md](docs/SECURITY.md).
 
 ## Code signing policy
 
@@ -127,4 +126,4 @@ This program does not transfer any information to other networked systems unless
 
 Copyright (C) 2026 Siarhei Zverau
 
-Hypomnema is free software under the GNU General Public License, version 3 only, with an additional permission under section 7 for linking with Google Play services ([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). See [LICENSE](LICENSE) for the full text and [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the libraries it is built on. The name and logo are not covered by the GPL, and a few third-party marks are used under their own terms: see [TRADEMARKS.md](TRADEMARKS.md).
+Hypomnema is free software under the GNU General Public License, version 3 only, with an additional permission under section 7 for linking with Google Play services ([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). See [LICENSE](LICENSE) for the full text and [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the libraries it is built on. The name and logo are not covered by the GPL, and a few third-party marks are used under their own terms: see [TRADEMARKS.md](docs/TRADEMARKS.md).

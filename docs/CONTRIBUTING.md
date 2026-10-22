@@ -25,9 +25,8 @@ Use a throwaway vault folder while developing, never your real one. `npm run app
 
 Read the maps before the sources - they are kept current and save a lot of exploring:
 
-- [`docs/general/ARCHITECTURE.md`](docs/general/ARCHITECTURE.md) - vault layout, config schemas, engine invariants, module responsibilities.
-- [`docs/general/DECISIONS.md`](docs/general/DECISIONS.md) - why things are the way they are.
-- [`docs/windows/ARCHITECTURE.md`](docs/windows/ARCHITECTURE.md) and [`docs/android/`](docs/android/) - platform specifics.
+- [`docs/general/ARCHITECTURE.md`](general/ARCHITECTURE.md) - vault layout, config schemas, engine invariants, module responsibilities.
+- [`docs/windows/ARCHITECTURE.md`](windows/ARCHITECTURE.md) and [`docs/android/`](android/) - platform specifics.
 
 The ground rules of the codebase:
 
@@ -50,14 +49,14 @@ cd src-tauri && cargo fmt && cargo clippy --all-targets -- -D warnings && cargo 
 - There is no Prettier config; keep the surrounding style by hand. `.editorconfig` sets the basics (LF, final newline, indent width) for editors that read it.
 - Optional pre-commit hook for the fast part of these checks (`cargo fmt --check`, ESLint on staged files): `git config core.hooksPath .githooks`.
 - Commit messages: a short summary line (about 72 characters) and, when it helps, a body explaining why.
-- Added, removed or upgraded a dependency? Run `node scripts/general/third-party-licenses.mjs` and commit the regenerated `THIRD_PARTY_LICENSES.txt` (for an Android dependency, update `scripts/general/notices/android-libraries.txt` first - its header says how, and `build-android.sh` refuses to build while it differs from the classpath). CI fails when it is stale, and likewise when `src/bindings/` differs from what `cargo test` regenerates - commit those files with the Rust type change.
+- Added, removed or upgraded a dependency? Run `node scripts/general/third-party-licenses.mjs` and commit the regenerated `THIRD_PARTY_LICENSES.txt` (for an Android dependency, update `scripts/general/notices/android-libraries.txt` first - its header says how, and `scripts/android/build.sh` refuses to build while it differs from the classpath). CI fails when it is stale, and likewise when `src/bindings/` differs from what `cargo test` regenerates - commit those files with the Rust type change.
 - **Do not bump the version** or edit `VERSION`, the manifests' versions or `CHANGELOG.md` headings - the maintainer does that when merging. A line describing your change in the PR is enough.
 - Keep one topic per PR; a refactor mixed into a fix is hard to review.
 - UI changes keep the accessibility checks green: `npm run lint` includes `jsx-a11y`, and `npm run e2e` runs axe-core over every screen. Everything a mouse can do needs a keyboard path (see *Accessibility* in `docs/general/ARCHITECTURE.md`).
 
 ## License and sign-off
 
-Hypomnema is GPL-3.0-only with an additional permission for linking with Google Play services ([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). A contribution is accepted under the same terms, the permission included.
+Hypomnema is GPL-3.0-only with an additional permission for linking with Google Play services ([LICENSE-EXCEPTION.md](../LICENSE-EXCEPTION.md)). A contribution is accepted under the same terms, the permission included.
 
 Every commit in a pull request carries a `Signed-off-by` line - the [Developer Certificate of Origin](https://developercertificate.org/): by adding it you certify that you wrote the change, or otherwise have the right to submit it under the project's license. `git commit -s` adds the line from your `user.name` and `user.email`; `git rebase --signoff <base>` adds it to commits already made. CI fails a pull request with a commit that lacks it.
 
@@ -70,8 +69,11 @@ Development is checked on Windows and Linux (CI builds and tests the Rust core o
 Requirements: Node.js 22.22.2+ or 24.15+ (`engines` in `package.json`; CI runs the version in `.nvmrc`), Rust 1.98.0 via rustup (the version CI pins; a newer stable may bring clippy lints CI does not have yet). On Windows also VS Build Tools (Desktop C++), WebView2 and Git Bash; on Linux (Debian/Ubuntu names) `build-essential`, `pkg-config`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`, the set CI installs.
 
 ```bash
-npm ci && npm run app:dev               # dev mode with hot reload, a separate "Hypomnema Dev" app (CONTRIBUTING.md)
-./scripts/windows/build.sh              # local installer build (build.ps1 for PowerShell)
+npm ci && npm run app:dev               # dev mode with hot reload, a separate "Hypomnema Dev" app
+```
+
+```powershell
+./scripts/windows/build.ps1             # local Windows installer build
 ```
 
 Artifacts land in `src-tauri/target/release/bundle/`.
@@ -95,15 +97,18 @@ node scripts/general/third-party-licenses.mjs
 The `VERSION` file at the root is the single source of truth for the version; never edit it or the manifests' versions by hand:
 
 ```bash
-./scripts/general/bump.sh [major|minor|patch]   # bump + sync manifests, no commit
-./scripts/windows/release.sh [--check]          # tag v<VERSION> + push; --check only checks (release.ps1 [-Check] for PowerShell)
+./scripts/general/bump.sh [major|minor|patch]   # bump + sync manifests, no commit (Git Bash on Windows)
 ```
 
-A release ships the version already in `VERSION`: bump with `bump.sh`, add its `## <version> - <date>` entry to `CHANGELOG.md`, commit, then run `release.sh`. It refuses a dirty tree, manifests out of step with `VERSION`, a missing CHANGELOG entry, a branch behind `origin` and an existing tag.
+```powershell
+./scripts/windows/release.ps1 [-Check]          # tag v<VERSION> + push; -Check only checks
+```
+
+A release ships the version already in `VERSION`: bump with `bump.sh`, add its `## <version> - <date>` entry to `CHANGELOG.md`, commit, then run `release.ps1`. It refuses a dirty tree, manifests out of step with `VERSION`, a missing CHANGELOG entry, a branch behind `origin` and an existing tag.
 
 The `release.yml` workflow, on a `v*` tag, first checks the tag against `VERSION` and takes the CHANGELOG entry as the release notes, then builds the Windows installer with `tauri-action` and attaches it to a draft GitHub Release. CI (`ci.yml`) runs lint/typecheck/test/build for the frontend, fmt/clippy/test for the Rust core on Linux and clippy/test again on Windows (the shipped platform), plus an audit job: `cargo-deny` (advisories and licenses, policy in `src-tauri/deny.toml`), `npm audit` of the runtime dependencies and a `gitleaks` secret scan, on pull requests, pushes to `main` and `development` and once a week; it also fails when the committed TypeScript bindings or `THIRD_PARTY_LICENSES.txt` are stale. `release.yml` runs the same gates on the tagged commit before it builds anything. Third-party actions and the Rust toolchain are pinned to exact commits and versions; Dependabot proposes the updates (to `development`, a week after a version is published).
 
-At startup the desktop app checks `releases/latest/download/latest.json` of the release repository and offers to update. The manifest is signed: GitHub Secrets need `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/hypomnema.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is in `src-tauri/tauri.conf.json`. Without the secrets the release workflow fails at signing. A local build (`scripts/windows/build.ps1` or `build.sh`) signs the updater artifacts only when `TAURI_SIGNING_PRIVATE_KEY` is set, or when the key is at `~/.tauri/hypomnema.key` *and* `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is set; otherwise it builds the installer without updater artifacts. Updates reach users only once the draft release is published: `latest.json` is served from published releases only.
+At startup the desktop app checks `releases/latest/download/latest.json` of the release repository and offers to update. The manifest is signed: GitHub Secrets need `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/hypomnema.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is in `src-tauri/tauri.conf.json`. Without the secrets the release workflow fails at signing. A local build (`scripts/windows/build.ps1`) signs the updater artifacts only when `TAURI_SIGNING_PRIVATE_KEY` is set, or when the key is at `~/.tauri/hypomnema.key` *and* `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is set; otherwise it builds the installer without updater artifacts. Updates reach users only once the draft release is published: `latest.json` is served from published releases only.
 
 ## Website
 

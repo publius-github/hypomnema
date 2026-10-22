@@ -8,4 +8,4 @@ What it means in practice: the Android build signs in to Google through Google P
 
 The permission is optional, as section 7 allows: if you modify Hypomnema, you may remove it from your version. A version that no longer uses Google Play services does not need it.
 
-Contributions to this repository are accepted under GPL-3.0-only together with this permission (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+Contributions to this repository are accepted under GPL-3.0-only together with this permission (see [CONTRIBUTING.md](docs/CONTRIBUTING.md)).

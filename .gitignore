@@ -16,7 +16,7 @@ releases/
 # every build; gen/android is recreated by `tauri android init` from
 # tauri.conf.json, and the CLI rewrites parts of it (tauri.settings.gradle,
 # app/tauri.build.gradle.kts) on every build as plugins change. Nothing
-# in it is hand-edited: scripts/android/build-android.sh writes what a
+# in it is hand-edited: scripts/android/build.sh writes what a
 # build needs there (docs/android/ARCHITECTURE.md).
 src-tauri/gen/schemas/
 src-tauri/gen/android/
