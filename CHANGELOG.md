@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.123.0 - 2026-10-22
+
+Phone Settings follow the Android settings pattern. Every setting is one full-width row with its current value or a switch on the right, and the whole row is the touch target. Choices and numbers open a sheet from the bottom with options; numbers offer the usual values plus Custom, so the keyboard only comes up for a value that isn't offered. The index is grouped into Sync, Preferences (Theme, Tasks, Notifications, Rules), Data (Backups & cleanup, Vault) and About. Settings has one header instead of two stacked back bars. The quick-capture list is picked from your lists, the day section order is rearranged in a sheet, and Rules gains the overnight cleanup of done list tasks.
+
 ## 0.122.0 - 2026-10-22
 
 The phone gets a Settings > Tasks panel with the desktop's task card settings: category headers, weekday markers, the completion rate chip and its threshold, subtask order, both overdue marks, done display with the closed-section sort, day section order, daily tasks only on today and list sort. These settings now live in the synced `config/cards.yml`, so the phone and the desktop show tasks the same way. A new Sync task card settings switch in Sync, on both the phone and the desktop, turns this off per device: the device then keeps its own values in app.yml, and turning it back on takes the values the other devices have. Task rules in shared.yml still sync always. On first start an app.yml with non-default card settings writes them into cards.yml.

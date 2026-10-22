@@ -21,7 +21,7 @@ const SCREENS: { id: Screen; label: string; hint: string }[] = [
   },
   { id: "calendar", label: "Calendar", hint: "The month, to look at" },
   { id: "review", label: "Review", hint: "How the week went" },
-  { id: "settings", label: "Settings", hint: "Sync, passphrase, engine" },
+  { id: "settings", label: "Settings", hint: "Sync, tasks, notifications, data" },
 ];
 
 /**
@@ -36,6 +36,12 @@ const SCREENS: { id: Screen; label: string; hint: string }[] = [
 export default function MobileMore() {
   const [screen, setScreen] = useState<Screen | null>(null);
   useBackStep(screen !== null, () => setScreen(null));
+
+  // Settings draws its own header, so a panel inside it shows one back
+  // step rather than two stacked bars
+  if (screen === "settings") {
+    return <MobileSettings onExit={() => setScreen(null)} />;
+  }
 
   if (screen) {
     const entry = SCREENS.find((s) => s.id === screen);
@@ -55,7 +61,6 @@ export default function MobileMore() {
           {screen === "reminders" && <MobileReminders />}
           {screen === "calendar" && <MobileCalendar />}
           {screen === "review" && <MobileReview />}
-          {screen === "settings" && <MobileSettings />}
         </div>
       </div>
     );
