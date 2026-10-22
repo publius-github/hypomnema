@@ -15,9 +15,12 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="The Dashboard: a week of days over the backlog lists">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/dashboard-light.png">
+    <img src="docs/screenshots/dashboard.png" alt="The Dashboard: a week of days over the backlog lists">
+  </picture>
   <br>
-  <em>The Dashboard: a week of days on top, your backlog lists below.</em>
+  <em>The Dashboard: a week of days on top, your backlog lists below. Dark or light theme, each with its own color scheme.</em>
 </p>
 
 Hypomnema keeps a week of tasks, a journal and your notes together, and keeps all of it in a folder you choose: plain Markdown and YAML files plus a local database. There is no account, no server and no telemetry. Repeating tasks, dated events and birthdays come from rules in YAML files; the app's forms and a text editor write the same files, and the engine that turns rules into tasks never duplicates one or overwrites an edit. Syncing between your devices is optional and goes through a hidden app folder in your own Google Drive.
@@ -54,6 +57,13 @@ A vertical rail on the left holds the sections; their order is configurable and 
 **Upcoming** has three tabs: Scheduled (one-off dated events), Birthdays (with age when the year is known) and Recurring (cron rules). **Reminders** edits the three files behind the day columns: the weekly focus phrase, the reminders by day type and the daily schedule. **Calendar** is a month grid with real tasks plus projections of future rule occurrences (the horizon is configurable per cadence). **Review** and **History** show how the week went, and a month-by-month archive with completion stats and streaks for daily rules.
 
 **Journal** keeps one Markdown entry per date (`journal/<year>/<YYYY-MM-DD>.md`), created from a configurable template on first save, with "on this day" entries from earlier years.
+
+<p align="center">
+  <img src="docs/screenshots/reminders.png" width="49%" alt="Reminders: the weekly focus phrases and what is in effect right now">
+  <img src="docs/screenshots/journal.png" width="49%" alt="Journal: entries by year and month, today's entry from the template">
+  <br>
+  <em>Reminders: the week's focus, today's reminder and the next block. Journal: one entry per day, from a template.</em>
+</p>
 
 **Notes** is the knowledge base: a tree of Markdown files (the vault root or a folder set in Settings), an editor with live highlighting, `[[wiki links]]` and backlinks, full-text search, a `.trash` folder (emptied after 30 days) and a `.hypomnemaignore` file to hide paths from the tree. The config files are edited here too, validated on save.
 
