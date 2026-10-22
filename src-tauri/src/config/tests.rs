@@ -152,6 +152,30 @@ fn a_partial_light_set_keeps_the_light_defaults() {
 }
 
 #[test]
+fn a_retuned_light_default_replaces_the_old_one() {
+    // the old shipped hex gives way; a hex picked by hand stays, and the
+    // dark set is not touched
+    let colors: serde_yaml::Mapping = serde_yaml::from_str(
+        "light:\n  cadence_color_exact: '#B41221'\ndark:\n  cadence_color_exact: '#b41221'\n",
+    )
+    .unwrap();
+    let config = AppConfig::default()
+        .with_part(SyncedPart::Colors, &colors)
+        .unwrap();
+    assert_eq!(
+        config.light.cadence_color_exact,
+        ThemeColors::light().cadence_color_exact
+    );
+    assert_eq!(config.dark.cadence_color_exact, "#b41221");
+    let picked: serde_yaml::Mapping =
+        serde_yaml::from_str("light:\n  cadence_color_exact: '#ff0000'\n").unwrap();
+    let config = AppConfig::default()
+        .with_part(SyncedPart::Colors, &picked)
+        .unwrap();
+    assert_eq!(config.light.cadence_color_exact, "#ff0000");
+}
+
+#[test]
 fn a_flat_colors_yml_becomes_the_dark_set_once() {
     let dir = std::env::temp_dir().join("hypomnema-test-config-flat-colors");
     let _ = fs::remove_dir_all(&dir);

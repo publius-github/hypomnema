@@ -94,6 +94,8 @@ struct WidgetTheme {
     /// The status marks: postponed wears the theme's warn tone, the
     /// others their colors.yml colour.
     postponed: String,
+    /// The priority star: the theme's priority tone (`--rgb-priority`).
+    priority: String,
     waiting: String,
     done: String,
 }
@@ -136,6 +138,7 @@ fn theme(config: &AppConfig) -> WidgetTheme {
         dow_label,
         dow_label_opacity,
         postponed: if dark { "#fbbf24" } else { "#92400e" }.to_string(),
+        priority: if dark { "#fbbf24" } else { "#7a5a00" }.to_string(),
         waiting: config.colors().waiting_color.clone(),
         done: config.colors().done_color.clone(),
     }

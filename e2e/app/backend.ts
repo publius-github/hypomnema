@@ -133,6 +133,9 @@ function seed() {
   );
   state.notes.set("Ideas.md", "# Ideas\n\n- a calmer weekly review\n");
   state.journal.set(isoDate(-1), "Shipped the first public build.\n");
+  // an earlier month and an earlier year, for the folding entry index
+  state.journal.set(isoDate(-40), "A slow week.\n");
+  state.journal.set(isoDate(-400), "First entry.\n");
 }
 
 function findTask(id: unknown): Task {
@@ -377,7 +380,8 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
   }),
 
   // journal and notes
-  journal_list: () => [...state.journal.keys()].sort(),
+  // newest first, as journal::list_entries returns them
+  journal_list: () => [...state.journal.keys()].sort().reverse(),
   journal_open: (a) => ({ date: String(a.date), content: state.journal.get(String(a.date)) ?? "" }),
   journal_save: (a) => {
     state.journal.set(String(a.date), String(a.content));

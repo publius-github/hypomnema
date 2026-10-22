@@ -18,8 +18,20 @@
     black
   );
   --color-line: rgb(var(--rgb-line));
+  /* the hairlines between task rows: on the light theme the line tone
+     barely parts from the column fill, so they take it a step darker */
+  --color-row-line: var(--row-line);
+  /* the neutral section plate (General and the like): the line tone at
+     40% lifts it off the dark column fill, but on the light one it all
+     but vanished, so the light theme lays it on solid and a shade darker */
+  --color-plate: var(--plate);
   --color-danger: rgb(var(--rgb-danger));
   --color-warn: rgb(var(--rgb-warn));
+  /* priority: the star and the Priority label's text, and the label's
+     plate as a whole color (the light theme fills it yellow to read as
+     yellow; dark text on it keeps 4.5:1) */
+  --color-priority: rgb(var(--rgb-priority));
+  --color-priority-plate: var(--priority-plate);
   --color-info: rgb(var(--rgb-info));
   /* plain hex (configurable, like --hex-done): no opacity modifiers */
   --color-waiting: var(--hex-waiting);
@@ -138,6 +150,10 @@
   /* semantic roles: overdue/errors, postponed/warnings, exact-date/info */
   --rgb-danger: 185 28 28;
   --rgb-warn: 146 64 14;
+  --rgb-priority: 122 90 0;
+  --priority-plate: rgb(250 204 21 / 0.45);
+  --row-line: color-mix(in srgb, rgb(var(--rgb-line)), black 5%);
+  --plate: color-mix(in srgb, rgb(var(--rgb-line)), black 3%);
   --rgb-info: 7 89 133;
   /* checked (done) checkboxes; config-driven via done_color, this is
      only the pre-config fallback */
@@ -179,6 +195,10 @@
   --accent-fill-mix: 70%;
   --rgb-danger: 250 128 128;
   --rgb-warn: 251 191 36;
+  --rgb-priority: 251 191 36;
+  --priority-plate: rgb(251 191 36 / 0.15);
+  --row-line: rgb(var(--rgb-line) / 0.6);
+  --plate: rgb(var(--rgb-line) / 0.4);
   --rgb-info: 56 189 248;
   /* markdown token colors per the VS Code Dark+ spec (dark_vs.json):
      heading/bold #569cd6, italic #c586c0, inline raw #ce9178,
@@ -240,6 +260,17 @@ body {
  */
 html.mobile {
   font-size: 16px !important;
+  /* Roboto at 400 strokes about a pixel wide on a phone screen and
+     reads strained, worst as dark text on the light theme: every
+     weight steps up one, so the text thickens and bold still stands
+     out from it by the same step */
+  --font-weight-normal: 500;
+  --font-weight-medium: 600;
+  --font-weight-semibold: 700;
+  --font-weight-bold: 800;
+}
+html.mobile body {
+  font-weight: var(--font-weight-normal);
 }
 
 /*

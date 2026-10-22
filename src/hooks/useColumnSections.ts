@@ -45,8 +45,8 @@ export interface ColumnSection {
   label: string | null;
   /** plate tint; null = the neutral plate */
   color: string | null;
-  /** the priority plate wears the warn tone instead of a color */
-  tone: "warn" | null;
+  /** the priority plate wears the priority tone instead of a color */
+  tone: "priority" | null;
   /** separator stripes before the section, 0 = none */
   stripes: number;
   rows: ColumnRow[];
@@ -240,7 +240,7 @@ export function useListSections(list: List | null): ColumnSection[] {
         key: "priority",
         label: "Priority",
         color: null,
-        tone: "warn",
+        tone: "priority",
         stripes: 0,
         tasks: prioritized,
       },

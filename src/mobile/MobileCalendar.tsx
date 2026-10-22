@@ -4,6 +4,7 @@ import { useAppStore } from "../store";
 import { addDaysISO, compareTasks, todayISO } from "../lib/tasks";
 import TaskRow from "./TaskRow";
 import type { OutlookEvent, Task } from "../types";
+import Chevron from "../components/Chevron";
 
 function monthStart(iso: string): Date {
   const [year, month] = iso.split("-").map(Number);
@@ -139,9 +140,9 @@ export default function MobileCalendar() {
             setCursor(new Date(first.getFullYear(), first.getMonth() - 1, 1))
           }
           aria-label="Previous month"
-          className="px-3 py-1 text-lg text-content-muted"
+          className="flex items-center justify-center px-3 py-1 text-lg text-content-muted"
         >
-          ‹
+          <Chevron back />
         </button>
         <span className="font-semibold">
           {first.toLocaleDateString(undefined, {
@@ -154,9 +155,9 @@ export default function MobileCalendar() {
             setCursor(new Date(first.getFullYear(), first.getMonth() + 1, 1))
           }
           aria-label="Next month"
-          className="px-3 py-1 text-lg text-content-muted"
+          className="flex items-center justify-center px-3 py-1 text-lg text-content-muted"
         >
-          ›
+          <Chevron />
         </button>
       </header>
 

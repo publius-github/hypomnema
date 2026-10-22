@@ -2,6 +2,30 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.124.4 - 2026-10-23
+
+Light theme: the neutral section plate (General and other sections without a color of their own) is solid and a shade darker, instead of nearly vanishing into the column. It follows a line color set in Settings > Appearance. The dark theme keeps its plate.
+
+## 0.124.3 - 2026-10-23
+
+Phone: text is heavier in both themes. Regular text was thin enough to strain the eyes, most of all as dark text on the light theme. Every weight steps up one (regular, medium, semibold and bold), so bold text still stands out from the rest by the same step. The desktop is unchanged.
+
+## 0.124.2 - 2026-10-23
+
+Light theme: the hairlines between task rows are a touch darker, so the rows part clearly on the light column fill. They follow a line color set in Settings > Appearance. The dark theme keeps its lines.
+
+## 0.124.1 - 2026-10-22
+
+Light theme: Priority is yellow instead of brown. The Priority label and the Priority section plate get a soft yellow fill with dark gold text, and the star is dark gold, so they still read at 4.5:1. Priority now has its own color instead of sharing the warning tone, so warnings and postponed marks keep theirs. The Android widget's star follows it. The exact-date red is less saturated. A colors.yml that still holds the old exact-date default takes the new one, and a color you picked yourself stays. The ‹ › period arrows (Dashboard, Days, Journal, Calendar, History, Review, the list pager and the phone's Calendar and Review) are now drawn chevrons that sit in the middle of their buttons instead of glyphs riding the font's baseline.
+
+## 0.124.0 - 2026-10-22
+
+The Journal's entry index folds months as well as years. A month is now a row like its year, with an arrow and its entry count, and each level sits indented under the one above: year, month, then the entries. Today's month and the open entry's month start unfolded, and opening an entry of a folded month unfolds it.
+
+## 0.123.1 - 2026-10-22
+
+A task card in a narrow list column no longer spills past the column's edge. When a dated task with the Overdue mark has little room, the date cuts off with an ellipsis (the full date is in the tooltip) and the hover buttons stay inside the card. In a card narrower than 17rem, Overdue shrinks to a short "!" while the card is hovered, which makes room for the buttons. A starred list task no longer gets the Overdue mark: its today-date comes from the star, not a due date it missed. This holds in the list and in the day column, and a mark already given is cleared on the next run. A list task with its own date still turns overdue.
+
 ## 0.123.0 - 2026-10-22
 
 Phone Settings follow the Android settings pattern. Every setting is one full-width row with its current value or a switch on the right, and the whole row is the touch target. Choices and numbers open a sheet from the bottom with options; numbers offer the usual values plus Custom, so the keyboard only comes up for a value that isn't offered. The index is grouped into Sync, Preferences (Theme, Tasks, Notifications, Rules), Data (Backups & cleanup, Vault) and About. Settings has one header instead of two stacked back bars. The quick-capture list is picked from your lists, the day section order is rearranged in a sheet, and Rules gains the overnight cleanup of done list tasks.

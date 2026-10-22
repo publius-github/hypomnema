@@ -33,3 +33,24 @@ test("switching days saves the typing still waiting and brings it back", async (
   await page.getByTitle("Next day (Alt+→)").click();
   await expect(page.locator(".cm-content")).toContainText("Before the switch.");
 });
+
+test("the journal index folds by year and by month", async ({ app }) => {
+  const page = await app();
+  await rail(page, "Journal").click();
+  const fold = (name: RegExp) => page.getByRole("button", { name });
+  // today's year and month start unfolded, other months and years folded
+  await expect(fold(/^▾ 2026/)).toHaveAttribute("aria-expanded", "true");
+  await expect(fold(/^▾ October/)).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: "2026-10-13" })).toBeVisible();
+  await expect(fold(/^▸ September/)).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "2026-09-04" })).toHaveCount(0);
+  await expect(fold(/^▸ 2025/)).toHaveAttribute("aria-expanded", "false");
+  // a month unfolds on its own row
+  await fold(/^▸ September/).click();
+  await expect(page.getByRole("button", { name: "2026-09-04" })).toBeVisible();
+  // opening an entry of a folded month unfolds it
+  await fold(/^▾ October/).click();
+  await expect(page.getByRole("button", { name: "2026-10-13" })).toHaveCount(0);
+  await page.getByTitle("Previous day (Alt+←)").click();
+  await expect(page.getByRole("button", { name: "2026-10-13" })).toBeVisible();
+});

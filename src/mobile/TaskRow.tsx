@@ -267,7 +267,7 @@ export default function TaskRow({
               {task.priority && !showList && (
                 // inside a list the Priority plate already says it, so a
                 // star is enough
-                <span className="text-warn">★</span>
+                <span className="text-priority">★</span>
               )}
               {task.time && (
                 <span className="text-xs text-content-muted">{task.time}</span>
@@ -283,7 +283,7 @@ export default function TaskRow({
             style={{ opacity: dim }}
           >
             {task.priority && showList && (
-              <span className={`${BADGE} bg-warn/15 text-warn`}>Priority</span>
+              <span className={`${BADGE} bg-priority-plate text-priority`}>Priority</span>
             )}
             {task.overdue && !closed && (
               <span className={`${BADGE} bg-danger/15 text-danger`}>

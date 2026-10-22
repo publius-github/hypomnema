@@ -828,9 +828,10 @@ fn collapse_instance_twins(conn: &Connection) -> Result<usize> {
 
 /// Which carried-over tasks keep quiet instead of wearing the overdue
 /// mark: priority tasks with priority_overdue off (priority already
-/// says "do this now"), and General tasks - the manual one-offs of a
+/// says "do this now"), General tasks - the manual one-offs of a
 /// day column, not a rule's instance or an exact-date item - with
-/// general_overdue off.
+/// general_overdue off, and always a starred list task: its today-date
+/// is the priority pin, not a due date it could have missed.
 #[derive(Debug, Clone, Copy)]
 struct OverdueMarks {
     priority: bool,
@@ -841,7 +842,9 @@ struct OverdueMarks {
 /// (`:priority_overdue`, `:general_overdue`). General mirrors the
 /// day column's section (`cadenceKeyOf` in src/lib/tasks.ts): no rule
 /// cadence, not a scheduled event or birthday, not a dated list task.
+/// A pinned list task mirrors `isListExact`: manual, in a list, starred.
 const OVERDUE_EXEMPT: &str = "(priority = 1 AND :priority_overdue = 0)
+     OR (priority = 1 AND origin = 'manual' AND list_id IS NOT NULL)
      OR (priority = 0 AND :general_overdue = 0 AND cadence IS NULL
          AND origin NOT IN ('scheduled', 'birthday')
          AND NOT (origin = 'manual' AND list_id IS NOT NULL))";

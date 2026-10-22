@@ -5,10 +5,11 @@ const monthName = (date: string) =>
     .toLocaleDateString("en-US", { month: "long" });
 
 /**
- * The Journal's entry index: years that fold (the open entry's year and
- * the current one start unfolded - years of daily entries make a flat
- * list endless), months as headings, and above them the entries written
- * on this calendar day in earlier years.
+ * The Journal's entry index: years and months that fold (the open
+ * entry's and the current ones start unfolded - years of daily entries
+ * make a flat list endless), each level indented under the one above,
+ * and above them the entries written on this calendar day in earlier
+ * years.
  */
 export default function EntryList({
   dates,
@@ -22,15 +23,28 @@ export default function EntryList({
   today: string;
   onOpen: (date: string) => void;
 }) {
+  // one set for both levels: a year key is "2026", a month key "2026-10"
   const [expanded, setExpanded] = useState(
-    () => new Set([today.slice(0, 4)]),
+    () => new Set([today.slice(0, 4), today.slice(0, 7)]),
   );
-  // opening an entry of a folded year unfolds it
+  // opening an entry of a folded year or month unfolds it
   useEffect(() => {
     if (!current) return;
     const year = current.slice(0, 4);
-    setExpanded((prev) => (prev.has(year) ? prev : new Set(prev).add(year)));
+    const month = current.slice(0, 7);
+    setExpanded((prev) =>
+      prev.has(year) && prev.has(month)
+        ? prev
+        : new Set(prev).add(year).add(month),
+    );
   }, [current]);
+  const toggle = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const anchor = current ?? today;
   const onThisDay = dates.filter(
@@ -70,6 +84,29 @@ export default function EntryList({
     </button>
   );
 
+  // a year or month row: chevron, label, count of its entries
+  const fold = (
+    key: string,
+    label: string,
+    count: number,
+    weight: string,
+  ) => {
+    const open = expanded.has(key);
+    return (
+      <button
+        className={`flex w-full items-center gap-1 rounded-sm px-1 py-1 text-left text-sm ${weight} hover:bg-line/40`}
+        aria-expanded={open}
+        onClick={() => toggle(key)}
+      >
+        <span className="w-3 text-content-muted">{open ? "▾" : "▸"}</span>
+        {label}
+        <span className="ml-auto text-xs font-normal text-content-muted">
+          {count}
+        </span>
+      </button>
+    );
+  };
+
   const heading = "pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted";
 
   return (
@@ -85,35 +122,19 @@ export default function EntryList({
       )}
       <div className={heading}>Entries</div>
       {years.map(({ year, months }) => {
-        const open = expanded.has(year);
         const count = months.reduce((n, m) => n + m.dates.length, 0);
         return (
           <div key={year}>
-            <button
-              className="flex w-full items-center gap-1 rounded-sm px-1 py-1 text-left text-sm font-semibold hover:bg-line/40"
-              aria-expanded={open}
-              onClick={() =>
-                setExpanded((prev) => {
-                  const next = new Set(prev);
-                  if (open) next.delete(year);
-                  else next.add(year);
-                  return next;
-                })
-              }
-            >
-              <span className="w-3 text-content-muted">{open ? "▾" : "▸"}</span>
-              {year}
-              <span className="ml-auto text-xs font-normal text-content-muted">
-                {count}
-              </span>
-            </button>
-            {open &&
+            {fold(year, year, count, "font-semibold")}
+            {expanded.has(year) &&
               months.map(({ month, dates: inMonth }) => (
-                <div key={month} className="pb-1 pl-3">
-                  <div className="px-2 pt-1 text-xs text-content-muted">
-                    {monthName(`${month}-01`)}
-                  </div>
-                  {inMonth.map((date) => row(date))}
+                <div key={month} className="pl-4">
+                  {fold(month, monthName(`${month}-01`), inMonth.length, "font-medium")}
+                  {expanded.has(month) && (
+                    <div className="pb-1 pl-4">
+                      {inMonth.map((date) => row(date))}
+                    </div>
+                  )}
                 </div>
               ))}
           </div>

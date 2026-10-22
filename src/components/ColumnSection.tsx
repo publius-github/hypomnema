@@ -18,7 +18,7 @@ const CLOSED_KEYS = new Set(["postponed", "waiting", "done", "dropped"]);
 /**
  * One column section, shared by the desktop columns and the phone's day
  * and list screens: the break before it, the plate - its cadence /
- * closed-section color, the warn tone for Priority, else the neutral
+ * closed-section color, the priority tone for Priority, else the neutral
  * fill, its label bold - grown to `list_view_plate_scale` %, then its
  * rows. A plateless section (a list's backlog) gets only the break.
  *
@@ -58,11 +58,11 @@ export default function SectionBlock({
       <button
         type="button"
         className={`flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left font-bold ${
-          tone === "warn"
-            ? "bg-warn/15 text-warn"
+          tone === "priority"
+            ? "bg-priority-plate text-priority"
             : color
               ? ""
-              : "bg-line/40 text-content"
+              : "bg-plate text-content"
         }`}
         style={{
           ...(tone === null && color ? tintStyle(color) : {}),
@@ -77,7 +77,7 @@ export default function SectionBlock({
         )}
         <span
           className={`h-px flex-1 ${
-            tone === "warn" ? "bg-warn/30" : "bg-current opacity-30"
+            tone === "priority" ? "bg-priority/30" : "bg-current opacity-30"
           }`}
         />
         <span className="font-normal opacity-70" aria-hidden>

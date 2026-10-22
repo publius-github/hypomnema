@@ -57,6 +57,7 @@ data class WidgetTheme(
   val line: Int,
   val dowLabel: Int,
   val postponed: Int,
+  val priority: Int,
   val waiting: Int,
   val done: Int,
 )
@@ -151,6 +152,7 @@ object WidgetStore {
       line = color("line", if (dark) 0xFF3C3C3C.toInt() else 0xFFE0E0E0.toInt()),
       dowLabel = withAlpha(color("dow_label", contentMuted), dowOpacity * 255 / 100),
       postponed = color("postponed", if (dark) 0xFFFBBF24.toInt() else 0xFF92400E.toInt()),
+      priority = color("priority", if (dark) 0xFFFBBF24.toInt() else 0xFF7A5A00.toInt()),
       waiting = color("waiting", 0xFF0A88A5.toInt()),
       done = color("done", 0xFF079042.toInt()),
     )
@@ -191,6 +193,7 @@ object WidgetStore {
     line = context.getColor(R.color.hw_line),
     dowLabel = context.getColor(R.color.hw_muted),
     postponed = 0xFFA97205.toInt(),
+    priority = 0xFFA97205.toInt(),
     waiting = 0xFF0A88A5.toInt(),
     done = 0xFF079042.toInt(),
   )

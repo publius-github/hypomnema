@@ -323,7 +323,7 @@ export default function TaskModal({
                 )
               }
             />
-            <span className="text-warn">★</span> Priority
+            <span className="text-priority">★</span> Priority
           </label>
           <span className="text-xs text-content-muted">Color</span>
           {COLORS.map((c) => (

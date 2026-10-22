@@ -14,6 +14,7 @@ import {
 } from "../lib/tasks";
 import { useMobileNav } from "./nav";
 import TaskRow from "./TaskRow";
+import Chevron from "../components/Chevron";
 
 const ORIGIN_LABELS: Record<string, string> = {
   manual: "manual",
@@ -63,9 +64,9 @@ export default function MobileReview() {
         <button
           onClick={() => setOffset((o) => o - 1)}
           aria-label="Previous week"
-          className="px-3 py-1 text-lg text-content-muted"
+          className="flex items-center justify-center px-3 py-1 text-lg text-content-muted"
         >
-          ‹
+          <Chevron back />
         </button>
         <div className="min-w-0 text-center">
           <div className="font-semibold">
@@ -78,9 +79,9 @@ export default function MobileReview() {
         <button
           onClick={() => setOffset((o) => Math.min(o + 1, 0))}
           aria-label="Next week"
-          className="px-3 py-1 text-lg text-content-muted"
+          className="flex items-center justify-center px-3 py-1 text-lg text-content-muted"
         >
-          ›
+          <Chevron />
         </button>
       </header>
 

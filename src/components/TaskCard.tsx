@@ -219,7 +219,7 @@ function TaskCard({
           : // a plain list row, transparent: the column itself wears
             // the card fill, so rows and gaps share one work surface
             hairlines
-            ? `border-b border-line/60 ${lineAbove ? "border-t" : ""}`
+            ? `border-b border-row-line ${lineAbove ? "border-t" : ""}`
             : ""
       } ${isDragging ? "opacity-30" : ""}`}
     >
@@ -255,8 +255,11 @@ function TaskCard({
         {listExact && task.scheduled_date && !multiline && (
           // the same date label the scheduled/birthday cards wear, ahead
           // of the list chip - in the day column AND in the list column
+          // the one chip that gives way in a narrow column: it cuts off
+          // (the full date stays in the tooltip) instead of pushing the
+          // Overdue mark and the hover actions past the card edge
           <span
-            className={`shrink-0 rounded px-1 font-medium ${
+            className={`min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rounded px-1 font-medium ${
               dateChipColor ? "" : "bg-info/15 text-info"
             }`}
             style={{
@@ -291,7 +294,7 @@ function TaskCard({
           // same color as the Exact date section plate these tasks
           // always live under
           <span
-            className={`shrink-0 rounded px-1 font-medium ${
+            className={`min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rounded px-1 font-medium ${
               cadColor ? "" : "bg-info/15 text-info"
             }`}
             style={{
@@ -373,7 +376,7 @@ function TaskCard({
           {!overlay && task.priority && showList && (
             // in a day column priority reads as a loud yellow label
             <button
-              className="rounded-sm bg-warn/15 px-1 text-sm font-semibold text-warn"
+              className="rounded-sm bg-priority-plate px-1 text-sm font-semibold text-priority"
               title="Remove priority"
               onClick={(e) => {
                 e.stopPropagation();
@@ -388,8 +391,18 @@ function TaskCard({
           )}
           {task.time && <span>{task.time}</span>}
           {task.overdue && !closed && (
-            <span className="rounded-sm bg-danger/15 px-1 text-sm font-semibold text-danger">
-              Overdue
+            // a card narrower than 17rem has no room for the word once
+            // the hover actions come in, so it shrinks to "!" meanwhile
+            <span
+              className="rounded-sm bg-danger/15 px-1 text-sm font-semibold text-danger"
+              title="Overdue"
+            >
+              <span className="group-focus-within:@max-[17rem]:hidden group-hover:@max-[17rem]:hidden">
+                Overdue
+              </span>
+              <span className="hidden group-focus-within:@max-[17rem]:inline group-hover:@max-[17rem]:inline">
+                !
+              </span>
             </span>
           )}
           {habitRate && (habitRate.alert || !rateAlertOnly) && (
@@ -426,8 +439,8 @@ function TaskCard({
             <button
               className={`text-base leading-none ${
                 task.priority
-                  ? "text-warn"
-                  : `${HOVER_ACTION} hover:text-warn`
+                  ? "text-priority"
+                  : `${HOVER_ACTION} hover:text-priority`
               }`}
               title={
                 task.priority

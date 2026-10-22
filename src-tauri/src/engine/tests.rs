@@ -717,6 +717,69 @@ fn general_carry_over_overdue_follows_the_setting() {
 }
 
 #[test]
+fn starred_list_task_carries_over_without_the_overdue_mark() {
+    let (conn, dir) = setup("pinned-list-carry");
+    conn.execute(
+        "INSERT INTO lists (name, sort_order) VALUES ('Work', 0)",
+        [],
+    )
+    .unwrap();
+    let list_id = conn.last_insert_rowid();
+    // the starred task's date is the priority pin; the other one is a
+    // dated list task, whose date is a real one it missed
+    conn.execute(
+        "INSERT INTO tasks (title, list_id, scheduled_date, priority, created_at)
+             VALUES ('pinned', ?1, '2026-08-27', 1, '2026-08-27T00:00:00+00:00'),
+                    ('dated', ?1, '2026-08-27', 0, '2026-08-27T00:00:00+00:00')",
+        [list_id],
+    )
+    .unwrap();
+    // with both marks on and with General off: the pin stays quiet
+    for (name, general) in [("on", true), ("general-off", false)] {
+        conn.execute(
+            "UPDATE tasks SET scheduled_date = '2026-08-27', overdue = 0",
+            [],
+        )
+        .unwrap();
+        let cfg = AppConfig {
+            general_overdue: general,
+            ..config(1, 7, 0)
+        };
+        run(&conn, &dir, &cfg, at("2026-08-28", "12:00:00")).unwrap();
+        let rows: Vec<(String, String, i64)> = {
+            let mut stmt = conn
+                .prepare("SELECT title, scheduled_date, overdue FROM tasks ORDER BY title")
+                .unwrap();
+            let rows = stmt
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                .unwrap();
+            rows.collect::<std::result::Result<_, _>>().unwrap()
+        };
+        assert_eq!(
+            rows,
+            vec![
+                ("dated".to_string(), "2026-08-28".to_string(), 1),
+                ("pinned".to_string(), "2026-08-28".to_string(), 0),
+            ],
+            "{name}"
+        );
+    }
+
+    // a mark given by an earlier version is cleared
+    conn.execute("UPDATE tasks SET overdue = 1 WHERE title = 'pinned'", [])
+        .unwrap();
+    run(&conn, &dir, &config(1, 7, 0), at("2026-08-28", "13:00:00")).unwrap();
+    let overdue: i64 = conn
+        .query_row(
+            "SELECT overdue FROM tasks WHERE title = 'pinned'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(overdue, 0);
+}
+
+#[test]
 fn done_list_backlog_tasks_clear_on_day_rollover() {
     let (conn, dir) = setup("clear-done-lists");
     conn.execute(

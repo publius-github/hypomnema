@@ -426,7 +426,7 @@ impl ThemeColors {
             cadence_color_weekly: "#7b5600".into(),
             cadence_color_monthly: "#6b46b6".into(),
             cadence_color_yearly: "#a32a6f".into(),
-            cadence_color_exact: "#b41221".into(),
+            cadence_color_exact: "#a93f41".into(),
             category_color: "#165daa".into(),
             category_color_a: "#426701".into(),
             category_color_b: "#964505".into(),
@@ -439,6 +439,16 @@ impl ThemeColors {
             waiting_plate_color: "#01657c".into(),
             dropped_plate_color: "#5a5e65".into(),
             ..Self::default()
+        }
+    }
+
+    /// colors.yml is written whole, so a light set still carrying a
+    /// hex this one shipped with and has since retuned never picked it:
+    /// it takes the new default. The exact-date red was toned down in
+    /// 0.124.1 (#b41221 was too loud on the light panels).
+    pub fn retire_old_light_defaults(&mut self) {
+        if self.cadence_color_exact.eq_ignore_ascii_case("#b41221") {
+            self.cadence_color_exact = Self::light().cadence_color_exact;
         }
     }
 
@@ -1040,7 +1050,11 @@ impl AppConfig {
                 map.insert(key.clone(), value.clone());
             }
         }
-        Ok(Self::from_mapping(map)?.sanitized())
+        let mut config = Self::from_mapping(map)?.sanitized();
+        if part == SyncedPart::Colors {
+            config.light.retire_old_light_defaults();
+        }
+        Ok(config)
     }
 
     /// Clamps values a hand-edited app.yml could set to something that

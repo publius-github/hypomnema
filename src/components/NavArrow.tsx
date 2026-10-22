@@ -1,3 +1,5 @@
+import Chevron from "./Chevron";
+
 /**
  * The ‹ / › button that steps a view by one period - days on the
  * Dashboard and Days pages, the Journal's day, the Calendar and History
@@ -15,12 +17,12 @@ export default function NavArrow({
 }) {
   return (
     <button
-      className="btn-ghost px-2 py-0.5 text-sm leading-none"
+      className="btn-ghost flex items-center justify-center px-2 py-0.5 text-sm leading-none"
       title={title}
       aria-label={title}
       onClick={onClick}
     >
-      {dir < 0 ? "‹" : "›"}
+      <Chevron back={dir < 0} />
     </button>
   );
 }

@@ -47,7 +47,7 @@ export const lightColors: ThemeColors = {
   cadence_color_weekly: "#7b5600",
   cadence_color_monthly: "#6b46b6",
   cadence_color_yearly: "#a32a6f",
-  cadence_color_exact: "#b41221",
+  cadence_color_exact: "#a93f41",
   category_color: "#165daa",
   category_color_a: "#426701",
   category_color_b: "#964505",

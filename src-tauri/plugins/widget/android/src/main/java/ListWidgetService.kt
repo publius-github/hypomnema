@@ -91,7 +91,7 @@ class ListWidgetService : RemoteViewsService() {
       val text = SpannableStringBuilder()
       if (task.priority) {
         text.append("\u2605 ")
-        span(text, 0, ForegroundColorSpan(theme.postponed))
+        span(text, 0, ForegroundColorSpan(theme.priority))
       }
       if (chip && task.category != null) {
         val start = text.length

@@ -30,6 +30,7 @@ import NewListForm from "../components/NewListForm";
 import GroupBackBar from "../components/GroupBackBar";
 import { readable, themeColors } from "../lib/color";
 import NavArrow from "../components/NavArrow";
+import Chevron from "../components/Chevron";
 
 export default function Dashboard() {
   const config = useAppStore((s) => s.config);
@@ -414,13 +415,13 @@ function ListZone({
 
   const arrow = (delta: number, disabled: boolean, label: string) => (
     <button
-      className="btn-ghost self-stretch px-1 text-lg leading-none disabled:opacity-20"
+      className="btn-ghost flex items-center justify-center self-stretch px-1 text-lg leading-none disabled:opacity-20"
       title={label}
       aria-label={label}
       disabled={disabled}
       onClick={() => setOffset(Math.max(0, Math.min(maxOffset, off + delta)))}
     >
-      {delta < 0 ? "‹" : "›"}
+      <Chevron back={delta < 0} />
     </button>
   );
 
