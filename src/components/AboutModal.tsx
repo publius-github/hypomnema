@@ -110,7 +110,7 @@ export function AboutContent() {
         also asks GitHub whether an update is out.
       </p>
       <div className="mt-3 border-t border-line pt-3">
-        <ProblemReport version={version} />
+        <ProblemReport version={version} donateUrl={DONATE_URL} />
       </div>
       <LegalNotice />
     </>

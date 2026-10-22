@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
@@ -26,10 +26,7 @@ function called(cmd: string): boolean {
 }
 
 describe("MobileVaultSetup smoke", () => {
-  afterEach(() => {
-    cleanup();
-    invokeMock.mockReset();
-  });
+  afterEach(() => invokeMock.mockReset());
 
   it("signing in pulls the vault Drive already holds", async () => {
     dispatchCommands(

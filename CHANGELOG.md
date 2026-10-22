@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.120.0 - 2026-10-22
+
+About (desktop dialog and the phone's Settings > About) gets a Support us link next to Copy diagnostics and Report a problem; it opens the Ko-fi page in the browser.
+
 ## 0.119.4 - 2026-10-22
 
 The Windows installer carries the Hypomnema icon instead of the stock NSIS one, a branded header and Welcome/Finish sidebar, the copyright line, and publisher, description and project links in Apps & features.

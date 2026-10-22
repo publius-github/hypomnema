@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import {
-  cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({
@@ -50,7 +49,6 @@ function seed(patch: Partial<typeof defaultConfig> = {}) {
 describe("Settings smoke", () => {
   // several renders per file: without this the previous page stays in
   // the document and every query finds two of everything
-  afterEach(cleanup);
   // jsdom has no layout, so it ships no scrollIntoView; the search jump
   // calls it on the group it lands on
   Element.prototype.scrollIntoView = vi.fn();

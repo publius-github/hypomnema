@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({
@@ -14,8 +14,6 @@ import { dispatchCommands } from "../test/tauriMocks";
 import { todayISO } from "../lib/tasks";
 
 describe("MobileCalendar", () => {
-  afterEach(() => cleanup());
-
   it("drops a late outlook for the month already paged away from", async () => {
     const today = todayISO();
     useAppStore.setState({ today, tasks: [] });

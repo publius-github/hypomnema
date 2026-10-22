@@ -9,9 +9,16 @@ const NEW_ISSUE_URL =
  * "Something is wrong" tools, shared by About and the crash screen: copy
  * the diagnostics (version, platform, the log's tail) to the clipboard,
  * show the log file, open a prefilled bug report. Nothing is sent by the
- * app itself - the user reads what they copied and pastes it.
+ * app itself - the user reads what they copied and pastes it. About also
+ * passes `donateUrl` for a Support us link; the crash screen does not.
  */
-export default function ProblemReport({ version }: { version: string }) {
+export default function ProblemReport({
+  version,
+  donateUrl,
+}: {
+  version: string;
+  donateUrl?: string;
+}) {
   const [isMobile, setIsMobile] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -40,16 +47,16 @@ export default function ProblemReport({ version }: { version: string }) {
     }
   };
 
-  const report = async () => {
-    const url = version
-      ? `${NEW_ISSUE_URL}&version=${encodeURIComponent(version)}`
-      : NEW_ISSUE_URL;
+  const open = async (url: string) => {
     try {
       await openUrl(url);
     } catch (e) {
       setNote(`Could not open the browser: ${errorMessage(e)}`);
     }
   };
+
+  const report = () =>
+    open(version ? `${NEW_ISSUE_URL}&version=${encodeURIComponent(version)}` : NEW_ISSUE_URL);
 
   return (
     <div className="text-xs text-content-muted">
@@ -65,6 +72,11 @@ export default function ProblemReport({ version }: { version: string }) {
         <button className="underline hover:text-content" onClick={() => void report()}>
           Report a problem
         </button>
+        {donateUrl && (
+          <button className="underline hover:text-content" onClick={() => void open(donateUrl)}>
+            Support us
+          </button>
+        )}
       </div>
       {note && <p className="mt-1">{note}</p>}
     </div>

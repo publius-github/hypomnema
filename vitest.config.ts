@@ -7,6 +7,7 @@ export default mergeConfig(
     test: {
       // e2e/ is Playwright's (npm run e2e), not Vitest's
       exclude: [...configDefaults.exclude, "e2e/**"],
+      setupFiles: ["src/test/setup.ts"],
       coverage: {
         provider: "v8",
         include: ["src/**/*.{ts,tsx}"],

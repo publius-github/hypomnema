@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import {
-  cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({
@@ -23,8 +22,6 @@ import { dispatchCommands } from "../test/tauriMocks";
 import { todayISO } from "../lib/tasks";
 
 describe("MobileApp smoke", () => {
-  afterEach(() => cleanup());
-
   it("shows today's tasks and completes one by tapping the row", async () => {
     const today = todayISO();
     const task = makeTask({ title: "water the plants", scheduled_date: today });

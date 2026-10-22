@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 const { invokeMock, listeners } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
@@ -44,8 +44,6 @@ import { dispatchCommands } from "./test/tauriMocks";
 import { todayISO } from "./lib/tasks";
 
 describe("App smoke", () => {
-  afterEach(cleanup);
-
   it("boots into the dashboard and shows a snapshot task", async () => {
     const task = makeTask({
       title: "smoke fixture task",
