@@ -24,7 +24,7 @@ Hypomnema keeps a week of tasks, a journal and your notes together, and keeps al
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use. Windows 10/11 is the shipped platform.
 
-Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you, you can [support its development](https://ko-fi.com/hypomnema).
+> Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you, you can [support its development](https://ko-fi.com/hypomnema). <a href="https://ko-fi.com/hypomnema"><img src="https://img.shields.io/badge/ko--fi-support-ff5e5b?logo=kofi&logoColor=white" alt="ko-fi" align="top"></a>
 
 ## Install
 
