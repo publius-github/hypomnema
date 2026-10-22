@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.120.1 - 2026-10-22
+
+About drops the plain-text "Support development" line from the legal notice: the Support us link above it opens the same Ko-fi page.
+
 ## 0.120.0 - 2026-10-22
 
 About (desktop dialog and the phone's Settings > About) gets a Support us link next to Copy diagnostics and Report a problem; it opens the Ko-fi page in the browser.
