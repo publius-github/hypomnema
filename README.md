@@ -19,7 +19,7 @@
   <em>The Dashboard: a week of days on top, your backlog lists below.</em>
 </p>
 
-Hypomnema keeps a week of tasks, a journal and your notes together, and keeps all of it in a folder you choose: plain Markdown and YAML files plus a local database. There is no account, no server and no telemetry. Repeating tasks come from rules you write in YAML (cron for the schedule, a list name in braces), and the engine that generates them never duplicates a task or overwrites an edit. Syncing between your devices is optional and goes through a hidden app folder in your own Google Drive.
+Hypomnema keeps a week of tasks, a journal and your notes together, and keeps all of it in a folder you choose: plain Markdown and YAML files plus a local database. There is no account, no server and no telemetry. Repeating tasks, dated events and birthdays come from rules in YAML files; the app's forms and a text editor write the same files, and the engine that turns rules into tasks never duplicates one or overwrites an edit. Syncing between your devices is optional and goes through a hidden app folder in your own Google Drive.
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use. Windows 10/11 is the shipped platform.
 
@@ -50,13 +50,7 @@ A vertical rail on the left holds the sections; their order is configurable and 
   <em>Days and Lists: the two halves of the Dashboard, each full size.</em>
 </p>
 
-**Upcoming** has three tabs: Scheduled (one-off dated events), Birthdays (with age when the year is known) and Recurring (cron rules). The forms write straight into the YAML files, keeping your comments. **Calendar** is a month grid with real tasks plus projections of future rule occurrences (the horizon is configurable per cadence). **Review** and **History** show how the week went, and a month-by-month archive with completion stats and streaks for daily rules.
-
-<p align="center">
-  <img src="docs/screenshots/recurring.png" alt="Upcoming: recurring rules">
-  <br>
-  <em>Upcoming: the rules behind the generated tasks, edited in place.</em>
-</p>
+**Upcoming** has three tabs: Scheduled (one-off dated events), Birthdays (with age when the year is known) and Recurring (cron rules). **Reminders** edits the three files behind the day columns: the weekly focus phrase, the reminders by day type and the daily schedule. **Calendar** is a month grid with real tasks plus projections of future rule occurrences (the horizon is configurable per cadence). **Review** and **History** show how the week went, and a month-by-month archive with completion stats and streaks for daily rules.
 
 **Journal** keeps one Markdown entry per date (`journal/<year>/<YYYY-MM-DD>.md`), created from a configurable template on first save, with "on this day" entries from earlier years.
 
@@ -70,16 +64,46 @@ A vertical rail on the left holds the sections; their order is configurable and 
 
 **Settings** has six tabs (General, Tasks, Recurring & calendar, Capture & alerts, Data, Sync) with a search over every setting. They are stored in `.hypomnema/settings/app.yml` (per device), except the task rules every device must share, which go to the synced `.hypomnema/config/shared.yml`. The color scheme (`config/colors.yml`) and fine-tuning without a Settings control are edited in Notes > Config, validated on save.
 
+## Files and forms: two ways to the same rules
+
+Every rule the engine works from is a YAML file in `.hypomnema/config/`: `recurring.yml`, `scheduled.yml`, `birthdays.yml`, `weekly-focus.yml`, `day-reminders.yml`, `day-schedule.yml`. The app has a form for each (Upcoming and Reminders), and the form writes to the file: it rewrites only the item you changed, so the comments, the order and the blank lines you keep there survive. Open the same file in any editor or in Notes > Config, and a watcher picks the change up at once. A broken file never touches your data: the last valid version stays in effect and a banner names the file and the line.
+
+<p align="center">
+  <img src="docs/screenshots/recurring.png" alt="Upcoming: recurring rules">
+  <br>
+  <em>Upcoming: the rules of recurring.yml as a form; the file is the source, the form is a view of it.</em>
+</p>
+
+```yaml
+# recurring.yml
+tasks:
+  - schedule: "0 0 1 * *"        # cron
+    description: "Monthly"
+    items:
+      - "{05 Finance} pay bills for apartment"   # {List} task text
+```
+
+<!-- TODO(owner): docs/screenshots/config.png - recurring.yml open in Notes > Config next to the same rule in the Upcoming form. Then replace this comment with:
+<p align="center">
+  <img src="docs/screenshots/config.png" alt="Notes > Config: recurring.yml in the editor, the same rule in the Upcoming form">
+  <br>
+  <em>The same rule twice: as YAML in Notes > Config and as a row in Upcoming. Either side can change it.</em>
+</p>
+-->
+
+The engine runs at startup, on Sync, when the day changes and when a config file changes. It remembers every rule and period it has already generated, so a restart or an edit never repeats a task, and it only adds what is missing: your edits and statuses stay. Subfolders of `config/` work as packs, any `*.yml` in them is merged in. The config files sync between devices with the rest of the vault. Manual tasks get the same treatment when the Markdown mirror is on (Settings > Data): one file per list under `.hypomnema/tasks/`, editable in bulk, imported back. The full file reference and the engine rules are in [CONFIG.md](docs/general/CONFIG.md).
+
 ## Documentation
 
 - [Using Hypomnema](docs/general/USAGE.md) - keyboard shortcuts, sync, troubleshooting.
 - [Vault, configuration and engine rules](docs/general/CONFIG.md) - the vault layout, every config file, how recurring tasks are generated.
 - [Architecture](docs/general/ARCHITECTURE.md) and [Windows specifics](docs/windows/ARCHITECTURE.md) - the technical map.
+- [Decisions](docs/general/DECISIONS.md) - what the app deliberately does not do, and why.
 - [Changelog](CHANGELOG.md), [Contributing](CONTRIBUTING.md) (setup, build, release), [Security](SECURITY.md).
 
 ## Status
 
-Pre-1.0: development builds, released often (see the [changelog](CHANGELOG.md)). Windows 10/11 is the shipped platform. One maintainer; issues and pull requests are reviewed as time allows, with no roadmap or support commitment beyond [SECURITY.md](SECURITY.md).
+Pre-1.0: development builds, released often (see the [changelog](CHANGELOG.md)). Windows 10/11 is the shipped platform. An Android build of the same project exists in the tree ([docs/android](docs/android/ARCHITECTURE.md)) and is not published. One maintainer; issues and pull requests are reviewed as time allows, with no roadmap or support commitment beyond [SECURITY.md](SECURITY.md).
 
 ## Code signing policy
 

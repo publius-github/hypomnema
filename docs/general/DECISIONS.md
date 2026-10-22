@@ -1,10 +1,6 @@
 # Decisions
 
-Things this app deliberately does not do, and why - so a pause in development
-doesn't lose the reasoning along with the context. Add an entry whenever a
-feature request is turned down on purpose rather than just not gotten to yet;
-one line of "why" is enough. Revisit an entry (and delete it) once the
-reasoning no longer holds.
+What Hypomnema deliberately does not do, and why. An entry is removed once its reasoning no longer holds.
 
 - **No accounts of our own; sync is the user's Google Drive, optional.**
   The vault is a plain folder and the app works with no network and no

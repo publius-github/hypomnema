@@ -35,9 +35,8 @@ Google sign-in on a self-built APK does not work out of the box: the project's A
 
 ## Open items
 
-- **Dogfood run**: desktop and phone against one real vault for a stretch, every conflict-log entry given a verdict - `DOGFOOD.md` holds the protocol and the table.
 - **OS-scheduled background sync** is not built. Sync runs on resume, on leaving the app, on reconnect, on a heartbeat while open and after an edit; a WorkManager worker would go into a plugin as above.
 - **Share-sheet capture** is not built; its intent filter would go into a plugin manifest the same way.
 - **The widget's checks** run only on a device: there is no Android CI job and the Kotlin half compiles only in `build-android.sh`. The core half (`widget.rs`) has desktop unit tests. Two points to confirm on the first build: that the generated `TauriActivity` forwards `onNewIntent` to the plugins (Tauri's `PluginManager.onNewIntent` exists for it), and that the launcher honours `FLAG_ACTIVITY_SINGLE_TOP` on the launch intent so a widget tap resumes the running activity rather than recreating it.
-- **History** is not ported: Review answers "how did the week go?" on a phone. Revisit if the dogfood run says otherwise.
+- **History** is not ported: Review answers "how did the week go?" on a phone. Revisit if phone use shows the need.
 - **Release keystore**: none exists yet. The Google OAuth Android client is registered for the debug key's SHA-1, so a release keystore also needs its own Android client registered for its SHA-1.
