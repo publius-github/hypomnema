@@ -5,6 +5,8 @@ description = "Weekly planner, journal, and personal knowledge base"
 license = "GPL-3.0-only"
 repository = "https://github.com/publius-github/hypomnema"
 edition = "2021"
+# The toolchain CI pins (.github/workflows/ci.yml); an older cargo stops here with a clear message.
+rust-version = "1.98"
 
 [lib]
 name = "hypomnema_lib"
