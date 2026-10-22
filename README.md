@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/publius-github/hypomnema/releases/latest"><img src="https://img.shields.io/github/v/release/publius-github/hypomnema" alt="latest release"></a>
+  <a href="https://github.com/publius-github/hypomnema/releases"><img src="https://img.shields.io/github/downloads/publius-github/hypomnema/total" alt="downloads"></a>
   <a href="https://github.com/publius-github/hypomnema/actions/workflows/ci.yml"><img src="https://github.com/publius-github/hypomnema/actions/workflows/ci.yml/badge.svg?branch=main" alt="ci"></a>
   <a href="https://publius-github.github.io/hypomnema/privacy.html"><img src="https://img.shields.io/badge/privacy-policy-blue" alt="privacy policy"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="license: GPL-3.0"></a>
