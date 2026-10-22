@@ -8,7 +8,7 @@ import type {
   TaskPatch,
   TaskStatus,
 } from "../types";
-import { readable } from "./color";
+import { readable, themeColors } from "./color";
 
 /**
  * Cut a wrapping text off after `lines` lines. The webview is Chromium,
@@ -313,20 +313,21 @@ export function cadenceColor(
   key: string | null,
 ): string | null {
   if (!config?.cadence_colors || !key) return null;
+  const colors = themeColors(config);
   switch (key) {
     case "exact":
-      return config.cadence_color_exact;
+      return colors.cadence_color_exact;
     case "general":
       // optional: empty keeps the neutral plate style
-      return config.cadence_color_general || null;
+      return colors.cadence_color_general || null;
     case "daily":
-      return config.cadence_color_daily;
+      return colors.cadence_color_daily;
     case "weekly":
-      return config.cadence_color_weekly;
+      return colors.cadence_color_weekly;
     case "monthly":
-      return config.cadence_color_monthly;
+      return colors.cadence_color_monthly;
     case "yearly":
-      return config.cadence_color_yearly;
+      return colors.cadence_color_yearly;
     default:
       return null;
   }
@@ -384,11 +385,11 @@ export function categoryChipColor(
 ): string {
   const mode = config?.category_color_mode ?? "alternate";
   if (mode === "alternate") {
-    const a = config?.category_color_a || "#5a8a05";
-    const b = config?.category_color_b || "#c95e05";
+    const a = themeColors(config)?.category_color_a || "#5a8a05";
+    const b = themeColors(config)?.category_color_b || "#c95e05";
     return (blockIndex ?? 0) % 2 === 0 ? a : b;
   }
-  if (mode !== "varied") return config?.category_color || "#6b7f98";
+  if (mode !== "varied") return themeColors(config)?.category_color || "#6b7f98";
   const list = lists.find((l) => l.name === name && l.color);
   if (list?.color) return list.color;
   const palette =
@@ -432,13 +433,14 @@ const CADENCE_HUE_MARGIN = 20;
  */
 function chipPalette(config: AppConfig | null): string[] {
   if (!config?.cadence_colors) return CATEGORY_PALETTE;
+  const colors = themeColors(config);
   const taken = [
-    config.cadence_color_general,
-    config.cadence_color_daily,
-    config.cadence_color_weekly,
-    config.cadence_color_monthly,
-    config.cadence_color_yearly,
-    config.cadence_color_exact,
+    colors.cadence_color_general,
+    colors.cadence_color_daily,
+    colors.cadence_color_weekly,
+    colors.cadence_color_monthly,
+    colors.cadence_color_yearly,
+    colors.cadence_color_exact,
   ]
     .map((c) => (c ? hueSat(c) : null))
     .filter((hs): hs is { hue: number; sat: number } => !!hs && hs.sat > 0.25)

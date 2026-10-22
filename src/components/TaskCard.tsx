@@ -20,7 +20,7 @@ import {
 } from "../lib/tasks";
 import type { Task } from "../types";
 import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
-import { readable } from "../lib/color";
+import { readable, themeColors } from "../lib/color";
 import DowLabelText from "./DowLabelText";
 
 // Hover actions (priority star, drop, delete) are out of the layout until
@@ -120,7 +120,7 @@ function TaskCard({
     (s) => s.config?.list_exact_stripe ?? false,
   );
   const listChipColor = useAppStore(
-    (s) => s.config?.list_date_chip_color || "",
+    (s) => themeColors(s.config)?.list_date_chip_color || "",
   );
   const exactStripeHere = listExact && (showList || listExactStripe);
   const stripe =
@@ -147,7 +147,7 @@ function TaskCard({
   const dowLabel = useAppStore((s) =>
     (s.config?.cron_weekday_labels ?? true) ? task.dow_label : null,
   );
-  const dowColor = useAppStore((s) => s.config?.dow_label_color || "");
+  const dowColor = useAppStore((s) => themeColors(s.config)?.dow_label_color || "");
   // habit-tracker view of a recurring item: its completion rate, loud
   // once it falls below the rule's threshold
   const habitRate = useAppStore((s) =>
@@ -158,7 +158,7 @@ function TaskCard({
       : null,
   );
   const rateAlertColor = useAppStore(
-    (s) => s.config?.habit_rate_alert_color || "#c95e05",
+    (s) => themeColors(s.config)?.habit_rate_alert_color || "#c95e05",
   );
   const rateAlertOnly = useAppStore(
     (s) => (s.config?.habit_rate_display ?? "alert") === "alert",

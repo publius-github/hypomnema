@@ -25,7 +25,7 @@ import {
 } from "../components/StatusMark";
 import { useEditTask } from "./editing";
 import type { Task } from "../types";
-import { readable } from "../lib/color";
+import { readable, themeColors } from "../lib/color";
 import DowLabelText from "../components/DowLabelText";
 
 /** A status badge in the row's right-hand column: small enough not to
@@ -127,7 +127,7 @@ export default function TaskRow({
       : (listColor ?? (listExact ? null : cadence)));
   const dateChipColor =
     listExact && !showList
-      ? config?.list_date_chip_color || cadence
+      ? themeColors(config)?.list_date_chip_color || cadence
       : cadence;
 
   const categoryHue = category
@@ -142,7 +142,7 @@ export default function TaskRow({
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
 
   const dowLabel = (config?.cron_weekday_labels ?? true) ? task.dow_label : null;
-  const dowColor = config?.dow_label_color || "";
+  const dowColor = themeColors(config)?.dow_label_color || "";
 
   // the habit-tracker rate of a recurring item, loud below its threshold
   const habitRate = useAppStore((s) =>
@@ -152,7 +152,7 @@ export default function TaskRow({
       ? (s.habitRates[task.rule_key] ?? null)
       : null,
   );
-  const rateAlertColor = config?.habit_rate_alert_color || "#c95e05";
+  const rateAlertColor = themeColors(config)?.habit_rate_alert_color || "#c95e05";
   const rateAlertOnly = (config?.habit_rate_display ?? "alert") === "alert";
   // a closed row fades everything but its status box
   const dim = closed ? (config?.closed_row_opacity ?? 50) / 100 : 1;

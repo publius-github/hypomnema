@@ -11,6 +11,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { readable, themeColors } from "../lib/color";
 import { useAppStore } from "../store";
 import { KEYBOARD_CODES, DND_ACCESSIBILITY } from "../components/taskDnd";
 import {
@@ -25,7 +26,7 @@ import {
   STATUS_GLYPH,
   STATUS_GLYPH_CLASS,
 } from "../lib/tasks";
-import type { OutlookEvent, Task } from "../types";
+import type { AppConfig, OutlookEvent, Task } from "../types";
 import TaskModal from "../components/TaskModal";
 import QuickAdd from "../components/QuickAdd";
 import NavArrow from "../components/NavArrow";
@@ -46,23 +47,33 @@ const MONTHS = [
 ];
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// one dot per kind of thing happening that day: rule cadences, exact
-// dates and birthdays each get a stable color
-const KIND_DOT: Record<string, string> = {
-  daily: "bg-zinc-400",
-  weekly: "bg-blue-400",
-  monthly: "bg-violet-400",
-  yearly: "bg-amber-400",
-  date: "bg-sky-400",
-  birthday: "bg-pink-400",
-  once: "bg-emerald-400",
+// one dot per kind of thing happening that day, in the colors the
+// cards and plates wear for it: the rule cadences, exact dates (events
+// and birthdays alike, as on the cards) and one-offs (the General plate
+// color, else the secondary tone)
+const KIND_ORDER = ["daily", "weekly", "monthly", "yearly", "date", "once"];
+const KIND_LABEL: Record<string, string> = {
+  date: "date, birthday",
 };
-const KIND_ORDER = Object.keys(KIND_DOT);
 
 function taskKind(task: Task): string {
-  if (task.origin === "scheduled") return "date";
-  if (task.origin === "birthday") return "birthday";
-  return task.cadence && task.cadence in KIND_DOT ? task.cadence : "once";
+  if (task.origin === "scheduled" || task.origin === "birthday") return "date";
+  return task.cadence && KIND_ORDER.includes(task.cadence)
+    ? task.cadence
+    : "once";
+}
+
+function kindDotColor(config: AppConfig | null, kind: string): string {
+  const colors = themeColors(config);
+  const hex = {
+    daily: colors?.cadence_color_daily,
+    weekly: colors?.cadence_color_weekly,
+    monthly: colors?.cadence_color_monthly,
+    yearly: colors?.cadence_color_yearly,
+    date: colors?.cadence_color_exact,
+    once: colors?.cadence_color_general,
+  }[kind];
+  return hex ? readable(hex, "mark") : "rgb(var(--rgb-content-muted))";
 }
 
 /** Month cell as a drop target: dropping a task row here reschedules it
@@ -335,7 +346,9 @@ export default function Calendar() {
             ).length;
             const kinds = new Set<string>([
               ...dayTasks.map(taskKind),
-              ...(outlookByDate.get(date) ?? []).map((e) => e.kind),
+              ...(outlookByDate.get(date) ?? []).map((e) =>
+                e.kind === "birthday" ? "date" : e.kind,
+              ),
             ]);
             const dots = KIND_ORDER.filter((k) => kinds.has(k)).slice(0, 5);
             return (
@@ -377,7 +390,8 @@ export default function Calendar() {
                       <span
                         key={k}
                         title={k}
-                        className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[k]}`}
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: kindDotColor(config, k) }}
                       />
                     ))}
                   </span>
@@ -389,8 +403,11 @@ export default function Calendar() {
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[0.6875rem] text-content-muted">
           {KIND_ORDER.map((k) => (
             <span key={k} className="flex items-center gap-1">
-              <span className={`h-1.5 w-1.5 rounded-full ${KIND_DOT[k]}`} />
-              {k}
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: kindDotColor(config, k) }}
+              />
+              {KIND_LABEL[k] ?? k}
             </span>
           ))}
         </div>

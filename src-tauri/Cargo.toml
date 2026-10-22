@@ -1,6 +1,6 @@
 [package]
 name = "hypomnema"
-version = "0.120.1"
+version = "0.121.0"
 description = "Weekly planner, journal, and personal knowledge base"
 license = "GPL-3.0-only"
 repository = "https://github.com/publius-github/hypomnema"

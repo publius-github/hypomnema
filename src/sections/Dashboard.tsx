@@ -28,11 +28,12 @@ import {
 } from "../components/HeaderControls";
 import NewListForm from "../components/NewListForm";
 import GroupBackBar from "../components/GroupBackBar";
-import { readable } from "../lib/color";
+import { readable, themeColors } from "../lib/color";
 import NavArrow from "../components/NavArrow";
 
 export default function Dashboard() {
   const config = useAppStore((s) => s.config);
+  const focusColor = themeColors(config)?.weekly_focus_color;
   const today = useAppStore((s) => s.today);
   const lists = useAppStore((s) => s.lists);
   const tasks = useAppStore((s) => s.tasks);
@@ -127,8 +128,8 @@ export default function Dashboard() {
               <button
                 className="min-w-0 truncate text-sm font-medium italic text-accent hover:underline"
                 style={
-                  config.weekly_focus_color
-                    ? { color: readable(config.weekly_focus_color, "text") }
+                  focusColor
+                    ? { color: readable(focusColor, "text") }
                     : undefined
                 }
                 title={`${dashboard.focus} - edit weekly-focus.yml`}

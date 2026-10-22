@@ -1008,9 +1008,15 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
         "colors.yml" | "shared.yml" => {
             match serde_yaml::from_str::<Option<serde_yaml::Mapping>>(content) {
                 Ok(map) => {
-                    let map = map.unwrap_or_default();
                     let part = crate::config::SyncedPart::from_file(file)
                         .unwrap_or(crate::config::SyncedPart::Colors);
+                    let map = match part {
+                        // the flat pre-theme layout still loads (as the dark set)
+                        crate::config::SyncedPart::Colors => {
+                            crate::config::nest_flat_colors(&map.unwrap_or_default())
+                        }
+                        crate::config::SyncedPart::Shared => map.unwrap_or_default(),
+                    };
                     for key in map.keys() {
                         let name = key.as_str().unwrap_or("?");
                         if !part.keys().contains(&name) {
@@ -1019,6 +1025,24 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
                                 line: None,
                                 message: format!("'{name}' does not belong in {file}"),
                             });
+                        }
+                    }
+                    if part == crate::config::SyncedPart::Colors {
+                        let color_keys = crate::config::ThemeColors::keys();
+                        for theme in ["dark", "light"] {
+                            let Some(set) = map.get(theme).and_then(|v| v.as_mapping()) else {
+                                continue;
+                            };
+                            for key in set.keys() {
+                                let name = key.as_str().unwrap_or("?");
+                                if !color_keys.iter().any(|k| k == name) {
+                                    errors.push(ConfigError {
+                                        file: file.into(),
+                                        line: None,
+                                        message: format!("'{theme}.{name}' is not a color key"),
+                                    });
+                                }
+                            }
                         }
                     }
                     // a wrong type (a list for a color, text for a number)

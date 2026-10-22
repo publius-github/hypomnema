@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultConfig } from "../test/fixtures";
-import { contrast, readable, setColorContext } from "./color";
+import { contrast, readable, setColorContext, themeColors } from "./color";
 
 const rgb = (hex: string) =>
   [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
@@ -61,10 +61,25 @@ describe("readable", () => {
     setColorContext({
       ...defaultConfig,
       theme: "dark",
-      surface_color: "#fafafa",
-      surface_alt_color: "#f0f0f0",
+      dark: {
+        ...defaultConfig.dark,
+        surface_color: "#fafafa",
+        surface_alt_color: "#f0f0f0",
+      },
     });
     const out = readable("#fde68a", "text");
     expect(contrast(rgb(out), rgb("#f0f0f0"))).toBeGreaterThanOrEqual(4.4);
+  });
+});
+
+describe("themeColors", () => {
+  it("gives each theme its own set", () => {
+    expect(themeColors({ ...defaultConfig, theme: "dark" })).toBe(
+      defaultConfig.dark,
+    );
+    expect(themeColors({ ...defaultConfig, theme: "light" })).toBe(
+      defaultConfig.light,
+    );
+    expect(themeColors(null)).toBeUndefined();
   });
 });

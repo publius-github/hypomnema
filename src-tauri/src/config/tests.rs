@@ -38,18 +38,18 @@ fn colors_live_in_their_own_file() {
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
     let (settings, colors) = (dir.join("app.yml"), dir.join("colors.yml"));
-    let config = AppConfig {
+    let mut config = AppConfig {
         grid_columns: 5,
-        cadence_color_weekly: "#123456".into(),
         ..AppConfig::default()
     };
+    config.dark.cadence_color_weekly = "#123456".into();
     config.save(&settings).unwrap();
     config.save_part(SyncedPart::Colors, &colors).unwrap();
     let app_yml = fs::read_to_string(&settings).unwrap();
     assert!(app_yml.contains("grid_columns: 5"));
     assert!(!app_yml.contains("cadence_color_weekly"));
     let colors_yml = fs::read_to_string(&colors).unwrap();
-    assert!(colors_yml.contains("cadence_color_weekly: '#123456'"));
+    assert!(colors_yml.contains("  cadence_color_weekly: '#123456'"));
     assert!(!colors_yml.contains("grid_columns"));
 
     let (loaded, error) = AppConfig::load_or_default(&settings, &dir);
@@ -93,10 +93,7 @@ fn colors_left_in_app_yml_are_ignored() {
     let (loaded, error) = AppConfig::load_or_default(&settings, &dir);
     assert!(error.is_none());
     assert_eq!(loaded.grid_columns, 5);
-    assert_eq!(
-        loaded.cadence_color_weekly,
-        AppConfig::default().cadence_color_weekly
-    );
+    assert_eq!(loaded.dark, AppConfig::default().dark);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -123,7 +120,75 @@ fn colors_yml_ignores_keys_that_are_not_colors() {
         .with_part(SyncedPart::Colors, &colors)
         .unwrap();
     assert_eq!(config.grid_columns, AppConfig::default().grid_columns);
-    assert_eq!(config.done_color, "#00ff00");
+    assert_eq!(config.dark.done_color, "#00ff00");
+}
+
+#[test]
+fn each_theme_has_its_own_scheme() {
+    let defaults = AppConfig::default();
+    assert_ne!(
+        defaults.dark.cadence_color_weekly,
+        defaults.light.cadence_color_weekly
+    );
+    let mut config = defaults.clone();
+    assert_eq!(config.colors(), &defaults.dark);
+    config.theme = "light".into();
+    assert_eq!(config.colors(), &defaults.light);
+}
+
+#[test]
+fn a_partial_light_set_keeps_the_light_defaults() {
+    let colors: serde_yaml::Mapping =
+        serde_yaml::from_str("light:\n  done_color: '#00ff00'\n").unwrap();
+    let config = AppConfig::default()
+        .with_part(SyncedPart::Colors, &colors)
+        .unwrap();
+    assert_eq!(config.light.done_color, "#00ff00");
+    assert_eq!(
+        config.light.cadence_color_weekly,
+        ThemeColors::light().cadence_color_weekly
+    );
+    assert_eq!(config.dark, ThemeColors::default());
+}
+
+#[test]
+fn a_flat_colors_yml_becomes_the_dark_set_once() {
+    let dir = std::env::temp_dir().join("hypomnema-test-config-flat-colors");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let (settings, colors) = (dir.join("app.yml"), dir.join("colors.yml"));
+    fs::write(&settings, "grid_columns: 5\n").unwrap();
+    fs::write(
+        &colors,
+        "cadence_colors: false\ncadence_color_weekly: '#123456'\naccent_color: '#abcdef'\n",
+    )
+    .unwrap();
+    let (loaded, error) = AppConfig::load_or_default(&settings, &dir);
+    assert!(error.is_none());
+    assert!(!loaded.cadence_colors);
+    assert_eq!(loaded.dark.cadence_color_weekly, "#123456");
+    assert_eq!(loaded.dark.accent_color, "#abcdef");
+    assert_eq!(loaded.light, ThemeColors::light());
+    let raw = fs::read_to_string(&colors).unwrap();
+    let map: serde_yaml::Mapping = serde_yaml::from_str(&raw).unwrap();
+    assert!(!map.contains_key("cadence_color_weekly"));
+    assert!(map.contains_key("dark") && map.contains_key("light"));
+    let (reloaded, _) = AppConfig::load_or_default(&settings, &dir);
+    assert_eq!(reloaded, loaded);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn malformed_colors_fall_back_per_theme() {
+    let mut config = AppConfig::default();
+    config.light.done_color = "green".into();
+    config.light.accent_color = "blue".into();
+    config.dark.dow_label_color = String::new();
+    let config = config.sanitized();
+    assert_eq!(config.light.done_color, ThemeColors::light().done_color);
+    assert_eq!(config.light.accent_color, "");
+    // empty dow label = the secondary tone, not the default hex
+    assert_eq!(config.dark.dow_label_color, "");
 }
 
 #[test]

@@ -12,12 +12,14 @@ use crate::error::{IoContext, Result};
 pub struct AppConfig {
     #[ts(type = "\"dark\" | \"light\"")]
     pub theme: String,
-    /// Individual chrome color overrides, hex; empty = the stylesheet's
-    /// VS Code Dark+/Light+ palette.
-    pub accent_color: String,
-    pub surface_color: String,
-    pub surface_alt_color: String,
-    pub line_color: String,
+    /// The color scheme of each theme: a hex tuned for dark panels
+    /// reads badly on light ones and the other way round, so neither
+    /// theme borrows the other's colors. A key missing from one set
+    /// takes that theme's own default.
+    #[serde(deserialize_with = "dark_colors")]
+    pub dark: ThemeColors,
+    #[serde(deserialize_with = "light_colors")]
+    pub light: ThemeColors,
     /// Contrast floor for the object colors (plates, chips, stripes,
     /// status marks, header and marker tones), in tenths of a ratio
     /// (45 = 4.5:1): a color that reads below it on the current theme's
@@ -89,15 +91,6 @@ pub struct AppConfig {
     /// Color task cards by their rule cadence (the same color stripe a
     /// task gets from a manual color; a manual color wins).
     pub cadence_colors: bool,
-    /// Stripe colors per cadence, hex.
-    pub cadence_color_daily: String,
-    pub cadence_color_weekly: String,
-    pub cadence_color_monthly: String,
-    pub cadence_color_yearly: String,
-    /// Exact-date tasks (scheduled events and birthdays).
-    pub cadence_color_exact: String,
-    /// Category/list label chips on day cards.
-    pub category_color: String,
     /// Text size of the chips that sit next to a task title (category,
     /// list, date) as a percent of that title: 100 = exactly the size
     /// of the text beside them. Applies on the cards and in the
@@ -111,16 +104,6 @@ pub struct AppConfig {
     /// cadence sections so the stripes never restart mid-column.
     #[ts(type = "\"single\" | \"varied\" | \"alternate\"")]
     pub category_color_mode: String,
-    /// The two colors "alternate" mode walks between.
-    pub category_color_a: String,
-    pub category_color_b: String,
-    /// Checked (done) checkboxes on task cards and subtasks.
-    pub done_color: String,
-    /// Done-but-waiting status marks: a muted blue, quieter than the
-    /// info tone, so it reads as "done, not over yet".
-    pub waiting_color: String,
-    /// "Not done, dropped" status marks.
-    pub dropped_color: String,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
@@ -219,8 +202,6 @@ pub struct AppConfig {
     /// Settled instances needed before a rate is shown at all, so one
     /// early miss does not read as 0%.
     pub habit_rate_min_instances: u32,
-    /// Color of the rate chip once it falls below its threshold.
-    pub habit_rate_alert_color: String,
     /// Order the list columns alphabetically (favorites still come
     /// first), and the tasks inside each list too (timed tasks still pin
     /// to the top); off = manual creation and drag order.
@@ -300,35 +281,9 @@ pub struct AppConfig {
     /// Base UI font size in px (the browser default is 16; every text
     /// size in the app scales from it).
     pub ui_font_size: u32,
-    /// Overrides for the two text tones, hex; empty = theme default.
-    pub content_color: String,
-    pub content_muted_color: String,
-    /// Weekly focus line on top of the dashboard; empty = accent color.
-    pub weekly_focus_color: String,
-    /// Day reminders inside the day columns; empty = secondary tone.
-    pub reminder_color: String,
-    /// Weekday + date header of a day column, Today included; empty =
-    /// main text color (and the accent on Today).
-    pub day_header_color: String,
-    /// The [SAT#1]-style weekday marker on task cards; empty =
-    /// secondary tone.
-    pub dow_label_color: String,
     /// Opacity of the weekday marker in its default muted tone, % (20..=100);
     /// a picked `dow_label_color` shows at full strength.
     pub dow_label_opacity: u32,
-    /// Date chip of a dated list task inside its LIST column; empty =
-    /// the exact-date cadence color. Day columns always use that color.
-    pub list_date_chip_color: String,
-    /// Plate color of the General cadence group; empty = the neutral
-    /// plate style.
-    pub cadence_color_general: String,
-    /// Plate colors of the closed Postponed / Done, waiting / Done / Dropped /
-    /// Not done, dropped blocks, hex - each its own hue, so they read
-    /// apart from each other and from the cadence plates above them.
-    pub postponed_plate_color: String,
-    pub done_plate_color: String,
-    pub waiting_plate_color: String,
-    pub dropped_plate_color: String,
     /// The card stripe of a dated list task keeps the exact-date color
     /// inside its list too; off = the list color rules there. Day
     /// columns always use the exact-date color.
@@ -359,6 +314,250 @@ pub struct AppConfig {
 
 pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
 
+/// One theme's colors (`AppConfig::dark` / `AppConfig::light`), hex.
+/// Empty, where allowed, follows the theme's stylesheet tokens.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+#[serde(default)]
+pub struct ThemeColors {
+    /// Individual chrome color overrides; empty = the stylesheet's
+    /// VS Code Dark+/Light+ palette.
+    pub accent_color: String,
+    pub surface_color: String,
+    pub surface_alt_color: String,
+    pub line_color: String,
+    /// Overrides for the two text tones; empty = theme default.
+    pub content_color: String,
+    pub content_muted_color: String,
+    /// Weekly focus line on top of the dashboard; empty = accent color.
+    pub weekly_focus_color: String,
+    /// Day reminders inside the day columns; empty = secondary tone.
+    pub reminder_color: String,
+    /// Weekday + date header of a day column, Today included; empty =
+    /// main text color (and the accent on Today).
+    pub day_header_color: String,
+    /// The [SAT#1]-style weekday marker on task cards; empty =
+    /// secondary tone.
+    pub dow_label_color: String,
+    /// Date chip of a dated list task inside its LIST column; empty =
+    /// the exact-date cadence color. Day columns always use that color.
+    pub list_date_chip_color: String,
+    /// Plate color of the General cadence group; empty = the neutral
+    /// plate style.
+    pub cadence_color_general: String,
+    /// Stripe colors per cadence.
+    pub cadence_color_daily: String,
+    pub cadence_color_weekly: String,
+    pub cadence_color_monthly: String,
+    pub cadence_color_yearly: String,
+    /// Exact-date tasks (scheduled events and birthdays).
+    pub cadence_color_exact: String,
+    /// Category/list label chips on day cards.
+    pub category_color: String,
+    /// The two colors "alternate" mode walks between.
+    pub category_color_a: String,
+    pub category_color_b: String,
+    /// Checked (done) checkboxes on task cards and subtasks.
+    pub done_color: String,
+    /// Done-but-waiting status marks: a muted blue, quieter than the
+    /// info tone, so it reads as "done, not over yet".
+    pub waiting_color: String,
+    /// "Not done, dropped" status marks.
+    pub dropped_color: String,
+    /// Color of the rate chip once it falls below its threshold.
+    pub habit_rate_alert_color: String,
+    /// Plate colors of the closed Postponed / Done, waiting / Done /
+    /// Not done, dropped blocks - each its own hue, so they read apart
+    /// from each other and from the cadence plates above them.
+    pub postponed_plate_color: String,
+    pub done_plate_color: String,
+    pub waiting_plate_color: String,
+    pub dropped_plate_color: String,
+}
+
+/// The dark scheme; `ThemeColors::light` is the same hues at the
+/// lightness that reads on the light panels (4.5:1 for text on a 15%
+/// tint, with headroom so `color_min_contrast` leaves them as they are).
+impl Default for ThemeColors {
+    fn default() -> Self {
+        Self {
+            accent_color: String::new(),
+            surface_color: String::new(),
+            surface_alt_color: String::new(),
+            line_color: String::new(),
+            content_color: String::new(),
+            content_muted_color: String::new(),
+            weekly_focus_color: String::new(),
+            reminder_color: String::new(),
+            day_header_color: String::new(),
+            dow_label_color: "#bb9dc8".into(),
+            list_date_chip_color: String::new(),
+            cadence_color_general: String::new(),
+            cadence_color_daily: "#0a8c81".into(),
+            cadence_color_weekly: "#d8ac5f".into(),
+            cadence_color_monthly: "#8b68db".into(),
+            cadence_color_yearly: "#cb5092".into(),
+            cadence_color_exact: "#df4645".into(),
+            category_color: "#5194e6".into(),
+            category_color_a: "#5a8a05".into(),
+            category_color_b: "#c95e05".into(),
+            done_color: "#079042".into(),
+            waiting_color: "#0a88a5".into(),
+            dropped_color: "#b76262".into(),
+            habit_rate_alert_color: "#c95e05".into(),
+            postponed_plate_color: "#a97205".into(),
+            done_plate_color: "#079042".into(),
+            waiting_plate_color: "#0a88a5".into(),
+            dropped_plate_color: "#797d85".into(),
+        }
+    }
+}
+
+impl ThemeColors {
+    pub fn light() -> Self {
+        Self {
+            dow_label_color: "#6f537a".into(),
+            cadence_color_daily: "#016860".into(),
+            cadence_color_weekly: "#7b5600".into(),
+            cadence_color_monthly: "#6b46b6".into(),
+            cadence_color_yearly: "#a32a6f".into(),
+            cadence_color_exact: "#b41221".into(),
+            category_color: "#165daa".into(),
+            category_color_a: "#426701".into(),
+            category_color_b: "#964505".into(),
+            done_color: "#076b30".into(),
+            waiting_color: "#01657c".into(),
+            dropped_color: "#954445".into(),
+            habit_rate_alert_color: "#964505".into(),
+            postponed_plate_color: "#7f5400".into(),
+            done_plate_color: "#076b30".into(),
+            waiting_plate_color: "#01657c".into(),
+            dropped_plate_color: "#5a5e65".into(),
+            ..Self::default()
+        }
+    }
+
+    /// The keys of one set; in colors.yml they sit under `dark:` and
+    /// `light:`, and an older flat colors.yml carried them at the top.
+    pub fn keys() -> Vec<String> {
+        serde_yaml::to_value(Self::default())
+            .ok()
+            .and_then(|v| v.as_mapping().cloned())
+            .unwrap_or_default()
+            .keys()
+            .filter_map(|k| k.as_str().map(str::to_string))
+            .collect()
+    }
+
+    /// Hex colors land in inline styles, so no arbitrary string reaches
+    /// the DOM: a malformed required color falls back to the theme's
+    /// default, a malformed override is cleared (empty = follow the
+    /// stylesheet or the tone it names).
+    fn sanitized(mut self, defaults: Self) -> Self {
+        let is_hex = |value: &str| {
+            value.len() == 7
+                && value.starts_with('#')
+                && value[1..].chars().all(|c| c.is_ascii_hexdigit())
+        };
+        let optional = [
+            &mut self.accent_color,
+            &mut self.surface_color,
+            &mut self.surface_alt_color,
+            &mut self.line_color,
+            &mut self.content_color,
+            &mut self.content_muted_color,
+            &mut self.weekly_focus_color,
+            &mut self.reminder_color,
+            &mut self.day_header_color,
+            &mut self.dow_label_color,
+            &mut self.list_date_chip_color,
+            &mut self.cadence_color_general,
+        ];
+        for value in optional {
+            *value = value.trim().to_lowercase();
+            if !value.is_empty() && !is_hex(value) {
+                value.clear();
+            }
+        }
+        // an empty plate color is the old "neutral" value: it takes the
+        // section's own default hue now
+        let required = [
+            (&mut self.cadence_color_daily, defaults.cadence_color_daily),
+            (
+                &mut self.cadence_color_weekly,
+                defaults.cadence_color_weekly,
+            ),
+            (
+                &mut self.cadence_color_monthly,
+                defaults.cadence_color_monthly,
+            ),
+            (
+                &mut self.cadence_color_yearly,
+                defaults.cadence_color_yearly,
+            ),
+            (&mut self.cadence_color_exact, defaults.cadence_color_exact),
+            (&mut self.category_color, defaults.category_color),
+            (&mut self.category_color_a, defaults.category_color_a),
+            (&mut self.category_color_b, defaults.category_color_b),
+            (&mut self.done_color, defaults.done_color),
+            (&mut self.waiting_color, defaults.waiting_color),
+            (&mut self.dropped_color, defaults.dropped_color),
+            (
+                &mut self.habit_rate_alert_color,
+                defaults.habit_rate_alert_color,
+            ),
+            (
+                &mut self.postponed_plate_color,
+                defaults.postponed_plate_color,
+            ),
+            (&mut self.done_plate_color, defaults.done_plate_color),
+            (&mut self.waiting_plate_color, defaults.waiting_plate_color),
+            (&mut self.dropped_plate_color, defaults.dropped_plate_color),
+        ];
+        for (value, default) in required {
+            *value = value.trim().to_lowercase();
+            if !is_hex(value) {
+                *value = default;
+            }
+        }
+        self
+    }
+}
+
+/// A set given in part keeps its own theme's defaults for the rest -
+/// `#[serde(default)]` alone would fill a light set from the dark one.
+fn colors_over<'de, D>(
+    base: ThemeColors,
+    deserializer: D,
+) -> std::result::Result<ThemeColors, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    let given = Option::<serde_yaml::Mapping>::deserialize(deserializer)?.unwrap_or_default();
+    let mut map = serde_yaml::to_value(base)
+        .map_err(D::Error::custom)?
+        .as_mapping()
+        .cloned()
+        .unwrap_or_default();
+    map.extend(given);
+    serde_yaml::from_value(serde_yaml::Value::Mapping(map)).map_err(D::Error::custom)
+}
+
+fn dark_colors<'de, D>(deserializer: D) -> std::result::Result<ThemeColors, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    colors_over(ThemeColors::default(), deserializer)
+}
+
+fn light_colors<'de, D>(deserializer: D) -> std::result::Result<ThemeColors, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    colors_over(ThemeColors::light(), deserializer)
+}
+
 /// The color scheme: fields kept in the synced `config/colors.yml`
 /// (`vault::synced_file`) instead of the per-device app.yml, so every
 /// device paints the vault the same way - the scheme belongs to the
@@ -366,41 +565,16 @@ pub const CATEGORY_COLOR_MODES: &[&str] = &["single", "varied", "alternate"];
 /// never carries them: a copy left there by an older version is ignored
 /// on load and dropped on the next save. A missing colors.yml means the
 /// defaults. Settings has no controls for these; colors.yml is edited by
-/// hand (Notes > Config).
+/// hand (Notes > Config). The hexes sit per theme under `dark:` and
+/// `light:`; the switches and the contrast floor are shared.
 pub const COLOR_KEYS: &[&str] = &[
-    "accent_color",
-    "surface_color",
-    "surface_alt_color",
-    "line_color",
+    "dark",
+    "light",
     "color_min_contrast",
-    "content_color",
-    "content_muted_color",
-    "weekly_focus_color",
-    "reminder_color",
-    "day_header_color",
-    "dow_label_color",
     "dow_label_opacity",
     "cadence_colors",
-    "cadence_color_general",
-    "cadence_color_daily",
-    "cadence_color_weekly",
-    "cadence_color_monthly",
-    "cadence_color_yearly",
-    "cadence_color_exact",
-    "done_color",
-    "waiting_color",
-    "dropped_color",
-    "category_color",
     "category_color_mode",
     "category_avoid_cadence_colors",
-    "category_color_a",
-    "category_color_b",
-    "habit_rate_alert_color",
-    "postponed_plate_color",
-    "done_plate_color",
-    "waiting_plate_color",
-    "dropped_plate_color",
-    "list_date_chip_color",
     "list_exact_stripe",
 ];
 
@@ -465,6 +639,46 @@ impl SyncedPart {
     }
 }
 
+/// colors.yml from before the per-theme sets carried one set of hexes
+/// at the top level, tuned on the dark theme: they become the `dark:`
+/// set (keys already under `dark:` win), and `light:` keeps its own.
+pub fn nest_flat_colors(values: &serde_yaml::Mapping) -> serde_yaml::Mapping {
+    let keys = ThemeColors::keys();
+    let is_flat =
+        |key: &serde_yaml::Value| key.as_str().is_some_and(|k| keys.iter().any(|f| f == k));
+    if !values.keys().any(is_flat) {
+        return values.clone();
+    }
+    let mut dark = values
+        .get("dark")
+        .and_then(|v| v.as_mapping())
+        .cloned()
+        .unwrap_or_default();
+    let mut nested = serde_yaml::Mapping::new();
+    for (key, value) in values {
+        if is_flat(key) {
+            if !dark.contains_key(key) {
+                dark.insert(key.clone(), value.clone());
+            }
+        } else if key.as_str() != Some("dark") {
+            nested.insert(key.clone(), value.clone());
+        }
+    }
+    nested.insert("dark".into(), serde_yaml::Value::Mapping(dark));
+    nested
+}
+
+/// The file at `path` still has the flat pre-theme layout.
+fn has_flat_colors(path: &Path) -> bool {
+    let Ok(raw) = fs::read_to_string(path) else {
+        return false;
+    };
+    let Ok(Some(map)) = serde_yaml::from_str::<Option<serde_yaml::Mapping>>(&raw) else {
+        return false;
+    };
+    nest_flat_colors(&map) != map
+}
+
 fn is_synced_key(key: &serde_yaml::Value) -> bool {
     SyncedPart::ALL.iter().any(|part| part.owns(key))
 }
@@ -488,10 +702,8 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme: "dark".into(),
-            accent_color: String::new(),
-            surface_color: String::new(),
-            surface_alt_color: String::new(),
-            line_color: String::new(),
+            dark: ThemeColors::default(),
+            light: ThemeColors::light(),
             color_min_contrast: 45,
             grid_columns: 2,
             done_display: "separate".into(),
@@ -521,19 +733,8 @@ impl Default for AppConfig {
             undo_toast_seconds: 6,
             day_header_centered: false,
             cadence_colors: true,
-            cadence_color_daily: "#0a8c81".into(),
-            cadence_color_weekly: "#d8ac5f".into(),
-            cadence_color_monthly: "#8b68db".into(),
-            cadence_color_yearly: "#cb5092".into(),
-            cadence_color_exact: "#df4645".into(),
-            category_color: "#5194e6".into(),
             chip_font_scale: 100,
             category_color_mode: "single".into(),
-            category_color_a: "#5a8a05".into(),
-            category_color_b: "#c95e05".into(),
-            done_color: "#079042".into(),
-            waiting_color: "#0a88a5".into(),
-            dropped_color: "#b76262".into(),
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
             backup_keep: 14,
@@ -564,7 +765,6 @@ impl Default for AppConfig {
             habit_rate_threshold: 80,
             habit_rate_window: 30,
             habit_rate_min_instances: 3,
-            habit_rate_alert_color: "#c95e05".into(),
             lists_sort_alpha: false,
             lists_page_columns: 3,
             lists_page_align_rows: true,
@@ -591,19 +791,7 @@ impl Default for AppConfig {
             cadence_weekly_min_per_year: 37,
             cadence_monthly_min_per_year: 4,
             ui_font_size: 16,
-            content_color: String::new(),
-            content_muted_color: String::new(),
-            weekly_focus_color: String::new(),
-            reminder_color: String::new(),
-            day_header_color: String::new(),
-            dow_label_color: "#bb9dc8".into(),
             dow_label_opacity: 60,
-            list_date_chip_color: String::new(),
-            cadence_color_general: String::new(),
-            postponed_plate_color: "#a97205".into(),
-            done_plate_color: "#079042".into(),
-            waiting_plate_color: "#0a88a5".into(),
-            dropped_plate_color: "#797d85".into(),
             list_exact_stripe: true,
             capture_list: "Inbox".into(),
             capture_shortcut: "Ctrl+Alt+Space".into(),
@@ -618,6 +806,15 @@ impl AppConfig {
     /// Days ahead the engine materializes tasks for (and the calendar
     /// projection starts after): the widest day grid any view shows, so
     /// a Days page wider than the dashboard is not left empty.
+    /// The color set of the theme in use.
+    pub fn colors(&self) -> &ThemeColors {
+        if self.theme == "light" {
+            &self.light
+        } else {
+            &self.dark
+        }
+    }
+
     pub fn horizon_days(&self) -> u32 {
         self.grid_columns.max(self.days_page_columns).max(1)
     }
@@ -642,6 +839,14 @@ impl AppConfig {
                 // Config editor shows is exactly what is in effect
                 if config.has_stale_keys(settings) {
                     let _ = config.save(settings);
+                }
+                // same for a colors.yml still in the flat layout, once:
+                // the editor then shows the dark:/light: sets in effect
+                let colors = config_dir.join(SyncedPart::Colors.file());
+                if !errors.iter().any(|(part, _)| *part == SyncedPart::Colors)
+                    && has_flat_colors(&colors)
+                {
+                    let _ = config.save_part(SyncedPart::Colors, &colors);
                 }
                 let error = errors
                     .into_iter()
@@ -771,7 +976,11 @@ impl AppConfig {
     /// it; any other key in `values` is ignored.
     pub fn with_part(self, part: SyncedPart, values: &serde_yaml::Mapping) -> Result<Self> {
         let mut map = self.to_mapping()?;
-        for (key, value) in values {
+        let values = match part {
+            SyncedPart::Colors => nest_flat_colors(values),
+            SyncedPart::Shared => values.clone(),
+        };
+        for (key, value) in &values {
             if part.owns(key) {
                 map.insert(key.clone(), value.clone());
             }
@@ -845,35 +1054,9 @@ impl AppConfig {
         self.list_dialog_task_lines = self.list_dialog_task_lines.clamp(1, 10);
         self.ui_font = self.ui_font.trim().to_string();
         self.editor_font = self.editor_font.trim().to_string();
-        // hex colors land in inline styles; anything malformed falls
-        // back to the default so no arbitrary string reaches the DOM
         let defaults = Self::default();
-        let sanitize_color = |value: &mut String, default: String| {
-            *value = value.trim().to_lowercase();
-            if !(value.len() == 7
-                && value.starts_with('#')
-                && value[1..].chars().all(|c| c.is_ascii_hexdigit()))
-            {
-                *value = default;
-            }
-        };
-        sanitize_color(&mut self.cadence_color_daily, defaults.cadence_color_daily);
-        sanitize_color(
-            &mut self.cadence_color_weekly,
-            defaults.cadence_color_weekly,
-        );
-        sanitize_color(
-            &mut self.cadence_color_monthly,
-            defaults.cadence_color_monthly,
-        );
-        sanitize_color(
-            &mut self.cadence_color_yearly,
-            defaults.cadence_color_yearly,
-        );
-        sanitize_color(&mut self.cadence_color_exact, defaults.cadence_color_exact);
-        sanitize_color(&mut self.category_color, defaults.category_color);
-        sanitize_color(&mut self.category_color_a, defaults.category_color_a);
-        sanitize_color(&mut self.category_color_b, defaults.category_color_b);
+        self.dark = self.dark.sanitized(defaults.dark.clone());
+        self.light = self.light.sanitized(defaults.light.clone());
         if !CATEGORY_COLOR_MODES.contains(&self.category_color_mode.as_str()) {
             self.category_color_mode = defaults.category_color_mode;
         }
@@ -883,49 +1066,9 @@ impl AppConfig {
             0..=9 => 0,
             n => n.min(210),
         };
-        sanitize_color(&mut self.done_color, defaults.done_color);
-        sanitize_color(&mut self.waiting_color, defaults.waiting_color);
-        sanitize_color(&mut self.dropped_color, defaults.dropped_color);
-        // an empty plate color is the old "neutral" value: it takes the
-        // section's own default hue now
-        sanitize_color(
-            &mut self.postponed_plate_color,
-            defaults.postponed_plate_color,
-        );
-        sanitize_color(&mut self.done_plate_color, defaults.done_plate_color);
-        sanitize_color(&mut self.waiting_plate_color, defaults.waiting_plate_color);
-        sanitize_color(&mut self.dropped_plate_color, defaults.dropped_plate_color);
-        sanitize_color(
-            &mut self.habit_rate_alert_color,
-            defaults.habit_rate_alert_color,
-        );
         self.habit_rate_threshold = self.habit_rate_threshold.min(100);
         self.habit_rate_window = self.habit_rate_window.min(3650);
         self.habit_rate_min_instances = self.habit_rate_min_instances.clamp(1, 365);
-        // text tone overrides: empty means "theme default", anything
-        // else must be a well-formed hex color
-        let sanitize_optional_color = |value: &mut String| {
-            *value = value.trim().to_lowercase();
-            if !value.is_empty()
-                && !(value.len() == 7
-                    && value.starts_with('#')
-                    && value[1..].chars().all(|c| c.is_ascii_hexdigit()))
-            {
-                value.clear();
-            }
-        };
-        sanitize_optional_color(&mut self.accent_color);
-        sanitize_optional_color(&mut self.surface_color);
-        sanitize_optional_color(&mut self.surface_alt_color);
-        sanitize_optional_color(&mut self.line_color);
-        sanitize_optional_color(&mut self.content_color);
-        sanitize_optional_color(&mut self.content_muted_color);
-        sanitize_optional_color(&mut self.weekly_focus_color);
-        sanitize_optional_color(&mut self.reminder_color);
-        sanitize_optional_color(&mut self.day_header_color);
-        sanitize_optional_color(&mut self.dow_label_color);
-        sanitize_optional_color(&mut self.list_date_chip_color);
-        sanitize_optional_color(&mut self.cadence_color_general);
         // unknown names are dropped, missing entries come back in their
         // default position, so a typo can never lose a tab or a group
         let sanitize_order = |input: &[String], known: &[&str]| {
@@ -1001,10 +1144,14 @@ impl AppConfig {
     pub fn settings_pairs(&self) -> Vec<(&'static str, String)> {
         vec![
             ("theme", self.theme.clone()),
-            ("accent_color", self.accent_color.clone()),
-            ("surface_color", self.surface_color.clone()),
-            ("surface_alt_color", self.surface_alt_color.clone()),
-            ("line_color", self.line_color.clone()),
+            (
+                "dark",
+                serde_json::to_string(&self.dark).unwrap_or_default(),
+            ),
+            (
+                "light",
+                serde_json::to_string(&self.light).unwrap_or_default(),
+            ),
             ("color_min_contrast", self.color_min_contrast.to_string()),
             ("grid_columns", self.grid_columns.to_string()),
             ("done_display", self.done_display.clone()),
@@ -1052,19 +1199,8 @@ impl AppConfig {
             ("undo_toast_seconds", self.undo_toast_seconds.to_string()),
             ("day_header_centered", self.day_header_centered.to_string()),
             ("cadence_colors", self.cadence_colors.to_string()),
-            ("cadence_color_daily", self.cadence_color_daily.clone()),
-            ("cadence_color_weekly", self.cadence_color_weekly.clone()),
-            ("cadence_color_monthly", self.cadence_color_monthly.clone()),
-            ("cadence_color_yearly", self.cadence_color_yearly.clone()),
-            ("cadence_color_exact", self.cadence_color_exact.clone()),
-            ("category_color", self.category_color.clone()),
             ("chip_font_scale", self.chip_font_scale.to_string()),
             ("category_color_mode", self.category_color_mode.clone()),
-            ("category_color_a", self.category_color_a.clone()),
-            ("category_color_b", self.category_color_b.clone()),
-            ("done_color", self.done_color.clone()),
-            ("waiting_color", self.waiting_color.clone()),
-            ("dropped_color", self.dropped_color.clone()),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
@@ -1121,10 +1257,6 @@ impl AppConfig {
                 "habit_rate_min_instances",
                 self.habit_rate_min_instances.to_string(),
             ),
-            (
-                "habit_rate_alert_color",
-                self.habit_rate_alert_color.clone(),
-            ),
             ("lists_sort_alpha", self.lists_sort_alpha.to_string()),
             ("lists_page_columns", self.lists_page_columns.to_string()),
             (
@@ -1175,24 +1307,12 @@ impl AppConfig {
                 self.cadence_monthly_min_per_year.to_string(),
             ),
             ("ui_font_size", self.ui_font_size.to_string()),
-            ("content_color", self.content_color.clone()),
-            ("content_muted_color", self.content_muted_color.clone()),
-            ("weekly_focus_color", self.weekly_focus_color.clone()),
-            ("reminder_color", self.reminder_color.clone()),
-            ("day_header_color", self.day_header_color.clone()),
-            ("dow_label_color", self.dow_label_color.clone()),
             ("dow_label_opacity", self.dow_label_opacity.to_string()),
             ("list_task_lines", self.list_task_lines.to_string()),
             (
                 "list_dialog_task_lines",
                 self.list_dialog_task_lines.to_string(),
             ),
-            ("list_date_chip_color", self.list_date_chip_color.clone()),
-            ("cadence_color_general", self.cadence_color_general.clone()),
-            ("postponed_plate_color", self.postponed_plate_color.clone()),
-            ("done_plate_color", self.done_plate_color.clone()),
-            ("waiting_plate_color", self.waiting_plate_color.clone()),
-            ("dropped_plate_color", self.dropped_plate_color.clone()),
             ("list_exact_stripe", self.list_exact_stripe.to_string()),
             ("capture_list", self.capture_list.clone()),
             ("capture_shortcut", self.capture_shortcut.clone()),

@@ -119,25 +119,25 @@ fn theme(config: &AppConfig) -> WidgetTheme {
             light_default.to_string()
         }
     };
-    let content_muted = pick(&config.content_muted_color, "#bfbfbf", "#606060");
-    let (dow_label, dow_label_opacity) = if config.dow_label_color.is_empty() {
+    let content_muted = pick(&config.colors().content_muted_color, "#bfbfbf", "#606060");
+    let (dow_label, dow_label_opacity) = if config.colors().dow_label_color.is_empty() {
         (content_muted.clone(), config.dow_label_opacity)
     } else {
-        (config.dow_label_color.clone(), 100)
+        (config.colors().dow_label_color.clone(), 100)
     };
     WidgetTheme {
         dark,
-        surface: pick(&config.surface_color, "#1e1e1e", "#ffffff"),
-        surface_alt: pick(&config.surface_alt_color, "#252526", "#f3f3f3"),
-        content: pick(&config.content_color, "#d4d4d4", "#333333"),
+        surface: pick(&config.colors().surface_color, "#1e1e1e", "#ffffff"),
+        surface_alt: pick(&config.colors().surface_alt_color, "#252526", "#f3f3f3"),
+        content: pick(&config.colors().content_color, "#d4d4d4", "#333333"),
         content_muted,
-        accent: pick(&config.accent_color, "#55a5ff", "#005fb8"),
-        line: pick(&config.line_color, "#3c3c3c", "#e0e0e0"),
+        accent: pick(&config.colors().accent_color, "#55a5ff", "#005fb8"),
+        line: pick(&config.colors().line_color, "#3c3c3c", "#e0e0e0"),
         dow_label,
         dow_label_opacity,
         postponed: if dark { "#fbbf24" } else { "#92400e" }.to_string(),
-        waiting: config.waiting_color.clone(),
-        done: config.done_color.clone(),
+        waiting: config.colors().waiting_color.clone(),
+        done: config.colors().done_color.clone(),
     }
 }
 
@@ -147,12 +147,12 @@ fn cadence_color(config: &AppConfig, key: &str) -> Option<String> {
         return None;
     }
     let color = match key {
-        "exact" => &config.cadence_color_exact,
-        "general" => &config.cadence_color_general,
-        "daily" => &config.cadence_color_daily,
-        "weekly" => &config.cadence_color_weekly,
-        "monthly" => &config.cadence_color_monthly,
-        "yearly" => &config.cadence_color_yearly,
+        "exact" => &config.colors().cadence_color_exact,
+        "general" => &config.colors().cadence_color_general,
+        "daily" => &config.colors().cadence_color_daily,
+        "weekly" => &config.colors().cadence_color_weekly,
+        "monthly" => &config.colors().cadence_color_monthly,
+        "yearly" => &config.colors().cadence_color_yearly,
         _ => return None,
     };
     (!color.is_empty()).then(|| color.clone())
@@ -275,9 +275,9 @@ struct DayRow {
 /// falls back to the single colour for it.
 fn category_color(config: &AppConfig, block_index: usize) -> String {
     match config.category_color_mode.as_str() {
-        "alternate" if block_index % 2 == 1 => config.category_color_b.clone(),
-        "alternate" => config.category_color_a.clone(),
-        _ => config.category_color.clone(),
+        "alternate" if block_index % 2 == 1 => config.colors().category_color_b.clone(),
+        "alternate" => config.colors().category_color_a.clone(),
+        _ => config.colors().category_color.clone(),
     }
 }
 
@@ -443,8 +443,8 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
             .map(|(_, l)| l.to_string())
             .unwrap_or_default();
         let color = match key {
-            "postponed" => Some(config.postponed_plate_color.clone()),
-            "waiting" => Some(config.waiting_plate_color.clone()),
+            "postponed" => Some(config.colors().postponed_plate_color.clone()),
+            "waiting" => Some(config.colors().waiting_plate_color.clone()),
             _ => cadence_color(config, key),
         };
         sections.push(WidgetSection {
@@ -561,9 +561,9 @@ mod tests {
         assert_eq!(rows[0]["id"].as_i64().unwrap(), a);
         assert_eq!(rows[0]["title"], "open");
         assert_eq!(rows[0]["category"], "Admin");
-        assert_eq!(rows[0]["category_color"], config.category_color_a);
+        assert_eq!(rows[0]["category_color"], config.colors().category_color_a);
         assert_eq!(rows[1]["id"].as_i64().unwrap(), c);
-        assert_eq!(rows[1]["category_color"], config.category_color_b);
+        assert_eq!(rows[1]["category_color"], config.colors().category_color_b);
         assert_eq!(work["kind"], "todo");
 
         let groceries = lists.iter().find(|l| l["name"] == "Groceries").unwrap();
@@ -644,7 +644,7 @@ mod tests {
             .map(|s| s["label"].as_str().unwrap())
             .collect();
         assert_eq!(labels, vec!["Daily", "Exact date", "General"]);
-        assert_eq!(sections[0]["color"], config.cadence_color_daily);
+        assert_eq!(sections[0]["color"], config.colors().cadence_color_daily);
         assert!(sections[2]["color"].is_null());
         assert_eq!(data["category_headers"], true);
         let daily = &sections[0]["tasks"][0];
@@ -654,12 +654,12 @@ mod tests {
         let exact = &sections[1]["tasks"][0];
         assert_eq!(exact["id"].as_i64().unwrap(), errand);
         assert_eq!(exact["category"], "Errands");
-        assert_eq!(exact["category_color"], config.category_color_a);
+        assert_eq!(exact["category_color"], config.colors().category_color_a);
         let home = &sections[2]["tasks"][0];
         assert_eq!(home["id"].as_i64().unwrap(), note);
         assert_eq!(home["title"], "water plants");
         assert_eq!(home["category"], "Home");
-        assert_eq!(home["category_color"], config.category_color_b);
+        assert_eq!(home["category_color"], config.colors().category_color_b);
         let all: Vec<i64> = sections
             .iter()
             .flat_map(|s| s["tasks"].as_array().unwrap().iter())
@@ -674,20 +674,22 @@ mod tests {
         let conn = conn();
         let mut config = config(&[]);
         config.theme = "dark".into();
-        config.accent_color = "#123456".into();
+        config.dark.accent_color = "#123456".into();
         let data: Value =
             serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
         assert_eq!(data["theme"]["dark"], true);
         assert_eq!(data["theme"]["surface"], "#1e1e1e");
         assert_eq!(data["theme"]["accent"], "#123456");
-        assert_eq!(data["theme"]["dow_label"], config.dow_label_color);
+        assert_eq!(data["theme"]["dow_label"], config.colors().dow_label_color);
         assert_eq!(data["theme"]["dow_label_opacity"], 100);
 
+        // the dark set's override stays on the dark theme
         config.theme = "light".into();
-        config.dow_label_color = String::new();
+        config.light.dow_label_color = String::new();
         let data: Value =
             serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
         assert_eq!(data["theme"]["dark"], false);
+        assert_eq!(data["theme"]["accent"], "#005fb8");
         assert_eq!(data["theme"]["content"], "#333333");
         assert_eq!(data["theme"]["dow_label"], "#606060");
         assert_eq!(data["theme"]["dow_label_opacity"], config.dow_label_opacity);
@@ -740,7 +742,7 @@ mod tests {
         config.done_display = "separate".into();
         let data: Value =
             serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
-        assert_eq!(data["theme"]["waiting"], config.waiting_color);
+        assert_eq!(data["theme"]["waiting"], config.colors().waiting_color);
         let rows = data["lists"][0]["tasks"].as_array().unwrap();
         let got: Vec<(i64, &str)> = rows
             .iter()
@@ -757,7 +759,7 @@ mod tests {
             .collect();
         assert_eq!(labels, vec!["General", "Postponed", "Done, waiting"]);
         assert_eq!(sections[0]["tasks"][0]["id"].as_i64().unwrap(), today);
-        assert_eq!(sections[1]["color"], config.postponed_plate_color);
+        assert_eq!(sections[1]["color"], config.colors().postponed_plate_color);
         assert_eq!(sections[1]["tasks"][0]["id"].as_i64().unwrap(), day_later_a);
         assert_eq!(sections[1]["tasks"][1]["id"].as_i64().unwrap(), day_later);
         assert_eq!(sections[2]["tasks"][0]["id"].as_i64().unwrap(), day_asked);

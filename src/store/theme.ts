@@ -1,5 +1,5 @@
 import type { AppConfig } from "../types";
-import { readable, setColorContext } from "../lib/color";
+import { readable, setColorContext, themeColors } from "../lib/color";
 
 /** "#a1b2c3" -> "161 178 195" (the space-separated form the theme
  *  tokens use, so opacity modifiers keep working). */
@@ -22,6 +22,7 @@ const THEME_OVERRIDES = [
 
 export function applyTheme(config: AppConfig | null) {
   setColorContext(config);
+  const colors = themeColors(config);
   const root = document.documentElement;
   root.classList.toggle("dark", config?.theme !== "light");
   // fonts are config-driven: the UI font overrides the stylesheet
@@ -46,26 +47,26 @@ export function applyTheme(config: AppConfig | null) {
   const size = config?.ui_font_size ?? 16;
   root.style.fontSize = size === 16 ? "" : `${size}px`;
   // chrome palette: the stylesheet's VS Code Dark+/Light+ colors, with
-  // the individual overrides on top; empty value = stylesheet
+  // this theme's individual overrides on top; empty value = stylesheet
   for (const [name, key] of THEME_OVERRIDES) {
-    const triplet = hexToTriplet(config?.[key] ?? "");
+    const triplet = hexToTriplet(colors?.[key] ?? "");
     if (triplet) root.style.setProperty(name, triplet);
     else root.style.removeProperty(name);
   }
   // done checkboxes (cards, subtasks, calendar status marks)
-  if (config?.done_color) {
-    root.style.setProperty("--hex-done", readable(config.done_color, "mark"));
+  if (colors?.done_color) {
+    root.style.setProperty("--hex-done", readable(colors.done_color, "mark"));
   } else root.style.removeProperty("--hex-done");
-  if (config?.waiting_color) {
+  if (colors?.waiting_color) {
     root.style.setProperty(
       "--hex-waiting",
-      readable(config.waiting_color, "mark"),
+      readable(colors.waiting_color, "mark"),
     );
   } else root.style.removeProperty("--hex-waiting");
-  if (config?.dropped_color) {
+  if (colors?.dropped_color) {
     root.style.setProperty(
       "--hex-dropped",
-      readable(config.dropped_color, "mark"),
+      readable(colors.dropped_color, "mark"),
     );
   } else root.style.removeProperty("--hex-dropped");
 }

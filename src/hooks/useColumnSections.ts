@@ -10,6 +10,7 @@ import {
   sortClosedAlpha,
   splitDone,
 } from "../lib/tasks";
+import { themeColors } from "../lib/color";
 import { useAppStore } from "../store";
 import type { AppConfig, List, Task } from "../types";
 
@@ -118,10 +119,10 @@ function closedSections(
     closed: true,
   });
   return [
-    closed("postponed", "Postponed", split.postponed, config?.postponed_plate_color),
-    closed("waiting", "Done, waiting", split.waiting, config?.waiting_plate_color),
-    closed("done", "Done", split.done, config?.done_plate_color),
-    closed("dropped", "Not done, dropped", split.dropped, config?.dropped_plate_color),
+    closed("postponed", "Postponed", split.postponed, themeColors(config)?.postponed_plate_color),
+    closed("waiting", "Done, waiting", split.waiting, themeColors(config)?.waiting_plate_color),
+    closed("done", "Done", split.done, themeColors(config)?.done_plate_color),
+    closed("dropped", "Not done, dropped", split.dropped, themeColors(config)?.dropped_plate_color),
   ];
 }
 

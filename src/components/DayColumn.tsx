@@ -10,7 +10,7 @@ import SectionBlock, {
   labelInHeader,
   RowLead,
 } from "./ColumnSection";
-import { readable } from "../lib/color";
+import { readable, themeColors } from "../lib/color";
 
 function DayColumn({
   date,
@@ -22,6 +22,7 @@ function DayColumn({
   // individual selectors: a whole-store subscribe would re-render every
   // column on unrelated state changes (toasts, palette, banners)
   const config = useAppStore((s) => s.config);
+  const headerColor = themeColors(config)?.day_header_color;
   const today = useAppStore((s) => s.today);
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
 
@@ -53,9 +54,7 @@ function DayColumn({
           config?.day_header_centered ? "text-center" : ""
         }`}
         style={
-          config?.day_header_color
-            ? { color: readable(config.day_header_color, "text") }
-            : undefined
+          headerColor ? { color: readable(headerColor, "text") } : undefined
         }
         title={dayLabel(date, today)}
       >

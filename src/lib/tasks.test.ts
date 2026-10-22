@@ -22,6 +22,7 @@ import {
   splitDone,
   weekdayShort,
 } from "./tasks";
+import { defaultConfig } from "../test/fixtures";
 import type {
   AppConfig,
   List,
@@ -29,6 +30,7 @@ import type {
   ScheduleBlock,
   Task,
   TaskStatus,
+  ThemeColors,
 } from "../types";
 
 function list(overrides: Partial<List>): List {
@@ -226,12 +228,16 @@ describe("groupByCadence", () => {
 
 describe("cadence colors", () => {
   const config = {
+    ...defaultConfig,
     cadence_colors: true,
-    cadence_color_daily: "#111111",
-    cadence_color_weekly: "#222222",
-    cadence_color_monthly: "#333333",
-    cadence_color_yearly: "#444444",
-    cadence_color_exact: "#555555",
+    dark: {
+      ...defaultConfig.dark,
+      cadence_color_daily: "#111111",
+      cadence_color_weekly: "#222222",
+      cadence_color_monthly: "#333333",
+      cadence_color_yearly: "#444444",
+      cadence_color_exact: "#555555",
+    },
   } as AppConfig;
 
   it("maps scheduled and birthday tasks to the exact key", () => {
@@ -393,13 +399,21 @@ describe("categoryBlockIndex", () => {
 });
 
 describe("categoryChipColor", () => {
-  const config = (overrides: Partial<AppConfig>) =>
+  const config = (
+    overrides: Partial<AppConfig>,
+    colors: Partial<ThemeColors> = {},
+  ) =>
     ({
-      category_color: "#111111",
+      ...defaultConfig,
       category_color_mode: "varied",
-      category_color_a: "#aaaaaa",
-      category_color_b: "#bbbbbb",
       ...overrides,
+      dark: {
+        ...defaultConfig.dark,
+        category_color: "#111111",
+        category_color_a: "#aaaaaa",
+        category_color_b: "#bbbbbb",
+        ...colors,
+      },
     }) as AppConfig;
 
   it("paints everything in one color in single mode", () => {
@@ -425,7 +439,6 @@ describe("categoryChipColor", () => {
 
   it("keeps varied chips off the cadence hues", () => {
     const cadence = {
-      cadence_colors: true,
       cadence_color_general: "",
       cadence_color_daily: "#9ca3af",
       cadence_color_weekly: "#4c78e3",
@@ -433,25 +446,30 @@ describe("categoryChipColor", () => {
       cadence_color_yearly: "#c16403",
       cadence_color_exact: "#058a95",
     };
-    const avoid = config({ ...cadence, category_avoid_cadence_colors: true });
+    const avoid = config(
+      { cadence_colors: true, category_avoid_cadence_colors: true },
+      cadence,
+    );
     const names = Array.from({ length: 60 }, (_, i) => `Category ${i}`);
     const used = new Set(names.map((n) => categoryChipColor(n, [], avoid)));
     // the plate colors themselves
     for (const near of ["#4c78e3", "#8b68db", "#c16403", "#058a95"]) {
       expect(used.has(near)).toBe(false);
     }
-    const all = config({ ...cadence, category_avoid_cadence_colors: false });
+    const all = config(
+      { cadence_colors: true, category_avoid_cadence_colors: false },
+      cadence,
+    );
     expect(
       new Set(names.map((n) => categoryChipColor(n, [], all))).size,
     ).toBeGreaterThan(used.size);
   });
 
   it("keeps a list's own color even when it matches a cadence", () => {
-    const c = config({
-      cadence_colors: true,
-      cadence_color_monthly: "#a855f7",
-      category_avoid_cadence_colors: true,
-    });
+    const c = config(
+      { cadence_colors: true, category_avoid_cadence_colors: true },
+      { cadence_color_monthly: "#a855f7" },
+    );
     const lists = [list({ name: "Health", color: "#a855f7" })];
     expect(categoryChipColor("Health", lists, c)).toBe("#a855f7");
   });

@@ -6,7 +6,7 @@ import type { AppConfig } from "../types";
 // AppConfig themselves
 const base = {
   theme: "dark",
-  accent_color: "",
+  ui_font: "",
   grid_columns: 7,
   list_task_lines: 6,
   cadence_group_order: ["exact", "general", "daily"],
@@ -18,7 +18,7 @@ const clone = (patch: Partial<AppConfig>): AppConfig =>
 describe("isGroupCustomized", () => {
   it("is false when every field sits at its default", () => {
     expect(
-      isGroupCustomized(clone({}), base, ["theme", "accent_color"]),
+      isGroupCustomized(clone({}), base, ["theme", "ui_font"]),
     ).toBe(false);
   });
 
@@ -31,11 +31,11 @@ describe("isGroupCustomized", () => {
     ).toBe(true);
   });
 
-  it("treats an empty color override as the default", () => {
-    expect(isGroupCustomized(clone({}), base, ["accent_color"])).toBe(false);
+  it("treats an empty string override as the default", () => {
+    expect(isGroupCustomized(clone({}), base, ["ui_font"])).toBe(false);
     expect(
-      isGroupCustomized(clone({ accent_color: "#112233" }), base, [
-        "accent_color",
+      isGroupCustomized(clone({ ui_font: "Inter" }), base, [
+        "ui_font",
       ]),
     ).toBe(true);
   });

@@ -1,5 +1,5 @@
 import { useAppStore } from "../store";
-import { readable } from "../lib/color";
+import { readable, themeColors } from "../lib/color";
 import { currentAndNextBlock } from "../lib/tasks";
 
 /**
@@ -26,7 +26,7 @@ export function DayAmbientLines({
   reminders,
   schedule,
 }: Omit<ReturnType<typeof useDayAmbient>, "focus">) {
-  const reminderColor = useAppStore((s) => s.config?.reminder_color);
+  const reminderColor = useAppStore((s) => themeColors(s.config)?.reminder_color);
   return (
     <>
       {reminders.map((text, i) => (

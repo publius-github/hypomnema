@@ -727,7 +727,7 @@ mod tests {
         assert!(!synced_file(&root, SyncedPart::Colors).exists());
 
         let mut config = vault.config.clone();
-        config.done_color = "#00ff00".into();
+        config.dark.done_color = "#00ff00".into();
         vault.save_config(config).unwrap();
         assert!(fs::read_to_string(synced_file(&root, SyncedPart::Colors))
             .unwrap()

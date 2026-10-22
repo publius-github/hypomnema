@@ -1,4 +1,4 @@
-import type { AppConfig } from "../types";
+import type { AppConfig, ThemeColors } from "../types";
 
 /**
  * Theme-adaptive object colors. Every object color (cadence plates and
@@ -11,6 +11,18 @@ import type { AppConfig } from "../types";
  * reads is returned untouched, so a picked color stays the picked color
  * wherever it works.
  */
+
+/** The color set of the theme in use: each theme has its own. */
+export function themeColors(config: AppConfig): ThemeColors;
+export function themeColors(
+  config: AppConfig | null | undefined,
+): ThemeColors | undefined;
+export function themeColors(
+  config: AppConfig | null | undefined,
+): ThemeColors | undefined {
+  if (!config) return undefined;
+  return config.theme === "light" ? config.light : config.dark;
+}
 
 /** Alpha of the tint behind colored text (plates, chips) - `26` hex. */
 const TINT_ALPHA = 0x26 / 255;
@@ -128,8 +140,10 @@ function contextFor(config: AppConfig | null): ColorContext {
   const dark = config?.theme !== "light";
   const defaults = THEME_SURFACES[dark ? "dark" : "light"];
   const backgrounds = [
-    parseHex(config?.surface_color ?? "") ?? parseHex(defaults[0])!,
-    parseHex(config?.surface_alt_color ?? "") ?? parseHex(defaults[1])!,
+    parseHex(themeColors(config)?.surface_color ?? "") ??
+      parseHex(defaults[0])!,
+    parseHex(themeColors(config)?.surface_alt_color ?? "") ??
+      parseHex(defaults[1])!,
   ];
   const darkest = Math.min(...backgrounds.map(luminance));
   return {
