@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.121.1 - 2026-10-22
+
+Android widgets: a priority task now shows a star in the warn tone at the start of its text instead of an accent bar, and the bar is gone from priority rows that are done or waiting, where it sat after the status box.
+
 ## 0.121.0 - 2026-10-22
 
 The light theme gets its own color scheme instead of borrowing the dark one's: colors.yml now holds a set of hexes per theme under `dark:` and `light:` (cadence and status colors, plates, chips, markers and the chrome overrides), while the switches and the contrast floor stay shared. The light defaults keep the dark set's hues at a lightness that reads on the light panels. An existing flat colors.yml becomes the `dark:` set on first open, so a scheme tuned on the dark theme no longer leaks into the light one on another device. Calendar dots now use the current theme's cadence colors instead of fixed Tailwind tones, which were too faint on the light panels; birthdays share the exact-date dot, as on the cards.

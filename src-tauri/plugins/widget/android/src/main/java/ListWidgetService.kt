@@ -86,9 +86,13 @@ class ListWidgetService : RemoteViewsService() {
       spans.forEach { text.setSpan(it, from, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
     }
 
-    /** A task as the Day screen reads it: the category chip (when not in a header), the weekday marker, the text. */
+    /** A task as the Day screen reads it: the priority star, the category chip (when not in a header), the weekday marker, the text. */
     private fun styled(task: WidgetTask, chip: Boolean): CharSequence {
       val text = SpannableStringBuilder()
+      if (task.priority) {
+        text.append("\u2605 ")
+        span(text, 0, ForegroundColorSpan(theme.postponed))
+      }
       if (chip && task.category != null) {
         val start = text.length
         text.append(task.category)
@@ -146,8 +150,6 @@ class ListWidgetService : RemoteViewsService() {
       // (only the box says); a list row is tinted as asked
       views.setTextColor(R.id.hw_title, if (row.inCard) statusText(task) else theme.content)
       statusMark(views, task)
-      views.setInt(R.id.hw_priority, "setColorFilter", theme.accent)
-      views.setViewVisibility(R.id.hw_priority, if (task.priority) View.VISIBLE else View.GONE)
       views.setInt(R.id.hw_rule, "setColorFilter", theme.line)
       // the card's foot closes it: no hairline under the last task
       views.setViewVisibility(R.id.hw_rule, if (row.inCard && row.last) View.INVISIBLE else View.VISIBLE)

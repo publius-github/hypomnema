@@ -43,17 +43,6 @@
                 android:src="@drawable/hw_status_done"
                 android:visibility="gone" />
 
-            <!-- an ImageView, not a View: RemoteViews inflates only the widget
-                 classes it allows, and a plain View fails the whole row -->
-            <ImageView
-                android:id="@+id/hw_priority"
-                android:layout_width="3dp"
-                android:layout_height="18dp"
-                android:layout_marginEnd="8dp"
-                android:contentDescription="@null"
-                android:src="@drawable/hw_fill"
-                android:visibility="gone" />
-
             <TextView
                 android:id="@+id/hw_title"
                 android:layout_width="0dp"
