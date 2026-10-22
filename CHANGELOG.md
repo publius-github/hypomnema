@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.119.4 - 2026-10-22
+
+The Windows installer carries the Hypomnema icon instead of the stock NSIS one, a branded header and Welcome/Finish sidebar, the copyright line, and publisher, description and project links in Apps & features.
+
 ## 0.119.3 - 2026-10-22
 
 A new install starts with the owner's layout: 2 days on the dashboard and 4 on the Days page, 3 list columns, both day grids on today only, a 79% dashboard split, the left bar ordered Dashboard / Days / Lists / ... / Knowledge base / Journal / History with Calendar, History and Review hidden.

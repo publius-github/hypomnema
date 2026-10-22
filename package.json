@@ -2,7 +2,7 @@
   "name": "hypomnema",
   "private": true,
   "license": "GPL-3.0-only",
-  "version": "0.119.3",
+  "version": "0.119.4",
   "type": "module",
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
