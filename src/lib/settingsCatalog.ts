@@ -203,6 +203,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
 
   // --- Sync ----------------------------------------------------
   { key: "sync_auto", label: "Sync automatically", group: "sync.schedule", terms: "google drive auto" },
+  { key: "sync_card_settings", label: "Sync task card settings", group: "sync.schedule", terms: "cards.yml devices phone shared" },
 ];
 
 const IN_COLORS_YML =

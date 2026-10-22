@@ -63,7 +63,7 @@ A vertical rail on the left holds the sections; their order is configurable and 
   <em>Notes: Markdown files in place, wiki links and backlinks.</em>
 </p>
 
-**Settings** has six tabs (General, Tasks, Recurring & calendar, Capture & alerts, Data, Sync) with a search over every setting. They are stored in `.hypomnema/settings/app.yml` (per device), except the task rules every device must share, which go to the synced `.hypomnema/config/shared.yml`. The color scheme (`config/colors.yml`) and fine-tuning without a Settings control are edited in Notes > Config, validated on save.
+**Settings** has six tabs (General, Tasks, Recurring & calendar, Capture & alerts, Data, Sync) with a search over every setting. They are stored in `.hypomnema/settings/app.yml` (per device), except the task rules every device must share, which go to the synced `.hypomnema/config/shared.yml`, and the Tasks tab, which goes to the synced `.hypomnema/config/cards.yml` unless Sync task card settings is off on that device. The color scheme (`config/colors.yml`) and fine-tuning without a Settings control are edited in Notes > Config, validated on save.
 
 ## Files and forms: two ways to the same rules
 

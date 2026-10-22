@@ -248,6 +248,48 @@ fn synced_keys_are_real_fields_and_owned_once() {
         assert!(mapping.contains_key(*key), "unknown shared key '{key}'");
         assert!(!COLOR_KEYS.contains(key), "'{key}' is in both files");
     }
+    for key in CARD_KEYS {
+        assert!(mapping.contains_key(*key), "unknown card key '{key}'");
+        assert!(
+            !COLOR_KEYS.contains(key) && !SHARED_KEYS.contains(key),
+            "'{key}' is in two files"
+        );
+    }
+    assert!(!mapping
+        .keys()
+        .any(|k| k.as_str() == Some("sync_card_settings") && is_synced_key(k, true)));
+}
+
+#[test]
+fn an_old_app_yml_seeds_cards_yml_unless_card_sync_is_off() {
+    let dir = std::env::temp_dir().join("hypomnema-test-config-seed-cards");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let settings = dir.join("app.yml");
+    fs::write(&settings, "grid_columns: 5\ndone_display: inline\n").unwrap();
+    let (loaded, error) = AppConfig::load_or_default(&settings, &dir);
+    assert!(error.is_none());
+    assert_eq!(loaded.done_display, "inline");
+    assert!(fs::read_to_string(dir.join("cards.yml"))
+        .unwrap()
+        .contains("done_display: inline"));
+    assert!(!fs::read_to_string(&settings)
+        .unwrap()
+        .contains("done_display"));
+
+    fs::remove_file(dir.join("cards.yml")).unwrap();
+    fs::write(
+        &settings,
+        "sync_card_settings: false\ndone_display: inline\n",
+    )
+    .unwrap();
+    let (loaded, _) = AppConfig::load_or_default(&settings, &dir);
+    assert_eq!(loaded.done_display, "inline");
+    assert!(!dir.join("cards.yml").exists());
+    assert!(fs::read_to_string(&settings)
+        .unwrap()
+        .contains("done_display: inline"));
+    let _ = fs::remove_dir_all(&dir);
 }
 
 #[test]

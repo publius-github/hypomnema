@@ -170,6 +170,7 @@ pub(crate) const EDITABLE_CONFIG_FILES: &[&str] = &[
     "day-schedule.yml",
     "colors.yml",
     "shared.yml",
+    "cards.yml",
     // the per-device settings: everything Settings does not show is
     // tuned here (it lives in settings/, not config/ - see
     // editable_config_path)

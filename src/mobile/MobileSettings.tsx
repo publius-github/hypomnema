@@ -10,6 +10,7 @@ import { ConfirmModal } from "../components/dialogs";
 import ConflictList from "../components/ConflictList";
 import GoogleSignInButton from "../components/GoogleSignInButton";
 import { AboutContent, useAppVersion } from "../components/AboutModal";
+import { CADENCE_GROUP_LABELS } from "../lib/tasks";
 
 import type {
   AppConfig,
@@ -27,6 +28,7 @@ type Panel =
   | "sync"
   | "lock"
   | "general"
+  | "tasks"
   | "maintenance"
   | "vault"
   | "about";
@@ -90,7 +92,12 @@ export default function MobileSettings() {
       label: "General",
       hint: config
         ? `${config.theme === "dark" ? "Dark" : "Light"} theme · notifications`
-        : "Theme, notifications, tasks",
+        : "Theme, notifications, engine",
+    },
+    {
+      id: "tasks",
+      label: "Tasks",
+      hint: "Cards, day sections, sorting",
     },
     {
       id: "maintenance",
@@ -137,6 +144,7 @@ export default function MobileSettings() {
             <LockSettings state={lock} onChange={setLock} />
           )}
           {panel === "general" && config && <GeneralPanel config={config} />}
+          {panel === "tasks" && config && <TasksPanel config={config} />}
           {panel === "maintenance" && <MaintenancePanel />}
           {panel === "vault" && <VaultPanel vaultPath={vaultPath} />}
           {panel === "about" && <AboutContent />}
@@ -379,6 +387,23 @@ function SyncPanel({
               leave it, shortly after edits and every few minutes. The
               timings are in app.yml (Notes &gt; Config).
             </p>
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <span className="min-w-0 text-sm">
+                Sync task card settings
+                <span className="block text-xs text-content-muted">
+                  Settings &gt; Tasks the same as on the other devices. Off
+                  keeps this phone&apos;s own; on again takes theirs. Task
+                  rules (retention, catch-up, overdue marks) always sync.
+                </span>
+              </span>
+              <Toggle
+                checked={config.sync_card_settings}
+                onChange={(next) =>
+                  void updateConfig({ sync_card_settings: next })
+                }
+                label="Sync task card settings"
+              />
+            </div>
           </>
         )}
         <button
@@ -441,7 +466,7 @@ function SyncPanel({
 }
 
 /**
- * Everything a phone user sets: the theme, how done tasks show, where
+ * Everything a phone user sets outside the task cards: the theme, where
  * a quick capture lands, notifications, and the engine's two windows.
  * Text size is fixed (html.mobile), colors are the synced colors.yml,
  * and the rest is fine-tuning in app.yml (Notes > Config).
@@ -463,26 +488,6 @@ function GeneralPanel({ config }: { config: AppConfig }) {
         >
           <option value="dark">Dark</option>
           <option value="light">Light</option>
-        </select>
-      </label>
-      <label className="flex items-center justify-between gap-3">
-        <span className="min-w-0 text-sm">
-          Done tasks on the day screen
-          <span className="block text-xs text-content-muted">
-            In place keeps them inside their daily/weekly sections.
-          </span>
-        </span>
-        <select
-          value={config.done_display}
-          onChange={(e) =>
-            void updateConfig({
-              done_display: e.target.value as AppConfig["done_display"],
-            })
-          }
-          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
-        >
-          <option value="inline">In place</option>
-          <option value="separate">Own Done section</option>
         </select>
       </label>
       <label className="flex items-center justify-between gap-3">
@@ -546,6 +551,177 @@ function GeneralPanel({ config }: { config: AppConfig }) {
           label="Ignore cron time of day"
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * How tasks show on the Day and Lists screens - the desktop's Settings >
+ * Tasks minus the list column title clamp, which a phone row does not
+ * have. Synced as cards.yml while card sync is on; the overdue marks and
+ * the rate threshold are task rules and sync always (shared.yml).
+ */
+function TasksPanel({ config }: { config: AppConfig }) {
+  const updateConfig = useAppStore((s) => s.updateConfig);
+  const moveCadence = (index: number, delta: number) => {
+    const order = [...config.cadence_group_order];
+    const target = index + delta;
+    if (target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    void updateConfig({ cadence_group_order: order });
+  };
+  const toggle = (
+    key:
+      | "category_headers"
+      | "cron_weekday_labels"
+      | "subtasks_done_last"
+      | "priority_overdue"
+      | "general_overdue"
+      | "closed_sections_sort_alpha"
+      | "daily_tasks_today_only"
+      | "lists_sort_alpha",
+    label: string,
+    hint: string,
+  ) => (
+    <div className="flex items-center justify-between gap-3">
+      <span className="min-w-0 text-sm">
+        {label}
+        <span className="block text-xs text-content-muted">{hint}</span>
+      </span>
+      <Toggle
+        checked={config[key]}
+        onChange={(next) => void updateConfig({ [key]: next })}
+        label={label}
+      />
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-3">
+      {toggle(
+        "category_headers",
+        "Category as a block header",
+        "The category named once over its rows instead of a chip on each.",
+      )}
+      {toggle(
+        "cron_weekday_labels",
+        "Weekday markers",
+        "[SAT#1] or [EVERYDAY] before a recurring task's title.",
+      )}
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm">Completion rate chip</span>
+        <select
+          value={config.habit_rate_display}
+          onChange={(e) =>
+            void updateConfig({
+              habit_rate_display: e.target
+                .value as AppConfig["habit_rate_display"],
+            })
+          }
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        >
+          <option value="off">Off</option>
+          <option value="alert">Below threshold</option>
+          <option value="always">Always</option>
+        </select>
+      </label>
+      {config.habit_rate_display !== "off" && (
+        <label className="flex items-center justify-between gap-3">
+          <span className="min-w-0 text-sm">
+            Alert below (%)
+            <span className="block text-xs text-content-muted">
+              A rule&apos;s own threshold in recurring.yml wins.
+            </span>
+          </span>
+          <NumberField
+            value={config.habit_rate_threshold}
+            min={0}
+            max={100}
+            onCommit={(next) =>
+              void updateConfig({ habit_rate_threshold: next })
+            }
+          />
+        </label>
+      )}
+      {toggle(
+        "subtasks_done_last",
+        "Done subtasks sink to the bottom",
+        "Checked subtasks move below the open ones.",
+      )}
+      {toggle(
+        "priority_overdue",
+        "Priority tasks get the overdue mark",
+        "Off = a starred task carries over silently.",
+      )}
+      {toggle(
+        "general_overdue",
+        "General tasks get the overdue mark",
+        "Off = a one-off General task moves to today silently.",
+      )}
+      <label className="flex items-center justify-between gap-3 border-t border-line pt-3">
+        <span className="min-w-0 text-sm">
+          Done tasks on the day screen
+          <span className="block text-xs text-content-muted">
+            In place keeps them inside their daily/weekly sections.
+          </span>
+        </span>
+        <select
+          value={config.done_display}
+          onChange={(e) =>
+            void updateConfig({
+              done_display: e.target.value as AppConfig["done_display"],
+            })
+          }
+          className="rounded-lg border border-line bg-surface-alt px-3 py-2"
+        >
+          <option value="inline">In place</option>
+          <option value="separate">Own Done section</option>
+        </select>
+      </label>
+      {config.done_display === "separate" &&
+        toggle(
+          "closed_sections_sort_alpha",
+          "Sort Postponed and Done alphabetically",
+          "By category, then title.",
+        )}
+      <section className="flex flex-col gap-1">
+        <span className="text-sm">Day section order</span>
+        {config.cadence_group_order.map((id, i) => (
+          <div
+            key={id}
+            className="flex items-center gap-2 rounded-lg border border-line px-3 py-1 text-sm"
+          >
+            <span className="min-w-0 flex-1">
+              {CADENCE_GROUP_LABELS[id] ?? id}
+            </span>
+            <button
+              className="px-3 py-2 disabled:opacity-30"
+              disabled={i === 0}
+              aria-label="Move up"
+              onClick={() => moveCadence(i, -1)}
+            >
+              ↑
+            </button>
+            <button
+              className="px-3 py-2 disabled:opacity-30"
+              disabled={i === config.cadence_group_order.length - 1}
+              aria-label="Move down"
+              onClick={() => moveCadence(i, 1)}
+            >
+              ↓
+            </button>
+          </div>
+        ))}
+      </section>
+      {toggle(
+        "daily_tasks_today_only",
+        "Daily tasks only on today",
+        "Days ahead skip daily-cadence tasks.",
+      )}
+      {toggle(
+        "lists_sort_alpha",
+        "Sort lists and their tasks alphabetically",
+        "Off = creation and drag order.",
+      )}
     </div>
   );
 }

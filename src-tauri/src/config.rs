@@ -154,6 +154,11 @@ pub struct AppConfig {
     /// deleting them here too: a wiped remote or a different account
     /// looks exactly like that (sync_cycle.rs). 100 turns the guard off.
     pub sync_mass_delete_guard_percent: u32,
+    /// Keep the task card settings (`CARD_KEYS`) in the synced
+    /// config/cards.yml, so this device shows tasks the way the others
+    /// do. Off keeps them in this device's app.yml and leaves cards.yml
+    /// alone; turning it back on adopts cards.yml when one exists.
+    pub sync_card_settings: bool,
     /// Minimum gap, in pixels, between the top of the phone layout and
     /// the top of the screen - a floor under `env(safe-area-inset-top)`.
     /// Android draws the app under the status bar (API 35+), and the
@@ -602,22 +607,41 @@ pub const SHARED_KEYS: &[&str] = &[
     "habit_rate_min_instances",
 ];
 
+/// How tasks show on cards and in day and list columns, kept in the
+/// synced `config/cards.yml` while `sync_card_settings` is on, so the
+/// phone and the desktop sort, group and mark tasks alike. Unlike the
+/// other parts this one is optional per device: with the switch off the
+/// keys stay in that device's app.yml.
+pub const CARD_KEYS: &[&str] = &[
+    "category_headers",
+    "cron_weekday_labels",
+    "habit_rate_display",
+    "subtasks_done_last",
+    "done_display",
+    "closed_sections_sort_alpha",
+    "cadence_group_order",
+    "daily_tasks_today_only",
+    "lists_sort_alpha",
+];
+
 /// A slice of AppConfig that lives in a synced file under config/
 /// instead of the per-device app.yml.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncedPart {
     Colors,
     Shared,
+    Cards,
 }
 
 impl SyncedPart {
-    pub const ALL: [SyncedPart; 2] = [SyncedPart::Colors, SyncedPart::Shared];
+    pub const ALL: [SyncedPart; 3] = [SyncedPart::Colors, SyncedPart::Shared, SyncedPart::Cards];
 
     /// The file under config/.
     pub fn file(self) -> &'static str {
         match self {
             SyncedPart::Colors => "colors.yml",
             SyncedPart::Shared => "shared.yml",
+            SyncedPart::Cards => "cards.yml",
         }
     }
 
@@ -625,11 +649,18 @@ impl SyncedPart {
         match self {
             SyncedPart::Colors => COLOR_KEYS,
             SyncedPart::Shared => SHARED_KEYS,
+            SyncedPart::Cards => CARD_KEYS,
         }
     }
 
     pub fn from_file(file: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|part| part.file() == file)
+    }
+
+    /// Whether a device with `sync_card_settings` set so keeps this
+    /// part in its synced file rather than in app.yml.
+    pub fn active(self, sync_card_settings: bool) -> bool {
+        self != SyncedPart::Cards || sync_card_settings
     }
 
     fn owns(self, key: &serde_yaml::Value) -> bool {
@@ -679,8 +710,19 @@ fn has_flat_colors(path: &Path) -> bool {
     nest_flat_colors(&map) != map
 }
 
-fn is_synced_key(key: &serde_yaml::Value) -> bool {
-    SyncedPart::ALL.iter().any(|part| part.owns(key))
+/// `key` lives in a synced file on a device with `sync_card_settings`
+/// set so.
+fn is_synced_key(key: &serde_yaml::Value, sync_card_settings: bool) -> bool {
+    SyncedPart::ALL
+        .iter()
+        .any(|part| part.active(sync_card_settings) && part.owns(key))
+}
+
+/// The `sync_card_settings` an app.yml mapping says, absent = on.
+pub fn card_sync_in(map: &serde_yaml::Mapping) -> bool {
+    map.get("sync_card_settings")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
 }
 
 pub const SECTIONS: &[&str] = &[
@@ -749,6 +791,7 @@ impl Default for AppConfig {
             sync_debounce_seconds: 15,
             sync_on_focus: true,
             sync_mass_delete_guard_percent: 30,
+            sync_card_settings: true,
             // Trust the WebView first; a floor is for the device where
             // it reports nothing, and guessing one by default would put
             // dead space on every device where it works.
@@ -831,7 +874,7 @@ impl AppConfig {
                 return (config, Some(e.to_string()));
             }
         }
-        Self::seed_shared(settings, config_dir);
+        Self::seed_parts(settings, config_dir);
         match Self::read(settings, config_dir) {
             Ok((config, errors)) => {
                 // an app.yml from an older version carries synced fields
@@ -863,16 +906,13 @@ impl AppConfig {
         }
     }
 
-    /// First open after the rules moved to shared.yml: a device whose
-    /// app.yml still holds non-default values for them writes those into
-    /// shared.yml, so they are not silently lost. A device sitting at
-    /// the defaults writes nothing and waits for the file to sync in.
-    /// (Colors were not seeded: the defaults are the owner's scheme.)
-    fn seed_shared(settings: &Path, config_dir: &Path) {
-        let shared = config_dir.join(SyncedPart::Shared.file());
-        if shared.exists() {
-            return;
-        }
+    /// First open after keys moved from app.yml into shared.yml or
+    /// cards.yml: a device whose app.yml still holds non-default values
+    /// for them writes those into the synced file, so they are not
+    /// silently lost. A device sitting at the defaults writes nothing and
+    /// waits for the file to sync in. (Colors were not seeded: the
+    /// defaults are the owner's scheme.)
+    fn seed_parts(settings: &Path, config_dir: &Path) {
         let Ok(raw) = fs::read_to_string(settings) else {
             return;
         };
@@ -880,15 +920,29 @@ impl AppConfig {
             return;
         };
         let legacy = legacy.sanitized();
-        let (Ok(mine), Ok(defaults)) = (
-            legacy.part_mapping(SyncedPart::Shared),
-            Self::default().part_mapping(SyncedPart::Shared),
-        ) else {
-            return;
-        };
-        if mine != defaults {
-            let _ = legacy.save_part(SyncedPart::Shared, &shared);
+        for part in [SyncedPart::Shared, SyncedPart::Cards] {
+            let path = config_dir.join(part.file());
+            if path.exists() || !part.active(legacy.sync_card_settings) {
+                continue;
+            }
+            let (Ok(mine), Ok(defaults)) = (
+                legacy.part_mapping(part),
+                Self::default().part_mapping(part),
+            ) else {
+                continue;
+            };
+            if mine != defaults {
+                let _ = legacy.save_part(part, &path);
+            }
         }
+    }
+
+    /// The synced parts this device keeps in their files.
+    pub fn synced_parts(&self) -> impl Iterator<Item = SyncedPart> {
+        let sync_card_settings = self.sync_card_settings;
+        SyncedPart::ALL
+            .into_iter()
+            .filter(move |part| part.active(sync_card_settings))
     }
 
     /// Reads app.yml (absent = defaults) with each synced file laid over
@@ -906,14 +960,15 @@ impl AppConfig {
                 .unwrap_or_default();
             // synced fields left in app.yml are an older version's
             // leftover: the synced files own them now
-            map.retain(|key, _| !is_synced_key(key));
+            let sync_card_settings = card_sync_in(&map);
+            map.retain(|key, _| !is_synced_key(key, sync_card_settings));
             Self::from_mapping(map).map_err(|e| e.to_string())?
         } else {
             Self::default()
         }
         .sanitized();
         let mut errors = Vec::new();
-        for part in SyncedPart::ALL {
+        for part in config.synced_parts().collect::<Vec<_>>() {
             let path = config_dir.join(part.file());
             if !path.exists() {
                 continue;
@@ -951,7 +1006,7 @@ impl AppConfig {
             return false;
         };
         file.keys()
-            .any(|key| is_synced_key(key) || !known.contains_key(key))
+            .any(|key| is_synced_key(key, self.sync_card_settings) || !known.contains_key(key))
     }
 
     fn to_mapping(&self) -> Result<serde_yaml::Mapping> {
@@ -978,7 +1033,7 @@ impl AppConfig {
         let mut map = self.to_mapping()?;
         let values = match part {
             SyncedPart::Colors => nest_flat_colors(values),
-            SyncedPart::Shared => values.clone(),
+            SyncedPart::Shared | SyncedPart::Cards => values.clone(),
         };
         for (key, value) in &values {
             if part.owns(key) {
@@ -1120,14 +1175,14 @@ impl AppConfig {
         self
     }
 
-    /// Writes app.yml: everything but the synced parts, which live in
-    /// their own files (`save_part`).
+    /// Writes app.yml: everything but the synced parts this device
+    /// uses, which live in their own files (`save_part`).
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).at(parent)?;
         }
         let mut map = self.to_mapping()?;
-        map.retain(|key, _| !is_synced_key(key));
+        map.retain(|key, _| !is_synced_key(key, self.sync_card_settings));
         crate::vault::write_atomic(path, &serde_yaml::to_string(&map)?)?;
         Ok(())
     }
@@ -1230,6 +1285,7 @@ impl AppConfig {
                 "sync_mass_delete_guard_percent",
                 self.sync_mass_delete_guard_percent.to_string(),
             ),
+            ("sync_card_settings", self.sync_card_settings.to_string()),
             (
                 "mobile_safe_area_top",
                 self.mobile_safe_area_top.to_string(),

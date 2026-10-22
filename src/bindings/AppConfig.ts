@@ -205,6 +205,13 @@ sync_on_focus: boolean,
  */
 sync_mass_delete_guard_percent: number, 
 /**
+ * Keep the task card settings (`CARD_KEYS`) in the synced
+ * config/cards.yml, so this device shows tasks the way the others
+ * do. Off keeps them in this device's app.yml and leaves cards.yml
+ * alone; turning it back on adopts cards.yml when one exists.
+ */
+sync_card_settings: boolean, 
+/**
  * Minimum gap, in pixels, between the top of the phone layout and
  * the top of the screen - a floor under `env(safe-area-inset-top)`.
  * Android draws the app under the status bar (API 35+), and the

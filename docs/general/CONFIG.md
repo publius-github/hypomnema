@@ -60,6 +60,7 @@ birthdays:
 | `templates/journal.md` | The journal template, supports `{{date}}` | yes |
 | `colors.yml` | The color scheme, edited in Notes > Config; absent means the defaults | yes |
 | `shared.yml` | Retention, catch-up and the other task rules, written by their Settings controls | yes |
+| `cards.yml` | Settings > Tasks (how tasks show), used only while Sync task card settings is on for that device | yes |
 | `../settings/app.yml` | This device's app settings and fine-tuning without a Settings control | no |
 
 ## Engine rules

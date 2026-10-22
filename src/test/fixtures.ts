@@ -119,6 +119,7 @@ export const defaultConfig: AppConfig = {
   sync_debounce_seconds: 60,
   sync_on_focus: true,
   sync_mass_delete_guard_percent: 30,
+  sync_card_settings: true,
   mobile_safe_area_top: 0,
   mobile_safe_area_bottom: 0,
   notify_snooze_minutes: 10,

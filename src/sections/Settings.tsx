@@ -165,7 +165,14 @@ export default function Settings() {
               shared.yml
             </button>{" "}
             (retention, catch-up, cadence thresholds, cleanup, capture list,
-            completion rate - set here, kept there). Fine-tuning (spacing,
+            completion rate - set here, kept there), and{" "}
+            <button
+              className="text-accent hover:underline"
+              onClick={() => openConfigFile("cards.yml")}
+            >
+              cards.yml
+            </button>{" "}
+            (Tasks, while Sync task card settings is on). Fine-tuning (spacing,
             timings, sync cadence) is in{" "}
             <button
               className="text-accent hover:underline"

@@ -259,12 +259,36 @@ impl Vault {
     }
 
     pub fn save_config(&mut self, config: AppConfig) -> Result<()> {
-        let config = config.sanitized();
+        let mut config = config.sanitized();
+        let adopting_cards = config.sync_card_settings && !self.config.sync_card_settings;
+        if adopting_cards {
+            // turning card sync on joins the other devices: their
+            // cards.yml wins, and only a vault without one gets this
+            // device's values
+            let cards = synced_file(&self.root, SyncedPart::Cards);
+            if cards.exists() {
+                let raw = fs::read_to_string(&cards).at(&cards)?;
+                let values =
+                    serde_yaml::from_str::<Option<serde_yaml::Mapping>>(&raw)?.unwrap_or_default();
+                // a key the file lacks is at its default, as on load
+                config = config
+                    .with_part(
+                        SyncedPart::Cards,
+                        &AppConfig::default().part_mapping(SyncedPart::Cards)?,
+                    )?
+                    .with_part(SyncedPart::Cards, &values)?;
+            } else {
+                config.save_part(SyncedPart::Cards, &cards)?;
+            }
+        }
         config.save(&settings_file(&self.root))?;
         // only a real change writes a synced file: rewriting it on every
         // setting would push this device's copy over a newer one another
         // device synced in meanwhile
-        for part in SyncedPart::ALL {
+        for part in config.synced_parts().collect::<Vec<_>>() {
+            if part == SyncedPart::Cards && adopting_cards {
+                continue;
+            }
             if config.part_mapping(part)? != self.config.part_mapping(part)? {
                 // best effort, like every config backup: a failed copy
                 // must not block the change
@@ -732,6 +756,56 @@ mod tests {
         assert!(fs::read_to_string(synced_file(&root, SyncedPart::Colors))
             .unwrap()
             .contains("done_color: '#00ff00'"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn card_settings_follow_the_sync_switch() {
+        let root = temp_dir("vault-cards");
+        let mut vault = Vault::open(&root).unwrap();
+        let cards = synced_file(&root, SyncedPart::Cards);
+
+        let mut config = vault.config.clone();
+        config.done_display = "inline".into();
+        vault.save_config(config).unwrap();
+        assert!(fs::read_to_string(&cards)
+            .unwrap()
+            .contains("done_display: inline"));
+        assert!(!fs::read_to_string(settings_file(&root))
+            .unwrap()
+            .contains("done_display"));
+
+        // off: the device keeps its own value in app.yml, cards.yml stays
+        let mut config = vault.config.clone();
+        config.sync_card_settings = false;
+        config.lists_sort_alpha = true;
+        vault.save_config(config).unwrap();
+        let app_yml = fs::read_to_string(settings_file(&root)).unwrap();
+        assert!(app_yml.contains("lists_sort_alpha: true"));
+        assert!(app_yml.contains("done_display: inline"));
+        assert!(!fs::read_to_string(&cards)
+            .unwrap()
+            .contains("lists_sort_alpha: true"));
+
+        // another device changes cards.yml meanwhile; this one ignores it
+        fs::write(
+            &cards,
+            "done_display: separate\nsubtasks_done_last: false\n",
+        )
+        .unwrap();
+        vault.reload_config().unwrap();
+        assert_eq!(vault.config.done_display, "inline");
+
+        // back on: cards.yml wins over what this device had
+        let mut config = vault.config.clone();
+        config.sync_card_settings = true;
+        vault.save_config(config).unwrap();
+        assert_eq!(vault.config.done_display, "separate");
+        assert!(!vault.config.subtasks_done_last);
+        assert!(!vault.config.lists_sort_alpha);
+        assert!(!fs::read_to_string(settings_file(&root))
+            .unwrap()
+            .contains("done_display"));
         let _ = fs::remove_dir_all(&root);
     }
 

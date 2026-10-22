@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.122.0 - 2026-10-22
+
+The phone gets a Settings > Tasks panel with the desktop's task card settings: category headers, weekday markers, the completion rate chip and its threshold, subtask order, both overdue marks, done display with the closed-section sort, day section order, daily tasks only on today and list sort. These settings now live in the synced `config/cards.yml`, so the phone and the desktop show tasks the same way. A new Sync task card settings switch in Sync, on both the phone and the desktop, turns this off per device: the device then keeps its own values in app.yml, and turning it back on takes the values the other devices have. Task rules in shared.yml still sync always. On first start an app.yml with non-default card settings writes them into cards.yml.
+
 ## 0.121.1 - 2026-10-22
 
 Android widgets: a priority task now shows a star in the warn tone at the start of its text instead of an accent bar, and the bar is gone from priority rows that are done or waiting, where it sat after the status box.

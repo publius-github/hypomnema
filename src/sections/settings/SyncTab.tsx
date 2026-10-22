@@ -289,6 +289,12 @@ export default function SyncTab() {
           hint="Passes run on their own while signed in: at start, every few minutes, shortly after edits, when the window comes to the front and on quit. Off leaves only Sync now. The timings are in app.yml (Notes > Config)."
           onChange={(v) => void updateConfig({ sync_auto: v })}
         />
+        <Toggle
+          checked={config.sync_card_settings}
+          label="Sync task card settings"
+          hint="Settings > Tasks (cards, day sections, sorting) the same on every device, kept in cards.yml. Off keeps this device's own; turning it on again takes the other devices'. Task rules (retention, catch-up, overdue marks) always sync."
+          onChange={(v) => void updateConfig({ sync_card_settings: v })}
+        />
       </SettingsGroup>
     </>
   );

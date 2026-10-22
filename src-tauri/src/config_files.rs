@@ -977,10 +977,12 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
         "app.yml" => match serde_yaml::from_str::<Option<serde_yaml::Mapping>>(content) {
             Ok(map) => {
                 let map = map.unwrap_or_default();
+                let sync_card_settings = crate::config::card_sync_in(&map);
                 for key in map.keys() {
                     let name = key.as_str().unwrap_or("?");
                     if let Some(part) = crate::config::SyncedPart::ALL
                         .into_iter()
+                        .filter(|part| part.active(sync_card_settings))
                         .find(|part| part.keys().contains(&name))
                     {
                         errors.push(ConfigError {
@@ -1005,7 +1007,7 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
             }
             Err(e) => push_yaml_error(e),
         },
-        "colors.yml" | "shared.yml" => {
+        "colors.yml" | "shared.yml" | "cards.yml" => {
             match serde_yaml::from_str::<Option<serde_yaml::Mapping>>(content) {
                 Ok(map) => {
                     let part = crate::config::SyncedPart::from_file(file)
@@ -1015,7 +1017,9 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
                         crate::config::SyncedPart::Colors => {
                             crate::config::nest_flat_colors(&map.unwrap_or_default())
                         }
-                        crate::config::SyncedPart::Shared => map.unwrap_or_default(),
+                        crate::config::SyncedPart::Shared | crate::config::SyncedPart::Cards => {
+                            map.unwrap_or_default()
+                        }
                     };
                     for key in map.keys() {
                         let name = key.as_str().unwrap_or("?");
