@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.124.5 - 2026-10-23
+
+Security: the TLS certificate check behind Google sign-in, Drive sync and the update check no longer trusts the distrusted emSign intermediates, whose private keys are now public (RUSTSEC-2026-0381, RUSTSEC-2026-0382). The bundled root certificates drop the emSign root. Nothing changes in how the app looks or behaves.
+
 ## 0.124.4 - 2026-10-23
 
 Light theme: the neutral section plate (General and other sections without a color of their own) is solid and a shade darker, instead of nearly vanishing into the column. It follows a line color set in Settings > Appearance. The dark theme keeps its plate.
