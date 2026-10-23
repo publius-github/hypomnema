@@ -94,14 +94,6 @@ tasks:
       - "{05 Finance} pay bills for apartment"   # {List} task text
 ```
 
-<!-- TODO(owner): docs/screenshots/config.png - recurring.yml open in Notes > Config next to the same rule in the Upcoming form. Then replace this comment with:
-<p align="center">
-  <img src="docs/screenshots/config.png" alt="Notes > Config: recurring.yml in the editor, the same rule in the Upcoming form">
-  <br>
-  <em>The same rule twice: as YAML in Notes > Config and as a row in Upcoming. Either side can change it.</em>
-</p>
--->
-
 The engine runs at startup, on Sync, when the day changes and when a config file changes. It remembers every rule and period it has already generated, so a restart or an edit never repeats a task, and it only adds what is missing: your edits and statuses stay. Subfolders of `config/` work as packs, any `*.yml` in them is merged in. The config files sync between devices with the rest of the vault. Manual tasks get the same treatment when the Markdown mirror is on (Settings > Data): one file per list under `.hypomnema/tasks/`, editable in bulk, imported back. The full file reference and the engine rules are in [CONFIG.md](docs/general/CONFIG.md).
 
 ## Documentation
