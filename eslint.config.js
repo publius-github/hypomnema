@@ -10,8 +10,13 @@ export default tseslint.config(
   {
     files: ["src/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
+    // the two classic hook rules only: since version 6 `recommended`
+    // also carries the React Compiler rules (set-state-in-effect, refs,
+    // immutability, ...), which belong with the compiler the app does
+    // not use
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
   {

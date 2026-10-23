@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.124.8 - 2026-10-23
+
+`eslint-plugin-react-hooks` 7 (#4). Since version 6 its recommended set also carries the React Compiler rules; the app does not use the compiler, so the lint config names the two classic rules (rules-of-hooks, exhaustive-deps) instead of taking the whole set. A development-only change: the app is the same.
+
 ## 0.124.7 - 2026-10-23
 
 Dependency updates Dependabot proposed (#1, #3, #5): the Tauri JavaScript side (api 2.12.4, CLI 2.12.3, the dialog, notification, opener and updater plugins) together with the matching Rust crates (tauri 2.12.5, tauri-plugin-notification 2.7.0, tauri-plugin-updater 2.14.0), yaml 2.9.1 and jsdom 30.1.3; third-party notices regenerated. Nothing changes in how the app looks or behaves.
