@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.124.7 - 2026-10-23
+
+Dependency updates Dependabot proposed (#1, #3, #5): the Tauri JavaScript side (api 2.12.4, CLI 2.12.3, the dialog, notification, opener and updater plugins) together with the matching Rust crates (tauri 2.12.5, tauri-plugin-notification 2.7.0, tauri-plugin-updater 2.14.0), yaml 2.9.1 and jsdom 30.1.3; third-party notices regenerated. Nothing changes in how the app looks or behaves.
+
 ## 0.124.6 - 2026-10-23
 
 Updates are signed with a new key, the one the release builds will use. An install built locally before this version expects the old key and will not accept an update from a release: install the first release by hand once, and it updates itself from then on.
