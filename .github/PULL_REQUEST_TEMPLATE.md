@@ -4,6 +4,7 @@
 
 ## Checklist
 
+- [ ] The pull request targets `development`, not `main`
 - [ ] `npm run lint && npm run typecheck && npm test && npm run build` pass
 - [ ] `npm run e2e` passes (Playwright against the fake core)
 - [ ] `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test` pass (in `src-tauri/`)

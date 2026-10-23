@@ -36,6 +36,10 @@ The ground rules of the codebase:
 - **User data is sacred** - the engine never overwrites a user's edits or statuses, and a broken config file never touches data. Any change near generation, the tasks mirror or sync needs tests that show this still holds.
 - **Update the docs in the same PR** - whichever `ARCHITECTURE.md` section describes what you changed.
 
+## Branches
+
+Open pull requests against **`development`**, the branch work happens on. `main` is the stable branch: the maintainer moves it forward from `development` once a set of changes has settled, and releases are tagged from there. A pull request against `main` will be asked to retarget.
+
 ## Before opening a pull request
 
 CI runs these (with `cargo fmt --check` and `npm run coverage` in place of `cargo fmt` and `npm test`), and clippy warnings are errors:
