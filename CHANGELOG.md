@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.124.9 - 2026-10-23
+
+Vite 8 (#2) together with `@vitejs/plugin-react` 6, which Vite 8 needs (plugin-react 4 stops at Vite 7, 6 starts at 8, so the two move in one step). The bundler underneath is now Rolldown: the production build takes under a second instead of about four, with the same code and CodeMirror chunks, and every screen of the visual tests renders pixel for pixel as it did with Vite 6.
+
 ## 0.124.8 - 2026-10-23
 
 `eslint-plugin-react-hooks` 7 (#4). Since version 6 its recommended set also carries the React Compiler rules; the app does not use the compiler, so the lint config names the two classic rules (rules-of-hooks, exhaustive-deps) instead of taking the whole set. A development-only change: the app is the same.

@@ -2,7 +2,7 @@
   "name": "hypomnema",
   "private": true,
   "license": "GPL-3.0-only",
-  "version": "0.124.8",
+  "version": "0.124.9",
   "type": "module",
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
@@ -58,7 +58,7 @@
     "@types/node": "26.6.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "@vitejs/plugin-react": "4.7.0",
+    "@vitejs/plugin-react": "6.1.2",
     "@vitest/coverage-v8": "5.0.5",
     "eslint": "9.39.1",
     "eslint-plugin-jsx-a11y": "6.10.2",
@@ -68,7 +68,7 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.6.3",
     "typescript-eslint": "8.71.2",
-    "vite": "6.4.4",
+    "vite": "8.3.4",
     "vitest": "5.0.5"
   }
 }
