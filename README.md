@@ -4,7 +4,7 @@
   <sup><sub>YOUR MIND. ORGANIZED.</sub></sup>
 </h1>
 
-<p align="center">A weekly task planner, a daily journal and a Markdown knowledge base in one local-first window.</p>
+<p align="center">A weekly planner for your todo list, a daily journal and a Markdown knowledge base in one local-first window.</p>
 
 <p align="center">
   <a href="https://github.com/publius-github/hypomnema/releases/latest"><img src="https://img.shields.io/github/v/release/publius-github/hypomnema" alt="latest release"></a>
