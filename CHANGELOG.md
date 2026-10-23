@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.124.6 - 2026-10-23
+
+Updates are signed with a new key, the one the release builds will use. An install built locally before this version expects the old key and will not accept an update from a release: install the first release by hand once, and it updates itself from then on.
+
 ## 0.124.5 - 2026-10-23
 
 Security: the TLS certificate check behind Google sign-in, Drive sync and the update check no longer trusts the distrusted emSign intermediates, whose private keys are now public (RUSTSEC-2026-0381, RUSTSEC-2026-0382). The bundled root certificates drop the emSign root. Nothing changes in how the app looks or behaves.

@@ -1776,7 +1776,7 @@ dependencies = [
 
 [[package]]
 name = "hypomnema"
-version = "0.124.5"
+version = "0.124.6"
 dependencies = [
  "aes-gcm",
  "argon2",
