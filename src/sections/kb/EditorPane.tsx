@@ -9,6 +9,7 @@ import { splitCategory } from "../../lib/tasks";
 import type { BacklinksResult, KbSearchHit, Task } from "../../types";
 import {
   configFilePath,
+  editorModeFor,
   noteBodyOffset,
   type OpenDoc,
   type SaveState,
@@ -200,13 +201,7 @@ export default function EditorPane({
               current.kind === "note" ? noteBodyOffset(current.content) : 0
             }
             onChange={onChange}
-            mode={
-              current.path.toLowerCase().endsWith(".md")
-                ? "markdown"
-                : /\.ya?ml$/i.test(current.path)
-                  ? "yaml"
-                  : "plain"
-            }
+            mode={editorModeFor(current.path)}
             showLineNumbers={
               (current.kind === "config" && !current.path.endsWith(".md")) ||
               lineNumbers

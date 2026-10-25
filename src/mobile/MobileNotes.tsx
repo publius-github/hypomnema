@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
   CONFIG_FILES,
   basenameOf,
+  editorModeFor,
   isConflictedCopy,
   parentDirOf,
   settleSave,
@@ -12,8 +21,11 @@ import SaveIndicator from "../components/SaveIndicator";
 import ConflictBadge from "../components/ConflictBadge";
 import { useBackStep } from "./back";
 import { ConfirmModal } from "../components/dialogs";
+import Icon, { type IconName } from "../components/icons";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
 import { AUTOSAVE_DELAY_MS, useAutosave } from "../hooks/useAutosave";
+
+const MarkdownEditor = lazy(() => import("../components/MarkdownEditor"));
 
 type Open = { kind: "note" | "config"; path: string; content: string };
 
@@ -26,10 +38,14 @@ type Open = { kind: "note" | "config"; path: string; content: string };
  *
  * The editor is a plain textarea, for the same reason the journal's is:
  * the system keyboard and its autocorrect *are* the editor on a phone,
- * and CodeMirror fights both. What the desktop's editor gives that this
- * cannot - lint gutters, YAML colouring - is worth nothing on a screen
- * this size; what it takes is the keyboard's own behaviour.
+ * and CodeMirror fights both. Reading is the desktop's CodeMirror with
+ * its Markdown and YAML colouring, read-only, where a tap on a link
+ * follows it: there is no keyboard there to fight.
  */
+
+// Which root groups are open, kept across tab switches for the session:
+// the notes open, the config files - visited far less - folded away.
+const openGroups = { notes: true, config: false };
 export default function MobileNotes() {
   const setError = useAppStore((s) => s.setError);
   const [tree, setTree] = useState<KbNode[]>([]);
@@ -43,6 +59,13 @@ export default function MobileNotes() {
   // folder the name is being chosen for
   const [creating, setCreating] = useState<"note" | "folder" | null>(null);
   const [newName, setNewName] = useState("");
+  const [groups, setGroups] = useState(openGroups);
+  const toggleGroup = (group: keyof typeof openGroups) =>
+    setGroups((current) => {
+      const next = { ...current, [group]: !current[group] };
+      Object.assign(openGroups, next);
+      return next;
+    });
 
   useEffect(() => {
     void invoke("kb_status")
@@ -231,12 +254,23 @@ export default function MobileNotes() {
             </header>
           )}
           <ul className="min-h-0 flex-1 overflow-auto">
-            {here.length === 0 && (
+            {/* at the root the vault's own files and the desktop's Config
+                group sit under a plate each, so the config files read as
+                a group of their own rather than more of the vault */}
+            {trail.length === 0 && (
+              <GroupPlate
+                label="Vault notes"
+                count={here.length}
+                open={groups.notes}
+                onToggle={() => toggleGroup("notes")}
+              />
+            )}
+            {(trail.length > 0 || groups.notes) && here.length === 0 && (
               <li className="px-4 py-8 text-center text-sm text-content-muted">
                 Nothing here.
               </li>
             )}
-            {here.map((node) => (
+            {(trail.length > 0 || groups.notes) && here.map((node) => (
               <li key={node.path} className="border-b border-line/60">
                 <button
                   onClick={() =>
@@ -260,10 +294,13 @@ export default function MobileNotes() {
                 and the journal template, validated on save */}
             {trail.length === 0 && (
               <>
-                <li className="bg-surface-alt px-4 py-2 text-xs uppercase tracking-wide text-content-muted">
-                  Config
-                </li>
-                {CONFIG_FILES.map((file) => (
+                <GroupPlate
+                  label="Config"
+                  count={CONFIG_FILES.length}
+                  open={groups.config}
+                  onToggle={() => toggleGroup("config")}
+                />
+                {groups.config && CONFIG_FILES.map((file) => (
                   <li key={file} className="border-b border-line/60">
                     <button
                       onClick={() => openConfig(file)}
@@ -356,11 +393,12 @@ function NoteEditor({
   const setError = useAppStore((s) => s.setError);
   const [content, setContent] = useState(note.content);
   const [confirmTrash, setConfirmTrash] = useState(false);
-  // a config file opens straight into the editor: its reading view is
-  // YAML, which there is nothing to "read" - only to change
-  const [editing, setEditing] = useState(note.kind === "config");
+  // a config file opens in the reading view too: its YAML is coloured
+  // there as on the desktop, and the keyboard comes up only on Edit
+  const [editing, setEditing] = useState(false);
   const [backlinks, setBacklinks] = useState<BacklinksResult | null>(null);
   const [showBacklinks, setShowBacklinks] = useState(false);
+  useBackStep(showBacklinks, () => setShowBacklinks(false));
   const [configErrors, setConfigErrors] = useState<
     { line: number | null; message: string }[]
   >([]);
@@ -410,6 +448,9 @@ function NoteEditor({
     AUTOSAVE_DELAY_MS.mobile,
   );
   const saved = saveState === "saved";
+  const mode = editorModeFor(note.path);
+  // prose in the Day's type, config in monospace (styles.css .phone-prose)
+  const prose = mode === "markdown";
 
   // A sync pass changed the vault: a note with no unsaved typing shows
   // what is on disk now; typing is kept, and its save merges the two.
@@ -515,38 +556,38 @@ function NoteEditor({
           value={content}
           onChange={(e) => edit(e.target.value)}
           spellCheck
-          className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 font-mono text-sm leading-relaxed outline-hidden"
+          className={`min-h-0 flex-1 resize-none bg-transparent px-4 py-3 leading-relaxed outline-hidden ${
+            prose ? "" : "font-mono text-sm"
+          }`}
         />
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-          <ReadView content={content} onOpen={(name) => onOpen(name)} />
+        <div className={`min-h-0 flex-1 ${prose ? "phone-prose" : ""}`}>
+          {/* the plain text until CodeMirror's chunk has loaded, so the
+              note never opens on an empty screen */}
+          <Suspense
+            fallback={
+              <pre className="h-full overflow-auto whitespace-pre-wrap wrap-break-word px-4 py-3 font-sans leading-relaxed">
+                {content}
+              </pre>
+            }
+          >
+            <MarkdownEditor
+              readOnly
+              docKey={`${note.kind}:${note.path}`}
+              label={note.path}
+              value={content}
+              onChange={() => {}}
+              mode={mode}
+              onWikiLink={onOpen}
+            />
+          </Suspense>
         </div>
       )}
 
       {note.kind === "note" && (
       <div className="shrink-0 border-t border-line">
-        <div className="flex gap-4 px-4 py-2">
-          <button
-            onClick={() => {
-              setActionValue(basenameOf(note.path));
-              setAction(action === "rename" ? null : "rename");
-            }}
-            className="text-sm text-content-muted"
-          >
-            Rename
-          </button>
-          <button
-            onClick={() => {
-              setActionValue(parentDirOf(note.path));
-              setAction(action === "move" ? null : "move");
-            }}
-            className="text-sm text-content-muted"
-          >
-            Move
-          </button>
-        </div>
         {action && (
-          <div className="flex gap-2 px-4 pb-2">
+          <div className="flex gap-2 px-3 pt-2">
             <input
               autoFocus
               value={actionValue}
@@ -563,27 +604,15 @@ function NoteEditor({
             >
               {action === "rename" ? "Rename" : "Move"}
             </button>
-            <button
-              onClick={() => setAction(null)}
-              className="rounded-lg border border-line px-3 py-2 text-sm"
-            >
-              Cancel
-            </button>
           </div>
         )}
-        <button
-          onClick={loadBacklinks}
-          className="w-full px-4 py-3 text-left text-sm text-content-muted"
-        >
-          What points here {showBacklinks ? "▾" : "▸"}
-        </button>
         {showBacklinks && backlinks && (
-          <div className="max-h-56 overflow-auto px-4 pb-3 text-sm">
+          <div className="max-h-56 overflow-auto px-4 pt-2 text-sm">
             {backlinks.links.length +
               backlinks.mentions.length +
               backlinks.journal.length +
               backlinks.tasks.length ===
-              0 && <p className="text-content-muted">Nothing yet.</p>}
+              0 && <p className="py-2 text-content-muted">Nothing points here yet.</p>}
             {[...backlinks.links, ...backlinks.mentions].map((hit, i) => (
               <button
                 key={`${hit.path}-${i}`}
@@ -611,12 +640,47 @@ function NoteEditor({
             ))}
           </div>
         )}
-        <button
-          onClick={() => setConfirmTrash(true)}
-          className="w-full px-4 pb-3 text-left text-sm text-danger"
-        >
-          Move to trash
-        </button>
+        {/* One toolbar row, the way a phone app lays out what can be done
+            to the thing on screen: four equal thumb-sized targets, icon
+            over label. Rename and Move open their field above it, Links
+            the list of what points here; a second tap closes either. */}
+        <div className="grid grid-cols-4">
+          <ToolbarButton
+            icon="pencil"
+            label="Rename"
+            active={action === "rename"}
+            onClick={() => {
+              setShowBacklinks(false);
+              setActionValue(basenameOf(note.path));
+              setAction(action === "rename" ? null : "rename");
+            }}
+          />
+          <ToolbarButton
+            icon="folderMove"
+            label="Move"
+            active={action === "move"}
+            onClick={() => {
+              setShowBacklinks(false);
+              setActionValue(parentDirOf(note.path));
+              setAction(action === "move" ? null : "move");
+            }}
+          />
+          <ToolbarButton
+            icon="link"
+            label="Links"
+            active={showBacklinks}
+            onClick={() => {
+              setAction(null);
+              loadBacklinks();
+            }}
+          />
+          <ToolbarButton
+            icon="trash"
+            label="Trash"
+            danger
+            onClick={() => setConfirmTrash(true)}
+          />
+        </div>
         {confirmTrash && (
           <ConfirmModal
             title="Move to trash?"
@@ -637,37 +701,63 @@ function NoteEditor({
   );
 }
 
-/**
- * Reading view: plain text, with `[[wiki links]]` turned into taps.
- *
- * Not a Markdown renderer - the desktop has one, and on a phone the
- * thing actually worth having is the ability to follow a link, which is
- * the one thing plain text cannot do.
- */
-function ReadView({
-  content,
-  onOpen,
+/** A collapsible plate over a root group of the notes browser. */
+function GroupPlate({
+  label,
+  count,
+  open,
+  onToggle,
 }: {
-  content: string;
-  onOpen: (path: string) => void;
+  label: string;
+  count: number;
+  open: boolean;
+  onToggle: () => void;
 }) {
-  const parts = content.split(/(\[\[[^\]]+\]\])/g);
   return (
-    <pre className="whitespace-pre-wrap wrap-break-word font-sans leading-relaxed">
-      {parts.map((part, index) => {
-        const match = /^\[\[([^\]]+)\]\]$/.exec(part);
-        if (!match) return <span key={index}>{part}</span>;
-        const target = match[1].split("|")[0].trim();
-        return (
-          <button
-            key={index}
-            onClick={() => onOpen(target)}
-            className="text-accent underline"
-          >
-            {target}
-          </button>
-        );
-      })}
-    </pre>
+    <li className="border-b border-line/60 bg-surface-alt">
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left text-xs uppercase tracking-wide text-content-muted"
+      >
+        <Icon
+          name={open ? "chevronDown" : "chevronRight"}
+          className="h-4 w-4 shrink-0"
+        />
+        <span className="flex-1">{label}</span>
+        <span className="tabular-nums">{count}</span>
+      </button>
+    </li>
+  );
+}
+
+function ToolbarButton({
+  icon,
+  label,
+  onClick,
+  active = false,
+  danger = false,
+}: {
+  icon: IconName;
+  label: ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={danger ? undefined : active}
+      className={`flex min-h-14 flex-col items-center justify-center gap-1 text-xs active:bg-line/40 ${
+        danger
+          ? "text-danger"
+          : active
+            ? "text-accent"
+            : "text-content-muted"
+      }`}
+    >
+      <Icon name={icon} className="h-5 w-5" />
+      {label}
+    </button>
   );
 }

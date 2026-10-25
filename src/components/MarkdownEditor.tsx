@@ -391,8 +391,13 @@ function formatTableAt(view: EditorView): boolean {
 const tabTableOrIndent: Command = (view) =>
   formatTableAt(view) || indentMore(view);
 
-// exported for the DOM regression test (bracket span nesting)
-export function modeExtensions(mode: EditorMode): Extension[] {
+// exported for the DOM regression test (bracket span nesting). A
+// reading view leaves the linters out: squiggles under text that cannot
+// be edited from there are noise.
+export function modeExtensions(
+  mode: EditorMode,
+  { lint = true }: { lint?: boolean } = {},
+): Extension[] {
   switch (mode) {
     case "markdown":
       return [
@@ -404,14 +409,13 @@ export function modeExtensions(mode: EditorMode): Extension[] {
         tableLines,
         // squiggles only: a gutter marker on every glued list marker
         // turns a half-written journal entry into a wall of warnings
-        markdownLinter(),
+        ...(lint ? [markdownLinter()] : []),
       ];
     case "yaml":
       return [
         yaml(),
         syntaxHighlighting(yamlHighlight),
-        yamlLinter(),
-        lintGutter(),
+        ...(lint ? [yamlLinter(), lintGutter()] : []),
         monoTheme,
       ];
     case "plain":
@@ -428,6 +432,7 @@ export default function MarkdownEditor({
   mode = "markdown",
   onWikiLink,
   label,
+  readOnly = false,
 }: {
   /** Identity of the document; changing it resets the editor state. */
   docKey: string;
@@ -441,6 +446,12 @@ export default function MarkdownEditor({
   mode?: EditorMode;
   /** Ctrl/Cmd+click on a [[wiki link]] calls this with the link name. */
   onWikiLink?: (name: string) => void;
+  /**
+   * A reading view (the phone's): the text cannot be changed, and a plain
+   * click - a tap - follows a link, since there is no Ctrl to hold and no
+   * cursor to place. Fixed for the editor's life, like `mode`.
+   */
+  readOnly?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -487,7 +498,7 @@ export default function MarkdownEditor({
         // the system browser
         EditorView.domEventHandlers({
           mousedown: (event, view) => {
-            if (!(event.ctrlKey || event.metaKey)) return false;
+            if (!(readOnly || event.ctrlKey || event.metaKey)) return false;
             const pos = view.posAtCoords({
               x: event.clientX,
               y: event.clientY,
@@ -513,7 +524,10 @@ export default function MarkdownEditor({
         wrapCompartment.of(wrapLines ? EditorView.lineWrapping : []),
         EditorView.contentAttributes.of({ "aria-label": label }),
         editorTheme,
-        ...modeExtensions(mode),
+        ...modeExtensions(mode, { lint: !readOnly }),
+        ...(readOnly
+          ? [EditorState.readOnly.of(true), EditorView.editable.of(false)]
+          : []),
         ...(showLineNumbers
           ? [lineNumbers(), highlightActiveLineGutter()]
           : []),

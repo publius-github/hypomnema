@@ -6,6 +6,8 @@ Every version of Hypomnema, newest first. Versions before 1.0 are development bu
 
 The Android app is released: every release now carries `Hypomnema_<version>_arm64.apk` next to the Windows installer, built, signed and attested by the same workflow from the same tagged commit. It is signed with the project's new Android key (SHA-256 in the README), so an APK built locally before this version cannot be updated by it: export the vault or let it sync to Drive, uninstall, then install the release APK. It does not update itself yet; install the next release's APK over it.
 
+Phone, Notes: the vault's files and the config files sit under two folding plates, Vault notes open and Config folded by default. A note or config file opens in a reading view coloured like the desktop editor - Markdown headings, emphasis, links and code, YAML keys, strings and comments - where a tap on a `[[wiki link]]` or a web link follows it; Edit still brings up the plain text field the keyboard works best with. Rename, Move, Links (what points here) and Trash are one row of icon buttons under the note instead of four lines of text.
+
 ## 0.124.9 - 2026-10-23
 
 Vite 8 (#2) together with `@vitejs/plugin-react` 6, which Vite 8 needs (plugin-react 4 stops at Vite 7, 6 starts at 8, so the two move in one step). The bundler underneath is now Rolldown: the production build takes under a second instead of about four, with the same code and CodeMirror chunks, and every screen of the visual tests renders pixel for pixel as it did with Vite 6.

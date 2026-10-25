@@ -1,4 +1,5 @@
 import type { KbNode } from "../../types";
+import type { EditorMode } from "../../components/MarkdownEditor";
 
 // Vault config files editable right in the KB editor (validated on save).
 // app.yml is this device's settings - everything Settings does not show
@@ -18,6 +19,14 @@ export const CONFIG_FILES = [
   "app.yml",
   "templates/journal.md",
 ];
+
+/** The editor's syntax mode for a file, by its extension. */
+export const editorModeFor = (path: string): EditorMode =>
+  path.toLowerCase().endsWith(".md")
+    ? "markdown"
+    : /\.ya?ml$/i.test(path)
+      ? "yaml"
+      : "plain";
 
 /** Where a config file sits under .hypomnema/ (app.yml is not in config/). */
 export const configFilePath = (file: string) =>

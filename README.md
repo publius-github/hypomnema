@@ -41,18 +41,16 @@ Download `Hypomnema_<version>_arm64.apk` from the same [release](https://github.
 
 The default vault lives in the app's own folder, which Android deletes with the app. To keep it in an ordinary folder instead (one a backup or another app can see), use Settings > Vault > *Move to another folder*; the folder browser's *Allow access* opens Android's *All files access* switch for the app. *Save a copy to Downloads* on the same page copies the vault to `Download/Hypomnema/`.
 
-<!-- Phone screenshots. Drop these files into docs/screenshots/ and remove the
-     two comment markers around the block below:
-       android-day.png    - the Day screen with today's tasks
-       android-lists.png  - the lists screen
-       android-widget.png - the home screen with the Hypomnema widgets
-     Portrait phone captures, demo data only.
 <p align="center">
-  <img src="docs/screenshots/android-day.png" width="32%" alt="Android: today's tasks">
-  <img src="docs/screenshots/android-lists.png" width="32%" alt="Android: the lists">
-  <img src="docs/screenshots/android-widget.png" width="32%" alt="Android: the home-screen widgets">
+  <img src="docs/screenshots/android/android-day-tab.jpg" width="32%" alt="Android, Day: today's tasks under their sections, the week's focus on top">
+  <img src="docs/screenshots/android/android-lists-tab.jpg" width="32%" alt="Android, Lists: the lists with their open counts">
+  <img src="docs/screenshots/android/android-list-opened.jpg" width="32%" alt="Android, an open list: its tasks, a dated one first">
 </p>
--->
+<p align="center">
+  <img src="docs/screenshots/android/android-notes-tab.jpg" width="32%" alt="Android, Notes: the vault's folders, the config files folded away">
+  <img src="docs/screenshots/android/android-note-opened.jpg" width="32%" alt="Android, a note open for reading, Markdown coloured as on the desktop">
+  <img src="docs/screenshots/android/android-widgets.jpg" width="32%" alt="Android home screen: the today and lists widgets">
+</p>
 
 To check that a download came out of this repository's release workflow, see [Code signing policy](#code-signing-policy).
 

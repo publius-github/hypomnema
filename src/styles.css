@@ -274,6 +274,29 @@ html.mobile body {
 }
 
 /*
+ * A Markdown note on the phone reads in the Day's type - the body font
+ * at the phone's 16px - rather than the editor font (Consolas by default,
+ * absent on Android, so whatever monospace the system falls back to).
+ * The selectors outrank CodeMirror's generated theme classes; code
+ * spans and table rows keep their monospace, YAML is not wrapped.
+ */
+html.mobile .phone-prose {
+  --editor-font-size: 1rem;
+}
+html.mobile .phone-prose .cm-scroller,
+html.mobile .phone-prose .cm-content {
+  font-family: inherit;
+}
+/* the spacing the plain-text reader had (leading-relaxed, px-4) and the
+   textarea still has: CodeMirror's own 1.4 and 12px read cramped */
+html.mobile .phone-prose .cm-scroller {
+  line-height: 1.625;
+}
+html.mobile .phone-prose .cm-line {
+  padding: 0 16px;
+}
+
+/*
  * Keeps a full-screen phone layout out from under the system bars.
  *
  * Android has drawn apps edge to edge since API 35 and this build

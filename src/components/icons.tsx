@@ -30,6 +30,19 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M9 14h6" />
     </>
   ),
+  folderMove: (
+    <>
+      <path d="M4 20a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2z" />
+      <path d="M8 14h8" />
+      <path d="m13 11 3 3-3 3" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </>
+  ),
   repeat: (
     <>
       <path d="m17 2 4 4-4 4" />
