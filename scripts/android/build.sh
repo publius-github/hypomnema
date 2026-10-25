@@ -194,19 +194,20 @@ function ensure_rust_targets() {
   done
 }
 
-function esbuild_platform_package() {
-  # The @esbuild/<platform> optional dep is a reliable proxy for which OS the
-  # whole node_modules was installed for: it is a required build dependency and
-  # ships a distinct native binary per platform, installed alongside the other
-  # per-platform binaries (rollup, the tauri CLI).
+function platform_cli_package() {
+  # The tauri CLI's per-platform binary is a reliable proxy for which OS the
+  # whole node_modules was installed for: the build runs it, and npm installs
+  # it as a per-platform optional dep alongside the other native binaries
+  # (rolldown's binding). It used to be @esbuild/<platform>, which left the
+  # tree with Vite 8 - so the check took every node_modules for a foreign one.
   local platform
   platform="$(node -p 'process.platform + "-" + process.arch')"
   case "$platform" in
-    linux-x64) printf '@esbuild/linux-x64' ;;
-    linux-arm64) printf '@esbuild/linux-arm64' ;;
-    darwin-x64) printf '@esbuild/darwin-x64' ;;
-    darwin-arm64) printf '@esbuild/darwin-arm64' ;;
-    win32-x64) printf '@esbuild/win32-x64' ;;
+    linux-x64) printf '@tauri-apps/cli-linux-x64-gnu' ;;
+    linux-arm64) printf '@tauri-apps/cli-linux-arm64-gnu' ;;
+    darwin-x64) printf '@tauri-apps/cli-darwin-x64' ;;
+    darwin-arm64) printf '@tauri-apps/cli-darwin-arm64' ;;
+    win32-x64) printf '@tauri-apps/cli-win32-x64-msvc' ;;
     *) printf '' ;;
   esac
 }
@@ -215,13 +216,13 @@ function install_frontend_dependencies() {
   printf "\n"
   log_info "function install_frontend_dependencies - install node_modules for this platform"
   # node_modules can sit on a drive shared with a Windows checkout. npm installs
-  # native binaries (esbuild, rollup, the tauri CLI) as per-platform optional
+  # native binaries (rolldown, the tauri CLI) as per-platform optional
   # deps, and its optional-deps bug (npm/cli#4828) means an install done for one
-  # OS omits the others' binaries. Under WSL that surfaces as vite/rollup
-  # failing to resolve modules, or the tauri CLI failing to load. So a present
+  # OS omits the others' binaries. Under WSL that surfaces as vite
+  # failing to load its native binding, or the tauri CLI failing to load. So a present
   # node_modules is not enough - it also has to match this platform.
   local expected
-  expected="$(esbuild_platform_package)"
+  expected="$(platform_cli_package)"
   if [ ! -d node_modules ]; then
     npm ci
   elif [ -z "$expected" ]; then
@@ -608,9 +609,12 @@ function main() {
   configure_storage_permission
   configure_backup
   configure_signing
-  check_android_notices
   clear_previous_apks
   build_apk
+  # After the build, not before: Gradle cannot evaluate a freshly generated
+  # gen/android until `tauri android build` has written tauri.settings.gradle
+  # into it. Still before collect_artifacts, so a mismatch ships no APK.
+  check_android_notices
   collect_artifacts
   log_info "build finished"
 }

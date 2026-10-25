@@ -6,7 +6,7 @@
 // version in package-lock.json on every bump, which changes no dependency.
 // Optional packages the lockfile has and node_modules lacks are fine: npm
 // installs only the current OS's native binaries. Whether those are this
-// OS's is the caller's check (the build scripts look for @esbuild/<platform>).
+// OS's is the caller's check (the build scripts look for the tauri CLI's @tauri-apps/cli-<platform>).
 //
 // Usage: node scripts/general/node-modules-current.mjs
 // Prints why when node_modules is stale and exits 1.

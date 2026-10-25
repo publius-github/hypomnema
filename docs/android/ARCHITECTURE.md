@@ -11,7 +11,7 @@ The script is run from Linux or WSL - the setups it is built and tested on. What
 - Android SDK with `ANDROID_HOME` exported: `platforms;android-36` (compileSdk/targetSdk 36, minSdk 24), `build-tools;35.0.0`, `platform-tools`, and the NDK `ndk;27.0.12077973` (found under `$ANDROID_HOME/ndk` unless `ANDROID_NDK_HOME` is set). `sdkmanager --licenses` accepted once.
 - `python3` - the script patches the generated manifest and Gradle files with it.
 
-Google sign-in on a self-built APK does not work out of the box: the project's Android OAuth client is registered for the maintainer's signing-key SHA-1 (see Open items). A build of your own needs its own Android OAuth client in Google Cloud for your key's SHA-1 (`keytool -list -v` on the keystore); without one the app works fully, with sync unavailable.
+Google sign-in on a self-built APK does not work out of the box: the project's Android OAuth client is registered for the SHA-1 of the release key (see Release below). A build of your own needs its own Android OAuth client in Google Cloud for your key's SHA-1 (`keytool -list -v` on the keystore); without one the app works fully, with sync unavailable.
 
 ## Build (`scripts/android/build.sh`)
 
@@ -21,10 +21,17 @@ Google sign-in on a self-built APK does not work out of the box: the project's A
   - `configure_storage_permission` declares `MANAGE_EXTERNAL_STORAGE`, so the in-app vault folder browser can leave the app's own folders;
   - `configure_backup` sets `android:allowBackup="false"`: Auto Backup would otherwise copy the default vault (`getExternalFilesDir()`) and the `device-id` to the user's Google backup, and a restore would hand a new phone the old one's sync identity;
   - `configure_signing` signs a release with the keystore named by `ANDROID_KEYSTORE` (+ `ANDROID_KEYSTORE_PASS`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASS`), writing `keystore.properties` and a `signingConfigs` block. Without the variable a release is signed with the debug key - installable for testing, not publishable - and the script says so;
-  - `check_android_notices` resolves `universalReleaseRuntimeClasspath` through Gradle and stops the build when it differs from `scripts/general/notices/android-libraries.txt`, printing what to add or remove - the Android half of `THIRD_PARTY_LICENSES.txt` has no CI job, so this is where it is checked.
+  - `check_android_notices` (after the build: a fresh `gen/android` has no `tauri.settings.gradle` until `tauri android build` writes it) resolves `universalReleaseRuntimeClasspath` through Gradle and stops the build when it differs from `scripts/general/notices/android-libraries.txt`, printing what to add or remove - the Android half of `THIRD_PARTY_LICENSES.txt` has no CI job, so this is where it is checked.
 - APKs are named `Hypomnema-<version>-b<build>-<variant>-<abi>.apk`; the build number lives in `releases/android/.build-number` and increments per run, so a test device can tell two builds of one version apart. `collect_artifacts` copies them into `releases/android/` and, when `APK_COPY_DIR` is set, into that folder too (say a synced folder a test phone installs from). The script header lists the remaining environment overrides (`ANDROID_ABIS`, default `aarch64`; SDK/NDK/JDK roots; `CARGO_TARGET_DIR`; the release keystore).
 - `prune_target` runs `scripts/general/prune-target.mjs` first, the same stale-output prune the Windows build script does (see the Build section of `docs/windows/ARCHITECTURE.md`); it covers `target/aarch64-linux-android/` and honors `CARGO_TARGET_DIR` and `PRUNE_DAYS`.
-- There is no Android CI job: `release.yml` builds the Windows installer only.
+
+## Release
+
+`release.yml` builds the APK on a `v*` tag next to the Windows installer (`build-android`), behind the same CI gates and the same `release` environment approval. The build step runs `scripts/android/build.sh release` with `ANDROID_ABIS=aarch64` and no keystore, so no secret is in reach while Gradle, the Tauri CLI and the npm and Cargo build scripts run; the release variant comes out signed with the runner's debug key. The next step re-signs it with `apksigner` from `build-tools;35.0.0` using the `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASS` secrets (alias `hypomnema`, key password = store password), checks the signer's SHA-256 against `ANDROID_CERT_SHA256` in the workflow, and names the file `Hypomnema_<version>_arm64.apk`. A provenance attestation is recorded for it, and `attach-android` uploads it to the draft release that `build-windows` creates.
+
+The release key (`hypomnema-android.jks`, PKCS12, RSA 4096, `CN=Hypomnema`) stays with the owner, outside the repository. It cannot be replaced: Android installs an update only over an APK with the same signature, and Google Play App Signing can take the same key as the app signing key if the app moves there. SHA-1 `85:69:3D:6E:6A:71:A0:F1:AB:6F:94:DB:71:09:D8:92:92:D5:95:9B` is the one Google's Android OAuth client needs; SHA-256 is in the README.
+
+The app does not update itself on Android: the Tauri updater is desktop-only (`#[cfg(desktop)]`, below). A user installs the next APK over the installed one.
 
 ## Native code
 
@@ -37,6 +44,6 @@ Google sign-in on a self-built APK does not work out of the box: the project's A
 
 - **OS-scheduled background sync** is not built. Sync runs on resume, on leaving the app, on reconnect, on a heartbeat while open and after an edit; a WorkManager worker would go into a plugin as above.
 - **Share-sheet capture** is not built; its intent filter would go into a plugin manifest the same way.
-- **The widget's checks** run only on a device: there is no Android CI job and the Kotlin half compiles only in `scripts/android/build.sh`. The core half (`widget.rs`) has desktop unit tests. Two points to confirm on the first build: that the generated `TauriActivity` forwards `onNewIntent` to the plugins (Tauri's `PluginManager.onNewIntent` exists for it), and that the launcher honours `FLAG_ACTIVITY_SINGLE_TOP` on the launch intent so a widget tap resumes the running activity rather than recreating it.
+- **The widget's checks** run only on a device: no CI job runs it on every push, and the Kotlin half compiles only in `scripts/android/build.sh` (locally, or in `release.yml` on a tag). The core half (`widget.rs`) has desktop unit tests. Two points to confirm on the first build: that the generated `TauriActivity` forwards `onNewIntent` to the plugins (Tauri's `PluginManager.onNewIntent` exists for it), and that the launcher honours `FLAG_ACTIVITY_SINGLE_TOP` on the launch intent so a widget tap resumes the running activity rather than recreating it.
 - **History** is not ported: Review answers "how did the week go?" on a phone. Revisit if phone use shows the need.
-- **Release keystore**: none exists yet. The Google OAuth Android client is registered for the debug key's SHA-1, so a release keystore also needs its own Android client registered for its SHA-1.
+- **Update notice**: nothing tells an Android user that a newer APK is out. The desktop's `latest.json` check could drive a banner linking to the release.

@@ -25,21 +25,44 @@
 
 Hypomnema keeps a week of tasks, a journal and your notes together, and keeps all of it in a folder you choose: plain Markdown and YAML files plus a local database. There is no account, no server and no telemetry. Repeating tasks, dated events and birthdays come from rules in YAML files; the app's forms and a text editor write the same files, and the engine that turns rules into tasks never duplicates one or overwrites an edit. Syncing between your devices is optional and goes through a hidden app folder in your own Google Drive.
 
-*Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use. Windows 10/11 is the shipped platform.
+*Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use. It runs on Windows 10/11 and Android, on the same vault.
 
 > Hypomnema is free and has no ads, accounts or paid tiers. If it is useful to you, you can [support its development](https://ko-fi.com/hypomnema). <a href="https://ko-fi.com/hypomnema"><img src="https://img.shields.io/badge/ko--fi-support-ff5e5b?logo=kofi&logoColor=white" alt="ko-fi" align="top"></a>
 
 ## Install
 
+### Windows
+
 Download `Hypomnema_<version>_x64-setup.exe` from the [latest release](https://github.com/publius-github/hypomnema/releases/latest) and run it. It installs for the current user, without administrator rights; on a Windows 10 without WebView2 it downloads that first, so it needs a connection. The installer is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC": choose *More info* > *Run anyway*. The app then updates itself; every update is verified against the project's signing key before it is installed.
+
+### Android
+
+Download `Hypomnema_<version>_arm64.apk` from the same [release](https://github.com/publius-github/hypomnema/releases/latest) on the phone and open it; Android asks once to allow installs from the browser or file manager that opened it. It needs Android 7.0 or later on a 64-bit ARM phone (nearly every phone from the last several years). The app is not on Google Play and does not update itself: to update, install the next release's APK over the installed one, which keeps the app's data. Every APK is signed with the project's key (SHA-256 `96:64:14:D2:7E:B9:51:BE:10:EC:FC:11:7D:09:30:B4:C4:3F:2A:E8:53:5B:33:89:38:25:AB:CF:29:C2:B1:91`), and Android refuses an update signed with any other.
+
+The default vault lives in the app's own folder, which Android deletes with the app. To keep it in an ordinary folder instead (one a backup or another app can see), use Settings > Vault > *Move to another folder*; the folder browser's *Allow access* opens Android's *All files access* switch for the app. *Save a copy to Downloads* on the same page copies the vault to `Download/Hypomnema/`.
+
+<!-- Phone screenshots. Drop these files into docs/screenshots/ and remove the
+     two comment markers around the block below:
+       android-day.png    - the Day screen with today's tasks
+       android-lists.png  - the lists screen
+       android-widget.png - the home screen with the Hypomnema widgets
+     Portrait phone captures, demo data only.
+<p align="center">
+  <img src="docs/screenshots/android-day.png" width="32%" alt="Android: today's tasks">
+  <img src="docs/screenshots/android-lists.png" width="32%" alt="Android: the lists">
+  <img src="docs/screenshots/android-widget.png" width="32%" alt="Android: the home-screen widgets">
+</p>
+-->
 
 To check that a download came out of this repository's release workflow, see [Code signing policy](#code-signing-policy).
 
+### First start
+
 On first start the app asks for a vault folder: pick an empty folder for a fresh start, or an existing folder of Markdown notes to work with them in place. A new vault starts with a few lists, tasks and rules of each kind, all meant to be edited or deleted. *Try it with an example* fills an empty folder with those plus a welcome note and a journal entry to look around in first.
 
-Uninstalling (Windows *Apps & features*) removes the program; your vault folder is never touched. The uninstaller's optional "Delete the application data" box clears only the per-device files under `%APPDATA%\com.hypomnema.app` (the remembered vault path, the Google sign-in, the diagnostic log).
+Uninstalling on Windows (*Apps & features*) removes the program; your vault folder is never touched. The uninstaller's optional "Delete the application data" box clears only the per-device files under `%APPDATA%\com.hypomnema.app` (the remembered vault path, the Google sign-in, the diagnostic log).
 
-macOS and Linux are not released and not tested. The core is cross-platform Tauri, so `npm run app:dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
+macOS, Linux and iOS are not released and not tested. The core is cross-platform Tauri, so `npm run app:dev` should run, but the tray, quick-capture window and installer flow are Windows-only for now.
 
 ## What it does
 
@@ -105,7 +128,7 @@ The engine runs at startup, on Sync, when the day changes and when a config file
 
 ## Status
 
-Pre-1.0: development builds, released often (see the [changelog](CHANGELOG.md)). Windows 10/11 is the shipped platform. An Android build of the same project exists in the tree ([docs/android](docs/android/ARCHITECTURE.md)) and is not published. One maintainer; issues and pull requests are reviewed as time allows, with no roadmap or support commitment beyond [SECURITY.md](docs/SECURITY.md).
+Pre-1.0: development builds, released often (see the [changelog](CHANGELOG.md)). Windows 10/11 and Android are the shipped platforms; the Android app is built from the same project ([docs/android](docs/android/ARCHITECTURE.md)) and published as an APK on the releases page, not on Google Play. One maintainer; issues and pull requests are reviewed as time allows, with no roadmap or support commitment beyond [SECURITY.md](docs/SECURITY.md).
 
 ## Code signing policy
 
@@ -113,7 +136,7 @@ Pre-1.0: development builds, released often (see the [changelog](CHANGELOG.md)).
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 -->
 
-Windows installers are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds it, signs the update artifacts with the project's updater key (the installer itself is not code-signed yet), records a [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) for the installer and attaches the files to a draft release; a draft reaches users only once it is reviewed and published by hand. `gh attestation verify <installer> --repo publius-github/hypomnema` checks a download against that attestation.
+Windows installers and Android APKs are built only by the `release.yml` GitHub Actions workflow from a tagged commit of this repository; nothing built on a personal machine is published. CI builds them, signs the Windows update artifacts with the project's updater key (the installer itself is not code-signed yet) and the APK with the project's Android key, records a [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) for the installer and the APK and attaches the files to a draft release; a draft reaches users only once it is reviewed and published by hand. `gh attestation verify <file> --repo publius-github/hypomnema` checks a download against that attestation; `apksigner verify --print-certs <apk>` shows the APK's signing certificate, whose SHA-256 is the one under [Android](#android).
 
 Team roles:
 

@@ -104,13 +104,13 @@ function Invoke-PruneTarget {
 
 # node_modules is shared with the WSL side (scripts/android/build.sh
 # reinstalls it for Linux), so a present folder is not enough: it must hold
-# the Windows native binaries, with @esbuild/win32-x64 as the proxy for all
+# the Windows native binaries, with @tauri-apps/cli-win32-x64-msvc as the proxy for all
 # of them (npm/cli#4828 leaves out the other OS's). node-modules-current.mjs
 # checks the installed packages against package-lock.json. When both hold,
 # npm ci is skipped: it deletes and reinstalls everything on every run.
 function Install-FrontendDependencies {
   $reason = $null
-  if (-not (Test-Path 'node_modules/@esbuild/win32-x64')) {
+  if (-not (Test-Path 'node_modules/@tauri-apps/cli-win32-x64-msvc')) {
     $reason = 'node_modules is missing or was installed for another OS (WSL build?)'
   }
   else {
