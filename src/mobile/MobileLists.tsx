@@ -633,24 +633,7 @@ export default function MobileLists() {
       ) : (
         <Sections
           sections={sections}
-          extras={(section, index) => {
-            // Up/Down move within the backlog only - the one block the
-            // desktop column lets a drag reorder
-            const rows = section.rows;
-            return {
-              showList: false,
-              neighbours:
-                section.key === "rest"
-                  ? {
-                      previous: index > 0 ? rows[index - 1].task.id : undefined,
-                      next:
-                        index < rows.length - 1
-                          ? rows[index + 1].task.id
-                          : undefined,
-                    }
-                  : undefined,
-            };
-          }}
+          extras={() => ({ showList: false })}
         />
       )}
       <div className="flex gap-2 border-t border-line p-3">

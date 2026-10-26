@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
-  addDaysISO,
   cadenceColor,
   cadenceKeyOf,
   categoryChipColor,
@@ -27,6 +26,8 @@ import { useEditTask } from "./editing";
 import type { Task } from "../types";
 import { readable, themeColors } from "../lib/color";
 import DowLabelText from "../components/DowLabelText";
+import Icon, { type IconName } from "../components/icons";
+import { Sheet } from "./settings/rows";
 
 /** A status badge in the row's right-hand column: small enough not to
  * outweigh the title, narrow enough for the column's fixed width. */
@@ -40,9 +41,10 @@ const BADGE =
  * does (todo, done, postponed, done-waiting; a checklist toggles todo
  * and done), because that is what a task row is for ninety percent of
  * the time and aiming at a small checkbox on a moving bus is not a
- * design. Everything rarer hides behind the "..." button,
- * which opens actions inline rather than in a dialog - a modal over a
- * phone screen hides the very list the action refers to.
+ * design. Everything rarer hides behind the "..." button, which opens a
+ * bottom sheet: the list stays where it is behind it, and the actions
+ * get one full-width, thumb-high row each instead of a wrapped heap of
+ * buttons that pushed the rows below it down.
  *
  * It wears the desktop card's signals, in the card's order and with
  * the card's colour rules (`TaskCard` is the reference: a change there
@@ -54,7 +56,6 @@ const BADGE =
  */
 export default function TaskRow({
   task,
-  neighbours,
   showList = true,
   reviewWeekStart,
   blockIndex,
@@ -62,13 +63,6 @@ export default function TaskRow({
   labelInHeader = false,
 }: {
   task: Task;
-  /**
-   * The rows above and below within a list, when there is an order to
-   * change. Reordering is a list-column concept - a day column sorts
-   * itself - so a day view simply does not pass them, and the two
-   * actions stay off a screen where they would do nothing.
-   */
-  neighbours?: { previous?: number; next?: number };
   /** Off inside a list, where naming it on every row says nothing. */
   showList?: boolean;
   /**
@@ -89,7 +83,6 @@ export default function TaskRow({
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
   const holdStatus = useAppStore((s) => s.holdStatus);
-  const reorderTask = useAppStore((s) => s.reorderTask);
   const tasks = useAppStore((s) => s.tasks);
   const lists = useAppStore((s) => s.lists);
   const config = useAppStore((s) => s.config);
@@ -378,8 +371,9 @@ export default function TaskRow({
         </ul>
       )}
       {open && (
-        <div className="flex flex-wrap gap-2 px-4 pb-3">
-          <Action
+        <Sheet title={text} onClose={() => setOpen(false)}>
+          <SheetAction
+            icon="pencil"
             label="Edit"
             onClick={() => {
               setOpen(false);
@@ -398,46 +392,26 @@ export default function TaskRow({
               setEditing(task.id);
             }}
           />
-          {/* Up and down rather than a long-press drag: dragging inside a
-              scrolling list on a phone fights the scroll, and the gesture
-              that wins is whichever the finger commits to first. Two
-              buttons never guess. */}
-          {neighbours?.previous !== undefined && (
-            <Action
-              label="Up"
-              onClick={() => {
-                setOpen(false);
-                void reorderTask(task.id, neighbours.previous!);
-              }}
-            />
-          )}
-          {neighbours?.next !== undefined && (
-            <Action
-              label="Down"
-              onClick={() => {
-                setOpen(false);
-                void reorderTask(task.id, neighbours.next!);
-              }}
-            />
-          )}
-          <Action
-            label="Tomorrow"
-            onClick={() => {
-              // a past-dated leftover goes to the real tomorrow, not to
-              // the day after its old date
-              const today = useAppStore.getState().today;
-              const from =
-                task.scheduled_date && task.scheduled_date > today
-                  ? task.scheduled_date
-                  : today;
-              act({ scheduled_date: addDaysISO(from, 1) });
-            }}
+          {/* a starred task goes straight to the Days view */}
+          <SheetAction
+            icon="star"
+            label={task.priority ? "Unstar" : "Star"}
+            onClick={() =>
+              act(
+                priorityPatch(
+                  task,
+                  !task.priority,
+                  useAppStore.getState().today,
+                ),
+              )
+            }
           />
           {/* Review leftovers get the desktop Review's own two ways out;
               generated tasks keep their rule's date and list by design */}
           {reviewWeekStart && task.origin === "manual" && (
             <>
-              <Action
+              <SheetAction
+                icon="calendar"
                 label="Next week"
                 onClick={() =>
                   act({
@@ -448,7 +422,8 @@ export default function TaskRow({
                   })
                 }
               />
-              <Action
+              <SheetAction
+                icon="list"
                 label="Backlog"
                 onClick={() => {
                   setOpen(false);
@@ -475,7 +450,8 @@ export default function TaskRow({
           )}
           {/* checklist items have no postponed state */}
           {!checklist && (
-            <Action
+            <SheetAction
+              icon="arrowRight"
               label="Postpone"
               onClick={() => act({ status: "postponed" })}
             />
@@ -483,7 +459,8 @@ export default function TaskRow({
           {/* "not done, dropped": off the plan without pretending it was
               done - the card's ⊘; the hold keeps the row in place */}
           {!closed && !checklist && (
-            <Action
+            <SheetAction
+              icon="ban"
               label="Drop"
               onClick={() => {
                 holdStatus(task.id, task.status);
@@ -491,48 +468,44 @@ export default function TaskRow({
               }}
             />
           )}
-          <Action
-            label={task.priority ? "Unstar" : "Star"}
-            onClick={() =>
-              act(
-                priorityPatch(
-                  task,
-                  !task.priority,
-                  useAppStore.getState().today,
-                ),
-              )
-            }
-          />
-          <Action
-            label="Delete"
-            danger
-            onClick={() => {
-              setOpen(false);
-              void deleteTask(task.id);
-            }}
-          />
-        </div>
+          {/* apart from the rest: the one action that removes the task
+              (one tap, undone from the toast) */}
+          <div className="mt-1 border-t border-line pt-1">
+            <SheetAction
+              icon="trash"
+              label="Delete"
+              danger
+              onClick={() => {
+                setOpen(false);
+                void deleteTask(task.id);
+              }}
+            />
+          </div>
+        </Sheet>
       )}
     </li>
   );
 }
 
-function Action({
+function SheetAction({
+  icon,
   label,
   onClick,
   danger,
 }: {
-  label: string;
+  icon: IconName;
+  label: ReactNode;
   onClick: () => void;
   danger?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg border px-3 py-2 text-sm ${
-        danger ? "border-danger/50 text-danger" : "border-line"
+      className={`flex min-h-12 w-full items-center gap-4 px-4 text-left active:bg-line/40 ${
+        danger ? "text-danger" : ""
       }`}
     >
+      <Icon name={icon} className="h-5 w-5 shrink-0" />
       {label}
     </button>
   );

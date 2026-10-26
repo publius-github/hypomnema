@@ -33,3 +33,16 @@ test("phone notes: a tap on a wiki link in the reading view opens that note", as
   await reader.getByText("Ideas").click();
   await expect(page.getByRole("textbox", { name: "Ideas.md" })).toBeVisible();
 });
+
+test("phone notes: leaving the tab and coming back keeps the open note", async ({ app, page }) => {
+  await page.setViewportSize(PHONE);
+  await app("mobile");
+  const tabs = page.getByRole("navigation", { name: "Tabs" });
+  await openNotes(page);
+  await page.getByRole("button", { name: /Welcome\.md/ }).click();
+  await expect(page.getByRole("textbox", { name: "Welcome.md" })).toBeVisible();
+
+  await tabs.getByRole("button", { name: "Journal", exact: true }).click();
+  await openNotes(page);
+  await expect(page.getByRole("textbox", { name: "Welcome.md" })).toBeVisible();
+});

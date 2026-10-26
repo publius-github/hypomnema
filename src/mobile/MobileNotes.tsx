@@ -20,6 +20,7 @@ import {
 import SaveIndicator from "../components/SaveIndicator";
 import ConflictBadge from "../components/ConflictBadge";
 import { useBackStep } from "./back";
+import ScrollThumb, { type ScrollMemory } from "./ScrollThumb";
 import { ConfirmModal } from "../components/dialogs";
 import Icon, { type IconName } from "../components/icons";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
@@ -46,6 +47,29 @@ type Open = { kind: "note" | "config"; path: string; content: string };
 // Which root groups are open, kept across tab switches for the session:
 // the notes open, the config files - visited far less - folded away.
 const openGroups = { notes: true, config: false };
+
+// Where the user was, kept for the session: a trip to another tab
+// unmounts this screen, and coming back should land on the same folder,
+// the same open note and the same place in it, not the root of the list.
+const session: {
+  trail: string[];
+  note: { kind: Open["kind"]; path: string } | null;
+  scroll: ScrollMemory;
+} = { trail: [], note: null, scroll: new Map() };
+
+/** The folder nodes along `paths`, as far as the tree still has them. */
+function trailFor(tree: KbNode[], paths: string[]): KbNode[] {
+  const trail: KbNode[] = [];
+  let level = tree;
+  for (const path of paths) {
+    const node = level.find((n) => n.is_dir && n.path === path);
+    if (!node) break;
+    trail.push(node);
+    level = node.children;
+  }
+  return trail;
+}
+
 export default function MobileNotes() {
   const setError = useAppStore((s) => s.setError);
   const [tree, setTree] = useState<KbNode[]>([]);
@@ -73,9 +97,16 @@ export default function MobileNotes() {
       .catch((e) => setError(errorMessage(e)));
   }, [setError]);
 
+  // false until the saved place has been put back: the effects that
+  // record it must not overwrite it with the empty state of a fresh mount
+  const restored = useRef(false);
+  const [treeLoaded, setTreeLoaded] = useState(false);
   const loadTree = useCallback(() => {
     void invoke("kb_tree")
-      .then(setTree)
+      .then((nodes) => {
+        setTree(nodes);
+        setTreeLoaded(true);
+      })
       .catch((e) => setError(errorMessage(e)));
   }, [setError]);
   useEffect(loadTree, [loadTree]);
@@ -90,6 +121,15 @@ export default function MobileNotes() {
     loadTree();
   });
   useBackStep(creating !== null, () => setCreating(null));
+
+  useEffect(() => {
+    if (restored.current) session.trail = trail.map((node) => node.path);
+  }, [trail]);
+  useEffect(() => {
+    if (restored.current) {
+      session.note = note && { kind: note.kind, path: note.path };
+    }
+  }, [note]);
 
   const openPath = useCallback(
     (path: string) => {
@@ -108,6 +148,24 @@ export default function MobileNotes() {
     },
     [setError],
   );
+
+  // put the saved place back once, when the tree it points into is here
+  useEffect(() => {
+    if (restored.current || !treeLoaded) return;
+    restored.current = true;
+    setTrail(trailFor(tree, session.trail));
+    const saved = session.note;
+    if (!saved) return;
+    void (saved.kind === "config"
+      ? invoke("config_file_get", { file: saved.path })
+      : invoke("kb_read", { path: saved.path })
+    )
+      .then((content) => setNote({ ...saved, content }))
+      .catch(() => {
+        // gone since (deleted by a sync): the list is the place to be
+        session.note = null;
+      });
+  }, [tree, treeLoaded]);
 
   // a search hit landed here with a note to open
   const kbOpenNote = useAppStore((s) => s.kbOpenNote);
@@ -253,7 +311,13 @@ export default function MobileNotes() {
               </span>
             </header>
           )}
-          <ul className="min-h-0 flex-1 overflow-auto">
+          <ScrollThumb
+            selector="ul"
+            memory={session.scroll}
+            memoryKey={`list:${trail.map((n) => n.path).join("/")}`}
+            className="min-h-0 flex-1"
+          >
+          <ul className="h-full overflow-auto">
             {/* at the root the vault's own files and the desktop's Config
                 group sit under a plate each, so the config files read as
                 a group of their own rather than more of the vault */}
@@ -316,6 +380,7 @@ export default function MobileNotes() {
               </>
             )}
           </ul>
+          </ScrollThumb>
           {/* A create bar, not a pair of slabs: the two buttons used to
               split the full width in a solid accent block, which read as
               the loudest thing on a screen whose actual subject is the
@@ -552,16 +617,28 @@ function NoteEditor({
       )}
 
       {editing ? (
-        <textarea
-          value={content}
-          onChange={(e) => edit(e.target.value)}
-          spellCheck
-          className={`min-h-0 flex-1 resize-none bg-transparent px-4 py-3 leading-relaxed outline-hidden ${
-            prose ? "" : "font-mono text-sm"
-          }`}
-        />
+        <ScrollThumb
+          selector="textarea"
+          memory={session.scroll}
+          memoryKey={`edit:${note.kind}:${note.path}`}
+          className="min-h-0 flex-1"
+        >
+          <textarea
+            value={content}
+            onChange={(e) => edit(e.target.value)}
+            spellCheck
+            className={`h-full w-full resize-none bg-transparent px-4 py-3 leading-relaxed outline-hidden ${
+              prose ? "" : "font-mono text-sm"
+            }`}
+          />
+        </ScrollThumb>
       ) : (
-        <div className={`min-h-0 flex-1 ${prose ? "phone-prose" : ""}`}>
+        <ScrollThumb
+          selector=".cm-scroller, pre"
+          memory={session.scroll}
+          memoryKey={`read:${note.kind}:${note.path}`}
+          className={`min-h-0 flex-1 ${prose ? "phone-prose" : ""}`}
+        >
           {/* the plain text until CodeMirror's chunk has loaded, so the
               note never opens on an empty screen */}
           <Suspense
@@ -581,7 +658,7 @@ function NoteEditor({
               onWikiLink={onOpen}
             />
           </Suspense>
-        </div>
+        </ScrollThumb>
       )}
 
       {note.kind === "note" && (
