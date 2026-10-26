@@ -2,6 +2,14 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.125.1 - 2026-10-26
+
+Phone, Notes: a scroll thumb on the right edge shows where in a long note the screen is and can be dragged to jump; the folder, open note and scroll position are kept while you visit another tab and come back, for the session.
+
+Phone, tasks: the "..." button opens a bottom sheet with one full-width row per action (Edit, Add subtask, Priority, Postpone, Drop, and Delete set apart) instead of a wrapped heap of buttons; Up, Down and Tomorrow are gone. A task with a Priority wears its star in front of the title, as in the desktop list widget, and the action is called Priority / Remove priority rather than Star.
+
+Subtasks: an open task has an Add subtask field at the foot of its subtask list (on the phone also the Add subtask row of the actions sheet), where Enter adds one and keeps the field for the next, so no trip into Edit is needed; each subtask gets a delete button next to its postpone arrow, on the phone and on the desktop card, and a deleted subtask can be brought back from the toast.
+
 ## 0.125.0 - 2026-10-25
 
 The Android app is released: every release now carries `Hypomnema_<version>_arm64.apk` next to the Windows installer, built, signed and attested by the same workflow from the same tagged commit. It is signed with the project's new Android key (SHA-256 in the README), so an APK built locally before this version cannot be updated by it: export the vault or let it sync to Drive, uninstall, then install the release APK. It does not update itself yet; install the next release's APK over it.
