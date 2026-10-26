@@ -379,6 +379,15 @@ export default function TaskRow({
               >
                 →
               </button>
+              {/* a subtask that is not needed goes entirely (the toast
+                  undoes it, like a task) */}
+              <button
+                onClick={() => void deleteTask(sub.id)}
+                aria-label={`Delete subtask ${sub.title}`}
+                className="shrink-0 px-2 py-2 text-content-muted"
+              >
+                ×
+              </button>
             </li>
           ))}
           <li>

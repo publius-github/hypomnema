@@ -84,6 +84,7 @@ function TaskCard({
     s.lists.find((l) => l.id === task.list_id)?.kind === "checklist",
   );
   const [expanded, setExpanded] = useState(false);
+  const [subDraft, setSubDraft] = useState("");
   // generated tasks mirror their config file: dragging them to another
   // day or list would silently diverge from it, so they don't drag.
   // An inert card must not claim the shared task id: its sortable
@@ -502,7 +503,7 @@ function TaskCard({
           )}
         </div>
       </div>
-      {expanded && subtasks.length > 0 && (
+      {expanded && (
         <div className="flex flex-col gap-1 border-t border-line px-2 py-1.5 pl-7">
           {subtasks.map((sub) => (
             <div key={sub.id} className="group/sub flex items-start gap-1.5 text-xs">
@@ -556,8 +557,40 @@ function TaskCard({
               >
                 →
               </button>
+              {/* a subtask that is no longer needed goes entirely
+                  (undone from the toast, like a task) */}
+              <button
+                className="shrink-0 px-1 text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover/sub:opacity-100"
+                title="Delete subtask"
+                aria-label={`Delete subtask ${sub.title}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void useAppStore.getState().deleteTask(sub.id);
+                }}
+              >
+                ×
+              </button>
             </div>
           ))}
+          {/* a subtask carries no list of its own; the parent's decides.
+              Enter adds and keeps the field for the next one. */}
+          <input
+            value={subDraft}
+            onChange={(e) => setSubDraft(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key !== "Enter") return;
+              const title = subDraft.trim();
+              if (!title) return;
+              void useAppStore
+                .getState()
+                .createTask({ title, parent_task_id: task.id });
+              setSubDraft("");
+            }}
+            placeholder="+ Add subtask"
+            aria-label="New subtask"
+            className="mt-0.5 w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-xs placeholder:text-content-muted hover:border-line focus:border-line"
+          />
         </div>
       )}
     </div>
