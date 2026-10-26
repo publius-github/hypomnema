@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
@@ -80,8 +80,11 @@ export default function TaskRow({
 }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
+  const createTask = useAppStore((s) => s.createTask);
   const holdStatus = useAppStore((s) => s.holdStatus);
   const tasks = useAppStore((s) => s.tasks);
   const lists = useAppStore((s) => s.lists);
@@ -160,6 +163,16 @@ export default function TaskRow({
       {weekdayShort(date)} {date}
     </span>
   );
+
+  // a subtask carries no list of its own; the parent's decides. The field
+  // stays open after Enter so several can be typed in a row.
+  const addSubtask = (event: FormEvent) => {
+    event.preventDefault();
+    const title = draft.trim();
+    if (!title) return;
+    void createTask({ title, parent_task_id: task.id });
+    setDraft("");
+  };
 
   const act = (patch: Parameters<typeof updateTask>[1]) => {
     setOpen(false);
@@ -255,13 +268,13 @@ export default function TaskRow({
                     [<DowLabelText label={dowLabel} task={task} />]{" "}
                   </span>
                 )}
+                {task.priority && !showList && (
+                  // inside a list the Priority plate already says it, so a
+                  // star is enough; it leads the title like the widget's
+                  <span className="text-priority">★ </span>
+                )}
                 {text}
               </span>
-              {task.priority && !showList && (
-                // inside a list the Priority plate already says it, so a
-                // star is enough
-                <span className="text-priority">★</span>
-              )}
               {task.time && (
                 <span className="text-xs text-content-muted">{task.time}</span>
               )}
@@ -315,7 +328,7 @@ export default function TaskRow({
           ⋯
         </button>
       </div>
-      {expanded && subtasks.length > 0 && (
+      {expanded && (
         <ul className="flex flex-col border-t border-line/60 py-1 pl-10 pr-2">
           {subtasks.map((sub) => (
             <li key={sub.id} className="flex items-center gap-2">
@@ -368,6 +381,39 @@ export default function TaskRow({
               </button>
             </li>
           ))}
+          <li>
+            {adding ? (
+              <form onSubmit={addSubtask} className="flex items-center gap-2 py-1">
+                <input
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => {
+                    if (!draft.trim()) setAdding(false);
+                  }}
+                  placeholder="New subtask"
+                  enterKeyHint="done"
+                  aria-label="New subtask"
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm"
+                />
+                <button
+                  type="submit"
+                  onMouseDown={(e) => e.preventDefault()}
+                  className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm"
+                >
+                  Add
+                </button>
+              </form>
+            ) : (
+              <button
+                onClick={() => setAdding(true)}
+                className="flex min-h-10 w-full items-center gap-2 text-left text-sm text-content-muted"
+              >
+                <Icon name="plus" className="h-4 w-4 shrink-0" />
+                Add subtask
+              </button>
+            )}
+          </li>
         </ul>
       )}
       {open && (
@@ -392,10 +438,19 @@ export default function TaskRow({
               setEditing(task.id);
             }}
           />
-          {/* a starred task goes straight to the Days view */}
+          <SheetAction
+            icon="plus"
+            label="Add subtask"
+            onClick={() => {
+              setOpen(false);
+              setExpanded(true);
+              setAdding(true);
+            }}
+          />
+          {/* a task with a priority goes straight to the Days view */}
           <SheetAction
             icon="star"
-            label={task.priority ? "Unstar" : "Star"}
+            label={task.priority ? "Remove priority" : "Priority"}
             onClick={() =>
               act(
                 priorityPatch(

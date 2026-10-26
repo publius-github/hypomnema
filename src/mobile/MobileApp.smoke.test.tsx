@@ -165,6 +165,43 @@ describe("MobileApp smoke", () => {
     );
   });
 
+  it("adds a subtask from the task's action sheet", async () => {
+    const today = todayISO();
+    const task = makeTask({ title: "call mum", scheduled_date: today });
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        tasks_snapshot: () => [task],
+        task_create: () => makeTask({ title: "ask about dad" }),
+      }),
+    );
+    useAppStore.setState({
+      config: { ...defaultConfig, sync_auto: false },
+      vaultPath: "/vault",
+      lists: [],
+      tasks: [task],
+      today,
+    });
+
+    render(<MobileApp />);
+
+    fireEvent.click(await screen.findByLabelText("Task actions"));
+    fireEvent.click(screen.getByText("Add subtask"));
+    fireEvent.change(screen.getByLabelText("New subtask"), {
+      target: { value: "ask about dad" },
+    });
+    fireEvent.submit(screen.getByLabelText("New subtask"));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("task_create", {
+        new: expect.objectContaining({
+          title: "ask about dad",
+          parent_task_id: task.id,
+        }),
+      }),
+    );
+  });
+
   it("creates a list from the lists tab", async () => {
     dispatchCommands(
       invokeMock,

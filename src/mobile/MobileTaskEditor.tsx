@@ -53,7 +53,7 @@ export default function MobileTaskEditor({
     useTaskTextDraft(task, updateTask);
   const [date, setDate] = useState(task.scheduled_date ?? "");
   const [time, setTime] = useState(task.time ?? "");
-  // Priority and Unstar change the date behind these fields
+  // Setting and removing Priority change the date behind these fields
   useEffect(() => {
     setDate(task.scheduled_date ?? "");
   }, [task.scheduled_date]);
