@@ -16,6 +16,7 @@ import {
   sortSubtasks,
   splitCategory,
   tintStyle,
+  DONE_SUB_PLATE,
   weekdayShort,
 } from "../lib/tasks";
 import type { Task } from "../types";
@@ -85,6 +86,7 @@ function TaskCard({
   );
   const [expanded, setExpanded] = useState(false);
   const [subDraft, setSubDraft] = useState("");
+  const [doneOpen, setDoneOpen] = useState(false);
   // generated tasks mirror their config file: dragging them to another
   // day or list would silently diverge from it, so they don't drag.
   // An inert card must not claim the shared task id: its sortable
@@ -197,6 +199,79 @@ function TaskCard({
     // checkbox click (or a fix of a misclick) is still possible
     holdStatus(task.id, task.status);
   };
+
+  const openSubs = subtasks.filter((s) => s.status !== "done");
+  const doneSubs = subtasks.filter((s) => s.status === "done");
+  const renderSub = (sub: Task) => (
+            <div
+              key={sub.id}
+              className="group/sub flex items-start gap-1.5 border-b border-line/40 pb-1 text-xs"
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                style={{ accentColor: "var(--hex-done)" }}
+                checked={sub.status === "done"}
+                onChange={() =>
+                  void updateTask(sub.id, {
+                    status: sub.status === "done" ? "todo" : "done",
+                  })
+                }
+              />
+              <span
+                className={`flex-1 ${
+                  isClosed(sub.status)
+                    ? "text-content-muted line-through"
+                    : sub.status === "postponed"
+                      ? "text-warn"
+                      : sub.status === "waiting"
+                        ? "text-waiting"
+                        : ""
+                }`}
+                title={
+                  sub.status === "todo" ? undefined : STATUS_LABEL[sub.status]
+                }
+              >
+                {sub.title}
+              </span>
+              {/* subtasks postpone too, same semantics as the task
+                  dialog's arrow */}
+              <button
+                className={`shrink-0 text-base leading-none ${
+                  sub.status === "postponed"
+                    ? "text-warn"
+                    : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover/sub:opacity-100"
+                }`}
+                title={
+                  sub.status === "postponed" ? "Back to To Do" : "Postpone"
+                }
+                aria-label={
+                  sub.status === "postponed" ? "Back to To Do" : "Postpone"
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void updateTask(sub.id, {
+                    status: sub.status === "postponed" ? "todo" : "postponed",
+                  });
+                }}
+              >
+                →
+              </button>
+              {/* a subtask that is no longer needed goes entirely
+                  (undone from the toast, like a task) */}
+              <button
+                className="shrink-0 text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover/sub:opacity-100"
+                title="Delete subtask"
+                aria-label={`Delete subtask ${sub.title}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void useAppStore.getState().deleteTask(sub.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+  );
 
   return (
     <div
@@ -505,73 +580,31 @@ function TaskCard({
       </div>
       {expanded && (
         <div className="flex flex-col gap-1 border-t border-line px-2 py-1.5 pl-7">
-          {subtasks.map((sub) => (
-            <div key={sub.id} className="group/sub flex items-start gap-1.5 text-xs">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                style={{ accentColor: "var(--hex-done)" }}
-                checked={sub.status === "done"}
-                onChange={() =>
-                  void updateTask(sub.id, {
-                    status: sub.status === "done" ? "todo" : "done",
-                  })
-                }
-              />
-              <span
-                className={`flex-1 ${
-                  isClosed(sub.status)
-                    ? "text-content-muted line-through"
-                    : sub.status === "postponed"
-                      ? "text-warn"
-                      : sub.status === "waiting"
-                        ? "text-waiting"
-                        : ""
-                }`}
-                title={
-                  sub.status === "todo" ? undefined : STATUS_LABEL[sub.status]
-                }
-              >
-                {sub.title}
-              </span>
-              {/* subtasks postpone too, same semantics as the task
-                  dialog's arrow */}
+          {openSubs.map(renderSub)}
+          {doneSubs.length > 0 && (
+            // the done ones fold into a plate that starts and ends where
+            // the subtasks do, so the hierarchy holds
+            <>
               <button
-                className={`shrink-0 px-1 text-base leading-none ${
-                  sub.status === "postponed"
-                    ? "text-warn"
-                    : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover/sub:opacity-100"
-                }`}
-                title={
-                  sub.status === "postponed" ? "Back to To Do" : "Postpone"
-                }
-                aria-label={
-                  sub.status === "postponed" ? "Back to To Do" : "Postpone"
-                }
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void updateTask(sub.id, {
-                    status: sub.status === "postponed" ? "todo" : "postponed",
-                  });
-                }}
+                type="button"
+                className="flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-xs font-bold"
+                style={DONE_SUB_PLATE}
+                title={doneOpen ? "Fold the done subtasks" : "Show the done subtasks"}
+                aria-expanded={doneOpen}
+                onClick={() => setDoneOpen((v) => !v)}
               >
-                →
+                <span>Done</span>
+                <span className="font-normal tabular-nums">
+                  · {doneSubs.length}
+                </span>
+                <span className="h-px flex-1 bg-current opacity-30" />
+                <span className="font-normal opacity-70" aria-hidden>
+                  {doneOpen ? "▾" : "▸"}
+                </span>
               </button>
-              {/* a subtask that is no longer needed goes entirely
-                  (undone from the toast, like a task) */}
-              <button
-                className="shrink-0 px-1 text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover/sub:opacity-100"
-                title="Delete subtask"
-                aria-label={`Delete subtask ${sub.title}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void useAppStore.getState().deleteTask(sub.id);
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
+              {doneOpen && doneSubs.map(renderSub)}
+            </>
+          )}
           {/* a subtask carries no list of its own; the parent's decides.
               Enter adds and keeps the field for the next one. */}
           <input

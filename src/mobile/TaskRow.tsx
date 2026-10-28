@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
+import { DONE_SUB_PLATE } from "../lib/tasks";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import {
@@ -82,6 +83,7 @@ export default function TaskRow({
   const [expanded, setExpanded] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  const [doneOpen, setDoneOpen] = useState(false);
   const updateTask = useAppStore((s) => s.updateTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
   const createTask = useAppStore((s) => s.createTask);
@@ -137,7 +139,8 @@ export default function TaskRow({
   // Scheduled events and birthdays carry the date they came from.
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
 
-  const dowLabel = (config?.cron_weekday_labels ?? true) ? task.dow_label : null;
+  const dowLabel =
+    (config?.cron_weekday_labels ?? true) ? task.dow_label : null;
   const dowColor = themeColors(config)?.dow_label_color || "";
 
   // the habit-tracker rate of a recurring item, loud below its threshold
@@ -148,7 +151,8 @@ export default function TaskRow({
       ? (s.habitRates[task.rule_key] ?? null)
       : null,
   );
-  const rateAlertColor = themeColors(config)?.habit_rate_alert_color || "#c95e05";
+  const rateAlertColor =
+    themeColors(config)?.habit_rate_alert_color || "#c95e05";
   const rateAlertOnly = (config?.habit_rate_display ?? "alert") === "alert";
   // a closed row fades everything but its status box
   const dim = closed ? (config?.closed_row_opacity ?? 50) / 100 : 1;
@@ -179,6 +183,76 @@ export default function TaskRow({
     void updateTask(task.id, patch);
   };
 
+  const openSubs = subtasks.filter((s) => s.status !== "done");
+  const doneSubs = subtasks.filter((s) => s.status === "done");
+  const renderSub = (sub: Task) => (
+            <li
+              key={sub.id}
+              className="flex items-start gap-2 border-b border-line/40"
+            >
+              <button
+                onClick={() =>
+                  void updateTask(sub.id, {
+                    status: sub.status === "done" ? "todo" : "done",
+                  })
+                }
+                className="flex min-w-0 flex-1 items-start gap-2 py-2 text-left text-sm"
+              >
+                <span
+                  aria-hidden
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${statusBoxClass(
+                    sub.status,
+                  )}`}
+                  style={statusBoxStyle(sub.status)}
+                >
+                  <StatusIcon status={sub.status} />
+                </span>
+                <span
+                  className={`min-w-0 wrap-break-word ${
+                    isClosed(sub.status)
+                      ? "text-content-muted line-through"
+                      : sub.status === "postponed"
+                        ? "text-warn"
+                        : sub.status === "waiting"
+                          ? "text-waiting"
+                          : ""
+                  }`}
+                >
+                  {sub.title}
+                </span>
+              </button>
+              <span className="flex shrink-0 items-start">
+                {/* subtasks postpone too, like the card's arrow */}
+                <button
+                  onClick={() =>
+                    void updateTask(sub.id, {
+                      status: sub.status === "postponed" ? "todo" : "postponed",
+                    })
+                  }
+                  aria-label={
+                    sub.status === "postponed" ? "Back to To Do" : "Postpone"
+                  }
+                  className={`flex h-9 shrink-0 items-center px-2 ${
+                    sub.status === "postponed"
+                      ? "text-warn"
+                      : "text-content-muted"
+                  }`}
+                >
+                  →
+                </button>
+                {/* a subtask that is not needed goes entirely (the toast
+                  undoes it, like a task) */}
+                <button
+                  onClick={() => void deleteTask(sub.id)}
+                  aria-label={`Delete subtask ${sub.title}`}
+                  className="flex h-9 shrink-0 items-center px-2 text-content-muted"
+                >
+                  ×
+                </button>
+              </span>
+            </li>
+  );
+
   return (
     <li
       className={
@@ -194,8 +268,7 @@ export default function TaskRow({
           aria-hidden
           className="w-1 shrink-0"
           style={{
-            background:
-              stripe ? readable(stripe, "mark") : "transparent",
+            background: stripe ? readable(stripe, "mark") : "transparent",
             opacity: dim,
           }}
         />
@@ -289,7 +362,9 @@ export default function TaskRow({
             style={{ opacity: dim }}
           >
             {task.priority && showList && (
-              <span className={`${BADGE} bg-priority-plate text-priority`}>Priority</span>
+              <span className={`${BADGE} bg-priority-plate text-priority`}>
+                Priority
+              </span>
             )}
             {task.overdue && !closed && (
               <span className={`${BADGE} bg-danger/15 text-danger`}>
@@ -330,69 +405,35 @@ export default function TaskRow({
       </div>
       {expanded && (
         <ul className="flex flex-col border-t border-line/60 py-1 pl-10 pr-2">
-          {subtasks.map((sub) => (
-            <li key={sub.id} className="flex items-center gap-2">
+          {openSubs.map(renderSub)}
+          {doneSubs.length > 0 && (
+            // the done ones fold into a plate inside the subtask indent
+            <li className="py-1">
               <button
-                onClick={() =>
-                  void updateTask(sub.id, {
-                    status: sub.status === "done" ? "todo" : "done",
-                  })
-                }
-                className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left text-sm"
+                type="button"
+                className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-sm font-bold"
+                style={DONE_SUB_PLATE}
+                aria-expanded={doneOpen}
+                onClick={() => setDoneOpen((v) => !v)}
               >
-                <span
-                  aria-hidden
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${statusBoxClass(
-                    sub.status,
-                  )}`}
-                  style={statusBoxStyle(sub.status)}
-                >
-                  <StatusIcon status={sub.status} />
+                <span>Done</span>
+                <span className="font-normal tabular-nums">
+                  · {doneSubs.length}
                 </span>
-                <span
-                  className={`min-w-0 wrap-break-word ${
-                    isClosed(sub.status)
-                      ? "text-content-muted line-through"
-                      : sub.status === "postponed"
-                        ? "text-warn"
-                        : sub.status === "waiting"
-                          ? "text-waiting"
-                          : ""
-                  }`}
-                >
-                  {sub.title}
+                <span className="h-px flex-1 bg-current opacity-30" />
+                <span className="font-normal opacity-70" aria-hidden>
+                  {doneOpen ? "▾" : "▸"}
                 </span>
-              </button>
-              {/* subtasks postpone too, like the card's arrow */}
-              <button
-                onClick={() =>
-                  void updateTask(sub.id, {
-                    status: sub.status === "postponed" ? "todo" : "postponed",
-                  })
-                }
-                aria-label={
-                  sub.status === "postponed" ? "Back to To Do" : "Postpone"
-                }
-                className={`shrink-0 px-2 py-2 ${
-                  sub.status === "postponed" ? "text-warn" : "text-content-muted"
-                }`}
-              >
-                →
-              </button>
-              {/* a subtask that is not needed goes entirely (the toast
-                  undoes it, like a task) */}
-              <button
-                onClick={() => void deleteTask(sub.id)}
-                aria-label={`Delete subtask ${sub.title}`}
-                className="shrink-0 px-2 py-2 text-content-muted"
-              >
-                ×
               </button>
             </li>
-          ))}
+          )}
+          {doneOpen && doneSubs.map(renderSub)}
           <li>
             {adding ? (
-              <form onSubmit={addSubtask} className="flex items-center gap-2 py-1">
+              <form
+                onSubmit={addSubtask}
+                className="flex items-center gap-2 py-1"
+              >
                 <input
                   autoFocus
                   value={draft}

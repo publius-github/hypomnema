@@ -268,6 +268,11 @@ export function RulesPanel({ config }: Props) {
           checked={config.clear_done_list_tasks}
           onChange={(v) => void updateConfig({ clear_done_list_tasks: v })}
         />
+        <SwitchRow
+          label="Clear done subtasks overnight"
+          checked={config.clear_done_subtasks}
+          onChange={(v) => void updateConfig({ clear_done_subtasks: v })}
+        />
       </Section>
     </>
   );

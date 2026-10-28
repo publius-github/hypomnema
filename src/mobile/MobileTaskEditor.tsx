@@ -192,8 +192,7 @@ export default function MobileTaskEditor({
                 entry.id === "todo" ||
                 entry.id === "done" ||
                 task.status === entry.id ||
-                lists.find((l) => l.id === task.list_id)?.kind !==
-                  "checklist",
+                lists.find((l) => l.id === task.list_id)?.kind !== "checklist",
             ).map((entry) => (
               <button
                 key={entry.id}
@@ -255,7 +254,7 @@ export default function MobileTaskEditor({
             {subtasks.map((sub) => (
               <li
                 key={sub.id}
-                className="flex items-center gap-2 border-b border-line/60 py-2"
+                className="flex items-start gap-2 border-b border-line/60 py-2"
               >
                 <button
                   onClick={() =>
@@ -263,11 +262,11 @@ export default function MobileTaskEditor({
                       status: sub.status === "done" ? "todo" : "done",
                     })
                   }
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  className="flex min-w-0 flex-1 items-start gap-3 text-left"
                 >
                   <span
                     aria-hidden
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${
                       sub.status === "done"
                         ? "border-accent bg-accent-fill text-white"
                         : "border-line text-transparent"
@@ -285,13 +284,33 @@ export default function MobileTaskEditor({
                     {sub.title}
                   </span>
                 </button>
-                <button
-                  onClick={() => void deleteTask(sub.id)}
-                  aria-label={`Delete subtask ${sub.title}`}
-                  className="px-2 text-content-muted"
-                >
-                  ✕
-                </button>
+                <span className="flex shrink-0 items-start">
+                  <button
+                    onClick={() =>
+                      void updateTask(sub.id, {
+                        status:
+                          sub.status === "postponed" ? "todo" : "postponed",
+                      })
+                    }
+                    aria-label={
+                      sub.status === "postponed" ? "Back to To Do" : "Postpone"
+                    }
+                    className={`px-2 leading-6 ${
+                      sub.status === "postponed"
+                        ? "text-warn"
+                        : "text-content-muted"
+                    }`}
+                  >
+                    →
+                  </button>
+                  <button
+                    onClick={() => void deleteTask(sub.id)}
+                    aria-label={`Delete subtask ${sub.title}`}
+                    className="px-2 leading-6 text-content-muted"
+                  >
+                    ✕
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

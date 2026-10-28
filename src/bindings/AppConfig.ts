@@ -383,6 +383,11 @@ list_dialog_task_lines: number,
  */
 clear_done_list_tasks: boolean, 
 /**
+ * At day rollover, remove subtasks checked off before today from
+ * their parents (the parent stays).
+ */
+clear_done_subtasks: boolean, 
+/**
  * A priority task left unfinished past its day gets the overdue
  * mark like any other task; off = priority carries over silently.
  */

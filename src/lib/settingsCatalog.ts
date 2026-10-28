@@ -199,6 +199,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "backup_keep", label: "Backups to keep", group: "data.backups", terms: "snapshots restore" },
 
   { key: "clear_done_list_tasks", label: "Clear done list tasks at rollover", group: "data.cleanup" },
+  { key: "clear_done_subtasks", label: "Clear done subtasks at rollover", group: "data.cleanup" },
   { key: "retention_days", label: "Retention of done one-off tasks", group: "data.cleanup", terms: "prune history" },
 
   // --- Sync ----------------------------------------------------

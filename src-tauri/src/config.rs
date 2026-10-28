@@ -270,6 +270,9 @@ pub struct AppConfig {
     /// At day rollover, remove done backlog tasks from the list columns
     /// (the list is a working queue, not history).
     pub clear_done_list_tasks: bool,
+    /// At day rollover, remove subtasks checked off before today from
+    /// their parents (the parent stays).
+    pub clear_done_subtasks: bool,
     /// A priority task left unfinished past its day gets the overdue
     /// mark like any other task; off = priority carries over silently.
     pub priority_overdue: bool,
@@ -606,6 +609,7 @@ pub const SHARED_KEYS: &[&str] = &[
     "catchup_days",
     "cron_ignore_time",
     "clear_done_list_tasks",
+    "clear_done_subtasks",
     "priority_overdue",
     "general_overdue",
     "cadence_daily_min_per_year",
@@ -837,6 +841,7 @@ impl Default for AppConfig {
             list_task_lines: 1,
             list_dialog_task_lines: 3,
             clear_done_list_tasks: true,
+            clear_done_subtasks: false,
             priority_overdue: true,
             general_overdue: true,
             // every 1-2 days / up to ~10 days apart / up to a quarter apart
@@ -1361,6 +1366,10 @@ impl AppConfig {
             (
                 "clear_done_list_tasks",
                 self.clear_done_list_tasks.to_string(),
+            ),
+            (
+                "clear_done_subtasks",
+                self.clear_done_subtasks.to_string(),
             ),
             ("priority_overdue", self.priority_overdue.to_string()),
             ("general_overdue", self.general_overdue.to_string()),

@@ -322,6 +322,13 @@ export default function DataTab() {
           onChange={(v) => void updateConfig({ clear_done_list_tasks: v })}
         />
 
+        <Toggle
+          checked={config.clear_done_subtasks}
+          label="Clear done subtasks at day rollover"
+          hint="A subtask checked off is removed from its task once its completion day has passed; the task itself stays. Off, done subtasks stay under the task in a folded Done block."
+          onChange={(v) => void updateConfig({ clear_done_subtasks: v })}
+        />
+
         <div className="flex items-center gap-2">
           <button
             className="btn-danger w-fit px-3 py-1 text-xs"

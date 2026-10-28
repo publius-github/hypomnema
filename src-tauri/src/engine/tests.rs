@@ -853,6 +853,33 @@ fn done_list_backlog_tasks_clear_on_day_rollover() {
     assert_eq!(count_tasks(&conn2), 1);
 }
 
+#[test]
+fn done_subtasks_clear_on_rollover_when_the_setting_is_on() {
+    let (conn, dir) = setup("clear-done-subtasks");
+    conn.execute_batch(
+        "INSERT INTO tasks (id, title, status, created_at) VALUES (1, 'parent', 'todo', '');
+         INSERT INTO tasks (id, title, status, parent_task_id, completed_at, created_at)
+             VALUES (2, 'yesterday', 'done', 1, '2026-08-27T15:00:00+00:00', ''),
+                    (3, 'today', 'done', 1, '2026-08-28T10:00:00+00:00', ''),
+                    (4, 'open', 'todo', 1, NULL, '');",
+    )
+    .unwrap();
+    let now = at("2026-08-28", "12:00:00");
+    let off = AppConfig {
+        clear_done_subtasks: false,
+        ..config(1, 7, 0)
+    };
+    run(&conn, &dir, &off, now).unwrap();
+    assert_eq!(count_tasks(&conn), 4);
+    let on = AppConfig {
+        clear_done_subtasks: true,
+        ..config(1, 7, 0)
+    };
+    run(&conn, &dir, &on, now).unwrap();
+    // only the subtask done before today goes; the parent stays
+    assert_eq!(count_tasks(&conn), 3);
+}
+
 /// A task ticked off on a future day column keeps that day: neither
 /// the list sweep nor retention may take it before the day is past.
 #[test]

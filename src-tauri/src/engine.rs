@@ -986,6 +986,22 @@ fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usiz
     )?)
 }
 
+/// With clear_done_subtasks on, a subtask checked off before today is
+/// removed from its parent, which stays. A subtask ticked off today (or
+/// ahead of time on a future day) is left until the rollover after.
+fn clear_done_subtasks(conn: &Connection, now: DateTime<Local>) -> Result<usize> {
+    let today_start = day_start(&Local, now.date_naive()).unwrap_or(now);
+    // completed_at is stored as UTC RFC3339, comparable lexicographically
+    let cutoff = today_start.with_timezone(&Utc).to_rfc3339();
+    Ok(conn.execute(
+        "DELETE FROM tasks
+         WHERE parent_task_id IS NOT NULL AND status = 'done'
+           AND completed_at IS NOT NULL
+           AND completed_at < ?1",
+        (cutoff,),
+    )?)
+}
+
 /// Retention pruning (req. 9): with retention_days > 0, done tasks
 /// completed more than N days ago are deleted (subtasks cascade).
 /// A task ticked off far ahead of its day is exempt until that day is
@@ -1059,6 +1075,9 @@ pub fn run(
     outcome.pruned = prune(conn, config.retention_days, now)?;
     if config.clear_done_list_tasks {
         outcome.pruned += clear_done_list_tasks(conn, now)?;
+    }
+    if config.clear_done_subtasks {
+        outcome.pruned += clear_done_subtasks(conn, now)?;
     }
     // Soft-deleted tasks past their undo window are purged for good.
     // Generated tasks are the exception: their archived row doubles as a

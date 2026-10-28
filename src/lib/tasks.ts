@@ -787,3 +787,12 @@ export function splitDone(
     dropped: tasks.filter((t) => shown(t) === "dropped"),
   };
 }
+
+/**
+ * The folded Done plate of a task's subtasks: halfway between the grey
+ * plate and the green Done section plate of the lists.
+ */
+export const DONE_SUB_PLATE = {
+  color: "color-mix(in srgb, var(--hex-done) 55%, rgb(var(--rgb-content)))",
+  backgroundColor: "color-mix(in srgb, var(--hex-done) 12%, var(--plate))",
+};

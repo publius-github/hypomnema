@@ -156,6 +156,7 @@ export const defaultConfig: AppConfig = {
   list_task_lines: 1,
   list_dialog_task_lines: 3,
   clear_done_list_tasks: true,
+  clear_done_subtasks: false,
   priority_overdue: true,
   general_overdue: true,
   cadence_daily_min_per_year: 183,
