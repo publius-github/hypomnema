@@ -2,6 +2,20 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.126.0 - 2026-11-01
+
+Checklists, for things you pack again and again: under a checklist's header a bar shows how much is ticked off with the count (2/3), an eye button hides what is already ticked - what is left to pack - and Uncheck all starts the round over; the Undo toast gives the ticks back, and with the toast turned off the app asks first. A checklist says so wherever its name is: a "Checklist" chip on the column and on the phone's list screen, the icon on the phone's lists, a group tile and the All lists index, and ticked/all instead of an open count on the phone's lists, a group tile and the home-screen widget. A new list is still a todo list; the type is switched in the list's settings. Inside a checklist a task with subtasks is their category: it is ticked when all of them are, and ticking or unticking it does the same to all of them. A checklist's ticked subtasks are no longer cleared overnight under "Clear done subtasks".
+
+Subtasks: one task's subtasks start over on their own - the ↺ after a card's 2/3 on the desktop, Uncheck all under an open subtask list or Uncheck subtasks in the actions sheet on the phone - so one list holds several reusable sets (Grocery: drinks, food), with Undo. The folded Done plate under a task is tinted between the grey plate and the green Done section, and "Done subtasks sink to the bottom" (Settings > Tasks) is a setting.
+
+A checked task can wait and move to its block together with the others every N minutes on the clock (10: at :00, :10, :20...) instead of a few seconds after its own click, so a column holds still while you work through it. Both timings are in Settings > Tasks on the desktop and the phone, and are shared by your devices through cards.yml; a seconds hold set before in app.yml is back at its default of 3.
+
+Lists and groups: a right-click on a row of the All lists index opens that list's or group's settings, and a click on an empty group's row does too - on a flat panel an empty group could not be renamed or deleted before; the phone deletes an empty group right from its screen. A new list or group lands at the end of the panel (a new group used to land near the top), and a name starting with "~" sinks under all the others in any order, on the desktop, the phone and the widget.
+
+Phone: the new-note and rename fields show the ".md" the name gets right after it. The journal, notes and the other text fields no longer underline spelling, whose suggestion popup opened over the keyboard and kept a word from being fixed by hand; the keyboard's own suggestions still work.
+
+Windows: drag-and-drop in the Notes tree works in the installed app.
+
 ## 0.125.1 - 2026-10-26
 
 Phone, Notes: a scroll thumb on the right edge shows where in a long note the screen is and can be dragged to jump; the folder, open note and scroll position are kept while you visit another tab and come back, for the session.
