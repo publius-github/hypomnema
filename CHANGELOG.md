@@ -2,6 +2,12 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.126.1 - 2026-11-01
+
+Subtasks can be sorted alphabetically by title ("Sort subtasks alphabetically" in Settings > Tasks, on the desktop and the phone): timed subtasks still lead, and with the setting off they keep the order they were added in. It applies to the desktop card, the task dialog and the phone, and is shared by your devices through cards.yml.
+
+Lists: a list file opened and saved in the Notes editor with "Created / Last edited" timestamps on got that header written into it, and the list's tasks stopped syncing from the file. The app's own files under `.hypomnema/` are no longer stamped, and a list file already stamped imports again; the next export writes it without the header.
+
 ## 0.126.0 - 2026-11-01
 
 Checklists, for things you pack again and again: under a checklist's header a bar shows how much is ticked off with the count (2/3), an eye button hides what is already ticked - what is left to pack - and Uncheck all starts the round over; the Undo toast gives the ticks back, and with the toast turned off the app asks first. A checklist says so wherever its name is: a "Checklist" chip on the column and on the phone's list screen, the icon on the phone's lists, a group tile and the All lists index, and ticked/all instead of an open count on the phone's lists, a group tile and the home-screen widget. A new list is still a todo list; the type is switched in the list's settings. Inside a checklist a task with subtasks is their category: it is ticked when all of them are, and ticking or unticking it does the same to all of them. A checklist's ticked subtasks are no longer cleared overnight under "Clear done subtasks".
