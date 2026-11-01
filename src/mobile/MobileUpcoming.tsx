@@ -505,6 +505,8 @@ function Recurring({
           className="rounded-lg border border-line bg-surface-alt px-3 py-2 font-mono text-sm"
         />
         <textarea
+          // no Android suggestion popup over the keyboard (see MobileJournal)
+          spellCheck={false}
           value={items}
           onChange={(e) => setItems(e.target.value)}
           rows={2}
@@ -587,6 +589,8 @@ function Recurring({
                   className="rounded-lg border border-line bg-surface-alt px-3 py-2"
                 />
                 <textarea
+                  // no Android suggestion popup over the keyboard (see MobileJournal)
+                  spellCheck={false}
                   value={draft.items}
                   onChange={(e) =>
                     setDraft({ ...draft, items: e.target.value })

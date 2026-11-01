@@ -93,9 +93,18 @@ editor_font_size: number,
 /**
  * Seconds a task just marked done/postponed stays in place before
  * moving to its section, leaving room to fix a misclick (0 = move
- * immediately). Only matters with done_display = separate.
+ * immediately). Matters with done_display = separate and for a
+ * checklist hiding its checked items.
  */
 done_hold_seconds: number, 
+/**
+ * Instead of each task moving its own done_hold_seconds after its
+ * click, every task checked meanwhile moves at once on the clock's
+ * N-minute marks (N = 10: at :00, :10, :20...), so a column holds
+ * still while you work through it. 0 = off, the seconds hold
+ * applies.
+ */
+done_move_every_minutes: number, 
 /**
  * Seconds the Undo toast stays after deleting a task or archiving
  * a list (0 = no toast, deletes apply without an undo offer).

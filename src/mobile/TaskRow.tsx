@@ -455,13 +455,28 @@ export default function TaskRow({
                 </button>
               </form>
             ) : (
-              <button
-                onClick={() => setAdding(true)}
-                className="flex min-h-10 w-full items-center gap-2 text-left text-sm text-content-muted"
-              >
-                <Icon name="plus" className="h-4 w-4 shrink-0" />
-                Add subtask
-              </button>
+              <div className="flex items-center">
+                <button
+                  onClick={() => setAdding(true)}
+                  className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm text-content-muted"
+                >
+                  <Icon name="plus" className="h-4 w-4 shrink-0" />
+                  Add subtask
+                </button>
+                {/* the per-task reset one tap away where the set is
+                    worked through; also in the actions sheet */}
+                {subtasks.some((s) => s.status !== "todo") && (
+                  <button
+                    onClick={() =>
+                      void useAppStore.getState().uncheckSubtasks(task.id)
+                    }
+                    className="flex min-h-10 shrink-0 items-center gap-2 px-2 text-sm text-content-muted"
+                  >
+                    <Icon name="reset" className="h-4 w-4 shrink-0" />
+                    Uncheck all
+                  </button>
+                )}
+              </div>
             )}
           </li>
         </ul>
@@ -497,6 +512,16 @@ export default function TaskRow({
               setAdding(true);
             }}
           />
+          {subtasks.some((s) => s.status !== "todo") && (
+            <SheetAction
+              icon="reset"
+              label="Uncheck subtasks"
+              onClick={() => {
+                setOpen(false);
+                void useAppStore.getState().uncheckSubtasks(task.id);
+              }}
+            />
+          )}
           {/* a task with a priority goes straight to the Days view */}
           <SheetAction
             icon="star"

@@ -46,3 +46,20 @@ test("phone notes: leaving the tab and coming back keeps the open note", async (
   await openNotes(page);
   await expect(page.getByRole("textbox", { name: "Welcome.md" })).toBeVisible();
 });
+
+test("phone notes: a new note's name field shows the .md it gets", async ({ app, page }) => {
+  await page.setViewportSize(PHONE);
+  await app("mobile");
+  await openNotes(page);
+  await page.getByRole("button", { name: "+ Note" }).click();
+  const field = page.getByPlaceholder("Note name");
+  await field.fill("Packing");
+  await expect(page.getByText(".md", { exact: true })).toBeVisible();
+  // typed by hand, the extension is not shown twice
+  await field.fill("Packing.md");
+  await expect(page.getByText(".md", { exact: true })).toHaveCount(0);
+  await field.fill("Packing");
+  await page.screenshot({ path: test.info().outputPath("phone-new-note.png") });
+  await page.getByRole("button", { name: "Create" }).click();
+  await expect(page.getByRole("textbox", { name: "Packing.md" })).toBeVisible();
+});

@@ -880,6 +880,38 @@ fn done_subtasks_clear_on_rollover_when_the_setting_is_on() {
     assert_eq!(count_tasks(&conn), 3);
 }
 
+/// A checklist's ticked sub-items are kept state, not finished work:
+/// clear_done_subtasks leaves them under their parent.
+#[test]
+fn checklist_sub_items_survive_clear_done_subtasks() {
+    let (conn, dir) = setup("checklist-subtasks");
+    conn.execute_batch(
+        "INSERT INTO lists (id, name, sort_order, kind) VALUES (1, 'Packing', 0, 'checklist'),
+                                                            (2, 'Inbox', 1, 'todo');
+         INSERT INTO tasks (id, title, list_id, status, created_at)
+             VALUES (1, 'Documents', 1, 'todo', ''), (5, 'errand', 2, 'todo', '');
+         INSERT INTO tasks (id, title, status, parent_task_id, completed_at, created_at)
+             VALUES (2, 'passport', 'done', 1, '2026-08-27T15:00:00+00:00', ''),
+                    (3, 'insurance', 'todo', 1, NULL, ''),
+                    (6, 'old step', 'done', 5, '2026-08-27T15:00:00+00:00', '');",
+    )
+    .unwrap();
+    let on = AppConfig {
+        clear_done_subtasks: true,
+        ..config(1, 7, 0)
+    };
+    run(&conn, &dir, &on, at("2026-08-28", "12:00:00")).unwrap();
+    let left: Vec<i64> = conn
+        .prepare("SELECT id FROM tasks ORDER BY id")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    // the todo list's done step goes, the checklist's passport stays
+    assert_eq!(left, vec![1, 2, 3, 5]);
+}
+
 /// A task ticked off on a future day column keeps that day: neither
 /// the list sweep nor retention may take it before the day is past.
 #[test]

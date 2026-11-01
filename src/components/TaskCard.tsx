@@ -21,6 +21,7 @@ import {
 } from "../lib/tasks";
 import type { Task } from "../types";
 import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
+import Icon from "./icons";
 import { readable, themeColors } from "../lib/color";
 import DowLabelText from "./DowLabelText";
 
@@ -505,6 +506,21 @@ function TaskCard({
               {expanded ? "▾" : "▸"}{" "}
               {subtasks.filter((s) => s.status === "done").length}/
               {subtasks.length}
+            </button>
+          )}
+          {/* the per-task reset: a reusable set inside a list (Grocery:
+              drinks, food) starts over without touching the rest */}
+          {!overlay && subtasks.some((s) => s.status !== "todo") && (
+            <button
+              className="leading-none hover:text-content"
+              title="Uncheck subtasks: start this task's set over"
+              aria-label={`Uncheck the subtasks of ${task.title}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                void useAppStore.getState().uncheckSubtasks(task.id);
+              }}
+            >
+              <Icon name="reset" className="h-3 w-3" />
             </button>
           )}
           {/* hover actions close the row; in a card wide enough they

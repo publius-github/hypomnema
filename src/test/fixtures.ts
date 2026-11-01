@@ -103,6 +103,7 @@ export const defaultConfig: AppConfig = {
   editor_font: "Consolas",
   editor_font_size: 16,
   done_hold_seconds: 3,
+  done_move_every_minutes: 0,
   undo_toast_seconds: 6,
   day_header_centered: false,
   cadence_colors: true,

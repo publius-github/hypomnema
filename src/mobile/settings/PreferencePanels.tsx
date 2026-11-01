@@ -87,6 +87,50 @@ export function TasksPanel({ config }: Props) {
           ]}
           onChange={(v) => void updateConfig({ done_display: v })}
         />
+        <ChoiceRow
+          label="A checked task moves"
+          value={config.done_move_every_minutes > 0 ? "every" : "after"}
+          options={[
+            {
+              value: "after",
+              label: "After a few seconds",
+              hint: "Each one on its own, shortly after its tap",
+            },
+            {
+              value: "every",
+              label: "Every few minutes",
+              hint: "All checked ones at once, on the clock",
+            },
+          ]}
+          onChange={(v) =>
+            void updateConfig({
+              done_move_every_minutes: v === "every" ? 10 : 0,
+            })
+          }
+        />
+        {config.done_move_every_minutes > 0 ? (
+          <NumberRow
+            label="Every"
+            hint="On the clock: 10 = at :00, :10, :20..."
+            value={config.done_move_every_minutes}
+            presets={[5, 10, 15, 30, 60]}
+            min={1}
+            max={120}
+            format={(n) => `${n} min`}
+            onChange={(v) => void updateConfig({ done_move_every_minutes: v })}
+          />
+        ) : (
+          <NumberRow
+            label="Stays in place for"
+            hint="Room to undo a mistap; 0 = moves at once"
+            value={config.done_hold_seconds}
+            presets={[0, 3, 5, 10, 30]}
+            min={0}
+            max={30}
+            format={(n) => `${n} s`}
+            onChange={(v) => void updateConfig({ done_hold_seconds: v })}
+          />
+        )}
         {config.done_display === "separate" && (
           <SwitchRow
             label="Sort Postponed and Done A-Z"

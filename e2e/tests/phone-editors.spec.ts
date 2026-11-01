@@ -89,3 +89,10 @@ test("phone: a note whose save keeps failing is not left for another note", asyn
   await page.getByRole("button", { name: "Welcome.md" }).click();
   await expect(page.getByText("Not lost.")).toBeVisible();
 });
+
+test("phone journal asks for no spell check, so no suggestion popup covers the keyboard", async ({ app, page }) => {
+  await page.setViewportSize(PHONE);
+  await app("mobile");
+  await tab(page, "Journal").click();
+  await expect(page.getByPlaceholder("Write about today...")).toHaveAttribute("spellcheck", "false");
+});

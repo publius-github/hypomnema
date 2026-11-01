@@ -156,6 +156,8 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "general_overdue", label: "General tasks get the overdue mark", group: "tasks.cards", terms: "one-off manual carry over" },
 
   { key: "done_display", label: "Done tasks display", group: "tasks.columns", terms: "inline separate block postponed" },
+  { key: "done_move_every_minutes", label: "A checked task moves to its block: every N minutes", group: "tasks.columns", terms: "hold delay timer interval batch move done" },
+  { key: "done_hold_seconds", label: "Seconds a checked task stays in place", group: "tasks.columns", terms: "hold delay timer misclick done" },
   { key: "closed_sections_sort_alpha", label: "Sort Postponed and Done alphabetically", group: "tasks.columns", terms: "waiting order abc" },
   { key: "cadence_group_order", label: "Day column section order", group: "tasks.columns", terms: "cadence groups" },
   { key: "daily_tasks_today_only", label: "Daily tasks only on today", group: "tasks.columns" },
@@ -279,7 +281,6 @@ export const EXCLUDED_KEYS: { key: keyof AppConfig; why: string }[] = [
   { key: "day_header_centered", why: IN_APP_YML },
   { key: "lists_page_align_rows", why: IN_APP_YML },
   { key: "chip_font_scale", why: IN_APP_YML },
-  { key: "done_hold_seconds", why: IN_APP_YML },
   { key: "undo_toast_seconds", why: IN_APP_YML },
   { key: "list_dialog_task_lines", why: IN_APP_YML },
   { key: "habit_rate_window", why: IN_APP_YML },

@@ -415,15 +415,14 @@ export default function MobileNotes() {
               </>
             ) : (
               <>
-                <input
-                  autoFocus
+                <NameField
                   value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && create()}
+                  onChange={setNewName}
+                  onEnter={create}
                   placeholder={
                     creating === "note" ? "Note name" : "Folder name"
                   }
-                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
+                  suffix={creating === "note"}
                 />
                 <button
                   onClick={create}
@@ -546,11 +545,13 @@ function NoteEditor({
     const value = actionValue.trim();
     let target: string | null = null;
     if (action === "rename") {
-      if (value && value !== basenameOf(note.path)) {
+      if (value) {
         const dir = parentDirOf(note.path);
-        target = `${dir ? `${dir}/` : ""}${
+        const renamed = `${dir ? `${dir}/` : ""}${
           value.endsWith(".md") ? value : `${value}.md`
         }`;
+        // the field holds the name without its .md: unchanged is no rename
+        if (renamed !== note.path) target = renamed;
       }
     } else {
       const folder = value.replace(/\/+$/, "");
@@ -626,7 +627,11 @@ function NoteEditor({
           <textarea
             value={content}
             onChange={(e) => edit(e.target.value)}
-            spellCheck
+            // textarea checks spelling by default in the WebView, hence the
+            // explicit false. No red underline: tapping one opened Android's
+            // suggestion popup over the keyboard, so the word could not be
+            // fixed by hand. The keyboard's own suggestions still work.
+            spellCheck={false}
             className={`h-full w-full resize-none bg-transparent px-4 py-3 leading-relaxed outline-hidden ${
               prose ? "" : "font-mono text-sm"
             }`}
@@ -665,15 +670,15 @@ function NoteEditor({
       <div className="shrink-0 border-t border-line">
         {action && (
           <div className="flex gap-2 px-3 pt-2">
-            <input
-              autoFocus
+            <NameField
               value={actionValue}
-              onChange={(e) => setActionValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && applyAction()}
+              onChange={setActionValue}
+              onEnter={applyAction}
               placeholder={
                 action === "rename" ? "New name" : "Folder (empty = root)"
               }
-              className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2 text-sm"
+              suffix={action === "rename"}
+              small
             />
             <button
               onClick={applyAction}
@@ -728,7 +733,8 @@ function NoteEditor({
             active={action === "rename"}
             onClick={() => {
               setShowBacklinks(false);
-              setActionValue(basenameOf(note.path));
+              // the field shows the .md itself: the name is edited without it
+              setActionValue(basenameOf(note.path).replace(/\.md$/, ""));
               setAction(action === "rename" ? null : "rename");
             }}
           />
@@ -779,6 +785,62 @@ function NoteEditor({
 }
 
 /** A collapsible plate over a root group of the notes browser. */
+/**
+ * A name field for a note or folder. For a note the ".md" the app adds
+ * stands at the field's end, so the name is typed without it and what
+ * gets created is never a guess (the desktop's dialog shows the same
+ * completion); typing the extension yourself hides it.
+ */
+function NameField({
+  value,
+  onChange,
+  onEnter,
+  placeholder,
+  suffix,
+  small = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onEnter: () => void;
+  placeholder: string;
+  /** show the ".md" a note name gets */
+  suffix: boolean;
+  small?: boolean;
+}) {
+  // nothing typed yet: the placeholder alone, no dangling extension
+  const showSuffix = suffix && value.trim() !== "" && !value.trim().endsWith(".md");
+  return (
+    <label
+      className={`flex min-w-0 flex-1 items-center rounded-lg border border-line bg-surface-alt px-3 focus-within:border-accent ${
+        small ? "text-sm" : ""
+      }`}
+    >
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onEnter()}
+        placeholder={placeholder}
+        // sized to its text while the suffix shows, so ".md" reads right
+        // after the name ("Packing.md"); the rest of the label still
+        // focuses the field
+        style={showSuffix ? { fieldSizing: "content" } : undefined}
+        className={`min-w-0 bg-transparent py-2 outline-none ${
+          showSuffix ? "max-w-full" : "flex-1"
+        }`}
+      />
+      {showSuffix && (
+        <span
+          className="mr-auto shrink-0 text-content-muted"
+          title="Added to the name: notes are Markdown files"
+        >
+          .md
+        </span>
+      )}
+    </label>
+  );
+}
+
 function GroupPlate({
   label,
   count,

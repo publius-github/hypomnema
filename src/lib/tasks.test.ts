@@ -14,6 +14,8 @@ import {
   nextWeekTarget,
   indexRows,
   isoDate,
+  orderGroups,
+  orderLists,
   orderPanel,
   priorityPatch,
   sortClosedAlpha,
@@ -598,5 +600,34 @@ describe("dowLabelParts", () => {
     expect(dowLabelParts("MON,SAT", null)).toEqual([
       { text: "MON,SAT", hit: false },
     ]);
+  });
+});
+
+describe("a ~ name sinks to the bottom of the panel", () => {
+  const groups: ListGroup[] = [
+    { id: 8, name: "~checklists", sort_order: 0, color: null },
+    { id: 9, name: "Work", sort_order: 5, color: null },
+  ];
+  const lists = [
+    list({ id: 1, name: "~Trip", sort_order: 0 }),
+    list({ id: 2, name: "Inbox", sort_order: 1 }),
+    list({ id: 3, name: "Zoo", sort_order: 2, favorite: true }),
+  ];
+  const names = (items: ReturnType<typeof orderPanel>) =>
+    items.map((i) => (i.type === "list" ? i.list.name : i.group.name));
+
+  it("under every other list and group, in manual and A-Z order alike", () => {
+    for (const alpha of [false, true]) {
+      // a favorite still leads
+      expect(names(orderPanel(lists, groups, [], alpha))[0]).toBe("Zoo");
+      expect(names(orderPanel(lists, groups, [], alpha)).slice(-2)).toEqual(
+        alpha ? ["~checklists", "~Trip"] : ["~Trip", "~checklists"],
+      );
+      expect(orderLists(lists, [], alpha).map((l) => l.name).at(-1)).toBe("~Trip");
+      expect(orderGroups(groups, alpha).map((g) => g.name)).toEqual([
+        "Work",
+        "~checklists",
+      ]);
+    }
   });
 });

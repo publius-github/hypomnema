@@ -201,19 +201,21 @@ export function useDaySections(date: string): ColumnSection[] {
 export function useListSections(list: List | null): ColumnSection[] {
   const config = useAppStore((s) => s.config);
   const hold = useAppStore(useShallow((s) => s.statusHold));
-  const listTasks = useAppStore(
-    useShallow((s) =>
-      s.tasks.filter(
-        (t) =>
-          list !== null &&
-          t.list_id === list.id &&
-          (t.scheduled_date === null || t.priority || t.origin === "manual") &&
-          t.parent_task_id === null,
-      ),
-    ),
+  const listTasks = useAppStore(useShallow((s) => columnTasks(s.tasks, list)));
+  // a checklist can hide what is already ticked ("what is left to
+  // pack"); a row ticked a moment ago stays through its status hold
+  const hideChecked = useAppStore(
+    (s) =>
+      list !== null &&
+      list.kind === "checklist" &&
+      s.hideChecked.includes(list.id),
   );
+  const held = new Map(hold.map((h) => [h.id, h.status]));
+  const visible = hideChecked
+    ? listTasks.filter((t) => (held.get(t.id) ?? t.status) !== "done")
+    : listTasks;
   const alpha = config?.lists_sort_alpha ?? false;
-  const sorted = [...listTasks].sort((a, b) => {
+  const sorted = [...visible].sort((a, b) => {
     if (alpha) {
       if ((a.time === null) !== (b.time === null))
         return a.time === null ? 1 : -1;
@@ -225,11 +227,7 @@ export function useListSections(list: List | null): ColumnSection[] {
     }
     return compareTasks(a, b);
   });
-  const split = splitDone(
-    sorted,
-    config?.done_display ?? "inline",
-    new Map(hold.map((h) => [h.id, h.status])),
-  );
+  const split = splitDone(sorted, config?.done_display ?? "inline", held);
   // inside a list the list is the column itself: only the {X} prefix
   // makes a category
   const labelOf = (t: Task) => categoryOf(t.title);
@@ -256,4 +254,40 @@ export function useListSections(list: List | null): ColumnSection[] {
     ],
     labelOf,
   );
+}
+
+/** The top-level tasks a list column shows: unscheduled ones, priority
+ *  pins and manual tasks whatever their date. */
+function columnTasks(tasks: Task[], list: List | null): Task[] {
+  if (list === null) return [];
+  return tasks.filter(
+    (t) =>
+      t.list_id === list.id &&
+      (t.scheduled_date === null || t.priority || t.origin === "manual") &&
+      t.parent_task_id === null,
+  );
+}
+
+/** How far a checklist is ticked off. */
+export interface ChecklistProgress {
+  done: number;
+  /** the column's items, a dropped one not counted */
+  total: number;
+}
+
+/** Ticked / all items of a checklist's column (top level: a category
+ *  counts once, its sub-items show their own n/m on its card). */
+export function checklistProgress(
+  tasks: Task[],
+  list: List | null,
+): ChecklistProgress {
+  const items = columnTasks(tasks, list).filter((t) => t.status !== "dropped");
+  return {
+    done: items.filter((t) => t.status === "done").length,
+    total: items.length,
+  };
+}
+
+export function useChecklistProgress(list: List | null): ChecklistProgress {
+  return useAppStore(useShallow((s) => checklistProgress(s.tasks, list)));
 }

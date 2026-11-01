@@ -549,6 +549,32 @@ export function sortSubtasks(subtasks: Task[], doneLast: boolean): Task[] {
  * (or priority-pinned) lives in them; favorites always lead; the rest
  * keep creation order, or go alphabetical when `alpha` is on.
  */
+/**
+ * A list or group named with a leading "~" sinks to the bottom of the
+ * list panel, its index and the phone's list screen, under every other
+ * one, whatever the sort - the one way to park something last, since
+ * the alphabet puts every other symbol first. Favorites still lead.
+ */
+export function sinksInPanel(name: string): boolean {
+  return name.trimStart().startsWith("~");
+}
+
+/** The phone's group order, the panel's rules for groups alone. */
+export function orderGroups(groups: ListGroup[], alpha: boolean): ListGroup[] {
+  return [...groups].sort((a, b) => {
+    const sinkA = sinksInPanel(a.name);
+    if (sinkA !== sinksInPanel(b.name)) return sinkA ? 1 : -1;
+    if (alpha) {
+      const byName = a.name.localeCompare(b.name, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+      if (byName !== 0) return byName;
+    }
+    return a.sort_order - b.sort_order || a.id - b.id;
+  });
+}
+
 export function orderLists(
   lists: List[],
   tasks: Task[],
@@ -567,6 +593,8 @@ export function orderLists(
     )
     .sort((a, b) => {
       if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+      const sinkA = sinksInPanel(a.name);
+      if (sinkA !== sinksInPanel(b.name)) return sinkA ? 1 : -1;
       if (alpha) {
         const byName = a.name.localeCompare(b.name, undefined, {
           sensitivity: "base",
@@ -635,6 +663,8 @@ export function orderPanel(
     const ka = key(a);
     const kb = key(b);
     if (ka.favorite !== kb.favorite) return ka.favorite ? -1 : 1;
+    const sinkA = sinksInPanel(ka.name);
+    if (sinkA !== sinksInPanel(kb.name)) return sinkA ? 1 : -1;
     if (alpha) {
       const byName = ka.name.localeCompare(kb.name, undefined, {
         sensitivity: "base",

@@ -95,6 +95,8 @@ export default function MobileTaskEditor({
             Title
           </span>
           <textarea
+            // no Android suggestion popup over the keyboard (see MobileJournal)
+            spellCheck={false}
             value={title}
             readOnly={generated}
             onChange={(e) => setTitle(e.target.value)}
@@ -109,6 +111,8 @@ export default function MobileTaskEditor({
             Notes
           </span>
           <textarea
+            // no Android suggestion popup over the keyboard (see MobileJournal)
+            spellCheck={false}
             value={description}
             readOnly={generated}
             onChange={(e) => setDescription(e.target.value)}

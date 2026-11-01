@@ -725,17 +725,124 @@ fn bulk_status_covers_the_list_and_its_subtasks_only() {
     .unwrap();
 
     let changed = list_set_all_statuses(&conn, list.id, true).unwrap();
-    assert_eq!(changed, 2);
+    assert_eq!(changed.len(), 2);
     assert_eq!(task_get(&conn, item.id).unwrap().status, "done");
     assert!(task_get(&conn, item.id).unwrap().completed_at.is_some());
     assert_eq!(task_get(&conn, sub.id).unwrap().status, "done");
     assert_eq!(task_get(&conn, foreign.id).unwrap().status, "todo");
 
     let changed = list_set_all_statuses(&conn, list.id, false).unwrap();
-    assert_eq!(changed, 2);
+    assert_eq!(changed.len(), 2);
     assert_eq!(task_get(&conn, item.id).unwrap().status, "todo");
     assert!(task_get(&conn, item.id).unwrap().completed_at.is_none());
     assert_eq!(task_get(&conn, sub.id).unwrap().status, "todo");
+}
+
+fn set_status(conn: &Connection, id: i64, status: &str) {
+    task_update(
+        conn,
+        id,
+        &TaskPatch {
+            status: Some(status.into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+}
+
+fn child(conn: &Connection, parent: i64, title: &str) -> i64 {
+    task_create(
+        conn,
+        &NewTask {
+            title: title.into(),
+            parent_task_id: Some(parent),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .id
+}
+
+fn in_list(conn: &Connection, list: i64, title: &str) -> i64 {
+    task_create(
+        conn,
+        &NewTask {
+            title: title.into(),
+            list_id: Some(list),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .id
+}
+
+#[test]
+fn uncheck_all_hands_back_what_it_changed_and_undo_restores_it() {
+    let conn = conn();
+    let list = list_create(&conn, "Packing", None, false).unwrap();
+    list_set_meta(&conn, list.id, None, "", "checklist").unwrap();
+    let packed = in_list(&conn, list.id, "charger");
+    let open = in_list(&conn, list.id, "towel");
+    set_status(&conn, packed, "done");
+    let stamp = task_get(&conn, packed).unwrap().completed_at;
+
+    let previous = list_set_all_statuses(&conn, list.id, false).unwrap();
+    // only the row that changed is handed back, as it was
+    assert_eq!(previous.len(), 1);
+    assert_eq!(previous[0].id, packed);
+    assert_eq!(previous[0].status, "done");
+    assert_eq!(task_get(&conn, packed).unwrap().status, "todo");
+
+    assert_eq!(tasks_restore_statuses(&conn, &previous).unwrap(), 1);
+    let back = task_get(&conn, packed).unwrap();
+    assert_eq!(back.status, "done");
+    assert_eq!(back.completed_at, stamp);
+    assert_eq!(task_get(&conn, open).unwrap().status, "todo");
+}
+
+#[test]
+fn a_checklist_category_follows_its_sub_items_and_leads_them() {
+    let conn = conn();
+    let list = list_create(&conn, "Packing", None, false).unwrap();
+    list_set_meta(&conn, list.id, None, "", "checklist").unwrap();
+    let docs = in_list(&conn, list.id, "Documents");
+    let passport = child(&conn, docs, "passport");
+    let insurance = child(&conn, docs, "insurance");
+    let visa = child(&conn, docs, "visa");
+    set_status(&conn, visa, "dropped");
+
+    set_status(&conn, passport, "done");
+    assert_eq!(task_get(&conn, docs).unwrap().status, "todo");
+    // the last live sub-item ticks the category; the dropped one is not counted
+    set_status(&conn, insurance, "done");
+    let category = task_get(&conn, docs).unwrap();
+    assert_eq!(category.status, "done");
+    assert!(category.completed_at.is_some());
+    // unticking one sub-item unticks the category
+    set_status(&conn, passport, "todo");
+    assert_eq!(task_get(&conn, docs).unwrap().status, "todo");
+    assert_eq!(task_get(&conn, insurance).unwrap().status, "done");
+
+    // ticking the category ticks every sub-item, unticking unticks them
+    set_status(&conn, docs, "done");
+    assert_eq!(task_get(&conn, passport).unwrap().status, "done");
+    assert_eq!(task_get(&conn, visa).unwrap().status, "dropped");
+    set_status(&conn, docs, "todo");
+    assert_eq!(task_get(&conn, passport).unwrap().status, "todo");
+    assert_eq!(task_get(&conn, insurance).unwrap().status, "todo");
+}
+
+#[test]
+fn a_todo_lists_parent_and_subtasks_stay_independent() {
+    let conn = conn();
+    let list = list_create(&conn, "Inbox", None, false).unwrap();
+    let parent = in_list(&conn, list.id, "move house");
+    let step = child(&conn, parent, "boxes");
+    set_status(&conn, step, "done");
+    assert_eq!(task_get(&conn, parent).unwrap().status, "todo");
+    set_status(&conn, parent, "done");
+    set_status(&conn, parent, "todo");
+    assert_eq!(task_get(&conn, step).unwrap().status, "done");
 }
 
 #[test]
@@ -926,4 +1033,57 @@ fn a_task_left_with_no_day_and_no_list_goes_to_the_inbox() {
     assert_eq!(restored[0].list_id, None);
     let homed = home_listless(&conn, restored[0].id, "Inbox").unwrap();
     assert_eq!(homed.list_id, Some(inbox.id));
+}
+
+#[test]
+fn a_new_group_or_list_lands_after_everything_on_the_panel() {
+    let conn = conn();
+    let a = list_create(&conn, "A", None, false).unwrap();
+    let b = list_create(&conn, "B", None, false).unwrap();
+    let group = group_create(&conn, "_checklists").unwrap();
+    assert!(group.sort_order > a.sort_order && group.sort_order > b.sort_order);
+    let c = list_create(&conn, "C", None, false).unwrap();
+    assert!(c.sort_order > group.sort_order);
+}
+
+#[test]
+fn uncheck_subtasks_resets_one_task_and_its_checklist_category() {
+    let conn = conn();
+    let list = list_create(&conn, "Grocery", None, false).unwrap();
+    list_set_meta(&conn, list.id, None, "", "checklist").unwrap();
+    let drinks = in_list(&conn, list.id, "drinks");
+    let water = child(&conn, drinks, "water");
+    let juice = child(&conn, drinks, "juice");
+    let food = in_list(&conn, list.id, "food");
+    let bread = child(&conn, food, "bread");
+    set_status(&conn, water, "done");
+    set_status(&conn, juice, "done");
+    set_status(&conn, bread, "done");
+    assert_eq!(task_get(&conn, drinks).unwrap().status, "done");
+
+    let previous = task_uncheck_subtasks(&conn, drinks).unwrap();
+    // both drinks and the category they had ticked; food untouched
+    assert_eq!(previous.len(), 3);
+    assert_eq!(task_get(&conn, water).unwrap().status, "todo");
+    assert_eq!(task_get(&conn, juice).unwrap().status, "todo");
+    assert_eq!(task_get(&conn, drinks).unwrap().status, "todo");
+    assert_eq!(task_get(&conn, bread).unwrap().status, "done");
+
+    tasks_restore_statuses(&conn, &previous).unwrap();
+    assert_eq!(task_get(&conn, water).unwrap().status, "done");
+    assert_eq!(task_get(&conn, drinks).unwrap().status, "done");
+}
+
+#[test]
+fn uncheck_subtasks_in_a_todo_list_leaves_the_parent_alone() {
+    let conn = conn();
+    let list = list_create(&conn, "Inbox", None, false).unwrap();
+    let parent = in_list(&conn, list.id, "trip");
+    let step = child(&conn, parent, "tickets");
+    set_status(&conn, step, "done");
+    set_status(&conn, parent, "done");
+    let previous = task_uncheck_subtasks(&conn, parent).unwrap();
+    assert_eq!(previous.len(), 1);
+    assert_eq!(task_get(&conn, step).unwrap().status, "todo");
+    assert_eq!(task_get(&conn, parent).unwrap().status, "done");
 }

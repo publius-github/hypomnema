@@ -14,7 +14,9 @@ import { useTaskDnd, DND_ACCESSIBILITY } from "../components/taskDnd";
 import DateJump from "../components/DateJump";
 import DayColumn from "../components/DayColumn";
 import ListColumn from "../components/ListColumn";
-import IndexRowLabel from "../components/IndexRowLabel";
+import IndexRowLabel, {
+  IndexRowSettings,
+} from "../components/IndexRowLabel";
 import GroupColumn from "../components/GroupColumn";
 import TaskCard from "../components/TaskCard";
 import TaskModal from "../components/TaskModal";
@@ -321,6 +323,8 @@ function ListZone({
   // accent ring, so the eye finds it among the visible page; keys are
   // "l<id>"/"g<id>" - list and group ids live in separate sequences
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  // the index row whose settings a right-click opened
+  const [rowSettings, setRowSettings] = useState<IndexRow | null>(null);
   const highlightTimer = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -495,16 +499,34 @@ function ListZone({
                       ? "bg-accent/15 text-accent"
                       : "text-content-muted hover:bg-line/40 hover:text-content"
                   }`}
-                  title={`Jump to "${itemName(row)}"`}
-                  onClick={() =>
-                    slot >= 0 && jumpTo(slot, itemKey(target))
+                  title={
+                    slot >= 0
+                      ? `Jump to "${itemName(row)}" - right-click: settings`
+                      : `"${itemName(row)}" has no lists - click: settings`
                   }
+                  onClick={() =>
+                    // an empty group has nothing to page to: its
+                    // settings are what a click can still offer
+                    slot >= 0
+                      ? jumpTo(slot, itemKey(target))
+                      : setRowSettings(row)
+                  }
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setRowSettings(row);
+                  }}
                 >
                   <IndexRowLabel row={row} name={itemName(row)} />
                 </button>
               );
             })}
           </div>
+        )}
+        {rowSettings && (
+          <IndexRowSettings
+            row={rowSettings}
+            onClose={() => setRowSettings(null)}
+          />
         )}
       </div>
       </div>

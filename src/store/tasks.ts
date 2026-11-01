@@ -51,7 +51,16 @@ export interface TasksSlice {
     },
   ) => Promise<void>;
   /// checklist bulk actions: check or uncheck every task of the list
+  /// (Uncheck all is the reset before the next round); the Undo toast
+  /// offers the previous state back
   setListStatuses: (id: number, done: boolean) => Promise<void>;
+  /// checklists whose ticked items this device hides ("what is left to
+  /// pack"); remembered on the device, not synced
+  hideChecked: number[];
+  /// unchecks one task's subtasks (the per-task reset); Undo offers
+  /// them back
+  uncheckSubtasks: (id: number) => Promise<void>;
+  toggleHideChecked: (id: number) => void;
   createGroup: (name: string) => Promise<void>;
   updateGroupMeta: (
     id: number,
@@ -63,9 +72,58 @@ export interface TasksSlice {
   setListGroup: (id: number, groupId: number | null) => Promise<void>;
   /// tasks whose status was just cycled via the checkbox, with the
   /// status they were displayed under at click time; they stay in that
-  /// section until the hold expires (done_hold_seconds)
+  /// section until the hold expires (done_hold_seconds after the click,
+  /// or all together on the next done_move_every_minutes mark)
   statusHold: { id: number; status: TaskStatus }[];
   holdStatus: (id: number, shownStatus: TaskStatus) => void;
+}
+
+const HIDE_CHECKED_KEY = "hypomnema.lists.hideChecked";
+
+function loadHideChecked(): number[] {
+  try {
+    const raw = localStorage.getItem(HIDE_CHECKED_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is number => typeof x === "number")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Inside a checklist a parent is the category of its sub-items and the
+ *  core ticks one from the other (`checklist_cascade`): a status change
+ *  there touches rows besides the one patched. */
+function cascades(state: AppState, task: Task): boolean {
+  const parent =
+    task.parent_task_id === null
+      ? null
+      : state.tasks.find((t) => t.id === task.parent_task_id);
+  const listId = parent ? parent.list_id : task.list_id;
+  if (state.lists.find((l) => l.id === listId)?.kind !== "checklist")
+    return false;
+  return (
+    parent !== null || state.tasks.some((t) => t.parent_task_id === task.id)
+  );
+}
+
+/** The pending move of every held task under `done_move_every_minutes`. */
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Milliseconds from `now` to the next N-minute mark of the local clock,
+ * counted from midnight (N = 10: :00, :10, :20...), so the moves land
+ * at the same predictable times on every device. With an N that does
+ * not divide the day, the last stretch before midnight is shorter.
+ */
+export function msToNextMark(now: Date, minutes: number): number {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  const elapsed = now.getTime() - midnight.getTime();
+  const step = minutes * 60_000;
+  const next = Math.min((Math.floor(elapsed / step) + 1) * step, 86_400_000);
+  return next - elapsed;
 }
 
 let refreshSeq = 0;
@@ -186,6 +244,9 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
       // a status change on a recurring instance moves its rule's rate
       if (updated.origin === "recurring" && "status" in patch) {
         void get().loadHabitRates();
+      }
+      if ("status" in patch && cascades(get(), updated)) {
+        await get().refresh();
       }
     } catch (e) {
       if (taskUpdateSeq.get(id) !== seq) {
@@ -339,10 +400,52 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
 
   setListStatuses: async (id, done) => {
     try {
-      await invoke("list_set_all_statuses", { id, done });
+      const previous = await invoke("list_set_all_statuses", { id, done });
       await get().refresh();
+      if (previous.length > 0) {
+        const name = get().lists.find((l) => l.id === id)?.name ?? "list";
+        const items = previous.length === 1 ? "item" : "items";
+        get().offerUndo({
+          kind: "statuses",
+          label: `${done ? "Checked" : "Unchecked"} ${previous.length} ${items} in "${name}"`,
+          states: previous,
+        });
+      }
     } catch (e) {
       set({ error: errorMessage(e) });
+    }
+  },
+
+  uncheckSubtasks: async (id) => {
+    try {
+      const previous = await invoke("task_uncheck_subtasks", { id });
+      await get().refresh();
+      const title = get().tasks.find((t) => t.id === id)?.title ?? "task";
+      // the category itself rides along in a checklist; count subtasks
+      const count = previous.filter((p) => p.id !== id).length;
+      if (count > 0) {
+        get().offerUndo({
+          kind: "statuses",
+          label: `Unchecked ${count} ${count === 1 ? "subtask" : "subtasks"} of "${title}"`,
+          states: previous,
+        });
+      }
+    } catch (e) {
+      set({ error: errorMessage(e) });
+    }
+  },
+
+  hideChecked: loadHideChecked(),
+  toggleHideChecked: (id) => {
+    const current = get().hideChecked;
+    const next = current.includes(id)
+      ? current.filter((x) => x !== id)
+      : [...current, id];
+    set({ hideChecked: next });
+    try {
+      localStorage.setItem(HIDE_CHECKED_KEY, JSON.stringify(next));
+    } catch {
+      // storage unavailable: the choice just lasts this session
     }
   },
 
@@ -424,8 +527,9 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
 
   statusHold: [],
   holdStatus: (id, shownStatus) => {
+    const every = get().config?.done_move_every_minutes ?? 0;
     const seconds = get().config?.done_hold_seconds ?? 0;
-    if (seconds <= 0) return;
+    if (every <= 0 && seconds <= 0) return;
     // repeat clicks during the hold keep the original placement, so the
     // card sits still through the whole status cycle
     set((s) => ({
@@ -433,6 +537,16 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
         ? s.statusHold
         : [...s.statusHold, { id, status: shownStatus }],
     }));
+    if (every > 0) {
+      // everything checked meanwhile moves together on the next mark
+      if (flushTimer === null) {
+        flushTimer = setTimeout(() => {
+          flushTimer = null;
+          set({ statusHold: [] });
+        }, msToNextMark(new Date(), every));
+      }
+      return;
+    }
     setTimeout(() => {
       set((s) => ({ statusHold: s.statusHold.filter((h) => h.id !== id) }));
     }, seconds * 1000);

@@ -19,6 +19,8 @@ import SectionBlock, {
   RowLead,
 } from "./ColumnSection";
 import ListModal from "./ListModal";
+import ChecklistStrip from "./ChecklistStrip";
+import ListKindMark from "./ListKindMark";
 import { ConfirmModal } from "./dialogs";
 import type { List, ListGroup } from "../types";
 import { readable } from "../lib/color";
@@ -142,6 +144,7 @@ function ListColumn({
             </button>
           </h2>
         )}
+        <ListKindMark list={list} />
         {group && (
           <button
             className="max-w-[45%] shrink-0 truncate rounded-sm border border-line px-1 py-px text-[0.625rem] text-content-muted hover:border-accent hover:text-accent"
@@ -203,6 +206,7 @@ function ListColumn({
           ×
         </button>
       </div>
+      {list.kind === "checklist" && <ChecklistStrip list={list} />}
       {detailsOpen && (
         <ListModal list={list} onClose={() => setDetailsOpen(false)} />
       )}

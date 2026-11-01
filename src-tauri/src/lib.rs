@@ -197,6 +197,8 @@ pub fn run() {
             cmd_tasks::list_set_favorite,
             cmd_tasks::list_set_meta,
             cmd_tasks::list_set_all_statuses,
+            cmd_tasks::tasks_restore_statuses,
+            cmd_tasks::task_uncheck_subtasks,
             cmd_tasks::list_groups_all,
             cmd_tasks::list_group_create,
             cmd_tasks::list_group_set_meta,

@@ -44,6 +44,7 @@ import type {
   SyncSummary,
   Task,
   TaskPatch,
+  TaskStatusState,
   UpcomingResult,
   WidgetLaunch,
 } from "../types";
@@ -133,7 +134,7 @@ export interface Commands {
   list_rename: { args: { id: number; name: string }; result: void };
   list_set_all_statuses: {
     args: { id: number; done: boolean };
-    result: number;
+    result: TaskStatusState[];
   };
   list_set_favorite: { args: { id: number; favorite: boolean }; result: void };
   list_set_group: {
@@ -194,6 +195,14 @@ export interface Commands {
   task_restore: { args: { deleted: DeletedTasks }; result: Task[] };
   task_update: { args: { id: number; patch: TaskPatch }; result: Task };
   tasks_delete_done: { args: void; result: number };
+  task_uncheck_subtasks: {
+    args: { id: number };
+    result: TaskStatusState[];
+  };
+  tasks_restore_statuses: {
+    args: { states: TaskStatusState[] };
+    result: number;
+  };
   tasks_reorder: {
     args: { listId: number; orderedIds: number[] };
     result: void;

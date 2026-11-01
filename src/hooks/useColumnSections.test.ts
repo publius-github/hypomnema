@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { layout, type SectionInput } from "./useColumnSections";
+import {
+  checklistProgress,
+  layout,
+  type SectionInput,
+} from "./useColumnSections";
+import type { List } from "../types";
 import { LIST_GAP_STRIPES } from "../lib/tasks";
 import { makeTask } from "../test/fixtures";
 
@@ -43,5 +48,32 @@ describe("layout breaks", () => {
       () => null,
     );
     expect(sections.map((s) => s.stripes)).toEqual([0, 3]);
+  });
+});
+
+describe("checklistProgress", () => {
+  const list: List = {
+    id: 9,
+    name: "Packing",
+    sort_order: 0,
+    color: null,
+    archived: false,
+    auto: false,
+    favorite: false,
+    description: "",
+    kind: "checklist",
+    group_id: null,
+  };
+
+  it("counts the column's top-level items, a dropped one left out", () => {
+    const docs = makeTask({ list_id: 9, status: "done" });
+    const tasks = [
+      docs,
+      makeTask({ parent_task_id: docs.id, status: "done" }),
+      makeTask({ list_id: 9 }),
+      makeTask({ list_id: 9, status: "dropped" }),
+      makeTask({ list_id: 8, status: "done" }),
+    ];
+    expect(checklistProgress(tasks, list)).toEqual({ done: 1, total: 2 });
   });
 });

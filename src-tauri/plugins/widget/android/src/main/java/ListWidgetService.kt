@@ -158,7 +158,7 @@ class ListWidgetService : RemoteViewsService() {
       return views
     }
 
-    /** A list's card head: dot, "group / name", open count; a tap opens the app on the list. */
+    /** A list's card head: dot, "group / name", open count (a checklist's ticked/all); a tap opens the app on the list. */
     private fun listHead(list: WidgetList): RemoteViews {
       val views = RemoteViews(context.packageName, R.layout.hw_widget_list_row)
       views.setInt(R.id.hw_list_bg, "setColorFilter", theme.surfaceAlt)
@@ -167,7 +167,7 @@ class ListWidgetService : RemoteViewsService() {
         if (list.group != null) "${list.group} / ${list.name}" else list.name,
       )
       views.setTextColor(R.id.hw_list_name, theme.content)
-      views.setTextViewText(R.id.hw_list_count, if (list.open > 0) list.open.toString() else "")
+      views.setTextViewText(R.id.hw_list_count, list.countLabel)
       views.setTextColor(R.id.hw_list_count, theme.contentMuted)
       views.setInt(R.id.hw_list_dot, "setColorFilter", TaskWidgetProvider.parseColor(list.color, theme.accent))
       views.setTextViewText(R.id.hw_list_empty, context.getString(R.string.hw_list_empty))

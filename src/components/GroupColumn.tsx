@@ -4,7 +4,9 @@ import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { orderLists } from "../lib/tasks";
 import GroupModal from "./GroupModal";
-import type { ListGroup } from "../types";
+import ListKindMark from "./ListKindMark";
+import type { List, ListGroup } from "../types";
+import { checklistProgress } from "../hooks/useColumnSections";
 import { readable } from "../lib/color";
 
 /**
@@ -66,14 +68,21 @@ function GroupColumn({
   // a list column's grip can be dropped straight onto the tile
   const { setNodeRef, isOver } = useDroppable({ id: `group:${group.id}` });
 
-  const openCount = (listId: number) =>
-    tasks.filter(
+  // a checklist reads as how far it is ticked off, a todo list as how
+  // much is still open
+  const openCount = (list: List) => {
+    if (list.kind === "checklist") {
+      const { done, total } = checklistProgress(tasks, list);
+      return total > 0 ? `${done}/${total}` : "";
+    }
+    return tasks.filter(
       (t) =>
-        t.list_id === listId &&
+        t.list_id === list.id &&
         t.parent_task_id === null &&
         t.status === "todo" &&
         (t.scheduled_date === null || t.priority || t.origin === "manual"),
     ).length;
+  };
 
   // double-click on the tile's free space opens the group dialog, the
   // same gesture a list column answers with its own dialog
@@ -145,8 +154,9 @@ function GroupColumn({
               />
             )}
             <span className="min-w-0 flex-1 truncate">{list.name}</span>
+            <ListKindMark list={list} compact />
             <span className="shrink-0 text-[0.6875rem] text-content-muted">
-              {openCount(list.id)}
+              {openCount(list)}
             </span>
           </button>
         ))}

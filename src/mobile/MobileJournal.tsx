@@ -207,7 +207,11 @@ export default function MobileJournal() {
       <textarea
         value={content}
         onChange={(e) => edit(e.target.value)}
-        spellCheck
+        // textarea checks spelling by default in the WebView, hence the
+        // explicit false. No red underline: tapping one opened Android's
+        // suggestion popup over the keyboard, so the word could not be
+        // fixed by hand. The keyboard's own suggestions still work.
+        spellCheck={false}
         className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 leading-relaxed outline-hidden"
         placeholder="Write about today..."
       />

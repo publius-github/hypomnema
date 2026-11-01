@@ -69,8 +69,17 @@ data class WidgetList(
   val color: String?,
   val group: String?,
   val tasks: List<WidgetTask>,
+  val checklist: Boolean = false,
 ) {
   val open get() = tasks.count { !it.done }
+
+  /** The card head's count: a todo list's open tasks, a checklist's "ticked/all". */
+  val countLabel
+    get() = when {
+      checklist && tasks.isNotEmpty() -> "${tasks.size - open}/${tasks.size}"
+      !checklist && open > 0 -> open.toString()
+      else -> ""
+    }
 }
 
 /**
@@ -178,6 +187,7 @@ object WidgetStore {
         color = str(list, "color"),
         group = str(list, "group"),
         tasks = tasks(list.optJSONArray("tasks")),
+        checklist = list.optString("kind", "todo") == "checklist",
       )
     }
     return Data(parsedTheme, root.optBoolean("category_headers", true), today, parsed)

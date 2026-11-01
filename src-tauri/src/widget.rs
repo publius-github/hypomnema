@@ -178,10 +178,13 @@ pub fn payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Str
         .into_iter()
         .filter(|l| !l.auto)
         .collect();
+    // a "~" name sinks under the rest, as in the app's list panel
+    // (`sinksInPanel`)
+    let sinks = |name: &str| name.trim_start().starts_with('~');
     lists.sort_by(|a, b| {
-        a.name
-            .to_lowercase()
-            .cmp(&b.name.to_lowercase())
+        sinks(&a.name)
+            .cmp(&sinks(&b.name))
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
             .then_with(|| a.name.cmp(&b.name))
             .then(a.id.cmp(&b.id))
     });
@@ -595,6 +598,23 @@ mod tests {
         let names: Vec<&str> = lists.iter().map(|l| l["name"].as_str().unwrap()).collect();
         assert_eq!(names, vec!["plain", "Starred"]);
         assert_eq!(lists[0]["group"], "Home");
+    }
+
+    #[test]
+    fn a_tilde_name_sinks_under_the_other_lists() {
+        let conn = conn();
+        list_create(&conn, "~Packing", None, false).unwrap();
+        list_create(&conn, "Zoo", None, false).unwrap();
+        list_create(&conn, "Яблоки", None, false).unwrap();
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config(&[])).unwrap()).unwrap();
+        let names: Vec<&str> = data["lists"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| l["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, vec!["Zoo", "Яблоки", "~Packing"]);
     }
 
     #[test]

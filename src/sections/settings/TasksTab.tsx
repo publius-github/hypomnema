@@ -120,6 +120,50 @@ export default function TasksTab() {
           Not done, dropped blocks; a click on a block&apos;s plate folds it,
           and the app remembers.
         </span>
+        <Field label="A checked task moves to its block">
+          <select
+            className="input"
+            value={config.done_move_every_minutes > 0 ? "every" : "after"}
+            onChange={(e) =>
+              void updateConfig({
+                done_move_every_minutes: e.target.value === "every" ? 10 : 0,
+              })
+            }
+          >
+            <option value="after">A few seconds after its click</option>
+            <option value="every">All together, every N minutes</option>
+          </select>
+        </Field>
+        <div className="pl-6">
+          {config.done_move_every_minutes > 0 ? (
+            <Field label="Every N minutes, on the clock (10 = at :00, :10, :20...)">
+              <NumberInput
+                value={config.done_move_every_minutes}
+                min={1}
+                onCommit={(n) =>
+                  void updateConfig({
+                    done_move_every_minutes: Math.min(120, n),
+                  })
+                }
+              />
+            </Field>
+          ) : (
+            <Field label="Seconds it stays in place (0 = moves at once)">
+              <NumberInput
+                value={config.done_hold_seconds}
+                min={0}
+                onCommit={(n) =>
+                  void updateConfig({ done_hold_seconds: Math.min(30, n) })
+                }
+              />
+            </Field>
+          )}
+        </div>
+        <span className="-mt-1 text-xs text-content-muted">
+          Until it moves, a checked task stays where it was clicked, so a
+          misclick is one more click away. Every N minutes keeps a column
+          still while you work through it. Shared by your devices.
+        </span>
         {config.done_display === "separate" && (
           <div className="pl-6">
             <Toggle

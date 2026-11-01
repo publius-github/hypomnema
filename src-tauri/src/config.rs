@@ -81,8 +81,15 @@ pub struct AppConfig {
     pub editor_font_size: u32,
     /// Seconds a task just marked done/postponed stays in place before
     /// moving to its section, leaving room to fix a misclick (0 = move
-    /// immediately). Only matters with done_display = separate.
+    /// immediately). Matters with done_display = separate and for a
+    /// checklist hiding its checked items.
     pub done_hold_seconds: u32,
+    /// Instead of each task moving its own done_hold_seconds after its
+    /// click, every task checked meanwhile moves at once on the clock's
+    /// N-minute marks (N = 10: at :00, :10, :20...), so a column holds
+    /// still while you work through it. 0 = off, the seconds hold
+    /// applies.
+    pub done_move_every_minutes: u32,
     /// Seconds the Undo toast stays after deleting a task or archiving
     /// a list (0 = no toast, deletes apply without an undo offer).
     pub undo_toast_seconds: u32,
@@ -632,6 +639,8 @@ pub const CARD_KEYS: &[&str] = &[
     "habit_rate_display",
     "subtasks_done_last",
     "done_display",
+    "done_hold_seconds",
+    "done_move_every_minutes",
     "closed_sections_sort_alpha",
     "cadence_group_order",
     "daily_tasks_today_only",
@@ -786,6 +795,7 @@ impl Default for AppConfig {
             editor_font: "Consolas".into(),
             editor_font_size: 16,
             done_hold_seconds: 3,
+            done_move_every_minutes: 0,
             undo_toast_seconds: 6,
             day_header_centered: false,
             cadence_colors: true,
@@ -1105,6 +1115,7 @@ impl AppConfig {
         self.calendar_yearly_years = self.calendar_yearly_years.min(5);
         self.calendar_dates_years = self.calendar_dates_years.min(5);
         self.done_hold_seconds = self.done_hold_seconds.min(30);
+        self.done_move_every_minutes = self.done_move_every_minutes.min(120);
         self.undo_toast_seconds = self.undo_toast_seconds.min(30);
         self.notify_snooze_minutes = self.notify_snooze_minutes.clamp(1, 180);
         self.notify_lead_minutes = self.notify_lead_minutes.min(240);
@@ -1270,6 +1281,10 @@ impl AppConfig {
             ("editor_font", self.editor_font.clone()),
             ("editor_font_size", self.editor_font_size.to_string()),
             ("done_hold_seconds", self.done_hold_seconds.to_string()),
+            (
+                "done_move_every_minutes",
+                self.done_move_every_minutes.to_string(),
+            ),
             ("undo_toast_seconds", self.undo_toast_seconds.to_string()),
             ("day_header_centered", self.day_header_centered.to_string()),
             ("cadence_colors", self.cadence_colors.to_string()),

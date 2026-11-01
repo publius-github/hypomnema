@@ -222,6 +222,19 @@ fn absorb_auto_list(conn: &Connection, auto_id: i64, target_id: i64) -> Result<(
     Ok(())
 }
 
+/// The panel slot after everything on it: lists and groups share the
+/// panel's manual order (`orderPanel` compares their sort_order), so a
+/// new one of either kind lands at the end rather than among the first
+/// ones of the other kind.
+fn next_panel_slot(conn: &Connection) -> Result<i64> {
+    Ok(conn.query_row(
+        "SELECT MAX(COALESCE((SELECT MAX(sort_order) FROM lists), -1),
+                    COALESCE((SELECT MAX(sort_order) FROM list_groups), -1)) + 1",
+        [],
+        |row| row.get(0),
+    )?)
+}
+
 pub fn list_create(conn: &Connection, name: &str, color: Option<&str>, auto: bool) -> Result<List> {
     let name = name.trim();
     if name.is_empty() {
@@ -247,11 +260,7 @@ pub fn list_create(conn: &Connection, name: &str, color: Option<&str>, auto: boo
             });
         }
     }
-    let next: i64 = conn.query_row(
-        "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM lists",
-        [],
-        |row| row.get(0),
-    )?;
+    let next = next_panel_slot(conn)?;
     let id = ids::fresh(conn, ids::Table::Lists, Some(&ids::list_seed(name)))?;
     // an auto list is the engine's doing, not a decision anyone made:
     // stamped as untouched, so a real edit on another device outranks it
@@ -393,22 +402,123 @@ pub fn list_set_meta(
     Ok(())
 }
 
+/// One task's check state as it was before a bulk change, so the Undo
+/// toast can hand it back to `tasks_restore_statuses`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct TaskStatusState {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "\"todo\" | \"done\" | \"postponed\" | \"waiting\" | \"dropped\"")]
+    pub status: String,
+    pub completed_at: Option<String>,
+}
+
 /// Checks or unchecks every task of a list at once (the checklist bulk
-/// actions in the list dialog): top-level tasks of the list and their
-/// subtasks. Postponed rows are reset along with the rest - the bulk
-/// action defines the whole list's state. Returns how many rows changed.
-pub fn list_set_all_statuses(conn: &Connection, id: i64, done: bool) -> Result<usize> {
+/// actions: Check all, and Uncheck all - the reset before the next
+/// round): top-level tasks of the list and their subtasks. Postponed
+/// rows are reset along with the rest - the bulk action defines the
+/// whole list's state. Returns the rows it changed as they were before,
+/// for Undo.
+pub fn list_set_all_statuses(
+    conn: &Connection,
+    id: i64,
+    done: bool,
+) -> Result<Vec<TaskStatusState>> {
     let status = if done { "done" } else { "todo" };
     let completed_at = done.then(|| Utc::now().to_rfc3339());
-    Ok(conn.execute(
-        "UPDATE tasks SET status = ?1, completed_at = ?2
-         WHERE archived_at IS NULL
+    let tx = conn.unchecked_transaction()?;
+    const SCOPE: &str = "archived_at IS NULL
            AND status != ?1
-           AND (list_id = ?3
+           AND (list_id = ?2
                 OR parent_task_id IN (SELECT id FROM tasks
-                                      WHERE list_id = ?3 AND archived_at IS NULL))",
-        (status, completed_at, id),
-    )?)
+                                      WHERE list_id = ?2 AND archived_at IS NULL))";
+    let previous = tx
+        .prepare(&format!(
+            "SELECT id, status, completed_at FROM tasks WHERE {SCOPE} ORDER BY id"
+        ))?
+        .query_map((status, id), |row| {
+            Ok(TaskStatusState {
+                id: row.get(0)?,
+                status: row.get(1)?,
+                completed_at: row.get(2)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    tx.execute(
+        &format!("UPDATE tasks SET status = ?1, completed_at = ?3 WHERE {SCOPE}"),
+        (status, id, completed_at),
+    )?;
+    tx.commit()?;
+    Ok(previous)
+}
+
+/// Unchecks every subtask of one task - the per-task reset, so one
+/// list can hold several reusable sets (Grocery: drinks, food) without
+/// a list each. Like Uncheck all it resets every non-todo subtask.
+/// Inside a checklist the parent is their category and goes back to
+/// unchecked with them (`checklist_cascade`'s rule); in a todo list the
+/// parent keeps its own status. Returns the rows it changed as they
+/// were before, for Undo.
+pub fn task_uncheck_subtasks(conn: &Connection, id: i64) -> Result<Vec<TaskStatusState>> {
+    let tx = conn.unchecked_transaction()?;
+    let state_of = |row: &Row| {
+        Ok(TaskStatusState {
+            id: row.get(0)?,
+            status: row.get(1)?,
+            completed_at: row.get(2)?,
+        })
+    };
+    let mut previous = tx
+        .prepare(
+            "SELECT id, status, completed_at FROM tasks
+             WHERE parent_task_id = ?1 AND archived_at IS NULL AND status != 'todo'
+             ORDER BY id",
+        )?
+        .query_map([id], state_of)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    tx.execute(
+        "UPDATE tasks SET status = 'todo', completed_at = NULL
+         WHERE parent_task_id = ?1 AND archived_at IS NULL AND status != 'todo'",
+        [id],
+    )?;
+    let category_done = tx
+        .query_row(
+            "SELECT t.id, t.status, t.completed_at FROM tasks t
+             JOIN lists l ON l.id = t.list_id
+             WHERE t.id = ?1 AND l.kind = 'checklist' AND t.status = 'done'",
+            [id],
+            state_of,
+        )
+        .optional()?;
+    if let Some(category) = category_done {
+        tx.execute(
+            "UPDATE tasks SET status = 'todo', completed_at = NULL WHERE id = ?1",
+            [id],
+        )?;
+        previous.push(category);
+    }
+    tx.commit()?;
+    Ok(previous)
+}
+
+/// Puts back the check states a bulk change replaced (its Undo). A row
+/// deleted since is skipped. Returns how many rows changed.
+pub fn tasks_restore_statuses(conn: &Connection, states: &[TaskStatusState]) -> Result<usize> {
+    let tx = conn.unchecked_transaction()?;
+    let mut changed = 0;
+    for state in states {
+        if !STATUSES.contains(&state.status.as_str()) {
+            return Err(Error::State(format!("invalid status: {}", state.status)));
+        }
+        changed += tx.execute(
+            "UPDATE tasks SET status = ?1, completed_at = ?2
+             WHERE id = ?3 AND archived_at IS NULL",
+            (&state.status, &state.completed_at, state.id),
+        )?;
+    }
+    tx.commit()?;
+    Ok(changed)
 }
 
 pub fn list_set_favorite(conn: &Connection, id: i64, favorite: bool) -> Result<()> {
@@ -454,11 +564,7 @@ pub fn group_create(conn: &Connection, name: &str) -> Result<ListGroup> {
             "a group named \"{name}\" already exists"
         )));
     }
-    let next: i64 = conn.query_row(
-        "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM list_groups",
-        [],
-        |row| row.get(0),
-    )?;
+    let next = next_panel_slot(conn)?;
     let id = ids::fresh(conn, ids::Table::ListGroups, Some(&ids::group_seed(name)))?;
     conn.execute(
         "INSERT INTO list_groups (id, name, sort_order) VALUES (?1, ?2, ?3)",
@@ -833,6 +939,7 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
             "UPDATE tasks SET status = ?1, completed_at = ?2 WHERE id = ?3",
             (status, completed_at, id),
         )?;
+        checklist_cascade(conn, id, status)?;
     }
     if let Some(title) = &patch.title {
         let title = normalize_title(title);
@@ -878,6 +985,79 @@ pub fn task_update(conn: &Connection, id: i64, patch: &TaskPatch) -> Result<Task
     }
     tx.commit()?;
     task_get(conn, id)
+}
+
+/// Inside a checklist a task with sub-items is their category
+/// ("Documents" over passport, insurance): ticking or unticking it
+/// does the same to every sub-item, and a sub-item's tick makes the
+/// category ticked exactly when all its live sub-items are (a dropped
+/// one does not count). Todo lists keep parent and subtasks
+/// independent. Only plain todo <-> done rows move; a postponed or
+/// waiting leftover is left as it is.
+fn checklist_cascade(conn: &Connection, id: i64, status: &str) -> Result<()> {
+    if status != "todo" && status != "done" {
+        return Ok(());
+    }
+    let (parent, own_list): (Option<i64>, Option<i64>) = conn.query_row(
+        "SELECT parent_task_id, list_id FROM tasks WHERE id = ?1",
+        [id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    // a subtask carries no list_id of its own; the parent's list decides
+    let list = match parent {
+        Some(p) => conn
+            .query_row("SELECT list_id FROM tasks WHERE id = ?1", [p], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .flatten(),
+        None => own_list,
+    };
+    let checklist = match list {
+        Some(list) => conn
+            .query_row(
+                "SELECT 1 FROM lists WHERE id = ?1 AND kind = 'checklist'",
+                [list],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some(),
+        None => false,
+    };
+    if !checklist {
+        return Ok(());
+    }
+    let now = Utc::now().to_rfc3339();
+    let stamp = |s: &str| (s == "done").then(|| now.clone());
+    match parent {
+        None => {
+            conn.execute(
+                "UPDATE tasks SET status = ?1, completed_at = ?2
+                 WHERE parent_task_id = ?3 AND archived_at IS NULL
+                   AND status IN ('todo', 'done') AND status != ?1",
+                (status, stamp(status), id),
+            )?;
+        }
+        Some(parent) => {
+            let (live, done): (i64, i64) = conn.query_row(
+                "SELECT COUNT(*), COALESCE(SUM(status = 'done'), 0) FROM tasks
+                 WHERE parent_task_id = ?1 AND archived_at IS NULL AND status != 'dropped'",
+                [parent],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?;
+            let want = if live > 0 && done == live {
+                "done"
+            } else {
+                "todo"
+            };
+            conn.execute(
+                "UPDATE tasks SET status = ?1, completed_at = ?2
+                 WHERE id = ?3 AND status IN ('todo', 'done') AND status != ?1",
+                (want, stamp(want), parent),
+            )?;
+        }
+    }
+    Ok(())
 }
 
 /// Rewrites sort_order for the given tasks of a list to match the given

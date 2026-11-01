@@ -989,6 +989,8 @@ fn clear_done_list_tasks(conn: &Connection, now: DateTime<Local>) -> Result<usiz
 /// With clear_done_subtasks on, a subtask checked off before today is
 /// removed from its parent, which stays. A subtask ticked off today (or
 /// ahead of time on a future day) is left until the rollover after.
+/// Sub-items of a checklist list are exempt: ticked there is kept
+/// state (packed), not finished work.
 fn clear_done_subtasks(conn: &Connection, now: DateTime<Local>) -> Result<usize> {
     let today_start = day_start(&Local, now.date_naive()).unwrap_or(now);
     // completed_at is stored as UTC RFC3339, comparable lexicographically
@@ -997,7 +999,11 @@ fn clear_done_subtasks(conn: &Connection, now: DateTime<Local>) -> Result<usize>
         "DELETE FROM tasks
          WHERE parent_task_id IS NOT NULL AND status = 'done'
            AND completed_at IS NOT NULL
-           AND completed_at < ?1",
+           AND completed_at < ?1
+           AND parent_task_id NOT IN (
+                 SELECT p.id FROM tasks p
+                 JOIN lists l ON l.id = p.list_id
+                 WHERE l.kind = 'checklist')",
         (cutoff,),
     )?)
 }

@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../store";
-import { orderLists } from "../lib/tasks";
-import { useListSections } from "../hooks/useColumnSections";
+import { orderGroups, orderLists, sinksInPanel } from "../lib/tasks";
+import { checklistProgress, useListSections } from "../hooks/useColumnSections";
+import ChecklistStrip from "../components/ChecklistStrip";
+import ListKindMark from "../components/ListKindMark";
 import Sections from "./Sections";
 import { useBackStep } from "./back";
 import { Toggle } from "./controls";
@@ -28,6 +30,7 @@ export default function MobileLists() {
   const toggleListFavorite = useAppStore((s) => s.toggleListFavorite);
   const updateListMeta = useAppStore((s) => s.updateListMeta);
   const setListStatuses = useAppStore((s) => s.setListStatuses);
+  const hideChecked = useAppStore((s) => s.hideChecked);
   const setListGroup = useAppStore((s) => s.setListGroup);
   const createGroup = useAppStore((s) => s.createGroup);
   const updateGroupMeta = useAppStore((s) => s.updateGroupMeta);
@@ -112,12 +115,20 @@ export default function MobileLists() {
   }, [focusAdd, current]);
 
   const listRow = (list: List, nested = false) => {
-    const open = tasks.filter(
-      (t) =>
-        t.list_id === list.id &&
-        t.parent_task_id === null &&
-        t.status === "todo",
-    ).length;
+    // a checklist reads as how far it is ticked off, a todo list as
+    // how much is still open
+    const progress =
+      list.kind === "checklist" ? checklistProgress(tasks, list) : null;
+    const open = progress
+      ? progress.total > 0
+        ? `${progress.done}/${progress.total}`
+        : ""
+      : tasks.filter(
+          (t) =>
+            t.list_id === list.id &&
+            t.parent_task_id === null &&
+            t.status === "todo",
+        ).length;
     return (
       <li key={list.id} className="border-b border-line/60">
         <button
@@ -140,6 +151,7 @@ export default function MobileLists() {
               {list.favorite && <span className="text-accent">★ </span>}
               {list.name}
             </span>
+            <ListKindMark list={list} compact phone />
           </span>
           <span className="ml-3 shrink-0 text-sm text-content-muted">
             {open}
@@ -266,8 +278,20 @@ export default function MobileLists() {
 
         <ul className="min-h-0 flex-1 overflow-auto">
           {members.length === 0 && (
-            <li className="px-4 py-8 text-center text-sm text-content-muted">
+            <li className="flex flex-col items-center gap-3 px-4 py-8 text-center text-sm text-content-muted">
               No lists in this group yet - add one below.
+              {/* an empty group's one other use: getting rid of it,
+                  without a trip into its settings */}
+              <button
+                onClick={() => {
+                  void deleteGroup(currentGroup.id);
+                  setGroupId(null);
+                  setGroupSettings(false);
+                }}
+                className="rounded-lg border border-danger/50 px-4 py-2 text-danger"
+              >
+                Delete this group
+              </button>
             </li>
           )}
           {members.map((list) => listRow(list))}
@@ -344,6 +368,55 @@ export default function MobileLists() {
       tasks,
       alpha,
     );
+    const orderedGroups = orderGroups(groups, alpha);
+    // a group's row with its members under it, unless folded
+    const groupBlock = (group: (typeof groups)[number]) => {
+      const members = orderLists(
+        active.filter((l) => l.group_id === group.id),
+        tasks,
+        alpha,
+      );
+      const folded = collapsed.has(group.id);
+      return (
+        <Fragment key={`g${group.id}`}>
+          <li className="flex items-stretch border-b border-line/60">
+            <button
+              onClick={() => toggleGroup(group.id)}
+              aria-expanded={!folded}
+              className="flex min-w-0 flex-1 items-center gap-2 py-4 pl-4 text-left"
+            >
+              <span
+                aria-hidden
+                className="w-6 shrink-0 text-center text-lg leading-none text-content-muted"
+              >
+                {folded ? "▸" : "▾"}
+              </span>
+              {group.color && (
+                <span
+                  aria-hidden
+                  style={{ background: readable(group.color, "mark") }}
+                  className="h-3 w-3 shrink-0 rounded-full"
+                />
+              )}
+              <span className="min-w-0 wrap-break-word font-medium">
+                {group.name}
+              </span>
+              <span className="ml-auto shrink-0 pl-3 text-sm text-content-muted">
+                {members.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setGroupId(group.id)}
+              aria-label={`Open group ${group.name}`}
+              className="shrink-0 px-4 text-content-muted"
+            >
+              ⋯
+            </button>
+          </li>
+          {!folded && members.map((list) => listRow(list, true))}
+        </Fragment>
+      );
+    };
     return (
       <div className="flex h-full flex-col">
         <ul className="min-h-0 flex-1 overflow-auto">
@@ -356,54 +429,16 @@ export default function MobileLists() {
               the whole hierarchy reads at a glance; the triangle folds
               a group, the gear opens its own screen (settings, filing
               lists in) */}
-          {groups.map((group) => {
-            const members = orderLists(
-              active.filter((l) => l.group_id === group.id),
-              tasks,
-              alpha,
-            );
-            const folded = collapsed.has(group.id);
-            return (
-              <Fragment key={`g${group.id}`}>
-                <li className="flex items-stretch border-b border-line/60">
-                  <button
-                    onClick={() => toggleGroup(group.id)}
-                    aria-expanded={!folded}
-                    className="flex min-w-0 flex-1 items-center gap-2 py-4 pl-4 text-left"
-                  >
-                    <span
-                      aria-hidden
-                      className="w-6 shrink-0 text-center text-lg leading-none text-content-muted"
-                    >
-                      {folded ? "▸" : "▾"}
-                    </span>
-                    {group.color && (
-                      <span
-                        aria-hidden
-                        style={{ background: readable(group.color, "mark") }}
-                        className="h-3 w-3 shrink-0 rounded-full"
-                      />
-                    )}
-                    <span className="min-w-0 wrap-break-word font-medium">
-                      {group.name}
-                    </span>
-                    <span className="ml-auto shrink-0 pl-3 text-sm text-content-muted">
-                      {members.length}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setGroupId(group.id)}
-                    aria-label={`Open group ${group.name}`}
-                    className="shrink-0 px-4 text-content-muted"
-                  >
-                    ⋯
-                  </button>
-                </li>
-                {!folded && members.map((list) => listRow(list, true))}
-              </Fragment>
-            );
-          })}
-          {ungrouped.map((list) => listRow(list))}
+          {/* groups, then the lists outside them - and a "~" name
+              (sinksInPanel) parks a group or list under all of those */}
+          {orderedGroups.filter((g) => !sinksInPanel(g.name)).map(groupBlock)}
+          {ungrouped
+            .filter((l) => !sinksInPanel(l.name))
+            .map((list) => listRow(list))}
+          {orderedGroups.filter((g) => sinksInPanel(g.name)).map(groupBlock)}
+          {ungrouped
+            .filter((l) => sinksInPanel(l.name))
+            .map((list) => listRow(list))}
         </ul>
         <div className="flex flex-col gap-2 border-t border-line p-3">
           {/* the same field makes both: a phone with no way to create a
@@ -443,6 +478,12 @@ export default function MobileLists() {
     );
   }
 
+  // a checklist hiding its ticked items has nothing left to show
+  const hidingAll =
+    current.kind === "checklist" &&
+    hideChecked.includes(current.id) &&
+    checklistProgress(tasks, current).total > 0;
+
   const submit = () => {
     const trimmed = title.trim();
     if (!trimmed) return;
@@ -468,6 +509,7 @@ export default function MobileLists() {
         <span className="min-w-0 flex-1 truncate font-semibold">
           {current.name}
         </span>
+        <ListKindMark list={current} phone />
         <button
           onClick={() => setSettingsOpen((v) => !v)}
           aria-label="List settings"
@@ -476,6 +518,7 @@ export default function MobileLists() {
           ⋯
         </button>
       </header>
+      {current.kind === "checklist" && <ChecklistStrip list={current} phone />}
 
       {settingsOpen && (
         // Inline rather than a modal: on a phone a dialog would cover
@@ -501,6 +544,8 @@ export default function MobileLists() {
               Description
             </span>
             <textarea
+              // no Android suggestion popup over the keyboard (see MobileJournal)
+              spellCheck={false}
               defaultValue={current.description}
               rows={2}
               onBlur={(e) => {
@@ -628,13 +673,10 @@ export default function MobileLists() {
 
       {sections.length === 0 ? (
         <p className="min-h-0 flex-1 px-4 py-8 text-center text-sm text-content-muted">
-          This list is empty.
+          {hidingAll ? "Everything is checked." : "This list is empty."}
         </p>
       ) : (
-        <Sections
-          sections={sections}
-          extras={() => ({ showList: false })}
-        />
+        <Sections sections={sections} extras={() => ({ showList: false })} />
       )}
       <div className="flex gap-2 border-t border-line p-3">
         <input

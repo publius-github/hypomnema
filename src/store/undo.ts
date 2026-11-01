@@ -1,12 +1,14 @@
 import type { StateCreator } from "zustand";
 import { errorMessage, invoke } from "../lib/ipc";
-import type { DeletedTasks } from "../types";
+import type { DeletedTasks, TaskStatusState } from "../types";
 import type { AppState } from "../store";
 import { knowLists } from "./tasks";
 
 export type UndoEntry =
   | { kind: "task"; label: string; deleted: DeletedTasks }
-  | { kind: "list"; label: string; listId: number };
+  | { kind: "list"; label: string; listId: number }
+  /** a checklist's Check all / Uncheck all, with the rows as they were */
+  | { kind: "statuses"; label: string; states: TaskStatusState[] };
 
 /** The Undo toast: one destructive action offered back at a time. */
 export interface UndoSlice {
@@ -63,6 +65,9 @@ export const createUndoSlice: StateCreator<AppState, [], [], UndoSlice> = (
           // already back, just make sure we show the current state
           await get().refresh();
         }
+      } else if (entry.kind === "statuses") {
+        await invoke("tasks_restore_statuses", { states: entry.states });
+        await get().refresh();
       } else {
         await invoke("list_unarchive", { id: entry.listId });
         await get().refresh();

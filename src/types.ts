@@ -14,6 +14,7 @@ export type { ConfigError } from "./bindings/ConfigError";
 export type { DailyStreak } from "./bindings/DailyStreak";
 export type { HabitRate } from "./bindings/HabitRate";
 export type { DeletedTasks } from "./bindings/DeletedTasks";
+export type { TaskStatusState } from "./bindings/TaskStatusState";
 export type { DashboardContext } from "./bindings/DashboardContext";
 export type { DayContext } from "./bindings/DayContext";
 export type { DayReminder } from "./bindings/DayReminder";

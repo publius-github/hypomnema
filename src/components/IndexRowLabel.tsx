@@ -1,4 +1,7 @@
 import type { IndexRow } from "../lib/tasks";
+import ListKindMark from "./ListKindMark";
+import ListModal from "./ListModal";
+import GroupModal from "./GroupModal";
 
 /**
  * The text of one All-lists index row (Dashboard list zone, Lists
@@ -26,6 +29,28 @@ export default function IndexRowLabel({
         <span aria-hidden className="w-5 shrink-0" />
       )}
       <span className="min-w-0 truncate">{name}</span>
+      {row.type === "list" && <ListKindMark list={row.list} compact />}
     </>
+  );
+}
+
+/**
+ * The settings dialog of an All-lists index row, opened by a right-click
+ * on the row: a list's dialog or a group's. The index is the one place
+ * every group is named - a flat panel (`lists_group_display`) gives a
+ * group no tile, and an empty group no chip on a list header either, so
+ * without this an empty group could not be renamed or deleted at all.
+ */
+export function IndexRowSettings({
+  row,
+  onClose,
+}: {
+  row: IndexRow;
+  onClose: () => void;
+}) {
+  return row.type === "group" ? (
+    <GroupModal group={row.group} onClose={onClose} />
+  ) : (
+    <ListModal list={row.list} onClose={onClose} />
   );
 }

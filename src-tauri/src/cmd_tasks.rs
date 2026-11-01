@@ -58,8 +58,28 @@ pub(crate) async fn list_set_all_statuses(
     state: State<'_, AppState>,
     id: i64,
     done: bool,
+) -> Result<Vec<tasks::TaskStatusState>> {
+    let previous = with_conn(&state, |conn| tasks::list_set_all_statuses(conn, id, done))?;
+    state.request_export();
+    Ok(previous)
+}
+
+#[tauri::command]
+pub(crate) async fn task_uncheck_subtasks(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<Vec<tasks::TaskStatusState>> {
+    let previous = with_conn(&state, |conn| tasks::task_uncheck_subtasks(conn, id))?;
+    state.request_export();
+    Ok(previous)
+}
+
+#[tauri::command]
+pub(crate) async fn tasks_restore_statuses(
+    state: State<'_, AppState>,
+    states: Vec<tasks::TaskStatusState>,
 ) -> Result<usize> {
-    let changed = with_conn(&state, |conn| tasks::list_set_all_statuses(conn, id, done))?;
+    let changed = with_conn(&state, |conn| tasks::tasks_restore_statuses(conn, &states))?;
     state.request_export();
     Ok(changed)
 }

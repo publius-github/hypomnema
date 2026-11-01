@@ -9,9 +9,10 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 import { useAppStore } from "./store";
+import { msToNextMark } from "./store/tasks";
 import { baseHandlers, defaultConfig, makeTask } from "./test/fixtures";
 import { dispatchCommands } from "./test/tauriMocks";
-import type { Task } from "./types";
+import type { List, Task } from "./types";
 
 /** A promise the test resolves or rejects by hand, to order IPC replies. */
 function deferred<T>() {
@@ -136,6 +137,81 @@ describe("store task mutations", () => {
       "other",
       "parent",
     ]);
+  });
+
+  it("Uncheck all offers Undo, and Undo puts the ticks back", async () => {
+    vi.useFakeTimers();
+    const packing: List = {
+      id: 3,
+      name: "Packing",
+      sort_order: 0,
+      color: null,
+      archived: false,
+      auto: false,
+      favorite: false,
+      description: "",
+      kind: "checklist",
+      group_id: null,
+    };
+    const previous = [
+      { id: 11, status: "done", completed_at: "2026-10-01T10:00:00Z" },
+      { id: 12, status: "done", completed_at: "2026-10-01T10:05:00Z" },
+    ];
+    useAppStore.setState({ lists: [packing] });
+    const restored: unknown[] = [];
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        lists_all: () => [packing],
+        list_set_all_statuses: (args) => {
+          expect(args).toEqual({ id: 3, done: false });
+          return previous;
+        },
+        tasks_restore_statuses: (args) => {
+          restored.push(args);
+          return 2;
+        },
+      }),
+    );
+
+    await useAppStore.getState().setListStatuses(3, false);
+    expect(useAppStore.getState().undoEntry).toMatchObject({
+      kind: "statuses",
+      label: 'Unchecked 2 items in "Packing"',
+    });
+
+    await useAppStore.getState().undoLast();
+    expect(restored).toEqual([{ states: previous }]);
+    expect(useAppStore.getState().undoEntry).toBeNull();
+  });
+
+  it("every N minutes, checked tasks hold until the clock's next mark and move together", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 1, 12, 3, 30));
+    useAppStore.setState({
+      config: { ...defaultConfig, done_move_every_minutes: 10 },
+      statusHold: [],
+    });
+    const { holdStatus } = useAppStore.getState();
+    holdStatus(1, "todo");
+    vi.advanceTimersByTime(4 * 60_000);
+    holdStatus(2, "todo");
+    // 12:07:30: both still where they were clicked
+    vi.advanceTimersByTime(2.5 * 60_000 - 1);
+    expect(useAppStore.getState().statusHold.map((h) => h.id)).toEqual([1, 2]);
+    // 12:10:00: the mark - both move at once
+    vi.advanceTimersByTime(1);
+    expect(useAppStore.getState().statusHold).toEqual([]);
+  });
+
+  it("finds the next N-minute mark of the day", () => {
+    const at = (h: number, m: number, sec = 0) =>
+      new Date(2026, 10, 1, h, m, sec);
+    expect(msToNextMark(at(12, 3, 30), 10)).toBe(6.5 * 60_000);
+    expect(msToNextMark(at(12, 10), 10)).toBe(10 * 60_000);
+    expect(msToNextMark(at(9, 59), 15)).toBe(60_000);
+    // 7 does not divide the day: the last stretch ends at midnight
+    expect(msToNextMark(at(23, 58), 7)).toBe(2 * 60_000);
   });
 
   it("the Undo offer expires after undo_toast_seconds", async () => {

@@ -296,17 +296,39 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
     findList(a.id).favorite = Boolean(a.favorite);
   },
   list_set_meta: (a) => {
-    Object.assign(findList(a.id), { color: a.color ?? null });
+    Object.assign(findList(a.id), {
+      color: a.color ?? null,
+      description: a.description ?? "",
+      kind: a.kind ?? "todo",
+    });
   },
   list_set_group: (a) => {
     findList(a.id).group_id = (a.groupId as number | null) ?? null;
   },
   list_set_all_statuses: (a) => {
-    const tasks = state.tasks.filter((t) => t.list_id === a.id);
+    const status = a.done ? "done" : "todo";
+    const tasks = state.tasks.filter((t) => t.list_id === a.id && t.status !== status);
+    const previous = tasks.map((t) => ({
+      id: t.id,
+      status: t.status,
+      completed_at: t.completed_at,
+    }));
     tasks.forEach((t) => {
-      t.status = a.done ? "done" : "todo";
+      t.status = status;
+      t.completed_at = a.done ? new Date().toISOString() : null;
     });
-    return tasks.length;
+    return previous;
+  },
+  task_uncheck_subtasks: (a) => {
+    const subs = state.tasks.filter((t) => t.parent_task_id === a.id && t.status !== "todo");
+    const previous = subs.map((t) => ({ id: t.id, status: t.status, completed_at: t.completed_at }));
+    subs.forEach((t) => Object.assign(t, { status: "todo", completed_at: null }));
+    return previous;
+  },
+  tasks_restore_statuses: (a) => {
+    const states = a.states as { id: number; status: Task["status"]; completed_at: string | null }[];
+    states.forEach((s) => Object.assign(findTask(s.id), { status: s.status, completed_at: s.completed_at }));
+    return states.length;
   },
   list_archive: (a) => {
     findList(a.id).archived = true;
@@ -456,7 +478,11 @@ mockIPC(
     }
     const handler = handlers[cmd as keyof Commands] as ((args: Args) => unknown) | undefined;
     if (!handler) throw new Error(`e2e backend: no handler for command "${cmd}"`);
-    return handler(args);
+    // the real IPC hands over a serialized copy: returning the fake's own
+    // objects would let a later push into `state` show up in the store's
+    // snapshot too (a task added to a new list rendered twice)
+    const result = handler(args);
+    return result === undefined ? result : structuredClone(result);
   },
   { shouldMockEvents: true },
 );
