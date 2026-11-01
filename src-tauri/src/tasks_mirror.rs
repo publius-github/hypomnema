@@ -1021,6 +1021,12 @@ pub fn import_file(
     ids: bool,
     base: Option<&str>,
 ) -> Result<bool> {
+    // a Created / Last edited header stamped on by a Notes editor (a
+    // build that still stamped app files) is not a task line: read past
+    // it, and the next export writes the file without it
+    let content = &crate::kb::split_stamps(content).2;
+    let base_body = base.map(|b| crate::kb::split_stamps(b).2);
+    let base = base_body.as_deref();
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())

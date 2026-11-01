@@ -273,6 +273,14 @@ describe("sortSubtasks", () => {
   it("keeps plain order otherwise", () => {
     expect(sortSubtasks([done, open], false).map((t) => t.id)).toEqual([2, 1]);
   });
+
+  it("sorts by title when alpha is on, timed ones first", () => {
+    const b = task({ id: 3, sort_order: 1, title: "bread" });
+    const a = task({ id: 4, sort_order: 2, title: "Apples" });
+    const timed = task({ id: 5, sort_order: 3, title: "zinc", time: "09:00" });
+    expect(sortSubtasks([b, a, timed], false).map((t) => t.id)).toEqual([5, 3, 4]);
+    expect(sortSubtasks([b, a, timed], false, true).map((t) => t.id)).toEqual([5, 4, 3]);
+  });
 });
 
 describe("currentAndNextBlock", () => {

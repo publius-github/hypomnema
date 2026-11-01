@@ -79,6 +79,13 @@ pub(crate) async fn kb_read(state: State<'_, AppState>, path: String) -> Result<
     kb::read(&kb_root(&state)?, &path)
 }
 
+/// Whether a Notes path (relative to the Notes root) lies inside the
+/// vault's `.hypomnema/` work folder, wherever the Notes root sits.
+fn in_work_dir(root: &Path, vault_root: &Path, path: &str) -> bool {
+    root.join(path)
+        .starts_with(vault_root.join(crate::vault::WORK_DIR))
+}
+
 #[tauri::command]
 pub(crate) async fn kb_write(
     state: State<'_, AppState>,
@@ -96,8 +103,12 @@ pub(crate) async fn kb_write(
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
         let journal = root == vault.root && path.starts_with("journal/");
+        // nor the app's own files: the task mirror, the config YAML and
+        // the merge bases under .hypomnema/ are parsed line by line, and
+        // a Created / Last edited header breaks the parse
+        let app_file = in_work_dir(&root, &vault.root, &path);
         (
-            vault.config.notes_timestamps && markdown && !journal,
+            vault.config.notes_timestamps && markdown && !journal && !app_file,
             vault.root.clone(),
         )
     };
@@ -316,5 +327,24 @@ mod tests {
         assert!(!is_openable_url("https://example.com/a b"));
         assert!(!is_openable_url("https://example.com/\na"));
         assert!(!is_openable_url(""));
+    }
+}
+
+#[cfg(test)]
+mod work_dir_tests {
+    use super::in_work_dir;
+    use std::path::Path;
+
+    #[test]
+    fn app_files_are_told_apart_from_notes() {
+        let vault = Path::new("/v");
+        assert!(in_work_dir(vault, vault, ".hypomnema/tasks/grocery.md"));
+        assert!(!in_work_dir(vault, vault, "notes/grocery.md"));
+        assert!(!in_work_dir(vault, vault, ".hypomnema-notes/a.md"));
+        assert!(!in_work_dir(
+            Path::new("/elsewhere"),
+            vault,
+            ".hypomnema/a.md"
+        ));
     }
 }

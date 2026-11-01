@@ -87,6 +87,12 @@ export default function TasksTab() {
           onChange={(v) => void updateConfig({ subtasks_done_last: v })}
         />
         <Toggle
+          checked={config.subtasks_sort_alpha}
+          label="Sort subtasks alphabetically"
+          hint="Subtasks go by title, timed ones first, in the card, the task dialog and on the phone; off = the order they were added in."
+          onChange={(v) => void updateConfig({ subtasks_sort_alpha: v })}
+        />
+        <Toggle
           checked={config.priority_overdue}
           label="Priority tasks get the overdue mark"
           hint="A starred task left unfinished past its day is marked Overdue like any other task; off = it carries over silently."

@@ -152,6 +152,7 @@ export const SETTINGS_CATALOG: CatalogEntry[] = [
   { key: "habit_rate_display", label: "Completion rate chip", group: "tasks.cards", terms: "habit rate percent alert" },
   { key: "habit_rate_threshold", label: "Rate alert threshold", group: "tasks.cards", terms: "habit percent" },
   { key: "subtasks_done_last", label: "Done subtasks sink to the bottom", group: "tasks.cards" },
+  { key: "subtasks_sort_alpha", label: "Sort subtasks alphabetically", group: "tasks.cards", terms: "order abc" },
   { key: "priority_overdue", label: "Priority tasks get the overdue mark", group: "tasks.cards", terms: "star" },
   { key: "general_overdue", label: "General tasks get the overdue mark", group: "tasks.cards", terms: "one-off manual carry over" },
 

@@ -101,7 +101,10 @@ function TaskCard({
   const subtasksDoneLast = useAppStore(
     (s) => s.config?.subtasks_done_last ?? true,
   );
-  const subtasks = sortSubtasks(subtasksRaw, subtasksDoneLast);
+  const subtasksAlpha = useAppStore(
+    (s) => s.config?.subtasks_sort_alpha ?? false,
+  );
+  const subtasks = sortSubtasks(subtasksRaw, subtasksDoneLast, subtasksAlpha);
   const closed = isClosed(task.status);
   // a {Category} prefix is a pure text label rendered as a chip
   const { category, text } = splitCategory(task.title);

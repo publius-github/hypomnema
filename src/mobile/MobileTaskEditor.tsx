@@ -65,6 +65,7 @@ export default function MobileTaskEditor({
   const subtasks = sortSubtasks(
     tasks.filter((t) => t.parent_task_id === task.id),
     config?.subtasks_done_last ?? true,
+    config?.subtasks_sort_alpha ?? false,
   );
 
   const close = () => {

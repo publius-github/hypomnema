@@ -144,6 +144,11 @@ cadence_group_order: Array<string>,
  */
 subtasks_done_last: boolean, 
 /**
+ * Subtasks sort by title, alphabetically (timed ones still lead);
+ * off = the order they were added in.
+ */
+subtasks_sort_alpha: boolean, 
+/**
  * How many backup copies to keep, both daily app.db snapshots and
  * per-file config copies made before programmatic rewrites, under
  * <vault>/backups/. 0 disables backups entirely.

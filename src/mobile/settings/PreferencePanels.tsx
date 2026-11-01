@@ -68,6 +68,11 @@ export function TasksPanel({ config }: Props) {
           checked={config.subtasks_done_last}
           onChange={(v) => void updateConfig({ subtasks_done_last: v })}
         />
+        <SwitchRow
+          label="Sort subtasks alphabetically"
+          checked={config.subtasks_sort_alpha}
+          onChange={(v) => void updateConfig({ subtasks_sort_alpha: v })}
+        />
       </Section>
       <Section title="Day screen">
         <ChoiceRow

@@ -533,11 +533,28 @@ export function mondayOf(date: string): string {
   return addDaysISO(date, -((d.getDay() + 6) % 7));
 }
 
-/** Subtask order: optionally closed-last, then the regular comparator. */
-export function sortSubtasks(subtasks: Task[], doneLast: boolean): Task[] {
+/**
+ * Subtask order: optionally closed-last, then optionally by title
+ * (timed subtasks still lead, a {Category} prefix counts as text, as in
+ * an alphabetical list), then the regular comparator.
+ */
+export function sortSubtasks(
+  subtasks: Task[],
+  doneLast: boolean,
+  alpha = false,
+): Task[] {
   return [...subtasks].sort((a, b) => {
     if (doneLast && isClosed(a.status) !== isClosed(b.status)) {
       return isClosed(a.status) ? 1 : -1;
+    }
+    if (alpha) {
+      if ((a.time === null) !== (b.time === null))
+        return a.time === null ? 1 : -1;
+      const byTitle = a.title.localeCompare(b.title, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+      if (byTitle !== 0) return byTitle;
     }
     return compareTasks(a, b);
   });

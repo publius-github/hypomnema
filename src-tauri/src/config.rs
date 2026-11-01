@@ -115,6 +115,9 @@ pub struct AppConfig {
     pub cadence_group_order: Vec<String>,
     /// Done subtasks sink to the bottom of their subtask list.
     pub subtasks_done_last: bool,
+    /// Subtasks sort by title, alphabetically (timed ones still lead);
+    /// off = the order they were added in.
+    pub subtasks_sort_alpha: bool,
     /// How many backup copies to keep, both daily app.db snapshots and
     /// per-file config copies made before programmatic rewrites, under
     /// <vault>/backups/. 0 disables backups entirely.
@@ -638,6 +641,7 @@ pub const CARD_KEYS: &[&str] = &[
     "cron_weekday_labels",
     "habit_rate_display",
     "subtasks_done_last",
+    "subtasks_sort_alpha",
     "done_display",
     "done_hold_seconds",
     "done_move_every_minutes",
@@ -803,6 +807,7 @@ impl Default for AppConfig {
             category_color_mode: "single".into(),
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
             subtasks_done_last: true,
+            subtasks_sort_alpha: false,
             backup_keep: 14,
             log_max_kb: 1024,
             notify_system: true,
@@ -1292,6 +1297,7 @@ impl AppConfig {
             ("category_color_mode", self.category_color_mode.clone()),
             ("cadence_group_order", self.cadence_group_order.join(",")),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
+            ("subtasks_sort_alpha", self.subtasks_sort_alpha.to_string()),
             ("backup_keep", self.backup_keep.to_string()),
             ("log_max_kb", self.log_max_kb.to_string()),
             ("notify_system", self.notify_system.to_string()),
@@ -1382,10 +1388,7 @@ impl AppConfig {
                 "clear_done_list_tasks",
                 self.clear_done_list_tasks.to_string(),
             ),
-            (
-                "clear_done_subtasks",
-                self.clear_done_subtasks.to_string(),
-            ),
+            ("clear_done_subtasks", self.clear_done_subtasks.to_string()),
             ("priority_overdue", self.priority_overdue.to_string()),
             ("general_overdue", self.general_overdue.to_string()),
             (

@@ -805,3 +805,22 @@ fn a_markerless_today_file_is_left_alone() {
     );
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// A list file saved from the Notes editor of an older build carries a
+/// Created / Last edited header; the import reads past it.
+#[test]
+fn stamped_list_file_still_imports() {
+    let (conn, dir) = setup("stamped");
+    let list = list_create(&conn, "Grocery", None, false).unwrap();
+    let path = dir.join("Grocery.md");
+    let content = format!(
+        "Created: 2026-11-01 13:12\nLast edited: 2026-11-01 13:26\n\n{}\n\n- [ ] bread\n",
+        list_marker(list.id)
+    );
+    assert!(import_file(&conn, &path, &content, TODAY, true, Some(&content)).unwrap());
+    let parents = tasks::manual_parent_tasks(&conn).unwrap();
+    assert!(parents
+        .iter()
+        .any(|t| t.list_id == Some(list.id) && t.title == "bread"));
+    let _ = fs::remove_dir_all(&dir);
+}

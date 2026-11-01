@@ -105,6 +105,7 @@ export default function TaskModal({
   const subtasks = sortSubtasks(
     tasks.filter((t) => t.parent_task_id === task.id),
     subtasksDoneLast,
+    config?.subtasks_sort_alpha ?? false,
   );
 
   // Backdrop and Escape both close through here: the backdrop mousedown

@@ -111,6 +111,7 @@ export const defaultConfig: AppConfig = {
   category_color_mode: "single",
   cadence_group_order: ["exact", "general", "daily", "weekly", "monthly", "yearly"],
   subtasks_done_last: true,
+  subtasks_sort_alpha: false,
   backup_keep: 14,
   log_max_kb: 1024,
   notify_system: true,
