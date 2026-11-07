@@ -183,6 +183,27 @@ export default function TasksTab() {
           </div>
         )}
 
+        <Field label="Day column sections">
+          <select
+            className="input"
+            value={config.day_sections}
+            onChange={(e) =>
+              void updateConfig({
+                day_sections: e.target.value as AppConfig["day_sections"],
+              })
+            }
+          >
+            <option value="cadence">A section per cadence</option>
+            <option value="recurring">General and Recurring, by category</option>
+          </select>
+        </Field>
+        <span className="-mt-1 text-xs text-content-muted">
+          By category puts every rule&apos;s task in one Recurring section,
+          grouped by category and inside a category daily, weekly, monthly,
+          yearly; each wears a [DAILY]-style badge. The section stands where
+          the first cadence stands in the order below.
+        </span>
+
         <section className="flex flex-col gap-1">
           <span className="text-sm font-medium">Day column section order</span>
           <span className="text-xs text-content-muted">

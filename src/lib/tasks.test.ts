@@ -10,6 +10,7 @@ import {
   dayLabel,
   gridDates,
   groupByCadence,
+  groupByRecurring,
   nextStatus,
   nextWeekTarget,
   indexRows,
@@ -171,6 +172,38 @@ describe("date helpers", () => {
       "2026-08-28",
       "2026-08-29",
       "2026-08-30",
+    ]);
+  });
+});
+
+describe("groupByRecurring", () => {
+  it("merges the cadences into one Recurring section by category, then cadence", () => {
+    const groups = groupByRecurring([
+      task({ id: 1, cadence: "yearly", title: "{Home} taxes" }),
+      task({ id: 2, cadence: "daily", title: "{Home} dishes" }),
+      task({ id: 3, cadence: null, title: "call back" }),
+      task({ id: 4, cadence: "weekly", title: "{Gym} legs" }),
+      task({ id: 5, cadence: "monthly", title: "{Home} filters" }),
+      task({ id: 6, cadence: "daily", title: "stretch" }),
+      task({ id: 7, origin: "scheduled" }),
+    ]);
+    expect(groups.map((g) => g.key)).toEqual(["exact", "general", "recurring"]);
+    expect(groups[1].tasks.map((t) => t.id)).toEqual([3]);
+    // uncategorized first, then Gym, then Home daily -> monthly -> yearly
+    expect(groups[2].tasks.map((t) => t.id)).toEqual([6, 4, 2, 5, 1]);
+  });
+
+  it("stands where the first cadence stands in the order", () => {
+    const groups = groupByRecurring(
+      [task({ id: 1, cadence: "monthly" }), task({ id: 2 })],
+      ["weekly", "general", "exact", "daily", "monthly", "yearly"],
+    );
+    expect(groups.map((g) => g.key)).toEqual(["recurring", "general"]);
+  });
+
+  it("has no Recurring section without rule tasks", () => {
+    expect(groupByRecurring([task({ id: 1 })]).map((g) => g.key)).toEqual([
+      "general",
     ]);
   });
 });

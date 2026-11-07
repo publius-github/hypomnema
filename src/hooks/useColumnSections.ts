@@ -6,6 +6,7 @@ import {
   compareTasks,
   cadenceColor,
   groupByCadence,
+  groupByRecurring,
   LIST_GAP_STRIPES,
   sortClosedAlpha,
   splitDone,
@@ -128,7 +129,8 @@ function closedSections(
 
 /**
  * A day column's sections, shared by the desktop `DayColumn` and the
- * phone's `MobileDay`: the configured cadence sections over the day's
+ * phone's `MobileDay`: the configured cadence sections (or, under
+ * `day_sections: recurring`, Exact date / General / Recurring) over the day's
  * top-level tasks (future days without the dailies under
  * `daily_tasks_today_only`), then the closed sections, with the List
  * view's stripes - none before the first section, two between
@@ -167,7 +169,9 @@ export function useDaySections(date: string): ColumnSection[] {
     config?.done_display ?? "inline",
     new Map(hold.map((h) => [h.id, h.status])),
   );
-  const groups = groupByCadence(
+  const group =
+    config?.day_sections === "recurring" ? groupByRecurring : groupByCadence;
+  const groups = group(
     split.active,
     config?.cadence_group_order,
     labelOf,

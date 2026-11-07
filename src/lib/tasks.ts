@@ -221,6 +221,17 @@ export const DEFAULT_CADENCE_ORDER = Object.keys(CADENCE_GROUP_LABELS);
 
 const CADENCE_KEYS = new Set(["daily", "weekly", "monthly", "yearly"]);
 
+/** The configured section order with junk dropped and missing keys
+ *  appended in default position, as the Rust side sanitizes it. */
+function cadenceSequence(order: string[]): string[] {
+  return [
+    ...order.filter(
+      (key, i) => key in CADENCE_GROUP_LABELS && order.indexOf(key) === i,
+    ),
+    ...DEFAULT_CADENCE_ORDER.filter((key) => !order.includes(key)),
+  ];
+}
+
 /**
  * Tasks of one day column, grouped into sections: exact-date items
  * (scheduled events and birthdays), General (manual one-offs, priority
@@ -251,13 +262,7 @@ export function groupByCadence(
     if (bucket) bucket.push(task);
     else buckets.set(key, [task]);
   }
-  const sequence = [
-    ...order.filter(
-      (key, i) => key in CADENCE_GROUP_LABELS && order.indexOf(key) === i,
-    ),
-    ...DEFAULT_CADENCE_ORDER.filter((key) => !order.includes(key)),
-  ];
-  return sequence
+  return cadenceSequence(order)
     .filter((key) => buckets.has(key))
     .map((key) => ({
       key,
@@ -271,6 +276,65 @@ export function groupByCadence(
         return compareTasks(a, b);
       }),
     }));
+}
+
+/** Rank of the recurring cadences inside a Recurring section. */
+const RECURRING_RANK: Record<string, number> = {
+  daily: 0,
+  weekly: 1,
+  monthly: 2,
+  yearly: 3,
+};
+
+/**
+ * The recurring cadence of a task ("daily" ... "yearly"), or null for
+ * exact-date and General ones: what its `[DAILY]` badge says.
+ */
+export function recurringCadenceOf(task: Task): string | null {
+  const key = cadenceKeyOf(task);
+  return key && CADENCE_KEYS.has(key) ? key : null;
+}
+
+/**
+ * `day_sections: recurring`: Exact date, General and one Recurring
+ * section holding every rule cadence, ordered by category block
+ * (uncategorized first, then alphabetically) and inside a block by
+ * cadence - daily, weekly, monthly, yearly - then column order. The
+ * Recurring section stands where the first rule cadence stands in
+ * `order`.
+ */
+export function groupByRecurring(
+  tasks: Task[],
+  order: string[] = DEFAULT_CADENCE_ORDER,
+  labelOf: (task: Task) => string | null = (t) =>
+    splitCategory(t.title).category,
+): CadenceGroup[] {
+  const sections = groupByCadence(tasks, order, labelOf);
+  const recurring = sections.filter((g) => CADENCE_KEYS.has(g.key));
+  if (recurring.length === 0) return sections;
+  const rank = (t: Task) => RECURRING_RANK[recurringCadenceOf(t) ?? ""] ?? 4;
+  const merged: CadenceGroup = {
+    key: "recurring",
+    label: "Recurring",
+    tasks: recurring
+      .flatMap((g) => g.tasks)
+      .sort((a, b) => {
+        const ca = labelOf(a) ?? "";
+        const cb = labelOf(b) ?? "";
+        if (ca !== cb) return ca < cb ? -1 : 1;
+        return rank(a) - rank(b) || compareTasks(a, b);
+      }),
+  };
+  // the sections come in `order`; the merged one takes the slot of the
+  // first rule cadence there, present on this day or not
+  const sequence = cadenceSequence(order);
+  const slot = (key: string) =>
+    CADENCE_KEYS.has(key) || key === "recurring"
+      ? sequence.findIndex((k) => CADENCE_KEYS.has(k))
+      : sequence.indexOf(key);
+  return [...sections.filter((g) => !CADENCE_KEYS.has(g.key)), merged].sort(
+    (a, b) => slot(a.key) - slot(b.key),
+  );
 }
 
 /** Category label of a task title, for grouping ({X} prefix). */
@@ -312,7 +376,17 @@ export function cadenceColor(
   config: AppConfig | null,
   key: string | null,
 ): string | null {
-  if (!config?.cadence_colors || !key) return null;
+  if (!config?.cadence_colors) return null;
+  return cadenceHex(config, key);
+}
+
+/** The scheme's color for a cadence-palette key, whatever the
+ *  `cadence_colors` switch says (the badges have their own). */
+export function cadenceHex(
+  config: AppConfig | null,
+  key: string | null,
+): string | null {
+  if (!config || !key) return null;
   const colors = themeColors(config);
   switch (key) {
     case "exact":

@@ -24,6 +24,7 @@ import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
 import Icon from "./icons";
 import { readable, themeColors } from "../lib/color";
 import DowLabelText from "./DowLabelText";
+import CadenceBadge, { cadenceBadgeOf, dowBesideBadge } from "./CadenceBadge";
 
 // Hover actions (priority star, drop, delete) are out of the layout until
 // the card is hovered or focused; a card at least 17rem wide reserves
@@ -151,8 +152,12 @@ function TaskCard({
   const chipSize = useAppStore((s) => `${s.config?.chip_font_scale ?? 100}%`);
   // [SAT#1]-style marker for weekday-pinned recurring rules, and
   // [EVERYDAY] for rules firing every day
-  const dowLabel = useAppStore((s) =>
-    (s.config?.cron_weekday_labels ?? true) ? task.dow_label : null,
+  const config = useAppStore((s) => s.config);
+  // [DAILY]-style badge while the cadences share one Recurring section
+  const badge = cadenceBadgeOf(config, task);
+  const dowLabel = dowBesideBadge(
+    (config?.cron_weekday_labels ?? true) ? task.dow_label : null,
+    badge,
   );
   const dowColor = useAppStore((s) => themeColors(s.config)?.dow_label_color || "");
   // habit-tracker view of a recurring item: its completion rate, loud
@@ -428,6 +433,9 @@ function TaskCard({
             </span>
           )}
           {showCategoryChip && multiline && " "}
+          {badge && (
+            <CadenceBadge cadence={badge} config={config} closed={closed} />
+          )}
           {dowLabel && (
             // on a closed card the marker joins the struck-through muted
             // text instead of keeping its own bright color

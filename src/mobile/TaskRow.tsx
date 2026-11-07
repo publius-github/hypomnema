@@ -27,6 +27,10 @@ import { useEditTask } from "./editing";
 import type { Task } from "../types";
 import { readable, themeColors } from "../lib/color";
 import DowLabelText from "../components/DowLabelText";
+import CadenceBadge, {
+  cadenceBadgeOf,
+  dowBesideBadge,
+} from "../components/CadenceBadge";
 import Icon, { type IconName } from "../components/icons";
 import { Sheet } from "./settings/rows";
 
@@ -140,8 +144,12 @@ export default function TaskRow({
   // Scheduled events and birthdays carry the date they came from.
   const exactDate = task.origin === "scheduled" || task.origin === "birthday";
 
-  const dowLabel =
-    (config?.cron_weekday_labels ?? true) ? task.dow_label : null;
+  // [DAILY]-style badge while the cadences share one Recurring section
+  const badge = cadenceBadgeOf(config, task);
+  const dowLabel = dowBesideBadge(
+    (config?.cron_weekday_labels ?? true) ? task.dow_label : null,
+    badge,
+  );
   const dowColor = themeColors(config)?.dow_label_color || "";
 
   // the habit-tracker rate of a recurring item, loud below its threshold
@@ -328,6 +336,9 @@ export default function TaskRow({
                   closed ? "text-content-muted line-through" : ""
                 }`}
               >
+                {badge && (
+                  <CadenceBadge cadence={badge} config={config} closed={closed} />
+                )}
                 {dowLabel && (
                   // on a closed row the marker joins the struck-through
                   // muted text instead of keeping its own colour

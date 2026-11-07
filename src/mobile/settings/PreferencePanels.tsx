@@ -147,6 +147,23 @@ export function TasksPanel({ config }: Props) {
           />
         )}
         <CadenceOrderRow config={config} />
+        <ChoiceRow
+          label="Day sections"
+          value={config.day_sections}
+          options={[
+            {
+              value: "cadence",
+              label: "Per cadence",
+              hint: "General, Daily, Weekly, Monthly, Yearly",
+            },
+            {
+              value: "recurring",
+              label: "General and Recurring",
+              hint: "Recurring by category, daily to yearly, with a [DAILY] badge",
+            },
+          ]}
+          onChange={(v) => void updateConfig({ day_sections: v })}
+        />
         <SwitchRow
           label="Daily tasks only on today"
           hint="Days ahead skip daily-cadence tasks"

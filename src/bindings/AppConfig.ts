@@ -140,6 +140,21 @@ category_color_mode: "single" | "varied" | "alternate",
  */
 cadence_group_order: Array<string>, 
 /**
+ * How a day column splits its open tasks: "cadence" = a section
+ * per cadence (Exact date, General, Daily, Weekly, Monthly,
+ * Yearly); "recurring" = Exact date, General and one Recurring
+ * section, grouped by category and inside a category ordered
+ * daily, weekly, monthly, yearly, each task wearing a [DAILY]-style
+ * badge before its weekday marker.
+ */
+day_sections: "cadence" | "recurring", 
+/**
+ * Under `day_sections: recurring`, the cadence badges wear their
+ * cadence color (the colors the cadence sections' plates take);
+ * off = the muted tone of the weekday marker.
+ */
+cadence_badge_colors: boolean, 
+/**
  * Done subtasks sink to the bottom of their subtask list.
  */
 subtasks_done_last: boolean, 

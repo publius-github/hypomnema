@@ -113,6 +113,18 @@ pub struct AppConfig {
     pub category_color_mode: String,
     /// Order of the cadence sections inside a day column.
     pub cadence_group_order: Vec<String>,
+    /// How a day column splits its open tasks: "cadence" = a section
+    /// per cadence (Exact date, General, Daily, Weekly, Monthly,
+    /// Yearly); "recurring" = Exact date, General and one Recurring
+    /// section, grouped by category and inside a category ordered
+    /// daily, weekly, monthly, yearly, each task wearing a [DAILY]-style
+    /// badge before its weekday marker.
+    #[ts(type = "\"cadence\" | \"recurring\"")]
+    pub day_sections: String,
+    /// Under `day_sections: recurring`, the cadence badges wear their
+    /// cadence color (the colors the cadence sections' plates take);
+    /// off = the muted tone of the weekday marker.
+    pub cadence_badge_colors: bool,
     /// Done subtasks sink to the bottom of their subtask list.
     pub subtasks_done_last: bool,
     /// Subtasks sort by title, alphabetically (timed ones still lead);
@@ -601,6 +613,7 @@ pub const COLOR_KEYS: &[&str] = &[
     "color_min_contrast",
     "dow_label_opacity",
     "cadence_colors",
+    "cadence_badge_colors",
     "category_color_mode",
     "category_avoid_cadence_colors",
     "list_exact_stripe",
@@ -647,6 +660,7 @@ pub const CARD_KEYS: &[&str] = &[
     "done_move_every_minutes",
     "closed_sections_sort_alpha",
     "cadence_group_order",
+    "day_sections",
     "daily_tasks_today_only",
     "lists_sort_alpha",
 ];
@@ -806,6 +820,8 @@ impl Default for AppConfig {
             chip_font_scale: 100,
             category_color_mode: "single".into(),
             cadence_group_order: CADENCE_GROUPS.iter().map(|s| s.to_string()).collect(),
+            day_sections: "cadence".into(),
+            cadence_badge_colors: true,
             subtasks_done_last: true,
             subtasks_sort_alpha: false,
             backup_keep: 14,
@@ -1100,6 +1116,9 @@ impl AppConfig {
         if !["inline", "separate"].contains(&self.done_display.as_str()) {
             self.done_display = "inline".into();
         }
+        if !["cadence", "recurring"].contains(&self.day_sections.as_str()) {
+            self.day_sections = "cadence".into();
+        }
         if !["folded", "flat"].contains(&self.lists_group_display.as_str()) {
             self.lists_group_display = "folded".into();
         }
@@ -1296,6 +1315,11 @@ impl AppConfig {
             ("chip_font_scale", self.chip_font_scale.to_string()),
             ("category_color_mode", self.category_color_mode.clone()),
             ("cadence_group_order", self.cadence_group_order.join(",")),
+            ("day_sections", self.day_sections.clone()),
+            (
+                "cadence_badge_colors",
+                self.cadence_badge_colors.to_string(),
+            ),
             ("subtasks_done_last", self.subtasks_done_last.to_string()),
             ("subtasks_sort_alpha", self.subtasks_sort_alpha.to_string()),
             ("backup_keep", self.backup_keep.to_string()),

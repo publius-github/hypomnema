@@ -110,6 +110,8 @@ export const defaultConfig: AppConfig = {
   chip_font_scale: 100,
   category_color_mode: "single",
   cadence_group_order: ["exact", "general", "daily", "weekly", "monthly", "yearly"],
+  day_sections: "cadence",
+  cadence_badge_colors: true,
   subtasks_done_last: true,
   subtasks_sort_alpha: false,
   backup_keep: 14,

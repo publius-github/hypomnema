@@ -264,11 +264,18 @@ const CADENCE_LABELS: &[(&str, &str)] = &[
     ("weekly", "Weekly"),
     ("monthly", "Monthly"),
     ("yearly", "Yearly"),
+    ("recurring", "Recurring"),
 ];
+
+/// The rule cadences, in the order a Recurring section ranks them.
+const RECURRING_KEYS: &[&str] = &["daily", "weekly", "monthly", "yearly"];
 
 struct DayRow {
     task: WidgetTask,
     section: &'static str,
+    /// rank of a rule cadence (daily first), 4 for the rest: orders a
+    /// Recurring section's category block (`groupByRecurring`)
+    rank: usize,
     block: String,
     time: Option<String>,
     sort_order: i64,
@@ -313,6 +320,7 @@ fn section_key(
 }
 
 fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<WidgetDay> {
+    let recurring = config.day_sections == "recurring";
     let lists = tasks::lists_all(conn)?;
     let list_name = |id: Option<i64>| {
         id.and_then(|id| lists.iter().find(|l| l.id == id))
@@ -343,15 +351,23 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
             // `splitDone`: under done_display "separate" a postponed or
             // waiting task leaves its cadence for its own section
             let separate = config.done_display == "separate" && status != "todo";
+            let key = section_key(&origin, cadence.as_deref(), list_id, priority);
+            let rank = RECURRING_KEYS
+                .iter()
+                .position(|k| *k == key)
+                .unwrap_or(RECURRING_KEYS.len());
             Ok(DayRow {
                 section: if separate {
                     match status.as_str() {
                         "postponed" => "postponed",
                         _ => "waiting",
                     }
+                } else if recurring && rank < RECURRING_KEYS.len() {
+                    "recurring"
                 } else {
-                    section_key(&origin, cadence.as_deref(), list_id, priority)
+                    key
                 },
+                rank,
                 task: WidgetTask {
                     id: row.get(0)?,
                     title: text.to_string(),
@@ -367,9 +383,12 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    // inside one cadence section the ranks are all equal, so the rank
+    // only orders the merged Recurring section
     rows.sort_by(|a, b| {
         a.block
             .cmp(&b.block)
+            .then(a.rank.cmp(&b.rank))
             .then_with(|| match (&a.time, &b.time) {
                 (None, None) => std::cmp::Ordering::Equal,
                 (None, Some(_)) => std::cmp::Ordering::Greater,
@@ -385,12 +404,20 @@ fn day_payload(conn: &Connection, today: &str, config: &AppConfig) -> Result<Wid
         .cadence_group_order
         .iter()
         .map(String::as_str)
-        .filter(|k| CADENCE_LABELS.iter().any(|(key, _)| key == k))
+        .filter(|k| *k != "recurring" && CADENCE_LABELS.iter().any(|(key, _)| key == k))
         .collect();
     for (key, _) in CADENCE_LABELS {
-        if !order.contains(key) {
+        if !order.contains(key) && *key != "recurring" {
             order.push(key);
         }
+    }
+    // `day_sections: recurring`: one Recurring section where the first
+    // rule cadence stands
+    if recurring {
+        if let Some(at) = order.iter().position(|k| RECURRING_KEYS.contains(k)) {
+            order[at] = "recurring";
+        }
+        order.retain(|k| !RECURRING_KEYS.contains(k));
     }
     order.extend(CLOSED_LABELS.iter().map(|(key, _)| *key));
     // the chip colour alternates by category block counted down the
@@ -690,6 +717,63 @@ mod tests {
             .collect();
         assert!(!all.contains(&closed));
         assert!(!all.contains(&tomorrow));
+    }
+
+    #[test]
+    fn recurring_day_sections_merge_the_cadences_by_category_then_cadence() {
+        let conn = conn();
+        let rule = |title: &str, cadence: &str| {
+            let id = task_create(
+                &conn,
+                &NewTask {
+                    title: title.into(),
+                    scheduled_date: Some("2026-10-20".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .id;
+            conn.execute(
+                "UPDATE tasks SET origin = 'recurring', cadence = ?2 WHERE id = ?1",
+                rusqlite::params![id, cadence],
+            )
+            .unwrap();
+            id
+        };
+        let yearly = rule("{Home} taxes", "yearly");
+        let daily = rule("{Home} dishes", "daily");
+        let weekly = rule("{Gym} legs", "weekly");
+        let monthly = rule("{Home} filters", "monthly");
+        let general = task_create(
+            &conn,
+            &NewTask {
+                title: "call back".into(),
+                scheduled_date: Some("2026-10-20".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .id;
+
+        let mut config = config(&["weekly", "general", "daily"]);
+        config.day_sections = "recurring".into();
+        let data: Value =
+            serde_json::from_str(&payload(&conn, "2026-10-20", &config).unwrap()).unwrap();
+        let sections = data["day"]["sections"].as_array().unwrap();
+        let labels: Vec<&str> = sections
+            .iter()
+            .map(|s| s["label"].as_str().unwrap())
+            .collect();
+        assert_eq!(labels, vec!["Recurring", "General"]);
+        assert!(sections[0]["color"].is_null());
+        let ids: Vec<i64> = sections[0]["tasks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["id"].as_i64().unwrap())
+            .collect();
+        assert_eq!(ids, vec![weekly, daily, monthly, yearly]);
+        assert_eq!(sections[1]["tasks"][0]["id"].as_i64().unwrap(), general);
     }
 
     #[test]
