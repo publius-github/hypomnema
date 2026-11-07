@@ -2,6 +2,12 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.127.0 - 2026-11-07
+
+Day columns can group by category instead of by cadence ("Day column sections" in Settings > Tasks on the desktop, "Day sections" on the phone). Exact date and General stay as they are, and every rule's task goes into one Recurring section, which sits where the first cadence sits in the section order. Inside it the tasks are grouped by category, and inside a category they run daily, weekly, monthly, then yearly. Each one has a [DAILY], [WEEKLY], [MONTHLY] or [YEARLY] badge before its weekday marker; a daily rule's [EVERYDAY] is left off, since [DAILY] already says so. The badges wear the cadence colors the sections' plates had; `cadence_badge_colors: false` in colors.yml makes them muted like the weekday marker. The setting is shared by your devices through cards.yml, and the home-screen widget lays the day out the same way.
+
+Notes: saving a note quickly twice could stack a second "Created / Last edited" header on top of the first. It no longer does.
+
 ## 0.126.1 - 2026-11-01
 
 Subtasks can be sorted alphabetically by title ("Sort subtasks alphabetically" in Settings > Tasks, on the desktop and the phone): timed subtasks still lead, and with the setting off they keep the order they were added in. It applies to the desktop card, the task dialog and the phone, and is shared by your devices through cards.yml.
