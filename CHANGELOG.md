@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.127.3 - 2026-11-08
+
+Dependency updates. The app no longer carries the old zip library behind several security advisories, a critical one among them: the updater and the vault export both use zip 9 now. The Tauri dialog, notification and updater plugins, the CodeMirror editor and the Markdown preview are on their latest versions.
+
 ## 0.127.2 - 2026-11-07
 
 Day columns grouped by category: the recurring tasks without a category, at the top of the Recurring section, have a muted "No category" header of their own, so they no longer look like a block that lost its label.
