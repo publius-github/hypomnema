@@ -49,7 +49,7 @@ tauri-plugin-opener = "2.5.5"
 diffy = "0.4"
 # Writes the vault export archive. Deflate only, through the pure-Rust
 # backend, so the Android cross-compile stays free of native deps.
-zip = { version = "4", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 # The Google refresh token goes into the OS credential store on Windows;
 # keyring-core is the store-agnostic API (and its mock store the test
 # double), the Windows store below is the only backend this app ships.
