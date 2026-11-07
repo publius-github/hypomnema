@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.127.1 - 2026-11-07
+
+Notes search shows where the match is. A result opens its note scrolled to the match, with the match selected: from the Notes sidebar, the search palette (Ctrl+K), a backlink under a note, and the phone's note search and global search. On the desktop the editor's search panel also opens on the query, with every occurrence highlighted, and Enter or F3 goes to the next one. In a long note that is where the search really pays off.
+
 ## 0.127.0 - 2026-11-07
 
 Day columns can group by category instead of by cadence ("Day column sections" in Settings > Tasks on the desktop, "Day sections" on the phone). Exact date and General stay as they are, and every rule's task goes into one Recurring section, which sits where the first cadence sits in the section order. Inside it the tasks are grouped by category, and inside a category they run daily, weekly, monthly, then yearly. Each one has a [DAILY], [WEEKLY], [MONTHLY] or [YEARLY] badge before its weekday marker; a daily rule's [EVERYDAY] is left off, since [DAILY] already says so. The badges wear the cadence colors the sections' plates had; `cadence_badge_colors: false` in colors.yml makes them muted like the weekday marker. The setting is shared by your devices through cards.yml, and the home-screen widget lays the day out the same way.
