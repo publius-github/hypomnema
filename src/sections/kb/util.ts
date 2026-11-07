@@ -102,6 +102,18 @@ export function settleSave(
 ): { content: string; base: string } {
   if (written === sent) return { content: current, base: sent };
   if (current === sent) return { content: written, base: written };
+  // the save only stamped the header: it goes over whatever header the
+  // shown text has now. A save queued before the previous one's stamp
+  // reached the editor was sent bare while the editor already shows a
+  // header, and carrying the written head over by suffix would put a
+  // second header on top of the first
+  const writtenAt = noteBodyOffset(written);
+  if (writtenAt > 0 && written.slice(writtenAt) === sent.slice(noteBodyOffset(sent))) {
+    return {
+      content: written.slice(0, writtenAt) + current.slice(noteBodyOffset(current)),
+      base: written,
+    };
+  }
   const rebased = rebaseStamp(sent, written, current);
   if (rebased !== null) return { content: rebased, base: written };
   // typed into the part that changed: keep the typing; the next save

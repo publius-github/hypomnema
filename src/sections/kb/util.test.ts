@@ -59,6 +59,30 @@ describe("settleSave", () => {
     });
   });
 
+  it("does not stack a header on one the editor already shows", () => {
+    // save B was queued bare before save A's stamp reached the editor
+    const first = header("2026-11-03 00:37", "2026-11-03 00:38");
+    const sent = "Tremendous\nEnsues";
+    const shown = first + sent;
+    expect(settleSave(sent, first + sent, shown)).toEqual({
+      content: first + sent,
+      base: first + sent,
+    });
+    const later = header("2026-11-03 00:37", "2026-11-03 00:39");
+    expect(settleSave(sent, later + sent, shown + "\nPersuaded")).toEqual({
+      content: later + sent + "\nPersuaded",
+      base: later + sent,
+    });
+  });
+
+  it("puts the first stamp over a bare note typed on meanwhile", () => {
+    const stamp = header("2026-11-03 00:37", "2026-11-03 00:37");
+    expect(settleSave("a", stamp + "a", "ab")).toEqual({
+      content: stamp + "ab",
+      base: stamp + "a",
+    });
+  });
+
   it("keeps typing it cannot rebase, measured against what was sent", () => {
     expect(settleSave("a\nb", "a\nX", "A\nb")).toEqual({
       content: "A\nb",
