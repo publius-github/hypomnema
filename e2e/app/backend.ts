@@ -132,6 +132,12 @@ function seed() {
     "# Welcome\n\nNotes are plain Markdown files. Link them with [[Ideas]].\n",
   );
   state.notes.set("Ideas.md", "# Ideas\n\n- a calmer weekly review\n");
+  // a note too long to find a word in by eye, for the search jump
+  if (params.has("longnote")) {
+    const filler = Array.from({ length: 300 }, (_, i) => `Line ${i + 1} of filler.`);
+    filler.splice(240, 0, "The buried treasure is here.");
+    state.notes.set("Long.md", `# Long\n\n${filler.join("\n")}\n`);
+  }
   state.journal.set(isoDate(-1), "Shipped the first public build.\n");
   // an earlier month and an earlier year, for the folding entry index
   state.journal.set(isoDate(-40), "A slow week.\n");
@@ -422,7 +428,24 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
     return String(a.path);
   },
   kb_backlinks: () => ({ links: [], mentions: [], journal: [], tasks: [] }),
-  kb_search: () => [],
+  // the core's search: the first matching line of each note
+  kb_search: (a) => {
+    const query = String(a.query).trim().toLowerCase();
+    if (!query) return [];
+    return [...state.notes.entries()].sort().flatMap(([path, content]) => {
+      const lines = content.split("\n");
+      const index = lines.findIndex((l) => l.toLowerCase().includes(query));
+      if (index < 0) return [];
+      return [
+        {
+          path,
+          name: path.split("/").pop() ?? path,
+          line: index + 1,
+          preview: lines[index].trim().slice(0, 120),
+        },
+      ];
+    });
+  },
 
   // sync, backups, about
   google_status: () =>

@@ -16,6 +16,7 @@ import {
 } from "./util";
 import SaveIndicator from "../../components/SaveIndicator";
 import { errorMessage } from "../../lib/ipc";
+import type { Reveal } from "../../lib/reveal";
 
 /**
  * Collapsible backlinks strip under the editor: notes whose [[wiki
@@ -27,6 +28,9 @@ function BacklinksPanel({ path }: { path: string }) {
   const [data, setData] = useState<BacklinksResult | null>(null);
   const [open, setOpen] = useState(false);
   const [openTask, setOpenTask] = useState<Task | null>(null);
+  // what the other notes call this one: its file name without the
+  // extension, as kb::backlinks matches it
+  const name = (path.split("/").pop() ?? path).replace(/\.[^.]+$/, "");
 
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +65,10 @@ function BacklinksPanel({ path }: { path: string }) {
     <button
       key={hit.path}
       className="block w-full rounded-sm px-2 py-1 text-left hover:bg-line/40"
-      onClick={() => useAppStore.getState().openKbNote(hit.path)}
+      // opens on the line that links or mentions this note
+      onClick={() =>
+        useAppStore.getState().openKbNote(hit.path, { query: name, line: hit.line })
+      }
     >
       <span className="block truncate text-sm text-content">{hit.name}</span>
       <span className="block truncate text-[0.6875rem] text-content-muted">
@@ -161,6 +168,7 @@ export default function EditorPane({
   configErrors,
   lineNumbers,
   onChange,
+  reveal,
 }: {
   current: OpenDoc;
   saveState: SaveState;
@@ -168,6 +176,8 @@ export default function EditorPane({
   configErrors: { line: number | null; message: string }[];
   lineNumbers: boolean;
   onChange: (content: string) => void;
+  /** a search hit to scroll the note to */
+  reveal: Reveal | null;
 }) {
   return (
     <>
@@ -201,6 +211,7 @@ export default function EditorPane({
               current.kind === "note" ? noteBodyOffset(current.content) : 0
             }
             onChange={onChange}
+            reveal={current.kind === "note" ? reveal : null}
             mode={editorModeFor(current.path)}
             showLineNumbers={
               (current.kind === "config" && !current.path.endsWith(".md")) ||

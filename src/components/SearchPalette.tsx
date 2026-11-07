@@ -83,7 +83,9 @@ export default function SearchPalette({ onClose }: { onClose: () => void }) {
     if (row.kind === "task") {
       setSelected(row.task);
     } else if (row.kind === "note") {
-      useAppStore.getState().openKbNote(row.hit.path);
+      useAppStore
+        .getState()
+        .openKbNote(row.hit.path, { query, line: row.hit.line });
       onClose();
     } else {
       useAppStore.getState().openJournalDate(row.hit.date);

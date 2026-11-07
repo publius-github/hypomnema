@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import { errorMessage, invoke } from "../lib/ipc";
 import type { KbNode, Section } from "../types";
+import type { Reveal } from "../lib/reveal";
 import type { AppState } from "../store";
 
 /** Where the window is: the open section, page offsets that survive a
@@ -33,7 +34,9 @@ export interface NavigationSlice {
   setKbCurrent: (doc: { kind: "note" | "config"; path: string } | null) => void;
   /// set to jump to Notes with a note opened (search palette)
   kbOpenNote: string | null;
-  openKbNote: (path: string) => void;
+  /// the search hit to scroll to in that note, taken with it
+  kbOpenReveal: Reveal | null;
+  openKbNote: (path: string, reveal?: Reveal) => void;
   /// resolves a [[wiki link]] name to a note file and opens it
   openKbNoteByName: (name: string) => Promise<void>;
   /// set to jump to Journal with a date opened (search palette)
@@ -80,7 +83,8 @@ export const createNavigationSlice: StateCreator<
   kbCurrent: null,
   setKbCurrent: (doc) => set({ kbCurrent: doc }),
   kbOpenNote: null,
-  openKbNote: (path) =>
+  kbOpenReveal: null,
+  openKbNote: (path, reveal) =>
     set((s) => {
       // expand every parent folder so the tree shows the opened note
       const parts = path.split("/");
@@ -90,6 +94,7 @@ export const createNavigationSlice: StateCreator<
       return {
         section: "kb",
         kbOpenNote: path,
+        kbOpenReveal: reveal ?? null,
         kbExpanded: [...new Set([...s.kbExpanded, ...parents])],
       };
     }),

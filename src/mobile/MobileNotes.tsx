@@ -24,11 +24,18 @@ import ScrollThumb, { type ScrollMemory } from "./ScrollThumb";
 import { ConfirmModal } from "../components/dialogs";
 import Icon, { type IconName } from "../components/icons";
 import type { BacklinksResult, KbNode, KbSearchHit, KbStatus } from "../types";
+import type { Reveal } from "../lib/reveal";
 import { AUTOSAVE_DELAY_MS, useAutosave } from "../hooks/useAutosave";
 
 const MarkdownEditor = lazy(() => import("../components/MarkdownEditor"));
 
-type Open = { kind: "note" | "config"; path: string; content: string };
+type Open = {
+  kind: "note" | "config";
+  path: string;
+  content: string;
+  /** the search hit the reading view opens on */
+  reveal?: Reveal;
+};
 
 /**
  * Notes: browse, read, write.
@@ -132,9 +139,11 @@ export default function MobileNotes() {
   }, [note]);
 
   const openPath = useCallback(
-    (path: string) => {
+    (path: string, reveal?: Reveal) => {
+      // the hit decides where the note opens, not where it was left
+      if (reveal) session.scroll.delete(`read:note:${path}`);
       void invoke("kb_read", { path })
-        .then((content) => setNote({ kind: "note", path, content }))
+        .then((content) => setNote({ kind: "note", path, content, reveal }))
         .catch((e) => setError(errorMessage(e)));
     },
     [setError],
@@ -171,8 +180,8 @@ export default function MobileNotes() {
   const kbOpenNote = useAppStore((s) => s.kbOpenNote);
   useEffect(() => {
     if (!kbOpenNote) return;
-    openPath(kbOpenNote);
-    useAppStore.setState({ kbOpenNote: null });
+    openPath(kbOpenNote, useAppStore.getState().kbOpenReveal ?? undefined);
+    useAppStore.setState({ kbOpenNote: null, kbOpenReveal: null });
   }, [kbOpenNote, openPath]);
 
   if (note) {
@@ -285,7 +294,9 @@ export default function MobileNotes() {
               className="border-b border-line/60"
             >
               <button
-                onClick={() => openPath(hit.path)}
+                onClick={() =>
+                  openPath(hit.path, { query: query.trim(), line: hit.line })
+                }
                 className="w-full px-4 py-3 text-left"
               >
                 <span className="block wrap-break-word">{hit.name}</span>
@@ -460,6 +471,9 @@ function NoteEditor({
   // a config file opens in the reading view too: its YAML is coloured
   // there as on the desktop, and the keyboard comes up only on Edit
   const [editing, setEditing] = useState(false);
+  // the hit is shown once: back in the reading view after an edit the
+  // note does not jump to it again
+  const [reveal, setReveal] = useState(note.reveal ?? null);
   const [backlinks, setBacklinks] = useState<BacklinksResult | null>(null);
   const [showBacklinks, setShowBacklinks] = useState(false);
   useBackStep(showBacklinks, () => setShowBacklinks(false));
@@ -599,7 +613,10 @@ function NoteEditor({
           </span>
         )}
         <button
-          onClick={() => setEditing((v) => !v)}
+          onClick={() => {
+            setReveal(null);
+            setEditing((v) => !v);
+          }}
           className="px-2 text-sm text-accent"
         >
           {editing ? "Read" : "Edit"}
@@ -661,6 +678,7 @@ function NoteEditor({
               onChange={() => {}}
               mode={mode}
               onWikiLink={onOpen}
+              reveal={reveal}
             />
           </Suspense>
         </ScrollThumb>

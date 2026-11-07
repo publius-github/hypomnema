@@ -22,7 +22,11 @@ import {
   indentLess,
   indentMore,
 } from "@codemirror/commands";
-import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
+import {
+  highlightSelectionMatches,
+  openSearchPanel,
+  searchKeymap,
+} from "@codemirror/search";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
@@ -40,6 +44,7 @@ import { lintMarkdown } from "../lib/markdownLint";
 import { formatTableBlock, isTableLine } from "../lib/markdownTable";
 import { urlAt } from "../lib/links";
 import { wikiTargetAt } from "../lib/wiki";
+import { revealRange, type Reveal } from "../lib/reveal";
 import { useAppStore } from "../store";
 
 export type EditorMode = "markdown" | "yaml" | "plain";
@@ -433,6 +438,7 @@ export default function MarkdownEditor({
   onWikiLink,
   label,
   readOnly = false,
+  reveal = null,
 }: {
   /** Identity of the document; changing it resets the editor state. */
   docKey: string;
@@ -452,6 +458,13 @@ export default function MarkdownEditor({
    * cursor to place. Fixed for the editor's life, like `mode`.
    */
   readOnly?: boolean;
+  /**
+   * A search hit to show: the editor scrolls its match to the middle and
+   * selects it (the other occurrences light up with it). An editable one
+   * also opens the search panel on the query, so Enter / F3 walk on to
+   * the next match. A new object jumps again.
+   */
+  reveal?: Reveal | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -549,6 +562,26 @@ export default function MarkdownEditor({
     // recreate the editor only when the document identity changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docKey]);
+
+  // runs after the create effect above, so a reveal arriving with a new
+  // document lands in the new editor
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !reveal) return;
+    const range = revealRange(
+      view.state.doc.toString(),
+      reveal.query,
+      reveal.line,
+    );
+    if (!range) return;
+    view.dispatch({
+      selection: { anchor: range.from, head: range.to },
+      effects: EditorView.scrollIntoView(range.from, { y: "center" }),
+    });
+    // the panel takes its query from the selection just made
+    if (!readOnly) openSearchPanel(view);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal, docKey]);
 
   // External reload of the same document (e.g. the file changed on
   // disk, or a save stamped the note's header): update the doc in place -

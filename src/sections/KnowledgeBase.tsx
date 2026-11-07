@@ -21,6 +21,7 @@ import {
 import { AUTOSAVE_DELAY_MS, useAutosave } from "../hooks/useAutosave";
 
 import type { KbNode, KbSearchHit } from "../types";
+import type { Reveal } from "../lib/reveal";
 
 /**
  * Where `kb_rename` puts `node` given `to`: a file whose new name has no
@@ -165,7 +166,10 @@ export default function KnowledgeBase() {
   // two quick clicks race their reads: only the latest open may land
   const openSeq = useRef(0);
 
-  const openFile = async (path: string) => {
+  // the search hit the open note scrolls to; every open replaces it, so
+  // a later plain open does not jump
+  const [reveal, setReveal] = useState<Reveal | null>(null);
+  const openFile = async (path: string, jump: Reveal | null = null) => {
     const seq = ++openSeq.current;
     // an edit whose save failed would be lost to the first keystroke in
     // the next note: stay on it (the error and Retry are showing)
@@ -174,6 +178,7 @@ export default function KnowledgeBase() {
       const content = await invoke("kb_read", { path });
       if (seq !== openSeq.current) return;
       baseRef.current = { path, text: content };
+      setReveal(jump);
       setCurrent({ kind: "note", path, content });
       useAppStore.getState().setKbCurrent({ kind: "note", path });
       setConfigErrors([]);
@@ -499,8 +504,9 @@ export default function KnowledgeBase() {
   const kbOpenNote = useAppStore((s) => s.kbOpenNote);
   useEffect(() => {
     if (!kbOpenNote) return;
-    useAppStore.setState({ kbOpenNote: null });
-    void openFile(kbOpenNote);
+    const jump = useAppStore.getState().kbOpenReveal;
+    useAppStore.setState({ kbOpenNote: null, kbOpenReveal: null });
+    void openFile(kbOpenNote, jump);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kbOpenNote]);
 
@@ -565,7 +571,12 @@ export default function KnowledgeBase() {
     dragPaths,
     onDragStart,
     dropOnto,
-    openFile: (path) => void openFile(path),
+    // a file found by its name while the search also matched inside it
+    // opens on that match
+    openFile: (path) => {
+      const hit = query ? contentHits.find((h) => h.path === path) : undefined;
+      void openFile(path, hit ? { query, line: hit.line } : null);
+    },
     openMenu: (x, y, node) => setMenu({ x, y, node }),
     onNewNote: (dir) => setDialog({ kind: "create", dir }),
     onNewFolder: (dir) => setDialog({ kind: "createFolder", dir }),
@@ -652,7 +663,9 @@ export default function KnowledgeBase() {
                 <button
                   key={hit.path}
                   className="block w-full rounded-sm px-2 py-1 text-left hover:bg-line/40"
-                  onClick={() => void openFile(hit.path)}
+                  onClick={() =>
+                    void openFile(hit.path, { query, line: hit.line })
+                  }
                 >
                   <span className="block truncate text-sm text-content">
                     {hit.name}
@@ -742,6 +755,7 @@ export default function KnowledgeBase() {
             configErrors={configErrors}
             lineNumbers={config?.kb_line_numbers ?? false}
             onChange={scheduleSave}
+            reveal={reveal}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-content-muted">

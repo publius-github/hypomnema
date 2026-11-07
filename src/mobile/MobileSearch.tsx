@@ -61,8 +61,8 @@ export default function MobileSearch({ onClose }: { onClose: () => void }) {
     onClose();
   };
 
-  const openNote = (path: string) => {
-    useAppStore.getState().openKbNote(path);
+  const openNote = (path: string, line: number) => {
+    useAppStore.getState().openKbNote(path, { query, line });
     setTab("notes");
     onClose();
   };
@@ -133,7 +133,7 @@ export default function MobileSearch({ onClose }: { onClose: () => void }) {
         {notes.map((hit, index) => (
           <button
             key={`note-${hit.path}-${index}`}
-            onClick={() => openNote(hit.path)}
+            onClick={() => openNote(hit.path, hit.line)}
             className="w-full border-b border-line/60 px-4 py-3 text-left"
           >
             <span className="block wrap-break-word font-medium">{hit.name}</span>
