@@ -51,6 +51,33 @@ describe("layout breaks", () => {
   });
 });
 
+describe("layout headers", () => {
+  it("names the uncategorized block of a section with a blank header", () => {
+    const tasks = [
+      makeTask({ id: 1, title: "stretch" }),
+      makeTask({ id: 2, title: "{Home} dishes" }),
+    ];
+    const labelOf = (t: { title: string }) =>
+      t.title.startsWith("{Home}") ? "Home" : null;
+    const input = {
+      key: "recurring",
+      label: "Recurring",
+      color: null,
+      tone: null,
+      stripes: 0,
+      tasks,
+    };
+    const [named] = layout([{ ...input, blankHeader: "No category" }], labelOf);
+    expect(named.rows.map((r) => [r.header, r.headerBlank, r.label])).toEqual([
+      ["No category", true, null],
+      ["Home", false, "Home"],
+    ]);
+    // without one the uncategorized block stays unheaded
+    const [plain] = layout([input], labelOf);
+    expect(plain.rows.map((r) => r.header)).toEqual([null, "Home"]);
+  });
+});
+
 describe("checklistProgress", () => {
   const list: List = {
     id: 9,

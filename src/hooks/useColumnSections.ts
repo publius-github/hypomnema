@@ -31,6 +31,11 @@ export interface ColumnRow {
    * no category.
    */
   header: string | null;
+  /**
+   * The header names no category: the uncategorized block of a
+   * section that heads it (`blankHeader`), drawn muted
+   */
+  headerBlank: boolean;
   /** the row's category label, whether or not its block shows a header */
   label: string | null;
   /** the section groups its rows into category blocks */
@@ -59,6 +64,8 @@ export type SectionInput = Omit<ColumnSection, "rows"> & {
   gaps?: boolean;
   /** a Postponed / Done, waiting / Done / Dropped block */
   closed?: boolean;
+  /** header of the block of rows without a category; none = no header */
+  blankHeader?: string;
 };
 
 /**
@@ -75,7 +82,7 @@ export function layout(
     shown.flatMap((s) => s.tasks),
     labelOf,
   );
-  return shown.map(({ tasks, gaps = true, closed = false, ...section }, i) => ({
+  return shown.map(({ tasks, gaps = true, closed = false, blankHeader, ...section }, i) => ({
     ...section,
     // the wide break opens the closed blocks once; between two of them
     // it is an ordinary section break
@@ -85,12 +92,14 @@ export function layout(
       const label = labelOf(task);
       const opens = i === 0 || label !== labelOf(tasks[i - 1]);
       const gapBefore = gaps && i > 0 && opens;
+      const blank = label === null && blankHeader !== undefined;
       return {
         task,
         gapBefore,
         lineAbove: i === 0 || gapBefore,
         blockIndex: blockIndex.get(task.id) ?? 0,
-        header: gaps && opens ? label : null,
+        header: gaps && opens ? (blank ? blankHeader : label) : null,
+        headerBlank: blank,
         label,
         blocks: gaps,
       };
@@ -185,6 +194,9 @@ export function useDaySections(date: string): ColumnSection[] {
         tone: null,
         stripes: i > 0 ? LIST_GAP_STRIPES.section : 0,
         tasks: g.tasks,
+        // the merged Recurring section reads as category blocks only, so
+        // its uncategorized one is named too instead of looking unlabeled
+        ...(g.key === "recurring" ? { blankHeader: "No category" } : {}),
       })),
       // the day column's closed blocks run without category stripes
       ...closedSections(split, config, labelOf, false),

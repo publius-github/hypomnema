@@ -104,7 +104,7 @@ export default function SectionBlock({
 export function RowLead({ row }: { row: ColumnRow }) {
   const config = useAppStore((s) => s.config);
   const hue = useAppStore((s) =>
-    row.header
+    row.header && !row.headerBlank
       ? categoryChipColor(row.header, s.lists, s.config, row.blockIndex)
       : null,
   );
@@ -113,6 +113,12 @@ export function RowLead({ row }: { row: ColumnRow }) {
     <>
       {row.gapBefore && (
         <GapFill stripes={LIST_GAP_STRIPES.category} />
+      )}
+      {headers && row.header && row.headerBlank && (
+        // no category is not a category: muted, without a chip color
+        <div className="truncate px-2 pt-1 text-sm font-bold text-content-muted">
+          {row.header}
+        </div>
       )}
       {headers && row.header && hue && (
         <div
