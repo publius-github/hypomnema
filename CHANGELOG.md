@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.127.2 - 2026-11-07
+
+Day columns grouped by category: the recurring tasks without a category, at the top of the Recurring section, have a muted "No category" header of their own, so they no longer look like a block that lost its label.
+
 ## 0.127.1 - 2026-11-07
 
 Notes search shows where the match is. A result opens its note scrolled to the match, with the match selected: from the Notes sidebar, the search palette (Ctrl+K), a backlink under a note, and the phone's note search and global search. On the desktop the editor's search panel also opens on the query, with every occurrence highlighted, and Enter or F3 goes to the next one. In a long note that is where the search really pays off.
