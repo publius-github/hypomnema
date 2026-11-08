@@ -1109,6 +1109,9 @@ fn delete_done_subtasks_keeps_the_rest_and_undoes() {
 
     let restored = task_restore(&conn, &deleted).unwrap();
     assert_eq!(restored.len(), 2);
-    assert_eq!(task_get(&conn, tickets).unwrap().parent_task_id, Some(parent));
+    assert_eq!(
+        task_get(&conn, tickets).unwrap().parent_task_id,
+        Some(parent)
+    );
     assert_eq!(task_get(&conn, visa).unwrap().status, "done");
 }
