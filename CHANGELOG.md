@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.130.0 - 2026-11-08
+
+- With alphabetical sorting on, the tasks of a list that have a date now come first, the nearest date on top, and the rest follow alphabetically.
+
 ## 0.129.0 - 2026-11-08
 
 - A task's dialog gets a Delete checked button next to Subtasks: it removes every checked subtask of the task at once, leaving the open ones. Undo brings them back. On the phone it sits beside Uncheck all under the subtasks.
