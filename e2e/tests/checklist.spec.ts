@@ -205,3 +205,21 @@ test("one task's subtasks start over on their own, with Undo", async ({ app }) =
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(reset).toBeVisible();
 });
+
+test("a task's checked subtasks are deleted from its dialog, with Undo", async ({ app }) => {
+  const page = await app();
+  const plan = page.locator(".group", { has: page.getByText("Plan the week", { exact: true }) }).first();
+  await plan.getByText("Plan the week", { exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const clear = dialog.getByRole("button", { name: "Delete checked" });
+  // nothing checked yet: nothing to clear
+  await expect(clear).toHaveCount(0);
+  const agenda = dialog.getByRole("checkbox", { name: "Done: Draft the agenda" });
+  await agenda.click();
+  await clear.click();
+  await expect(page.getByText('Deleted 1 checked subtask of "Plan the week"')).toBeVisible();
+  await expect(agenda).toHaveCount(0);
+  await expect(clear).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(agenda).toBeChecked();
+});

@@ -1087,3 +1087,28 @@ fn uncheck_subtasks_in_a_todo_list_leaves_the_parent_alone() {
     assert_eq!(task_get(&conn, step).unwrap().status, "todo");
     assert_eq!(task_get(&conn, parent).unwrap().status, "done");
 }
+
+#[test]
+fn delete_done_subtasks_keeps_the_rest_and_undoes() {
+    let conn = conn();
+    let list = list_create(&conn, "Inbox", None, false).unwrap();
+    let parent = in_list(&conn, list.id, "trip");
+    let tickets = child(&conn, parent, "tickets");
+    let visa = child(&conn, parent, "visa");
+    let hotel = child(&conn, parent, "hotel");
+    set_status(&conn, tickets, "done");
+    set_status(&conn, visa, "done");
+    set_status(&conn, hotel, "postponed");
+
+    let deleted = task_delete_done_subtasks(&conn, parent).unwrap();
+    assert_eq!(deleted.tasks.len(), 2);
+    assert!(task_get(&conn, tickets).is_err());
+    assert!(task_get(&conn, visa).is_err());
+    assert_eq!(task_get(&conn, hotel).unwrap().status, "postponed");
+    assert_eq!(task_get(&conn, parent).unwrap().status, "todo");
+
+    let restored = task_restore(&conn, &deleted).unwrap();
+    assert_eq!(restored.len(), 2);
+    assert_eq!(task_get(&conn, tickets).unwrap().parent_task_id, Some(parent));
+    assert_eq!(task_get(&conn, visa).unwrap().status, "done");
+}

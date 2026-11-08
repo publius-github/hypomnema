@@ -1144,6 +1144,33 @@ pub fn task_delete(conn: &Connection, id: i64) -> Result<DeletedTasks> {
     })
 }
 
+/// Deletes one task's checked (done) subtasks - the clean-up of a
+/// worked-through step list, where `task_uncheck_subtasks` is its reset.
+/// Open, postponed and dropped subtasks and the parent stay. Hard delete
+/// like `task_delete`; returns the rows for Undo through `task_restore`
+/// (the parent is live, so each row goes back under it).
+pub fn task_delete_done_subtasks(conn: &Connection, id: i64) -> Result<DeletedTasks> {
+    let tx = conn.unchecked_transaction()?;
+    let rows = tx
+        .prepare(
+            "SELECT * FROM tasks
+             WHERE parent_task_id = ?1 AND archived_at IS NULL AND status = 'done'
+             ORDER BY id",
+        )?
+        .query_map([id], row_to_task)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    tx.execute(
+        "DELETE FROM tasks
+         WHERE parent_task_id = ?1 AND archived_at IS NULL AND status = 'done'",
+        [id],
+    )?;
+    tx.commit()?;
+    Ok(DeletedTasks {
+        tasks: rows,
+        rule_run: None,
+    })
+}
+
 /// Puts a just-deleted task (with its subtasks) back - the Undo of
 /// `task_delete`. Original ids are kept while still free; an occupied id
 /// gets a fresh one, with subtask parent links remapped. When the engine

@@ -191,6 +191,7 @@ export interface Commands {
   sync_standing: { args: void; result: SyncStanding };
   task_create: { args: { new: NewTask }; result: Task };
   task_delete: { args: { id: number }; result: DeletedTasks };
+  task_delete_done_subtasks: { args: { id: number }; result: DeletedTasks };
   task_get: { args: { id: number }; result: Task };
   task_restore: { args: { deleted: DeletedTasks }; result: Task[] };
   task_update: { args: { id: number; patch: TaskPatch }; result: Task };

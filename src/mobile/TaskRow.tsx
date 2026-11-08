@@ -488,6 +488,17 @@ export default function TaskRow({
                     Uncheck all
                   </button>
                 )}
+                {subtasks.some((s) => s.status === "done") && (
+                  <button
+                    onClick={() =>
+                      void useAppStore.getState().deleteDoneSubtasks(task.id)
+                    }
+                    className="flex min-h-10 shrink-0 items-center gap-2 px-2 text-sm text-content-muted"
+                  >
+                    <Icon name="trash" className="h-4 w-4 shrink-0" />
+                    Delete checked
+                  </button>
+                )}
               </div>
             )}
           </li>

@@ -65,6 +65,8 @@ export interface TasksSlice {
   /// unchecks one task's subtasks (the per-task reset); Undo offers
   /// them back
   uncheckSubtasks: (id: number) => Promise<void>;
+  /// deletes one task's checked subtasks; Undo offers them back
+  deleteDoneSubtasks: (id: number) => Promise<void>;
   toggleHideChecked: (id: number) => void;
   createGroup: (name: string) => Promise<void>;
   updateGroupMeta: (
@@ -444,6 +446,25 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
           kind: "statuses",
           label: `Unchecked ${count} ${count === 1 ? "subtask" : "subtasks"} of "${title}"`,
           states: previous,
+        });
+      }
+    } catch (e) {
+      set({ error: errorMessage(e) });
+    }
+  },
+
+  deleteDoneSubtasks: async (id) => {
+    try {
+      const deleted = await invoke("task_delete_done_subtasks", { id });
+      const gone = new Set(deleted.tasks.map((t) => t.id));
+      set((s) => ({ tasks: s.tasks.filter((t) => !gone.has(t.id)) }));
+      const count = deleted.tasks.length;
+      if (count > 0) {
+        const title = get().tasks.find((t) => t.id === id)?.title ?? "task";
+        get().offerUndo({
+          kind: "task",
+          label: `Deleted ${count} checked ${count === 1 ? "subtask" : "subtasks"} of "${title}"`,
+          deleted,
         });
       }
     } catch (e) {

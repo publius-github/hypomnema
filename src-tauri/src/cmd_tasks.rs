@@ -241,6 +241,16 @@ pub(crate) async fn task_delete(
 }
 
 #[tauri::command]
+pub(crate) async fn task_delete_done_subtasks(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<tasks::DeletedTasks> {
+    let deleted = with_conn(&state, |conn| tasks::task_delete_done_subtasks(conn, id))?;
+    state.request_export();
+    Ok(deleted)
+}
+
+#[tauri::command]
 pub(crate) async fn task_restore(
     state: State<'_, AppState>,
     deleted: tasks::DeletedTasks,

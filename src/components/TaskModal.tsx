@@ -431,7 +431,21 @@ export default function TaskModal({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-content-muted">Subtasks</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-content-muted">Subtasks</span>
+            {/* clears a worked-through step list; Undo brings it back */}
+            {subtasks.some((s) => s.status === "done") && (
+              <button
+                className="text-xs text-content-muted hover:text-danger"
+                title="Delete the checked subtasks (Undo brings them back)"
+                onClick={() =>
+                  void useAppStore.getState().deleteDoneSubtasks(task.id)
+                }
+              >
+                Delete checked
+              </button>
+            )}
+          </div>
           {/* the add field sits above the rows: with a long subtask
               list it stays in view instead of scrolling away. It grows
               with the text, so a long subtask is written in full view

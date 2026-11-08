@@ -267,6 +267,11 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
     state.tasks = state.tasks.filter((t) => !removed.includes(t));
     return { tasks: removed, rule_run: null };
   },
+  task_delete_done_subtasks: (a) => {
+    const removed = state.tasks.filter((t) => t.parent_task_id === a.id && t.status === "done");
+    state.tasks = state.tasks.filter((t) => !removed.includes(t));
+    return { tasks: removed, rule_run: null };
+  },
   task_restore: (a) => {
     const back = (a.deleted as { tasks: Task[] }).tasks.map((t) => {
       // a list gone meanwhile is cleared, as the core does
