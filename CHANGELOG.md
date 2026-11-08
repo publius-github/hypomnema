@@ -2,6 +2,12 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.128.0 - 2026-11-08
+
+Checklists have a page of their own: a new Checklists entry in the left bar, right under Lists. The Lists page and the dashboard's list panel now hold only todo lists, and the checklists - the things you pack or check again and again - live on Checklists, where "+ New checklist" makes one straight away. A group shows on each page with its own kind of list, and an empty group shows on both. Switching a list between todo list and checklist in its settings moves it to the other page. If you already reordered the left bar, Checklists still lands right under Lists, and it can be moved or hidden in Settings > General like any other page.
+
+On the phone the Lists tab has a Lists | Checklists switch at the top, and the screen remembers which side you were on.
+
 ## 0.127.3 - 2026-11-08
 
 Dependency updates. The app no longer carries the old zip library behind several security advisories, a critical one among them: the updater and the vault export both use zip 9 now. The Tauri dialog, notification and updater plugins, the CodeMirror editor and the Markdown preview are on their latest versions.
