@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import GroupModal from "./GroupModal";
-import type { ListGroup } from "../types";
+import type { List, ListGroup } from "../types";
 import { readable } from "../lib/color";
 
 /**
@@ -17,10 +17,13 @@ import { readable } from "../lib/color";
  */
 export default function GroupBackBar({
   group,
+  kind = "todo",
   onBack,
   className,
 }: {
   group: ListGroup;
+  /** the panel's kind of list, for the group dialog's member picker */
+  kind?: List["kind"];
   onBack: () => void;
   /** the host panel's own sizing/typography for the bar */
   className: string;
@@ -55,7 +58,7 @@ export default function GroupBackBar({
         ⋯
       </button>
       {detailsOpen && (
-        <GroupModal group={group} onClose={() => setDetailsOpen(false)} />
+        <GroupModal group={group} kind={kind} onClose={() => setDetailsOpen(false)} />
       )}
     </div>
   );

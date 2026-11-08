@@ -241,7 +241,7 @@ function GroupColumn({
         )}
       </div>
       {detailsOpen && (
-        <GroupModal group={group} onClose={() => setDetailsOpen(false)} />
+        <GroupModal group={group} kind={kind} onClose={() => setDetailsOpen(false)} />
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import type { IndexRow } from "../lib/tasks";
+import type { List } from "../types";
 import ListKindMark from "./ListKindMark";
 import ListModal from "./ListModal";
 import GroupModal from "./GroupModal";
@@ -43,13 +44,16 @@ export default function IndexRowLabel({
  */
 export function IndexRowSettings({
   row,
+  kind = "todo",
   onClose,
 }: {
   row: IndexRow;
+  /** the panel's kind of list, for a group dialog's member picker */
+  kind?: List["kind"];
   onClose: () => void;
 }) {
   return row.type === "group" ? (
-    <GroupModal group={row.group} onClose={onClose} />
+    <GroupModal group={row.group} kind={kind} onClose={onClose} />
   ) : (
     <ListModal list={row.list} onClose={onClose} />
   );

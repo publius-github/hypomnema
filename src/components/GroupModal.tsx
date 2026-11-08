@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "../store";
 import { OptionalColorField } from "./form";
 import { ConfirmModal } from "./dialogs";
-import type { ListGroup } from "../types";
+import type { List, ListGroup } from "../types";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 
 /**
@@ -10,12 +10,20 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
  * every active manual list with a checkbox - and delete, which releases
  * the member lists back to the panel. Membership toggles apply
  * immediately; name and color on Save, like the list dialog.
+ *
+ * Membership is edited per kind: opened from Lists (or the dashboard)
+ * the dialog offers the todo lists, from Checklists the checklists. A
+ * list joins a group of the other page only after its kind is switched
+ * in its own dialog; members of the other kind are counted, not listed.
  */
 export default function GroupModal({
   group,
+  kind = "todo",
   onClose,
 }: {
   group: ListGroup;
+  /** the page's kind of list: the only kind offered as members */
+  kind?: List["kind"];
   onClose: () => void;
 }) {
   const dialogRef = useDialogFocus();
@@ -52,13 +60,19 @@ export default function GroupModal({
   // panel's order: this is a picker over every list in the vault, and a
   // picker is read by looking for a name.
   const candidates = lists
-    .filter((l) => !l.auto)
+    .filter((l) => !l.auto && l.kind === kind)
     .sort((a, b) =>
       a.name.localeCompare(b.name, undefined, {
         sensitivity: "base",
         numeric: true,
       }),
     );
+
+  const noun = kind === "checklist" ? "checklist" : "list";
+  const otherNoun = kind === "checklist" ? "list" : "checklist";
+  const otherMembers = lists.filter(
+    (l) => l.group_id === group.id && l.kind !== kind,
+  ).length;
 
   return (
     <div
@@ -87,9 +101,11 @@ export default function GroupModal({
         <OptionalColorField value={color} onChange={setColor} />
 
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-content-muted">Lists in this group</span>
+          <span className="text-xs text-content-muted">
+            {kind === "checklist" ? "Checklists" : "Lists"} in this group
+          </span>
           {candidates.length === 0 && (
-            <span className="text-xs text-content-muted">No lists yet.</span>
+            <span className="text-xs text-content-muted">No {noun}s yet.</span>
           )}
           {candidates.map((list) => (
             <label
@@ -120,6 +136,13 @@ export default function GroupModal({
               )}
             </label>
           ))}
+          {otherMembers > 0 && (
+            <span className="text-xs text-content-muted">
+              Also holds {otherMembers} {otherNoun}
+              {otherMembers === 1 ? "" : "s"} - edited on the{" "}
+              {kind === "checklist" ? "Lists" : "Checklists"} page.
+            </span>
+          )}
         </div>
 
         <div className="flex items-center justify-between pt-1">

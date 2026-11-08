@@ -164,6 +164,32 @@ test("an empty group on a flat panel is reached from the index and deleted", asy
   await expect(row).toHaveCount(0);
 });
 
+test("a group's dialog offers only its page's kind of list", async ({ app }) => {
+  const page = await app();
+  await rail(page, "Lists").click();
+  // a narrow panel, so the All lists index shows
+  await page.getByRole("combobox", { name: "Lists" }).selectOption("2");
+  await page.getByRole("button", { name: "+ New group" }).click();
+  await page.getByPlaceholder("Group name").fill("_mixed");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "_mixed" }).click({ button: "right" });
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Lists in this group")).toBeVisible();
+  await expect(dialog.getByText("Work", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  // the empty group shows on Checklists too, where no todo list is offered
+  await rail(page, "Checklists").click();
+  await page.getByRole("button", { name: "+ New checklist" }).click();
+  await page.getByPlaceholder("Checklist name").fill("Packing");
+  await page.keyboard.press("Enter");
+  await page.getByRole("combobox", { name: "Checklists" }).selectOption("1");
+  await page.getByRole("button", { name: "_mixed" }).click({ button: "right" });
+  await expect(dialog.getByText("Checklists in this group")).toBeVisible();
+  await expect(dialog.getByText("Packing", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Work", { exact: true })).toHaveCount(0);
+});
+
 test("one task's subtasks start over on their own, with Undo", async ({ app }) => {
   const page = await app();
   const plan = page.locator(".group", { has: page.getByText("Plan the week", { exact: true }) }).first();

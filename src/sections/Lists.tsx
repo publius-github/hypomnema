@@ -154,6 +154,7 @@ export default function Lists({ kind = "todo" }: { kind?: List["kind"] }) {
           {openGroup ? (
             <GroupBackBar
               group={openGroup}
+              kind={kind}
               onBack={() => setOpenGroupId(null)}
               className="flex items-center gap-2 rounded-sm px-1 text-sm font-semibold"
             />
@@ -296,6 +297,7 @@ export default function Lists({ kind = "todo" }: { kind?: List["kind"] }) {
             {rowSettings && (
               <IndexRowSettings
                 row={rowSettings}
+                kind={kind}
                 onClose={() => setRowSettings(null)}
               />
             )}
