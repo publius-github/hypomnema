@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.128.2 - 2026-11-08
+
+- A group's settings now offer only the lists of the page they are opened from: todo lists on Lists and the dashboard, checklists on Checklists. To put a list into a group on the other page, switch its type in the list's settings first. Members of the other type are counted at the bottom of the dialog.
+
 ## 0.128.1 - 2026-11-08
 
 Settings: a setting could jump back to an older value - "Day column sections" returned to "A section per cadence" - when another setting was changed later from a copy of the settings that had missed the newer change. A change now saves only the setting it touches, so the others keep whatever was saved last.
