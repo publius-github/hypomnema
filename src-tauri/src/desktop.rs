@@ -40,7 +40,7 @@ pub(crate) fn show_capture(app: &AppHandle) {
 /// is in-app instead, so both get a no-op stub on mobile rather than
 /// touching every call site.
 #[cfg(desktop)]
-pub(crate) fn sync_global_shortcut(app: &AppHandle, config: &AppConfig) -> Option<String> {
+fn sync_global_shortcut(app: &AppHandle, config: &AppConfig) -> Option<String> {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
     let shortcuts = app.global_shortcut();
     let _ = shortcuts.unregister_all();
@@ -65,7 +65,7 @@ pub(crate) fn sync_global_shortcut(app: &AppHandle, config: &AppConfig) -> Optio
 /// Creates or removes the tray icon to match the config. Best effort:
 /// a platform without a tray must not take the app down.
 #[cfg(desktop)]
-pub(crate) fn sync_tray(app: &AppHandle, config: &AppConfig) {
+fn sync_tray(app: &AppHandle, config: &AppConfig) {
     if !config.tray_icon {
         let _ = app.remove_tray_by_id("main");
         return;
@@ -110,12 +110,47 @@ pub(crate) fn sync_tray(app: &AppHandle, config: &AppConfig) {
     }
 }
 
-/// Mobile stubs: no global shortcut / tray on Android, so every call
-/// site (config reload, vault open, initial setup) stays unchanged.
-#[cfg(mobile)]
-pub(crate) fn sync_global_shortcut(_app: &AppHandle, _config: &AppConfig) -> Option<String> {
-    None
+/// Applies the config's capture shortcut and tray icon on the main
+/// thread, then hands `done` the shortcut's error message (if any) -
+/// also on the main thread. Every caller goes through here, never
+/// straight to `sync_global_shortcut` / `sync_tray`.
+///
+/// Off the main thread the global-shortcut plugin locks its shortcut
+/// table and then waits for the main thread to (un)register the hotkey.
+/// The vault opening on an IPC worker did exactly that while the main
+/// thread, still in `setup`, asked for the same table: each waited for
+/// the other and the window hung on "Loading..." - only on the launches
+/// where the frontend's `vault_status` overtook `setup` (2026-11-08,
+/// read off a minidump). On the main thread the plugin's hop to the main
+/// thread runs inline, so nothing waits across threads; a call from the
+/// main thread itself (`setup`) runs here and now.
+#[cfg(desktop)]
+pub(crate) fn apply_shell(
+    app: &AppHandle,
+    config: &AppConfig,
+    done: impl FnOnce(&AppHandle, Option<String>) + Send + 'static,
+) {
+    let handle = app.clone();
+    let config = config.clone();
+    let task = move || {
+        let error = sync_global_shortcut(&handle, &config);
+        sync_tray(&handle, &config);
+        done(&handle, error);
+    };
+    if let Err(e) = app.run_on_main_thread(task) {
+        // the event loop is gone: the app is quitting, nothing to show
+        crate::applog::warn(format!("shortcut and tray not applied: {e}"));
+    }
 }
 
+/// Mobile: no global shortcut / tray on Android - only `done` runs, so
+/// every call site (config reload, vault open, initial setup) stays
+/// unchanged.
 #[cfg(mobile)]
-pub(crate) fn sync_tray(_app: &AppHandle, _config: &AppConfig) {}
+pub(crate) fn apply_shell(
+    app: &AppHandle,
+    _config: &AppConfig,
+    done: impl FnOnce(&AppHandle, Option<String>) + Send + 'static,
+) {
+    done(app, None);
+}

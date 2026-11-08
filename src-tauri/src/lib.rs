@@ -56,9 +56,9 @@ mod widget;
 use tauri::Manager;
 
 use config::AppConfig;
+use desktop::apply_shell;
 #[cfg(desktop)]
 use desktop::show_main;
-use desktop::{sync_global_shortcut, sync_tray};
 use state::{AppState, LockOrRecover};
 use watchers::start_export_worker;
 
@@ -126,10 +126,11 @@ pub fn run() {
             // shortcut and tray alive so capture works pre-vault too
             // (no-op on mobile, see the stubs above)
             let defaults = AppConfig::default();
-            if let Some(msg) = sync_global_shortcut(app.handle(), &defaults) {
-                applog::warn(msg);
-            }
-            sync_tray(app.handle(), &defaults);
+            apply_shell(app.handle(), &defaults, |_, error| {
+                if let Some(msg) = error {
+                    applog::warn(msg);
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| {

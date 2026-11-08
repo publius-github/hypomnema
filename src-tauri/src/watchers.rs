@@ -221,17 +221,19 @@ pub(crate) fn start_config_watcher(app: AppHandle, root: &Path) -> Result<()> {
                     message: msg,
                 });
             }
-            // a hand-edited app.yml can change the shortcut or tray too
-            if let Some(msg) = sync_global_shortcut(&app, &config) {
-                errors.push(config_files::ConfigError {
-                    file: "app.yml".into(),
-                    line: None,
-                    message: msg,
-                });
-            }
-            sync_tray(&app, &config);
             applog::set_max_kb(config.log_max_kb);
-            let _ = app.emit("vault-updated", errors);
+            // a hand-edited app.yml can change the shortcut or tray too;
+            // its error joins the others in the one banner update
+            apply_shell(&app, &config, move |app, error| {
+                if let Some(msg) = error {
+                    errors.push(config_files::ConfigError {
+                        file: "app.yml".into(),
+                        line: None,
+                        message: msg,
+                    });
+                }
+                let _ = app.emit("vault-updated", errors);
+            });
         }
     });
     Ok(())
@@ -421,10 +423,11 @@ pub(crate) fn open_vault(
     let config = vault.config.clone();
     *state.vault.lock_or_recover() = Some(vault);
     // the vault's config replaces the defaults the app started with
-    if let Some(msg) = sync_global_shortcut(app, &config) {
-        applog::warn(msg);
-    }
-    sync_tray(app, &config);
+    apply_shell(app, &config, |_, error| {
+        if let Some(msg) = error {
+            applog::warn(msg);
+        }
+    });
     applog::set_max_kb(config.log_max_kb);
     // Always rebind: re-selecting a vault must watch the NEW config dir.
     // Replacing the watcher drops the old one, which closes its channel

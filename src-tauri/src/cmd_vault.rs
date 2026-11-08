@@ -289,17 +289,18 @@ pub(crate) async fn config_update(
     };
     // shortcut and tray follow the config immediately; a registration
     // failure reaches the banner but never blocks the save
-    if let Some(msg) = sync_global_shortcut(&app, &saved) {
-        let _ = app.emit(
-            "vault-updated",
-            vec![config_files::ConfigError {
-                file: "app.yml".into(),
-                line: None,
-                message: msg,
-            }],
-        );
-    }
-    sync_tray(&app, &saved);
+    apply_shell(&app, &saved, |app, error| {
+        if let Some(msg) = error {
+            let _ = app.emit(
+                "vault-updated",
+                vec![config_files::ConfigError {
+                    file: "app.yml".into(),
+                    line: None,
+                    message: msg,
+                }],
+            );
+        }
+    });
     applog::set_max_kb(saved.log_max_kb);
     // the task mirror toggle takes effect immediately
     if mirror_now && !mirror_was {
