@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import {
   categoryBlockIndex,
   categoryOf,
+  compareListAlpha,
   compareTasks,
   cadenceColor,
   groupByCadence,
@@ -211,7 +212,8 @@ export function useDaySections(date: string): ColumnSection[] {
  * section a drag or Up/Down reorders), then the closed sections. The
  * backlog holds unscheduled tasks, priority pins and manual tasks
  * whatever their date; a generated task that already has its day lives
- * on that day. `lists_sort_alpha` sorts by title, timed tasks first.
+ * on that day. `lists_sort_alpha` puts the dated tasks first, by date,
+ * and the rest by title (`compareListAlpha`).
  * No list (a phone screen with none open) gives no sections.
  */
 export function useListSections(list: List | null): ColumnSection[] {
@@ -231,18 +233,7 @@ export function useListSections(list: List | null): ColumnSection[] {
     ? listTasks.filter((t) => (held.get(t.id) ?? t.status) !== "done")
     : listTasks;
   const alpha = config?.lists_sort_alpha ?? false;
-  const sorted = [...visible].sort((a, b) => {
-    if (alpha) {
-      if ((a.time === null) !== (b.time === null))
-        return a.time === null ? 1 : -1;
-      const byTitle = a.title.localeCompare(b.title, undefined, {
-        sensitivity: "base",
-        numeric: true,
-      });
-      if (byTitle !== 0) return byTitle;
-    }
-    return compareTasks(a, b);
-  });
+  const sorted = [...visible].sort(alpha ? compareListAlpha : compareTasks);
   const split = splitDone(sorted, config?.done_display ?? "inline", held);
   // inside a list the list is the column itself: only the {X} prefix
   // makes a category

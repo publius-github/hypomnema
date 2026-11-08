@@ -313,8 +313,8 @@ habit_rate_window: number,
 habit_rate_min_instances: number, 
 /**
  * Order the list columns alphabetically (favorites still come
- * first), and the tasks inside each list too (timed tasks still pin
- * to the top); off = manual creation and drag order.
+ * first), and the tasks inside each list too (dated tasks still pin
+ * to the top, by date); off = manual creation and drag order.
  */
 lists_sort_alpha: boolean, 
 /**

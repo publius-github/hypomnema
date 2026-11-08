@@ -876,6 +876,31 @@ export function currentAndNextBlock(
 }
 
 /**
+ * A list column's order under `lists_sort_alpha`: the tasks with a date
+ * lead, by date and then time (an untimed one after the timed ones of
+ * its day); the rest follow by title, a timed one still first. Ties
+ * fall back to the manual order.
+ */
+export function compareListAlpha(a: Task, b: Task): number {
+  const opts = { sensitivity: "base", numeric: true } as const;
+  if ((a.scheduled_date === null) !== (b.scheduled_date === null))
+    return a.scheduled_date === null ? 1 : -1;
+  if (a.scheduled_date !== null && b.scheduled_date !== null) {
+    if (a.scheduled_date !== b.scheduled_date)
+      return a.scheduled_date < b.scheduled_date ? -1 : 1;
+    if (a.time !== b.time) {
+      if (a.time === null) return 1;
+      if (b.time === null) return -1;
+      return a.time < b.time ? -1 : 1;
+    }
+  } else if ((a.time === null) !== (b.time === null)) {
+    return a.time === null ? 1 : -1;
+  }
+  const byTitle = a.title.localeCompare(b.title, undefined, opts);
+  return byTitle !== 0 ? byTitle : compareTasks(a, b);
+}
+
+/**
  * Alphabetical order for the Postponed / Done, waiting / Done / Dropped blocks
  * (`closed_sections_sort_alpha`): by category the way the open
  * sections group them (uncategorized first), then by the title text.

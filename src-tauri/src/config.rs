@@ -230,8 +230,8 @@ pub struct AppConfig {
     /// early miss does not read as 0%.
     pub habit_rate_min_instances: u32,
     /// Order the list columns alphabetically (favorites still come
-    /// first), and the tasks inside each list too (timed tasks still pin
-    /// to the top); off = manual creation and drag order.
+    /// first), and the tasks inside each list too (dated tasks still pin
+    /// to the top, by date); off = manual creation and drag order.
     pub lists_sort_alpha: bool,
     /// Grid columns on the dedicated Lists page.
     pub lists_page_columns: u32,

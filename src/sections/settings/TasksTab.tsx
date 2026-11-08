@@ -250,7 +250,7 @@ export default function TasksTab() {
         <Toggle
           checked={config.lists_sort_alpha}
           label="Sort lists and their tasks alphabetically"
-          hint="List columns order by name (favorites still first) and the tasks inside them by title (timed tasks still on top). Off = creation and drag order."
+          hint="List columns order by name (favorites still first) and the tasks inside them by title (dated tasks still on top, by date). Off = creation and drag order."
           onChange={(v) => void updateConfig({ lists_sort_alpha: v })}
         />
         <Field label="Task title lines in a list column (1 = one truncated line)">

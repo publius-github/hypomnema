@@ -20,6 +20,7 @@ import {
   orderPanel,
   priorityPatch,
   scopePanel,
+  compareListAlpha,
   sortClosedAlpha,
   sortSubtasks,
   splitCategory,
@@ -696,5 +697,19 @@ describe("a ~ name sinks to the bottom of the panel", () => {
         "~checklists",
       ]);
     }
+  });
+});
+
+describe("compareListAlpha", () => {
+  it("puts dated tasks first by date and time, then the rest by title", () => {
+    const sorted = [
+      task({ id: 1, title: "варикоз" }),
+      task({ id: 2, title: "Записаться", scheduled_date: "2026-11-18" }),
+      task({ id: 3, title: "Аптека", scheduled_date: "2026-11-20" }),
+      task({ id: 4, title: "Банк", scheduled_date: "2026-11-18", time: "09:00" }),
+      task({ id: 5, title: "Изжога" }),
+      task({ id: 6, title: "Будильник", time: "07:00" }),
+    ].sort(compareListAlpha);
+    expect(sorted.map((t) => t.id)).toEqual([4, 2, 3, 6, 1, 5]);
   });
 });
