@@ -189,7 +189,7 @@ pub fn run() {
             cmd_vault::vault_use_path,
             cmd_vault::vault_export,
             cmd_vault::config_get,
-            cmd_vault::config_set,
+            cmd_vault::config_update,
             cmd_vault::config_default,
             cmd_tasks::lists_all,
             cmd_tasks::list_create,

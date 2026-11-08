@@ -48,6 +48,10 @@ export interface VaultSlice {
   clearError: () => void;
 }
 
+// orders the answers of overlapping settings changes: only the newest
+// one's saved config replaces the page's copy
+let configSeq = 0;
+
 export const createVaultSlice: StateCreator<AppState, [], [], VaultSlice> = (
   set,
   get,
@@ -137,8 +141,18 @@ export const createVaultSlice: StateCreator<AppState, [], [], VaultSlice> = (
     const next = { ...current, ...patch };
     applyTheme(next);
     set({ config: next });
+    const seq = ++configSeq;
     try {
-      await invoke("config_set", { config: next });
+      // only the changed fields go: the core lays them over the config
+      // it holds, so whatever this window's copy missed (a change made
+      // elsewhere, a reload that raced a save) is not written back over
+      // the newer values
+      const saved = await invoke("config_update", { patch });
+      // a later change already in flight carries its own answer
+      if (seq === configSeq) {
+        applyTheme(saved);
+        set({ config: saved });
+      }
       // widening a day grid moves both the snapshot window and the
       // engine's generation horizon, so the new columns need a pass and
       // a refetch instead of waiting for the settings watcher

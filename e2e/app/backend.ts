@@ -229,8 +229,9 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
   config_get: () => state.config,
   config_default: () => defaultConfig,
   settings_backup: () => undefined,
-  config_set: (a) => {
-    state.config = a.config as AppConfig;
+  config_update: (a) => {
+    state.config = { ...state.config, ...(a.patch as Partial<AppConfig>) };
+    return state.config;
   },
   config_file_get: () => "",
   config_file_set: () => [],

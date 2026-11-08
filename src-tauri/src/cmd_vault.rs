@@ -241,16 +241,44 @@ pub(crate) async fn config_get(state: State<'_, AppState>) -> Result<AppConfig> 
         .ok_or_else(|| Error::NoVault)
 }
 
+/// The config `patch` laid over `current`: only the fields it names
+/// change. Unknown names are refused rather than dropped, so a typo or
+/// a field from another version cannot pass for a saved setting.
+pub(crate) fn patched_config(
+    current: &AppConfig,
+    patch: serde_json::Map<String, serde_json::Value>,
+) -> Result<AppConfig> {
+    let mut value =
+        serde_json::to_value(current).map_err(|e| Error::State(format!("settings: {e}")))?;
+    let fields = value
+        .as_object_mut()
+        .ok_or_else(|| Error::State("settings: not an object".into()))?;
+    for (key, field) in patch {
+        if !fields.contains_key(&key) {
+            return Err(Error::State(format!("unknown setting: {key}")));
+        }
+        fields.insert(key, field);
+    }
+    serde_json::from_value(value).map_err(|e| Error::State(format!("settings: {e}")))
+}
+
+/// Saves the settings a page changed. The page sends only those fields
+/// and they are laid over the config the core holds, never the page's
+/// whole copy: a window whose copy predates another change - a second
+/// window, a reload that raced the save, a file synced in from another
+/// device - would otherwise write its stale values for every other
+/// setting back over the newer ones. Returns the config as saved.
 #[tauri::command]
-pub(crate) async fn config_set(
+pub(crate) async fn config_update(
     app: AppHandle,
     state: State<'_, AppState>,
-    config: AppConfig,
-) -> Result<()> {
+    patch: serde_json::Map<String, serde_json::Value>,
+) -> Result<AppConfig> {
     let (root, mirror_was, mirror_now, saved) = {
         let mut guard = state.vault.lock_or_recover();
         let vault = guard.as_mut().ok_or_else(|| Error::NoVault)?;
         let was = vault.config.tasks_mirror;
+        let config = patched_config(&vault.config, patch)?;
         vault.save_config(config)?;
         (
             vault.root.clone(),
@@ -286,7 +314,7 @@ pub(crate) async fn config_set(
         // the files stay on disk but are no longer read or written
         *state.tasks_watcher.lock_or_recover() = None;
     }
-    Ok(())
+    Ok(saved)
 }
 
 /// Factory defaults - the frontend's only source of "is this field at
@@ -392,4 +420,36 @@ pub(crate) async fn log_reveal() -> Result<()> {
     }
     tauri_plugin_opener::reveal_item_in_dir(path)
         .map_err(|e| Error::State(format!("could not show the log: {e}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn patch(value: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+        value.as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn a_patch_changes_only_the_fields_it_names() {
+        // the core holds a newer change (day_sections) than the window
+        // that now changes something else
+        let current = AppConfig {
+            day_sections: "recurring".into(),
+            ..AppConfig::default()
+        };
+        let saved = patched_config(&current, patch(json!({ "grid_columns": 7 }))).unwrap();
+        assert_eq!(saved.grid_columns, 7);
+        assert_eq!(saved.day_sections, "recurring");
+        assert_eq!(saved.light, current.light);
+    }
+
+    #[test]
+    fn a_patch_naming_an_unknown_setting_is_refused() {
+        let err = patched_config(&AppConfig::default(), patch(json!({ "no_such": 1 })));
+        assert!(err.is_err());
+        let err = patched_config(&AppConfig::default(), patch(json!({ "grid_columns": "x" })));
+        assert!(err.is_err());
+    }
 }

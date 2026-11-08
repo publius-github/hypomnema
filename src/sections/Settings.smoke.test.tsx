@@ -38,7 +38,7 @@ import { dispatchCommands } from "../test/tauriMocks";
 
 /** A vault is open and the defaults are known. */
 function seed(patch: Partial<typeof defaultConfig> = {}) {
-  dispatchCommands(invokeMock, baseHandlers({ config_set: () => undefined }));
+  dispatchCommands(invokeMock, baseHandlers({ config_update: () => defaultConfig }));
   useAppStore.setState({
     vaultPath: "/test/vault",
     config: { ...defaultConfig, ...patch },
@@ -68,7 +68,7 @@ describe("Settings smoke", () => {
     dispatchCommands(
       invokeMock,
       baseHandlers({
-        config_set: () => undefined,
+        config_update: () => defaultConfig,
         google_status: () => ({
           available: true,
           signed_in: false,
@@ -146,16 +146,18 @@ describe("Settings smoke", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith(
-        "config_set",
+        "config_update",
         expect.objectContaining({
-          config: expect.objectContaining({
+          patch: expect.objectContaining({
             theme: defaultConfig.theme,
             ui_font: defaultConfig.ui_font,
-            kb_path: "D:/notes",
           }),
         }),
       ),
     );
+    // the notes folder is kept by leaving it out of the patch
+    const call = invokeMock.mock.calls.find(([cmd]) => cmd === "config_update");
+    expect(call?.[1]).not.toHaveProperty("patch.kb_path");
     expect(invokeMock).toHaveBeenCalledWith("settings_backup", undefined);
   });
 
@@ -166,7 +168,7 @@ describe("Settings smoke", () => {
     dispatchCommands(
       invokeMock,
       baseHandlers({
-        config_set: () => undefined,
+        config_update: () => defaultConfig,
         vault_select: () => defaultConfig,
         backups_list: () => ({ db: [], config: [] }),
         lists_archived: () => [],
@@ -199,9 +201,9 @@ describe("Settings smoke", () => {
     fireEvent.click(resets[0]);
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith(
-        "config_set",
+        "config_update",
         expect.objectContaining({
-          config: expect.objectContaining({
+          patch: expect.objectContaining({
             done_display: defaultConfig.done_display,
           }),
         }),
