@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.128.1 - 2026-11-08
+
+Settings: a setting could jump back to an older value - "Day column sections" returned to "A section per cadence" - when another setting was changed later from a copy of the settings that had missed the newer change. A change now saves only the setting it touches, so the others keep whatever was saved last.
+
 ## 0.128.0 - 2026-11-08
 
 Checklists have a page of their own: a new Checklists entry in the left bar, right under Lists. The Lists page and the dashboard's list panel now hold only todo lists, and the checklists - the things you pack or check again and again - live on Checklists, where "+ New checklist" makes one straight away. A group shows on each page with its own kind of list, and an empty group shows on both. Switching a list between todo list and checklist in its settings moves it to the other page. If you already reordered the left bar, Checklists still lands right under Lists, and it can be moved or hidden in Settings > General like any other page.
