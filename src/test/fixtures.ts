@@ -78,6 +78,7 @@ export const defaultConfig: AppConfig = {
   section_order: [
     "dashboard",
     "lists",
+    "checklists",
     "days",
     "upcoming",
     "reminders",

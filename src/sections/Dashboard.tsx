@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
 import { useEditingTask } from "../hooks/useEditingTask";
@@ -8,6 +8,7 @@ import {
   indexRows,
   orderLists,
   orderPanel,
+  scopePanel,
 } from "../lib/tasks";
 import type { IndexRow } from "../lib/tasks";
 import { useTaskDnd, DND_ACCESSIBILITY } from "../components/taskDnd";
@@ -310,8 +311,13 @@ function ListZone({
   setOffset: (n: number) => void;
   onOpenTask: (id: number) => void;
 }) {
-  const lists = useAppStore((s) => s.lists);
-  const groups = useAppStore((s) => s.groups);
+  // checklists have a page of their own: the zone holds the todo lists
+  const allLists = useAppStore((s) => s.lists);
+  const allGroups = useAppStore((s) => s.groups);
+  const { lists, groups } = useMemo(
+    () => scopePanel(allLists, allGroups, "todo"),
+    [allLists, allGroups],
+  );
   const tasks = useAppStore((s) => s.tasks);
   const listsAlpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   // "flat": grouped lists take their own columns wearing a group chip,

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
+import type { List } from "../types";
 
 /**
  * The panel rail's create affordance: a new list, or a new group.
@@ -9,7 +10,15 @@ import { useAppStore } from "../store";
  * third button moves a list that already exists into the group, so
  * filling a group does not mean leaving it first.
  */
-export default function NewListForm({ groupId }: { groupId?: number }) {
+export default function NewListForm({
+  groupId,
+  kind = "todo",
+}: {
+  groupId?: number;
+  /** what "+ New list" makes: the Checklists page makes checklists */
+  kind?: List["kind"];
+}) {
+  const noun = kind === "checklist" ? "checklist" : "list";
   const createList = useAppStore((s) => s.createList);
   const createGroup = useAppStore((s) => s.createGroup);
   const setListGroup = useAppStore((s) => s.setListGroup);
@@ -20,7 +29,7 @@ export default function NewListForm({ groupId }: { groupId?: number }) {
   const outsiders = useAppStore(
     useShallow((s) =>
       s.lists
-        .filter((l) => !l.auto && l.group_id !== groupId)
+        .filter((l) => !l.auto && l.group_id !== groupId && l.kind === kind)
         .sort((a, b) =>
           a.name.localeCompare(b.name, undefined, {
             sensitivity: "base",
@@ -43,7 +52,7 @@ export default function NewListForm({ groupId }: { groupId?: number }) {
           if (id && groupId !== undefined) void setListGroup(id, groupId);
         }}
       >
-        <option value="">Move a list in…</option>
+        <option value="">Move a {noun} in…</option>
         {outsiders.map((list) => (
           <option key={list.id} value={list.id}>
             {list.name}
@@ -61,7 +70,7 @@ export default function NewListForm({ groupId }: { groupId?: number }) {
           className="h-8 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
           onClick={() => setOpen("list")}
         >
-          + New list
+          + New {noun}
         </button>
         {groupId === undefined ? (
           <button
@@ -75,10 +84,10 @@ export default function NewListForm({ groupId }: { groupId?: number }) {
           outsiders.length > 0 && (
             <button
               className="h-8 rounded-lg border border-dashed border-line text-xs text-content-muted hover:border-accent hover:text-accent"
-              title="Move a list that already exists into this group"
+              title={`Move a ${noun} that already exists into this group`}
               onClick={() => setOpen("existing")}
             >
-              + Existing list
+              + Existing {noun}
             </button>
           )
         )}
@@ -92,7 +101,7 @@ export default function NewListForm({ groupId }: { groupId?: number }) {
       onSubmit={(e) => {
         e.preventDefault();
         if (name.trim()) {
-          if (open === "list") void createList(name.trim(), groupId);
+          if (open === "list") void createList(name.trim(), groupId, kind);
           else void createGroup(name.trim());
         }
         setName("");
@@ -101,7 +110,13 @@ export default function NewListForm({ groupId }: { groupId?: number }) {
     >
       <input
         className="input w-full text-xs"
-        placeholder={open === "list" ? "List name" : "Group name"}
+        placeholder={
+          open === "list"
+            ? kind === "checklist"
+              ? "Checklist name"
+              : "List name"
+            : "Group name"
+        }
         value={name}
         autoFocus
         onChange={(e) => setName(e.target.value)}

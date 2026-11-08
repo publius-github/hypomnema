@@ -1,6 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../store";
-import { orderGroups, orderLists, sinksInPanel } from "../lib/tasks";
+import {
+  orderGroups,
+  orderLists,
+  scopePanel,
+  sinksInPanel,
+} from "../lib/tasks";
 import { checklistProgress, useListSections } from "../hooks/useColumnSections";
 import ChecklistStrip from "../components/ChecklistStrip";
 import ListKindMark from "../components/ListKindMark";
@@ -11,6 +16,7 @@ import type { List } from "../types";
 import { readable } from "../lib/color";
 
 const FOLDED_KEY = "hypomnema.lists.foldedGroups";
+const SCOPE_KEY = "hypomnema.lists.scope";
 
 const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"];
 
@@ -46,6 +52,27 @@ export default function MobileLists() {
   // left the group screens unreachable on a vault that had none yet.
   const [newKind, setNewKind] = useState<"list" | "group">("list");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // which kind of list the screen is on: todo lists or checklists, the
+  // desktop's two pages behind one tab (remembered on this phone)
+  const [scope, setScopeState] = useState<List["kind"]>(() => {
+    try {
+      return localStorage.getItem(SCOPE_KEY) === "checklist"
+        ? "checklist"
+        : "todo";
+    } catch {
+      return "todo";
+    }
+  });
+  const setScope = (next: List["kind"]) => {
+    setScopeState(next);
+    try {
+      localStorage.setItem(SCOPE_KEY, next);
+    } catch {
+      // storage unavailable: the choice just lasts this session
+    }
+  };
+  const noun = scope === "checklist" ? "checklist" : "list";
+  const scopeTitle = scope === "checklist" ? "Checklists" : "Lists";
   // the open group's own settings fold, same shape as a list's
   const [groupSettings, setGroupSettings] = useState(false);
 
@@ -75,6 +102,12 @@ export default function MobileLists() {
   const active = useMemo(() => lists.filter((list) => !list.archived), [lists]);
   const current = active.find((list) => list.id === openId) ?? null;
   const currentGroup = groups.find((g) => g.id === groupId) ?? null;
+  // the index and a group's screen show the scope's kind only; an open
+  // list is looked up among all of them
+  const scoped = useMemo(
+    () => scopePanel(active, groups, scope),
+    [active, groups, scope],
+  );
 
   // hardware back retraces the screens: settings fold first, then the
   // open list, then the open group, then MobileApp's tab step takes over
@@ -100,6 +133,7 @@ export default function MobileLists() {
     if (!listOpen) return;
     const target = lists.find((l) => l.id === listOpen.id && !l.archived);
     if (target) {
+      setScopeState(target.kind);
       setGroupId(null);
       setGroupSettings(false);
       setSettingsOpen(false);
@@ -165,12 +199,12 @@ export default function MobileLists() {
   // the index, same as the desktop panel
   if (!current && currentGroup) {
     const members = orderLists(
-      active.filter((l) => l.group_id === currentGroup.id),
+      scoped.lists.filter((l) => l.group_id === currentGroup.id),
       tasks,
       alpha,
     );
     // alphabetical: a picker is read by looking for a name
-    const outsiders = active
+    const outsiders = scoped.lists
       .filter((l) => !l.auto && l.group_id !== currentGroup.id)
       .sort((a, b) =>
         a.name.localeCompare(b.name, undefined, {
@@ -188,7 +222,7 @@ export default function MobileLists() {
             }}
             className="px-2 py-1 text-content-muted"
           >
-            ‹ Lists
+            ‹ {scopeTitle}
           </button>
           <span className="flex min-w-0 flex-1 items-center gap-2 truncate font-semibold">
             {currentGroup.color && (
@@ -279,7 +313,7 @@ export default function MobileLists() {
         <ul className="min-h-0 flex-1 overflow-auto">
           {members.length === 0 && (
             <li className="flex flex-col items-center gap-3 px-4 py-8 text-center text-sm text-content-muted">
-              No lists in this group yet - add one below.
+              No {noun}s in this group yet - add one below.
               {/* an empty group's one other use: getting rid of it,
                   without a trip into its settings */}
               <button
@@ -309,17 +343,17 @@ export default function MobileLists() {
                 if (e.key !== "Enter") return;
                 const trimmed = newList.trim();
                 if (!trimmed) return;
-                void createList(trimmed, currentGroup.id);
+                void createList(trimmed, currentGroup.id, scope);
                 setNewList("");
               }}
-              placeholder={`New list in ${currentGroup.name}`}
+              placeholder={`New ${noun} in ${currentGroup.name}`}
               className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
             />
             <button
               onClick={() => {
                 const trimmed = newList.trim();
                 if (!trimmed) return;
-                void createList(trimmed, currentGroup.id);
+                void createList(trimmed, currentGroup.id, scope);
                 setNewList("");
               }}
               className="rounded-lg bg-accent-fill px-4 py-2 font-medium text-white"
@@ -353,7 +387,7 @@ export default function MobileLists() {
   const addFromIndex = () => {
     const trimmed = newList.trim();
     if (!trimmed) return;
-    if (newKind === "list") void createList(trimmed);
+    if (newKind === "list") void createList(trimmed, null, scope);
     else void createGroup(trimmed);
     setNewList("");
   };
@@ -364,15 +398,15 @@ export default function MobileLists() {
     // lives in it - and the ordering (favorites first, then sort order or
     // the alphabet) matches the desktop too
     const ungrouped = orderLists(
-      active.filter((l) => l.group_id === null),
+      scoped.lists.filter((l) => l.group_id === null),
       tasks,
       alpha,
     );
-    const orderedGroups = orderGroups(groups, alpha);
+    const orderedGroups = orderGroups(scoped.groups, alpha);
     // a group's row with its members under it, unless folded
     const groupBlock = (group: (typeof groups)[number]) => {
       const members = orderLists(
-        active.filter((l) => l.group_id === group.id),
+        scoped.lists.filter((l) => l.group_id === group.id),
         tasks,
         alpha,
       );
@@ -419,10 +453,34 @@ export default function MobileLists() {
     };
     return (
       <div className="flex h-full flex-col">
+        {/* the desktop's Lists and Checklists pages, behind one tab */}
+        <div
+          role="tablist"
+          aria-label="Kind of list"
+          className="flex gap-1 border-b border-line p-2"
+        >
+          {(["todo", "checklist"] as const).map((kind) => (
+            <button
+              key={kind}
+              role="tab"
+              aria-selected={scope === kind}
+              onClick={() => setScope(kind)}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium ${
+                scope === kind
+                  ? "bg-accent/15 text-accent"
+                  : "text-content-muted"
+              }`}
+            >
+              {kind === "checklist" ? "Checklists" : "Lists"}
+            </button>
+          ))}
+        </div>
         <ul className="min-h-0 flex-1 overflow-auto">
-          {groups.length === 0 && ungrouped.length === 0 && (
+          {scoped.groups.length === 0 && ungrouped.length === 0 && (
             <li className="px-4 py-8 text-center text-sm text-content-muted">
-              No lists yet.
+              {scope === "checklist"
+                ? "No checklists yet - for things you pack or check again and again."
+                : "No lists yet."}
             </li>
           )}
           {/* groups open in place, members indented under them, so
@@ -454,7 +512,7 @@ export default function MobileLists() {
                     : "border border-line text-content-muted"
                 }`}
               >
-                {kind === "list" ? "List" : "Group"}
+                {kind === "list" ? (scope === "checklist" ? "Checklist" : "List") : "Group"}
               </button>
             ))}
           </div>
@@ -463,7 +521,7 @@ export default function MobileLists() {
               value={newList}
               onChange={(e) => setNewList(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addFromIndex()}
-              placeholder={newKind === "list" ? "New list" : "New group"}
+              placeholder={newKind === "list" ? `New ${noun}` : "New group"}
               className="min-w-0 flex-1 rounded-lg border border-line bg-surface-alt px-3 py-2"
             />
             <button
@@ -504,7 +562,7 @@ export default function MobileLists() {
           }}
           className="px-2 py-1 text-content-muted"
         >
-          ‹ {currentGroup ? currentGroup.name : "Lists"}
+          ‹ {currentGroup ? currentGroup.name : scopeTitle}
         </button>
         <span className="min-w-0 flex-1 truncate font-semibold">
           {current.name}

@@ -767,6 +767,28 @@ export function orderPanel(
   });
 }
 
+/**
+ * What a panel of one kind of list shows - Lists and the dashboard
+ * todo lists, Checklists the checklists: the lists of that kind, and
+ * the groups holding one of them. An empty group shows on both, so the
+ * page it was made on still offers it to be filled.
+ */
+export function scopePanel(
+  lists: List[],
+  groups: ListGroup[],
+  kind: List["kind"],
+): { lists: List[]; groups: ListGroup[] } {
+  const scoped = lists.filter((l) => l.kind === kind);
+  return {
+    lists: scoped,
+    groups: groups.filter(
+      (g) =>
+        scoped.some((l) => l.group_id === g.id) ||
+        !lists.some((l) => l.group_id === g.id),
+    ),
+  };
+}
+
 /** One row of the All-lists index beside a list panel. */
 export type IndexRow =
   | { type: "list"; list: List; nested: boolean }

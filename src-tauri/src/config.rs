@@ -770,6 +770,7 @@ pub const SECTIONS: &[&str] = &[
     "dashboard",
     "days",
     "lists",
+    "checklists",
     "upcoming",
     "reminders",
     "calendar",
@@ -1179,7 +1180,11 @@ impl AppConfig {
         self.habit_rate_window = self.habit_rate_window.min(3650);
         self.habit_rate_min_instances = self.habit_rate_min_instances.clamp(1, 365);
         // unknown names are dropped, missing entries come back in their
-        // default position, so a typo can never lose a tab or a group
+        // default position, so a typo can never lose a tab or a group: a
+        // missing one goes right after the entry that precedes it by
+        // default (a new section lands beside its neighbour in a saved
+        // order, not at the bottom), at the end when that one is missing
+        // too
         let sanitize_order = |input: &[String], known: &[&str]| {
             let mut order: Vec<String> = Vec::new();
             for name in input {
@@ -1187,9 +1192,16 @@ impl AppConfig {
                     order.push(name.clone());
                 }
             }
-            for name in known {
-                if !order.iter().any(|o| o == name) {
-                    order.push((*name).to_string());
+            for (i, name) in known.iter().enumerate() {
+                if order.iter().any(|o| o == name) {
+                    continue;
+                }
+                let after = i
+                    .checked_sub(1)
+                    .and_then(|p| order.iter().position(|o| o == known[p]));
+                match after {
+                    Some(at) => order.insert(at + 1, (*name).to_string()),
+                    None => order.push((*name).to_string()),
                 }
             }
             order

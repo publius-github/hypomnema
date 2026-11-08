@@ -26,8 +26,15 @@ function GroupColumn({
   onOpen,
   fill = false,
   highlight = false,
+  kind = "todo",
 }: {
   group: ListGroup;
+  /**
+   * the panel's kind of list: the tile shows, makes and moves in only
+   * those (a group can hold both; Lists and Checklists each show their
+   * own part of it)
+   */
+  kind?: List["kind"];
   /**
    * open the panel's group view for this group; a click on a member row
    * passes that list's id so the view can highlight the clicked list
@@ -45,14 +52,16 @@ function GroupColumn({
   const [name, setName] = useState("");
   const alpha = useAppStore((s) => s.config?.lists_sort_alpha ?? false);
   const members = useAppStore(
-    useShallow((s) => s.lists.filter((l) => l.group_id === group.id)),
+    useShallow((s) =>
+      s.lists.filter((l) => l.group_id === group.id && l.kind === kind),
+    ),
   );
   // the "+ Existing" picker is read by looking for a name, so it is
   // alphabetical rather than in the panel's order
   const outsiders = useAppStore(
     useShallow((s) =>
       s.lists
-        .filter((l) => !l.auto && l.group_id !== group.id)
+        .filter((l) => !l.auto && l.group_id !== group.id && l.kind === kind)
         .sort((a, b) =>
           a.name.localeCompare(b.name, undefined, {
             sensitivity: "base",
@@ -65,6 +74,7 @@ function GroupColumn({
   const createList = useAppStore((s) => s.createList);
   const setListGroup = useAppStore((s) => s.setListGroup);
   const ordered = orderLists(members, tasks, alpha);
+  const noun = kind === "checklist" ? "checklist" : "list";
   // a list column's grip can be dropped straight onto the tile
   const { setNodeRef, isOver } = useDroppable({ id: `group:${group.id}` });
 
@@ -118,7 +128,8 @@ function GroupColumn({
             )}
             <span className="truncate">{group.name}</span>
             <span className="shrink-0 text-[0.6875rem] font-normal normal-case tracking-normal text-content-muted">
-              {ordered.length} {ordered.length === 1 ? "list" : "lists"}
+              {ordered.length} {noun}
+              {ordered.length === 1 ? "" : "s"}
             </span>
           </button>
         </h2>
@@ -137,7 +148,7 @@ function GroupColumn({
       >
         {ordered.length === 0 && (
           <span className="px-1 py-2 text-xs text-content-muted">
-            No lists yet - add one below, or drag a list column here.
+            No {noun}s yet - add one below, or drag a {noun} column here.
           </span>
         )}
         {ordered.map((list) => (
@@ -165,18 +176,18 @@ function GroupColumn({
           <div className="mt-1 flex gap-1">
             <button
               className="flex-1 rounded-md border border-dashed border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
-              title="Create a list directly in this group"
+              title={`Create a ${noun} directly in this group`}
               onClick={() => {
                 setName("");
                 setAdding("new");
               }}
             >
-              + List
+              + {kind === "checklist" ? "Checklist" : "List"}
             </button>
             {outsiders.length > 0 && (
               <button
                 className="flex-1 rounded-md border border-dashed border-line px-2 py-1 text-xs text-content-muted hover:border-accent hover:text-accent"
-                title="Move an existing list into this group"
+                title={`Move an existing ${noun} into this group`}
                 onClick={() => setAdding("existing")}
               >
                 + Existing
@@ -189,14 +200,14 @@ function GroupColumn({
             className="mt-1"
             onSubmit={(e) => {
               e.preventDefault();
-              if (name.trim()) void createList(name.trim(), group.id);
+              if (name.trim()) void createList(name.trim(), group.id, kind);
               setName("");
               setAdding(null);
             }}
           >
             <input
               className="input w-full text-xs"
-              placeholder="List name"
+              placeholder={kind === "checklist" ? "Checklist name" : "List name"}
               value={name}
               autoFocus
               onChange={(e) => setName(e.target.value)}

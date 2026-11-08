@@ -3,6 +3,7 @@ import { expect, rail, test } from "./fixtures";
 const SECTIONS = [
   "Dashboard",
   "Lists",
+  "Checklists",
   "Days",
   "Upcoming",
   "Reminders",

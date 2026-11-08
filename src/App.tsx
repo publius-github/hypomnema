@@ -153,6 +153,7 @@ export default function App() {
           store.config?.section_order ?? [
             "dashboard",
             "lists",
+            "checklists",
             "days",
             "upcoming",
             "reminders",
@@ -280,7 +281,8 @@ export default function App() {
             already shows which section is open */}
         <h1 className="sr-only">{sectionLabel(section)}</h1>
         {section === "dashboard" && <Dashboard />}
-        {section === "lists" && <Lists />}
+        {section === "lists" && <Lists key="lists" />}
+        {section === "checklists" && <Lists key="checklists" kind="checklist" />}
         {section === "days" && <Days />}
         {section === "upcoming" && <Upcoming />}
         {section === "reminders" && <Reminders />}

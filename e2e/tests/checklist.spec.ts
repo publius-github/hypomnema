@@ -12,16 +12,12 @@ test("a checklist is ticked off, reset for the next round, and the reset undone"
   app,
 }, testInfo) => {
   const page = await app();
-  await rail(page, "Lists").click();
-  // a new list is a todo list; the type is switched in its settings
-  await page.getByRole("button", { name: "+ New list" }).click();
-  await page.getByPlaceholder("List name").fill("Trip");
+  // checklists have a page of their own, and its New makes a checklist
+  await rail(page, "Checklists").click();
+  await page.getByRole("button", { name: "+ New checklist" }).click();
+  await page.getByPlaceholder("Checklist name").fill("Trip");
   await page.keyboard.press("Enter");
   const trip = column(page, "Trip");
-  await expect(trip.getByText("Checklist", { exact: true })).toHaveCount(0);
-  await trip.getByRole("button", { name: /^List settings/ }).click();
-  await page.locator("select", { has: page.locator("option", { hasText: "Checklist" }) }).selectOption("checklist");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
   // the header says what kind of list it is
   await expect(trip.getByText("Checklist", { exact: true })).toBeVisible();
 
@@ -55,6 +51,29 @@ test("a checklist is ticked off, reset for the next round, and the reset undone"
   await expect(page.getByText('Unchecked 2 items in "Trip"')).toBeVisible();
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(trip.getByText("2/3")).toBeVisible();
+});
+
+test("a list switched to a checklist leaves Lists and the dashboard for Checklists", async ({ app }) => {
+  const page = await app();
+  await rail(page, "Lists").click();
+  // a new list is a todo list; the type is switched in its settings
+  await page.getByRole("button", { name: "+ New list" }).click();
+  await page.getByPlaceholder("List name").fill("Errands");
+  await page.keyboard.press("Enter");
+  const errands = column(page, "Errands");
+  await expect(errands.getByText("Checklist", { exact: true })).toHaveCount(0);
+  await errands.getByRole("button", { name: /^List settings/ }).click();
+  await page.locator("select", { has: page.locator("option", { hasText: "Checklist" }) }).selectOption("checklist");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Errands" })).toHaveCount(0);
+
+  await rail(page, "Dashboard").click();
+  await expect(page.getByRole("heading", { name: "Work" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Errands" })).toHaveCount(0);
+
+  await rail(page, "Checklists").click();
+  await expect(column(page, "Errands").getByText("Checklist", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Work" })).toHaveCount(0);
 });
 
 test.describe("phone", () => {
@@ -106,9 +125,24 @@ test.describe("phone", () => {
     }
     await expect(page.getByText("0/2")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("checklist-phone.png") });
+    // it moved to the Checklists side of the screen
     await page.getByRole("button", { name: "‹ Lists" }).click();
+    await expect(page.getByText("Trip", { exact: true })).toHaveCount(0);
+    await page.getByRole("tab", { name: "Checklists" }).click();
     await expect(page.getByRole("img", { name: "Checklist" })).toBeVisible();
+    await expect(page.getByText("Trip", { exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("checklist-phone-index.png") });
+  });
+
+  test("the Checklists side of the phone's list screen makes checklists", async ({ app }) => {
+    const page = await app("mobile");
+    await page.getByRole("button", { name: "Lists", exact: true }).last().click();
+    await page.getByRole("tab", { name: "Checklists" }).click();
+    await page.getByPlaceholder("New checklist").fill("Gym bag");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByRole("img", { name: "Checklist" })).toBeVisible();
+    await page.getByRole("tab", { name: "Lists", exact: true }).click();
+    await expect(page.getByText("Gym bag", { exact: true })).toHaveCount(0);
   });
 });
 

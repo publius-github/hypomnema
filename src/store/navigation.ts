@@ -129,7 +129,15 @@ export const createNavigationSlice: StateCreator<
   journalOpenDate: null,
   openJournalDate: (date) => set({ section: "journal", journalOpenDate: date }),
   listOpen: null,
-  openList: (id, add) => set({ section: "lists", listOpen: { id, add } }),
+  // a checklist lives on its own page
+  openList: (id, add) =>
+    set((s) => ({
+      section:
+        s.lists.find((l) => l.id === id)?.kind === "checklist"
+          ? "checklists"
+          : "lists",
+      listOpen: { id, add },
+    })),
   dayOpen: null,
   openDay: (add) => set({ section: "dashboard", gridOffset: 0, dayOpen: { add } }),
 });

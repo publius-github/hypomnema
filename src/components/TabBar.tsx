@@ -10,6 +10,7 @@ import AboutModal from "./AboutModal";
 const TABS: Record<string, { id: Section; label: string; icon: IconName }> = {
   dashboard: { id: "dashboard", label: "Dashboard", icon: "grid" },
   lists: { id: "lists", label: "Lists", icon: "list" },
+  checklists: { id: "checklists", label: "Checklists", icon: "checklist" },
   days: { id: "days", label: "Days", icon: "columns" },
   upcoming: { id: "upcoming", label: "Upcoming", icon: "clock" },
   reminders: { id: "reminders", label: "Reminders", icon: "bell" },
@@ -28,6 +29,7 @@ export function sectionLabel(id: Section): string {
 const DEFAULT_ORDER = [
   "dashboard",
   "lists",
+  "checklists",
   "days",
   "upcoming",
   "reminders",

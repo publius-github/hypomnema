@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { useAppStore } from "../store";
-import { indexRows, orderLists, orderPanel } from "../lib/tasks";
+import { indexRows, orderLists, orderPanel, scopePanel } from "../lib/tasks";
 import type { IndexRow } from "../lib/tasks";
+import type { List } from "../types";
 import { useTaskDnd, DND_ACCESSIBILITY } from "../components/taskDnd";
 import ListColumn from "../components/ListColumn";
 import IndexRowLabel, {
@@ -26,11 +27,21 @@ import {
  * Dedicated lists dashboard: every list at once in a wrapping grid,
  * no day columns - the deep-work view over the backlogs. The column
  * count is a setting, adjustable right here.
+ *
+ * The same page, for `kind` "checklist", is Checklists: the lists that
+ * are packed again and again live apart from the backlogs, each page
+ * showing its own kind (and the groups holding one), and its New list
+ * makes that kind.
  */
-export default function Lists() {
+export default function Lists({ kind = "todo" }: { kind?: List["kind"] }) {
   const config = useAppStore((s) => s.config);
-  const lists = useAppStore((s) => s.lists);
-  const groups = useAppStore((s) => s.groups);
+  const allLists = useAppStore((s) => s.lists);
+  const allGroups = useAppStore((s) => s.groups);
+  const { lists, groups } = useMemo(
+    () => scopePanel(allLists, allGroups, kind),
+    [allLists, allGroups, kind],
+  );
+  const title = kind === "checklist" ? "Checklists" : "Lists";
   const tasks = useAppStore((s) => s.tasks);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -147,7 +158,7 @@ export default function Lists() {
               className="flex items-center gap-2 rounded-sm px-1 text-sm font-semibold"
             />
           ) : (
-            <span className="text-sm font-semibold">Lists</span>
+            <span className="text-sm font-semibold">{title}</span>
           )}
           {/* the column count and the panel shape, on the page they
               reshape - Settings has no copy; the dashboard header
@@ -155,7 +166,7 @@ export default function Lists() {
               order */}
           <HeaderControls>
             <HeaderSelect
-              label="Lists"
+              label={title}
               title="List columns per row"
               value={columns}
               options={counts([1, 2, 3, 4, 5, 6, 8])}
@@ -216,6 +227,7 @@ export default function Lists() {
                 ) : (
                   <GroupColumn
                     group={item.group}
+                    kind={kind}
                     onOpen={(listId) => {
                       setOpenGroupId(item.group.id);
                       if (listId !== undefined) setPendingJump(`l${listId}`);
@@ -232,12 +244,14 @@ export default function Lists() {
               stay on screen while the grid scrolls. A click on the index
               scrolls the column into view and flashes it. */}
           <div className="sticky top-4 flex w-40 shrink-0 flex-col gap-3">
-            <NewListForm groupId={openGroup?.id} />
+            <NewListForm groupId={openGroup?.id} kind={kind} />
             {(openGroup !== null || rows.length > columns) &&
               rows.length > 0 && (
               <div className="flex flex-col gap-0.5 rounded-lg border border-line bg-surface-alt/50 p-1.5">
                 <div className="px-1 pb-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
-                  {openGroup ? "Group lists" : "All lists"}
+                  {openGroup
+                    ? `Group ${title.toLowerCase()}`
+                    : `All ${title.toLowerCase()}`}
                 </div>
                 {rows.map((row, i) => {
                   // a flat panel has no group column: the group's row
@@ -289,7 +303,9 @@ export default function Lists() {
         </div>
         {visible.length === 0 && (
           <div className="flex flex-1 items-center justify-center text-content-muted">
-            No lists yet
+            {kind === "checklist"
+              ? "No checklists yet - things you pack or check again and again: make one with + New checklist"
+              : "No lists yet"}
           </div>
         )}
       </div>

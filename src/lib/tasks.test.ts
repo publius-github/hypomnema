@@ -19,6 +19,7 @@ import {
   orderLists,
   orderPanel,
   priorityPatch,
+  scopePanel,
   sortClosedAlpha,
   sortSubtasks,
   splitCategory,
@@ -173,6 +174,31 @@ describe("date helpers", () => {
       "2026-08-29",
       "2026-08-30",
     ]);
+  });
+});
+
+describe("scopePanel", () => {
+  const group = (id: number): ListGroup => ({
+    id,
+    name: `g${id}`,
+    sort_order: id,
+    color: null,
+  });
+  it("keeps one kind of list and the groups holding one, or nothing", () => {
+    const lists = [
+      list({ id: 1, kind: "todo", group_id: 10 }),
+      list({ id: 2, kind: "checklist", group_id: 10 }),
+      list({ id: 3, kind: "checklist", group_id: 11 }),
+      list({ id: 4, kind: "todo", group_id: null }),
+    ];
+    const groups = [group(10), group(11), group(12)];
+    const todo = scopePanel(lists, groups, "todo");
+    expect(todo.lists.map((l) => l.id)).toEqual([1, 4]);
+    // 11 holds only a checklist; 12 is empty and shows on both
+    expect(todo.groups.map((g) => g.id)).toEqual([10, 12]);
+    const checklists = scopePanel(lists, groups, "checklist");
+    expect(checklists.lists.map((l) => l.id)).toEqual([2, 3]);
+    expect(checklists.groups.map((g) => g.id)).toEqual([10, 11, 12]);
   });
 });
 

@@ -348,11 +348,55 @@ fn sanitize_clamps_dangerous_values() {
     assert_eq!(config.dashboard_split, 80);
     assert_eq!(
         config.section_order,
+        // the missing ones in their default place: journal and history
+        // follow kb by default, the rest from dashboard on
         vec![
             "kb",
+            "journal",
+            "history",
             "dashboard",
             "days",
             "lists",
+            "checklists",
+            "upcoming",
+            "reminders",
+            "calendar",
+            "review"
+        ]
+    );
+}
+
+#[test]
+fn a_new_section_lands_beside_its_neighbour_in_a_saved_order() {
+    // a section order saved before Checklists existed
+    let saved: Vec<String> = [
+        "kb",
+        "dashboard",
+        "lists",
+        "days",
+        "upcoming",
+        "reminders",
+        "calendar",
+        "review",
+        "journal",
+        "history",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    let config = AppConfig {
+        section_order: saved,
+        ..AppConfig::default()
+    }
+    .sanitized();
+    assert_eq!(
+        config.section_order,
+        vec![
+            "kb",
+            "dashboard",
+            "lists",
+            "checklists",
+            "days",
             "upcoming",
             "reminders",
             "calendar",

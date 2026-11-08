@@ -36,7 +36,12 @@ export interface TasksSlice {
   /// different list moves the task there instead
   reorderTask: (activeId: number, overId: number) => Promise<void>;
   deleteTask: (id: number) => Promise<void>;
-  createList: (name: string, groupId?: number | null) => Promise<void>;
+  /// `kind` "checklist" makes a checklist (the Checklists page)
+  createList: (
+    name: string,
+    groupId?: number | null,
+    kind?: List["kind"],
+  ) => Promise<void>;
   renameList: (id: number, name: string) => Promise<void>;
   archiveList: (id: number) => Promise<void>;
   /// favorite lists sort ahead of the rest in the dashboard list zone
@@ -331,9 +336,20 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
     }
   },
 
-  createList: async (name, groupId = null) => {
+  createList: async (name, groupId = null, kind = "todo") => {
     try {
       const created = await invoke("list_create", { name, color: null });
+      // a list is born a todo list; one made on the Checklists page is
+      // switched at once, before it shows anywhere
+      if (kind !== created.kind) {
+        await invoke("list_set_meta", {
+          id: created.id,
+          color: created.color,
+          description: created.description,
+          kind,
+        });
+        created.kind = kind;
+      }
       // a list born inside an open group view joins that group right away
       if (groupId !== null) {
         await invoke("list_set_group", { id: created.id, groupId });
