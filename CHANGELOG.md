@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.130.2 - 2026-11-10
+
+- Updated the built-in SQLite to 3.54.1, which fixes a security issue (CVE-2026-119375) where opening a crafted database file could expose stale memory.
+
 ## 0.130.1 - 2026-11-08
 
 - Fixed the desktop app sometimes freezing on "Loading..." at launch (most often right after an update) and showing "Not Responding" until it was killed.
