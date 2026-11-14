@@ -2,6 +2,11 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.130.3 - 2026-11-14
+
+- Task cards: the subtask expand arrow, the counter and the reset, priority and delete buttons now line up across rows, and the reset button is shown whenever a task has subtasks, not only after one is checked.
+- A task can hold at most 99 subtasks; adding a hundredth shows an error instead.
+
 ## 0.130.2 - 2026-11-10
 
 - Updated the built-in SQLite to 3.54.1, which fixes a security issue (CVE-2026-119375) where opening a crafted database file could expose stale memory.
