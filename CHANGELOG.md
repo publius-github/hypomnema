@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.130.4 - 2026-11-14
+
+- Lists dialog and mobile: tasks with subtasks get the same aligned counter and the "uncheck subtasks" reset (always available, not only after a check), as the task cards.
+
 ## 0.130.3 - 2026-11-14
 
 - Task cards: the subtask expand arrow, the counter and the reset, priority and delete buttons now line up across rows, and the reset button is shown whenever a task has subtasks, not only after one is checked.
