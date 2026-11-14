@@ -404,7 +404,11 @@ export default function TaskRow({
           >
             <span aria-hidden>{expanded ? "▾" : "▸"} </span>
             <span className="sr-only">Subtasks </span>
-            {subtasksDone}/{subtasks.length}
+            {/* "99/99" is the most there can be (creation stops at 99):
+                a fixed slot keeps the arrows in one column */}
+            <span className="inline-block w-[5ch] text-right tabular-nums">
+              {subtasksDone}/{subtasks.length}
+            </span>
           </button>
         )}
         <button
@@ -477,7 +481,7 @@ export default function TaskRow({
                 </button>
                 {/* the per-task reset one tap away where the set is
                     worked through; also in the actions sheet */}
-                {subtasks.some((s) => s.status !== "todo") && (
+                {subtasks.length > 0 && (
                   <button
                     onClick={() =>
                       void useAppStore.getState().uncheckSubtasks(task.id)
@@ -535,7 +539,7 @@ export default function TaskRow({
               setAdding(true);
             }}
           />
-          {subtasks.some((s) => s.status !== "todo") && (
+          {subtasks.length > 0 && (
             <SheetAction
               icon="reset"
               label="Uncheck subtasks"

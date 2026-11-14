@@ -15,6 +15,7 @@ import { OptionalColorField } from "./form";
 import TaskModal from "./TaskModal";
 import GapFill from "./GapFill";
 import type { List, Task } from "../types";
+import Icon from "./icons";
 import { StatusIcon, statusBoxClass, statusBoxStyle } from "./StatusMark";
 import { errorMessage } from "../lib/ipc";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -301,6 +302,10 @@ export default function ListModal({
   );
 }
 
+// every service button is a box of one width: equal gaps whatever glyph
+const ACTION_SLOT =
+  "flex h-4 w-4 shrink-0 items-center justify-center leading-none";
+
 /** Compact backlog row: check off, open (subtasks live in the task
  * dialog), star, delete. The title wraps over up to `titleLines` lines
  * (list_dialog_task_lines) - the dialog is the roomy view of a list. */
@@ -361,9 +366,23 @@ function ListTaskRow({
         {task.title}
       </button>
       {subtasks.length > 0 && (
-        <span className="mt-0.5 shrink-0 text-[0.6875rem] text-content-muted">
-          {subDone}/{subtasks.length}
-        </span>
+        // the same fixed "99/99" slot and reset button as on the task
+        // cards, so the service buttons line up from row to row
+        <>
+          <span className="mt-0.5 w-[5ch] shrink-0 text-right text-[0.6875rem] tabular-nums text-content-muted">
+            {subDone}/{subtasks.length}
+          </span>
+          <button
+            className={`mt-0.5 ${ACTION_SLOT} text-content-muted hover:text-content`}
+            title="Uncheck subtasks: start this task's set over"
+            aria-label={`Uncheck the subtasks of ${task.title}`}
+            onClick={() =>
+              void useAppStore.getState().uncheckSubtasks(task.id)
+            }
+          >
+            <Icon name="reset" className="h-3 w-3" />
+          </button>
+        </>
       )}
       {task.time && (
         <span className="mt-0.5 shrink-0 text-[0.6875rem] text-content-muted">
@@ -371,7 +390,7 @@ function ListTaskRow({
         </span>
       )}
       <button
-        className={`mt-0.5 shrink-0 text-base leading-none ${
+        className={`mt-0.5 ${ACTION_SLOT} text-base ${
           task.priority
             ? "text-warn"
             : "text-content-muted opacity-0 hover:text-warn focus-visible:opacity-100 group-hover:opacity-100"
@@ -388,7 +407,7 @@ function ListTaskRow({
         {task.priority ? "★" : "☆"}
       </button>
       <button
-        className="mt-0.5 shrink-0 text-base leading-none text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+        className={`mt-0.5 ${ACTION_SLOT} text-base text-content-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100`}
         title="Delete task"
         aria-label="Delete task"
         onClick={() => void useAppStore.getState().deleteTask(task.id)}
