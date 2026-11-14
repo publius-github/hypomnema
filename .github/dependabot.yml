@@ -17,6 +17,8 @@ updates:
         patterns: ["@codemirror/*", "@lezer/*", "codemirror"]
       tauri-js:
         patterns: ["@tauri-apps/*"]
+      vitest:
+        patterns: ["vitest", "@vitest/*"]
   - package-ecosystem: cargo
     directory: /src-tauri
     target-branch: development
