@@ -1115,3 +1115,26 @@ fn delete_done_subtasks_keeps_the_rest_and_undoes() {
     );
     assert_eq!(task_get(&conn, visa).unwrap().status, "done");
 }
+
+#[test]
+fn a_task_holds_at_most_99_subtasks() {
+    let conn = conn();
+    let parent = task_create(
+        &conn,
+        &NewTask {
+            title: "parent".into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let sub = |n: usize| NewTask {
+        title: format!("sub {n}"),
+        parent_task_id: Some(parent.id),
+        ..Default::default()
+    };
+    for n in 0..MAX_SUBTASKS as usize {
+        task_create(&conn, &sub(n)).unwrap();
+    }
+    let err = task_create(&conn, &sub(100)).unwrap_err();
+    assert!(err.to_string().contains("more than 99 subtasks"), "{err}");
+}

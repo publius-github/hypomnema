@@ -32,7 +32,11 @@ import CadenceBadge, { cadenceBadgeOf, dowBesideBadge } from "./CadenceBadge";
 // narrower one (the default 200px day column) cannot spare it from the
 // title.
 const HOVER_ACTION =
-  "hidden group-focus-within:inline group-hover:inline @[17rem]:inline @[17rem]:invisible @[17rem]:group-focus-within:visible @[17rem]:group-hover:visible";
+  "hidden group-focus-within:inline-flex group-hover:inline-flex @[17rem]:inline-flex @[17rem]:invisible @[17rem]:group-focus-within:visible @[17rem]:group-hover:visible";
+
+// every service button is a box of one width, so the gaps between them
+// are equal whatever glyph is inside (display comes from the caller)
+const ACTION_SLOT = "h-4 w-4 items-center justify-center leading-none";
 
 function TaskCard({
   task,
@@ -507,23 +511,29 @@ function TaskCard({
             </span>
           )}
           {subtasks.length > 0 && (
+            // the counter is at most "99/99" (creation stops at 99), so
+            // the arrow and the numbers sit in fixed slots and the
+            // service buttons line up from row to row
             <button
-              className="hover:text-content"
+              className="flex items-center gap-1 hover:text-content"
               onClick={(e) => {
                 e.stopPropagation();
                 setExpanded((v) => !v);
               }}
             >
-              {expanded ? "▾" : "▸"}{" "}
-              {subtasks.filter((s) => s.status === "done").length}/
-              {subtasks.length}
+              <span className="w-2 text-center">{expanded ? "▾" : "▸"}</span>
+              <span className="w-[5ch] text-right tabular-nums">
+                {subtasks.filter((s) => s.status === "done").length}/
+                {subtasks.length}
+              </span>
             </button>
           )}
           {/* the per-task reset: a reusable set inside a list (Grocery:
-              drinks, food) starts over without touching the rest */}
-          {!overlay && subtasks.some((s) => s.status !== "todo") && (
+              drinks, food) starts over without touching the rest. Always
+              there with subtasks, so rows keep one layout. */}
+          {!overlay && subtasks.length > 0 && (
             <button
-              className="leading-none hover:text-content"
+              className={`flex ${ACTION_SLOT} hover:text-content`}
               title="Uncheck subtasks: start this task's set over"
               aria-label={`Uncheck the subtasks of ${task.title}`}
               onClick={(e) => {
@@ -540,9 +550,9 @@ function TaskCard({
             // a day column shows priority as the label above; a list
             // column keeps a star toggle
             <button
-              className={`text-base leading-none ${
+              className={`${ACTION_SLOT} text-base ${
                 task.priority
-                  ? "text-priority"
+                  ? "flex text-priority"
                   : `${HOVER_ACTION} hover:text-priority`
               }`}
               title={
@@ -575,7 +585,7 @@ function TaskCard({
             // was done - the review counts it as not done. The hold
             // keeps the card in place long enough to undo a misclick.
             <button
-              className={`${HOVER_ACTION} text-base leading-none hover:text-content`}
+              className={`${HOVER_ACTION} ${ACTION_SLOT} text-base hover:text-content`}
               title="Not done, drop it"
               aria-label="Not done, drop it"
               onClick={(e) => {
@@ -592,7 +602,7 @@ function TaskCard({
             // instance of a still-live rule regenerates on the next
             // engine run - the config file is where a rule dies
             <button
-              className={`${HOVER_ACTION} text-base leading-none hover:text-danger`}
+              className={`${HOVER_ACTION} ${ACTION_SLOT} text-base hover:text-danger`}
               title="Delete task"
               aria-label="Delete task"
               onClick={(e) => {

@@ -830,10 +830,26 @@ fn normalize_title(title: &str) -> String {
         .join(" ")
 }
 
+/// The most subtasks one task holds: the "xx/xx" counter on a card stays
+/// five characters wide, so the service buttons line up across rows.
+pub const MAX_SUBTASKS: i64 = 99;
+
 pub fn task_create(conn: &Connection, new: &NewTask) -> Result<Task> {
     let title = normalize_title(&new.title);
     if title.is_empty() {
         return Err(Error::State("task title cannot be empty".into()));
+    }
+    if let Some(parent) = new.parent_task_id {
+        let have: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM tasks WHERE parent_task_id = ?1",
+            [parent],
+            |row| row.get(0),
+        )?;
+        if have >= MAX_SUBTASKS {
+            return Err(Error::State(format!(
+                "a task cannot have more than {MAX_SUBTASKS} subtasks"
+            )));
+        }
     }
     // A {Category} prefix typed by the user is just a text label on the
     // task (rendered as a chip) - it never routes to or creates a list.
