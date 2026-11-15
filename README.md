@@ -23,7 +23,7 @@
   <em>The Dashboard: a week of days on top, your backlog lists below. Dark or light theme, each with its own color scheme.</em>
 </p>
 
-Hypomnema keeps a week of tasks, a journal and your notes together, and keeps all of it in a folder you choose: plain Markdown and YAML files plus a local database. There is no account, no server and no telemetry. Repeating tasks, dated events and birthdays come from rules in YAML files; the app's forms and a text editor write the same files, and the engine that turns rules into tasks never duplicates one or overwrites an edit. Syncing between your devices is optional and goes through a hidden app folder in your own Google Drive.
+Hypomnema keeps a week of tasks, a journal and your notes together, and keeps all of it in a folder you choose: plain Markdown and YAML files plus a local database. There is no account, no server and no telemetry. Repeating tasks, dated events and birthdays come from rules in YAML files, and a Tracker charts how often the repeating ones get done and the numbers you log; the app's forms and a text editor write the same files, and the engine that turns rules into tasks never duplicates one or overwrites an edit. Syncing between your devices is optional and goes through a hidden app folder in your own Google Drive.
 
 *Hypomnema* (Greek ὑπόμνημα) was the notebook the ancient Greeks kept at hand: notes, reminders and reflections collected for one's own use. It runs on Windows 10/11 and Android, on the same vault.
 
@@ -68,6 +68,8 @@ A vertical rail on the left holds the sections; their order is configurable and 
 
 **Dashboard** is a grid of days on top (column count configurable, paged scrolling) and your own backlog lists below. Drag and drop between days and lists, subtasks, colors, times, priority, Markdown in descriptions, statuses To Do / Done / Postponed / Waiting / Dropped. The header shows the week's focus phrase and day-type reminders. **Lists** and **Days** are focused variants of the same view.
 
+A list is one of two kinds, set in its settings. A **todo list** is a queue: the engine clears done tasks out of it. A **checklist** is kept for reuse (packing, a routine, groceries): ticked items sink to the end with their tick and are never cleared, and Check all / Uncheck all reset the whole list at once. Todo lists sit on the Dashboard and the Lists page, checklists on their own **Checklists** page (on the phone, a Lists | Checklists switch on the Lists tab). A group can hold both kinds; each page shows only its own. A task's subtasks can be sorted by title, and *Delete checked* clears its done ones in one go, with Undo.
+
 <p align="center">
   <img src="docs/screenshots/days.png" width="49%" alt="Days: a week of day columns">
   <img src="docs/screenshots/lists.png" width="49%" alt="Lists: the backlog lists as columns">
@@ -76,6 +78,8 @@ A vertical rail on the left holds the sections; their order is configurable and 
 </p>
 
 **Upcoming** has three tabs: Scheduled (one-off dated events), Birthdays (with age when the year is known) and Recurring (cron rules). **Reminders** edits the three files behind the day columns: the weekly focus phrase, the reminders by day type and the daily schedule. **Calendar** is a month grid with real tasks plus projections of future rule occurrences (the horizon is configurable per cadence). **Review** and **History** show how the week went, and a month-by-month archive with completion stats and streaks for daily rules.
+
+**Tracker** (turned on in Settings > General > Left bar; on the phone under More) charts two things. *Habits*: the share of each recurring task done per week or month, overall and per task, weakest first, against the completion-rate alert threshold. *Metrics*: numbers you follow over time, such as weight or monthly follower counts, defined in `metrics.yml` or from the page, one value per day (a new entry for the same day replaces it), charted by day with a 7-day mean, or by week and month. Give a recurring rule `metrics: [weight]` and checking its task off asks for the value; *Done without value* is always there. The value shows on the task card and can be corrected in the task dialog. A rule's `id:` keeps its Tracker history on one row when its schedule or text changes.
 
 **Journal** keeps one Markdown entry per date (`journal/<year>/<YYYY-MM-DD>.md`), created from a configurable template on first save, with "on this day" entries from earlier years.
 
@@ -98,7 +102,7 @@ A vertical rail on the left holds the sections; their order is configurable and 
 
 ## Files and forms: two ways to the same rules
 
-Every rule the engine works from is a YAML file in `.hypomnema/config/`: `recurring.yml`, `scheduled.yml`, `birthdays.yml`, `weekly-focus.yml`, `day-reminders.yml`, `day-schedule.yml`. The app has a form for each (Upcoming and Reminders), and the form writes to the file: it rewrites only the item you changed, so the comments, the order and the blank lines you keep there survive. Open the same file in any editor or in Notes > Config, and a watcher picks the change up at once. A broken file never touches your data: the last valid version stays in effect and a banner names the file and the line.
+Every rule the engine works from is a YAML file in `.hypomnema/config/`: `recurring.yml`, `scheduled.yml`, `birthdays.yml`, `weekly-focus.yml`, `day-reminders.yml`, `day-schedule.yml`, `metrics.yml`. The app has a form for each (Upcoming, Reminders and Tracker), and the form writes to the file: it rewrites only the item you changed, so the comments, the order and the blank lines you keep there survive. Open the same file in any editor or in Notes > Config, and a watcher picks the change up at once. A broken file never touches your data: the last valid version stays in effect and a banner names the file and the line.
 
 <p align="center">
   <img src="docs/screenshots/recurring.png" alt="Upcoming: recurring rules">
