@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.130.6 - 2026-11-15
+
+- Checklists: the task editor (phone and dialog) also lists ticked subtasks last, as the cards and rows do.
+
 ## 0.130.5 - 2026-11-15
 
 - Checklists: a ticked item or subtask no longer goes under a Done plate - it sinks to the end of the list and stays there with its tick, until you uncheck it.
