@@ -234,11 +234,22 @@ export function useListSections(list: List | null): ColumnSection[] {
     : listTasks;
   const alpha = config?.lists_sort_alpha ?? false;
   const sorted = [...visible].sort(alpha ? compareListAlpha : compareTasks);
-  const split = splitDone(sorted, config?.done_display ?? "inline", held);
+  // a checklist is not a queue: ticked items get no Done plate, they
+  // sink to the end of the list (a row ticked a moment ago waits out
+  // its status hold first) and stay there, ticked
+  const isChecklist = list?.kind === "checklist";
+  const split = splitDone(
+    isChecklist ? sinkDone(sorted, held) : sorted,
+    isChecklist ? "inline" : (config?.done_display ?? "inline"),
+    held,
+  );
   // inside a list the list is the column itself: only the {X} prefix
   // makes a category
   const labelOf = (t: Task) => categoryOf(t.title);
-  const prioritized = split.active.filter((t) => t.priority);
+  const isDone = (t: Task) => (held.get(t.id) ?? t.status) === "done";
+  const prioritized = split.active.filter(
+    (t) => t.priority && !(isChecklist && isDone(t)),
+  );
   return layout(
     [
       {
@@ -255,12 +266,21 @@ export function useListSections(list: List | null): ColumnSection[] {
         color: null,
         tone: null,
         stripes: prioritized.length > 0 ? LIST_GAP_STRIPES.section : 0,
-        tasks: split.active.filter((t) => !t.priority),
+        tasks: split.active.filter((t) => !prioritized.includes(t)),
       },
       ...closedSections(split, config, labelOf, true),
     ],
     labelOf,
   );
+}
+
+/** Ticked items after the open ones, each group keeping its order. */
+function sinkDone(
+  tasks: Task[],
+  held: ReadonlyMap<number, Task["status"]>,
+): Task[] {
+  const isDone = (t: Task) => (held.get(t.id) ?? t.status) === "done";
+  return [...tasks.filter((t) => !isDone(t)), ...tasks.filter(isDone)];
 }
 
 /** The top-level tasks a list column shows: unscheduled ones, priority

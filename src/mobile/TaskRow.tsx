@@ -97,22 +97,22 @@ export default function TaskRow({
   const config = useAppStore((s) => s.config);
   const { setEditing } = useEditTask();
 
-  const closed = isClosed(task.status);
-  const subtasks = sortSubtasks(
-    tasks.filter((t) => t.parent_task_id === task.id),
-    config?.subtasks_done_last ?? true,
-    config?.subtasks_sort_alpha ?? false,
-  );
-  const subtasksDone = subtasks.filter((t) => t.status === "done").length;
-
-  // A {Category} prefix is a label, not part of the title.
-  const { category, text } = splitCategory(task.title);
   const list =
     task.list_id === null
       ? null
       : (lists.find((l) => l.id === task.list_id) ?? null);
   // checklist lists have no postponed state: plain todo <-> done
   const checklist = list?.kind === "checklist";
+  const closed = isClosed(task.status);
+  const subtasks = sortSubtasks(
+    tasks.filter((t) => t.parent_task_id === task.id),
+    (config?.subtasks_done_last ?? true) || checklist,
+    config?.subtasks_sort_alpha ?? false,
+  );
+  const subtasksDone = subtasks.filter((t) => t.status === "done").length;
+
+  // A {Category} prefix is a label, not part of the title.
+  const { category, text } = splitCategory(task.title);
 
   // The card's stripe rule: a hand-picked colour wins, then the list's
   // own (manual tasks), then the cadence palette; a dated list task is
@@ -192,8 +192,10 @@ export default function TaskRow({
     void updateTask(task.id, patch);
   };
 
-  const openSubs = subtasks.filter((s) => s.status !== "done");
-  const doneSubs = subtasks.filter((s) => s.status === "done");
+  const openSubs = checklist
+    ? subtasks
+    : subtasks.filter((s) => s.status !== "done");
+  const doneSubs = checklist ? [] : subtasks.filter((s) => s.status === "done");
   const renderSub = (sub: Task) => (
             <li
               key={sub.id}

@@ -109,7 +109,12 @@ function TaskCard({
   const subtasksAlpha = useAppStore(
     (s) => s.config?.subtasks_sort_alpha ?? false,
   );
-  const subtasks = sortSubtasks(subtasksRaw, subtasksDoneLast, subtasksAlpha);
+  // a checklist's ticked subtasks sink to the end, no Done plate
+  const subtasks = sortSubtasks(
+    subtasksRaw,
+    subtasksDoneLast || checklist,
+    subtasksAlpha,
+  );
   const closed = isClosed(task.status);
   // a {Category} prefix is a pure text label rendered as a chip
   const { category, text } = splitCategory(task.title);
@@ -213,8 +218,10 @@ function TaskCard({
     holdStatus(task.id, task.status);
   };
 
-  const openSubs = subtasks.filter((s) => s.status !== "done");
-  const doneSubs = subtasks.filter((s) => s.status === "done");
+  const openSubs = checklist
+    ? subtasks
+    : subtasks.filter((s) => s.status !== "done");
+  const doneSubs = checklist ? [] : subtasks.filter((s) => s.status === "done");
   const renderSub = (sub: Task) => (
             <div
               key={sub.id}
