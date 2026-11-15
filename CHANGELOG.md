@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.133.0 - 2026-11-15
+
+- Recurring tasks can ask for a number when you check them off: pick the metrics in the rule editor (Upcoming > Recurring), or add `metrics: [weight]` to the rule in recurring.yml. Checking such a task off - on a card, on the phone, in the task dialog or from Review - asks for the value and records it in the Tracker on the day the task was due, even if you close it a day late. Done without value checks it off anyway, and Cancel leaves it open. The value shows on the done task's card and can be added or corrected later in the task dialog. Checking off from the Android widget or the Markdown task files records no value.
+
 ## 0.132.0 - 2026-11-15
 
 - Tracker: follow numbers over time - your weight, a follower count, anything you write down regularly. Add a metric from the Tracker (or in metrics.yml under Notes > Config), then enter a value for any day; entering the same day again replaces it. Each metric gets a chart by day, with a 7-day average line that smooths out daily ups and downs, or by week or month, where a week becomes its average, sum or last value as you chose. An optional goal shows as a dashed line, and the change since your previous value is colored by whether lower or higher is better. Values sync between your devices like your tasks do. Update the app on every device before you start entering values.
