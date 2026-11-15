@@ -2,6 +2,11 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.134.0 - 2026-11-15
+
+- Tracker: completion history now survives deleting tasks. Done and dropped days stay counted after the task is deleted, whether you delete it yourself, clear done tasks, retention removes it, or a rule edit replaces it.
+- Recurring rules can have a history id (in the rule editor, or `id:` in recurring.yml). With one, changing the rule's schedule or a task's text keeps its Tracker history on one row instead of starting a new one. Add the id before such a change, not in the same edit. Update the app on every device: older versions refuse the new task data.
+
 ## 0.133.0 - 2026-11-15
 
 - Recurring tasks can ask for a number when you check them off: pick the metrics in the rule editor (Upcoming > Recurring), or add `metrics: [weight]` to the rule in recurring.yml. Checking such a task off - on a card, on the phone, in the task dialog or from Review - asks for the value and records it in the Tracker on the day the task was due, even if you close it a day late. Done without value checks it off anyway, and Cancel leaves it open. The value shows on the done task's card and can be added or corrected later in the task dialog. Checking off from the Android widget or the Markdown task files records no value.
