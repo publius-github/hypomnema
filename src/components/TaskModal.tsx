@@ -102,9 +102,15 @@ export default function TaskModal({
   }, [title]);
 
   const subtasksDoneLast = config?.subtasks_done_last ?? true;
+  // a checklist's ticked subtasks always sink to the end
+  const inChecklist = useAppStore(
+    (s) =>
+      task.list_id !== null &&
+      s.lists.find((l) => l.id === task.list_id)?.kind === "checklist",
+  );
   const subtasks = sortSubtasks(
     tasks.filter((t) => t.parent_task_id === task.id),
-    subtasksDoneLast,
+    subtasksDoneLast || inChecklist,
     config?.subtasks_sort_alpha ?? false,
   );
 

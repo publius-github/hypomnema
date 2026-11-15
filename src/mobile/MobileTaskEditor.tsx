@@ -62,9 +62,15 @@ export default function MobileTaskEditor({
   }, [task.time]);
   const [subtaskTitle, setSubtaskTitle] = useState("");
 
+  // a checklist's ticked subtasks always sink to the end
+  const inChecklist = useAppStore(
+    (s) =>
+      task.list_id !== null &&
+      s.lists.find((l) => l.id === task.list_id)?.kind === "checklist",
+  );
   const subtasks = sortSubtasks(
     tasks.filter((t) => t.parent_task_id === task.id),
-    config?.subtasks_done_last ?? true,
+    (config?.subtasks_done_last ?? true) || inChecklist,
     config?.subtasks_sort_alpha ?? false,
   );
 
