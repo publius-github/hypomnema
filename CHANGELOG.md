@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.131.0 - 2026-11-15
+
+- New Tracker section: how reliably you keep your recurring tasks, week by week or month by month. One chart for all of them together and a row per task, weakest first, each against your rate alert threshold. A week where nothing was due shows as empty rather than as a zero, and a missed week stands out on its own. Hidden by default on a new vault; turn it on under Settings > General > Left bar. On the phone it sits under More.
+
 ## 0.130.7 - 2026-11-15
 
 - Settings > General > Left bar: Checklists is now named "Checklists", not "checklists".
