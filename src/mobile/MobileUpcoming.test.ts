@@ -10,6 +10,8 @@ const rule = (
   description: "",
   items: ["x"],
   threshold: null,
+  id: null,
+  metrics: [],
   source: "recurring.yml",
   next_occurrence,
 });

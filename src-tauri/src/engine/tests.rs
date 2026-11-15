@@ -1636,6 +1636,8 @@ fn recurring_quick_add_validates_and_lists() {
             description: "Daily".into(),
             items: vec!["{Home} water plants".into(), "  ".into()],
             threshold: None,
+            id: None,
+            metrics: vec![],
         },
     )
     .unwrap();
@@ -1646,6 +1648,8 @@ fn recurring_quick_add_validates_and_lists() {
             description: String::new(),
             items: vec!["x".into()],
             threshold: None,
+            id: None,
+            metrics: vec![],
         },
     )
     .is_err());
@@ -1656,6 +1660,8 @@ fn recurring_quick_add_validates_and_lists() {
             description: String::new(),
             items: vec![],
             threshold: None,
+            id: None,
+            metrics: vec![],
         },
     )
     .is_err());
@@ -1713,6 +1719,8 @@ fn rule_keys_are_the_same_values_every_build_derives() {
         description: "Weekday mornings".into(),
         items: vec!["{Work} stand-up".into()],
         threshold: None,
+        id: None,
+        metrics: vec![],
     };
     assert_eq!(
         recurring_rule_key(&rule, "{Work} stand-up"),

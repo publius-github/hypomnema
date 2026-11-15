@@ -1,3 +1,4 @@
+import { useMetricText } from "../hooks/useMetricText";
 import { useDraggable } from "@dnd-kit/core";
 import { taskCardKeyboard } from "./taskDnd";
 import { memo, useState, type CSSProperties } from "react";
@@ -181,6 +182,7 @@ function TaskCard({
   const rateAlertColor = useAppStore(
     (s) => themeColors(s.config)?.habit_rate_alert_color || "#c95e05",
   );
+  const metricText = useMetricText(task);
   const rateAlertOnly = useAppStore(
     (s) => (s.config?.habit_rate_display ?? "alert") === "alert",
   );
@@ -515,6 +517,14 @@ function TaskCard({
               title={`Done ${habitRate.done} of the last ${habitRate.total}; alert below ${habitRate.threshold}%`}
             >
               Rate: {habitRate.rate}%
+            </span>
+          )}
+          {metricText && (
+            <span
+              className="whitespace-nowrap rounded bg-line/40 px-1"
+              title="Tracker value recorded for this day"
+            >
+              {metricText}
             </span>
           )}
           {subtasks.length > 0 && (

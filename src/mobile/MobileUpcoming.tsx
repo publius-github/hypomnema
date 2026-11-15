@@ -606,13 +606,13 @@ function Recurring({
                       .map((line) => line.trim())
                       .filter(Boolean);
                     if (!draft.schedule.trim() || lines.length === 0) return;
+                    // what the phone has no control for (threshold,
+                    // series id, metrics) rides along from the original
                     const replacement: RecurringRule = {
+                      ...editing.original,
                       schedule: draft.schedule.trim(),
                       description: draft.description.trim(),
                       items: lines,
-                      ...(draft.threshold === undefined
-                        ? {}
-                        : { threshold: draft.threshold }),
                     };
                     void act(() =>
                       invoke("recurring_edit", {

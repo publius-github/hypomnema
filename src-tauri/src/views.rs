@@ -25,6 +25,10 @@ pub struct RecurringRuleView {
     /// the rule's own rate alert threshold, percent; None = the default
     /// from config.habit_rate_threshold
     pub threshold: Option<u32>,
+    /// the rule's series id (RecurringRule::id), if any
+    pub id: Option<String>,
+    /// metric ids its tasks ask a value for (RecurringRule::metrics)
+    pub metrics: Vec<String>,
     /// file the rule lives in, relative to config/; only rules from the
     /// root recurring.yml are editable through the UI
     pub source: String,
@@ -865,6 +869,8 @@ pub fn recurring_list(config_dir: &Path, now: DateTime<Local>) -> RecurringResul
                 description: rule.description,
                 items: rule.items,
                 threshold: rule.threshold,
+                id: rule.id,
+                metrics: rule.metrics,
                 source: source.clone(),
                 next_occurrence,
             });

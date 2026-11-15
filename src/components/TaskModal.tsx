@@ -1,3 +1,4 @@
+import MetricValues from "./MetricValues";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 // react-markdown (and its remark/rehype tree) only renders the preview
@@ -204,6 +205,8 @@ export default function TaskModal({
             </div>
           </div>
         )}
+
+        <MetricValues task={task} />
 
         <div className="grid grid-cols-2 gap-3 text-sm">
           <label className="flex flex-col gap-1">

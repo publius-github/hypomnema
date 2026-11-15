@@ -19,6 +19,7 @@ import Reminders from "./sections/Reminders";
 import Calendar from "./sections/Calendar";
 import History from "./sections/History";
 import Tracker from "./sections/Tracker";
+import MetricPrompt from "./components/MetricPrompt";
 import Review from "./sections/Review";
 import Journal from "./sections/Journal";
 import KnowledgeBase from "./sections/KnowledgeBase";
@@ -324,6 +325,7 @@ export default function App() {
         )}
       </div>
       <DueToasts onOpen={openToastTask} />
+      <MetricPrompt />
       {toastTask && (
         <TaskModal
           task={tasks.find((t) => t.id === toastTask.id) ?? toastTask}

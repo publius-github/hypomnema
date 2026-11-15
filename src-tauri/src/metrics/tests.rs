@@ -212,3 +212,35 @@ fn the_overview_shows_the_two_newest_values() {
     assert!(o.metrics[1].latest.is_none());
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn rule_items_with_metrics_are_linked_by_rule_key_and_a_typo_reported() {
+    let dir = std::env::temp_dir().join("hypomnema-metrics-links");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(FILE), "metrics:\n  - id: weight\n  - id: waist\n").unwrap();
+    fs::write(
+        dir.join("recurring.yml"),
+        "tasks:\n  - schedule: \"0 8 * * *\"\n    metrics: [weight, waist, wieght]\n    items:\n      - \"{Health} Weigh in\"\n  - schedule: \"0 9 * * *\"\n    items:\n      - \"no metric\"\n",
+    )
+    .unwrap();
+    let o = overview(&conn(), &dir).unwrap();
+    let rule = crate::config_files::RecurringRule {
+        schedule: "0 8 * * *".into(),
+        description: String::new(),
+        items: vec![],
+        threshold: None,
+        id: None,
+        metrics: vec![],
+    };
+    assert_eq!(
+        o.links,
+        vec![MetricLink {
+            rule_key: crate::engine::recurring_rule_key(&rule, "{Health} Weigh in"),
+            metrics: vec!["weight".into(), "waist".into()],
+        }]
+    );
+    assert_eq!(o.errors.len(), 1);
+    assert!(o.errors[0].message.contains("'wieght'"), "{:?}", o.errors);
+    let _ = fs::remove_dir_all(&dir);
+}

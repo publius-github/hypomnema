@@ -44,6 +44,19 @@ pub struct RecurringRule {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub threshold: Option<u32>,
+    /// Stable identity of the rule's history (habit_trends): with an id,
+    /// changing the schedule or an item's text continues the same series
+    /// on the Tracker instead of starting a new one. A multi-item rule
+    /// keys its items `id/1`, `id/2`... by position. Not part of the rule
+    /// key, so adding one regenerates nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub id: Option<String>,
+    /// Tracker metrics (metrics.yml ids) a task of this rule asks a value
+    /// for when it is checked off. Not part of the rule key either.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub metrics: Vec<String>,
 }
 
 fn check_threshold(rule: &RecurringRule) -> Result<()> {

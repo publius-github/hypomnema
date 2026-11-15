@@ -35,6 +35,10 @@ tasks:
     description: "Monthly"
     items:
       - "{05 Finance} pay bills for apartment"   # {List} task text
+  - schedule: "0 8 * * *"
+    metrics: [weight]            # optional: checking the task off asks for these Tracker values
+    items:
+      - "{Health} Weigh in"
 
 # scheduled.yml - one-off dated events
 events:

@@ -395,15 +395,78 @@ pub struct MetricView {
     pub previous: Option<Measurement>,
 }
 
+/// The metrics a recurring rule item's tasks ask a value for.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct MetricLink {
+    pub rule_key: String,
+    pub metrics: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
 pub struct MetricsOverview {
     pub metrics: Vec<MetricView>,
+    /// every recurring item with `metrics:`, unknown ids left out
+    pub links: Vec<MetricLink>,
     pub errors: Vec<ConfigError>,
 }
 
+/// Which rule items ask for which metrics, from recurring.yml and its
+/// packs. An id that metrics.yml does not define is reported and left
+/// out, so a typo shows up instead of a prompt with nothing to record.
+fn links(config_dir: &Path, defs: &[MetricDef], errors: &mut Vec<ConfigError>) -> Vec<MetricLink> {
+    use crate::config_files::{load_extras, RecurringFile};
+    let mut ignored = Vec::new();
+    let mut sources = vec![(
+        "recurring.yml".to_string(),
+        load_yaml::<RecurringFile>(config_dir, "recurring.yml", &mut ignored).unwrap_or_default(),
+    )];
+    sources.extend(load_extras::<RecurringFile>(
+        config_dir,
+        "tasks",
+        &mut ignored,
+    ));
+    let mut out = Vec::new();
+    for (source, file) in sources {
+        for (index, rule) in file.tasks.iter().enumerate() {
+            if rule.metrics.is_empty() {
+                continue;
+            }
+            let mut known = Vec::new();
+            for id in &rule.metrics {
+                if defs.iter().any(|d| &d.id == id) {
+                    if !known.contains(id) {
+                        known.push(id.clone());
+                    }
+                } else {
+                    errors.push(ConfigError {
+                        file: source.clone(),
+                        line: None,
+                        message: format!(
+                            "rule {}: metric '{id}' is not defined in {FILE}",
+                            index + 1
+                        ),
+                    });
+                }
+            }
+            if known.is_empty() {
+                continue;
+            }
+            for item in &rule.items {
+                out.push(MetricLink {
+                    rule_key: crate::engine::recurring_rule_key(rule, item),
+                    metrics: known.clone(),
+                });
+            }
+        }
+    }
+    out
+}
+
 pub fn overview(conn: &Connection, config_dir: &Path) -> Result<MetricsOverview> {
-    let (defs, errors) = load(config_dir);
+    let (defs, mut errors) = load(config_dir);
+    let links = links(config_dir, &defs, &mut errors);
     let mut metrics = Vec::with_capacity(defs.len());
     for def in defs {
         let mut newest = recent(conn, &def.id, 2)?.into_iter();
@@ -413,7 +476,11 @@ pub fn overview(conn: &Connection, config_dir: &Path) -> Result<MetricsOverview>
             def,
         });
     }
-    Ok(MetricsOverview { metrics, errors })
+    Ok(MetricsOverview {
+        metrics,
+        links,
+        errors,
+    })
 }
 
 /// The stored value of one metric on one day, if any.

@@ -7,6 +7,14 @@ export type RecurringRuleView = { schedule: string, description: string, items: 
  */
 threshold: number | null, 
 /**
+ * the rule's series id (RecurringRule::id), if any
+ */
+id: string | null, 
+/**
+ * metric ids its tasks ask a value for (RecurringRule::metrics)
+ */
+metrics: Array<string>, 
+/**
  * file the rule lives in, relative to config/; only rules from the
  * root recurring.yml are editable through the UI
  */

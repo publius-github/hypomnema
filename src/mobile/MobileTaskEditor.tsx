@@ -1,3 +1,4 @@
+import MetricValues from "../components/MetricValues";
 import { useEffect, useState } from "react";
 import { useAppStore } from "../store";
 import { useTaskTextDraft } from "../hooks/useTaskTextDraft";
@@ -219,6 +220,8 @@ export default function MobileTaskEditor({
             ))}
           </div>
         </div>
+
+        <MetricValues task={task} large />
 
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm">Priority</span>

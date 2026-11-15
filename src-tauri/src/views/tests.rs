@@ -84,6 +84,8 @@ fn habit_rates_count_settled_instances_against_thresholds() {
             description: String::new(),
             items: vec![],
             threshold: None,
+            id: None,
+            metrics: vec![],
         },
         "review",
     );

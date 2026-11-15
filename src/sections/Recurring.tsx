@@ -152,6 +152,14 @@ export default function Recurring() {
                       alert &lt; {rule.threshold}%
                     </span>
                   )}
+                  {rule.metrics.length > 0 && (
+                    <span
+                      className="shrink-0 text-xs text-content-muted"
+                      title="Checking a task off asks for these Tracker values"
+                    >
+                      asks: {rule.metrics.join(", ")}
+                    </span>
+                  )}
                 </div>
                 <ul className="mt-1 pl-1 text-sm text-content-muted">
                   {rule.items.map((item, j) => (
@@ -401,6 +409,41 @@ function ThresholdInput({
   );
 }
 
+/** Which Tracker metrics the rule's tasks ask a value for when checked
+ *  off. Ids metrics.yml no longer defines stay selected (and say so)
+ *  rather than vanishing from the rule on save. */
+function MetricsPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const defs = useAppStore((s) => s.metricDefs);
+  const ids = [...Object.keys(defs), ...value.filter((id) => !(id in defs))];
+  if (ids.length === 0) return null;
+  return (
+    <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-content-muted">
+      <legend className="sr-only">Ask for metrics</legend>
+      <span title="Checking a task of this rule off asks for these values (Tracker)">
+        Ask for values:
+      </span>
+      {ids.map((id) => (
+        <label key={id} className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={value.includes(id)}
+            onChange={(e) =>
+              onChange(e.target.checked ? [...value, id] : value.filter((v) => v !== id))
+            }
+          />
+          {defs[id] ? (defs[id].name ?? id) : `${id} (not in metrics.yml)`}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
 function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
   const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
   const [schedule, setSchedule] = useState<BuilderState>(() =>
@@ -409,6 +452,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
   const [description, setDescription] = useState("");
   const [items, setItems] = useState("");
   const [threshold, setThreshold] = useState("");
+  const [metrics, setMetrics] = useState<string[]>([]);
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -425,12 +469,14 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
           description: description.trim(),
           items: parsedItems,
           threshold: parseThreshold(threshold),
+          ...(metrics.length > 0 ? { metrics } : {}),
         },
       });
       setSchedule(parseSchedule(""));
       setDescription("");
       setItems("");
       setThreshold("");
+      setMetrics([]);
       await onWrite();
     } catch (err) {
       setError(err);
@@ -460,6 +506,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
         item over: its completed tasks from past days are removed. The alert
         threshold can change freely.
       </p>
+      <MetricsPicker value={metrics} onChange={setMetrics} />
       <div className="flex items-center justify-between gap-2">
         <ThresholdInput value={threshold} onChange={setThreshold} />
         <button className="btn-primary">Add rule</button>
@@ -485,6 +532,7 @@ function RuleEditForm({
   const [threshold, setThreshold] = useState(
     rule.threshold == null ? "" : String(rule.threshold),
   );
+  const [metrics, setMetrics] = useState<string[]>(rule.metrics ?? []);
 
   return (
     <form
@@ -498,10 +546,13 @@ function RuleEditForm({
           .filter(Boolean);
         if (!cron || parsedItems.length === 0) return;
         onSave({
+          // the series id has no control here and rides along
+          ...(rule.id !== undefined ? { id: rule.id } : {}),
           schedule: cron,
           description: description.trim(),
           items: parsedItems,
           threshold: parseThreshold(threshold),
+          ...(metrics.length > 0 ? { metrics } : {}),
         });
       }}
     >
@@ -517,6 +568,7 @@ function RuleEditForm({
         value={items}
         onChange={(e) => setItems(e.target.value)}
       />
+      <MetricsPicker value={metrics} onChange={setMetrics} />
       <div className="flex items-center justify-between gap-2">
         <ThresholdInput value={threshold} onChange={setThreshold} />
         <EditFormButtons onCancel={onCancel} />

@@ -4,6 +4,7 @@ import type {
   DashboardContext,
   HabitRate,
   List,
+  MetricDef,
   ListGroup,
   NewTask,
   Task,
@@ -27,11 +28,29 @@ export interface TasksSlice {
   /// without enough settled instances are absent
   habitRates: Record<string, HabitRate>;
   loadHabitRates: () => Promise<void>;
+  /// Tracker metrics as task views need them: definitions by id, which
+  /// recurring items ask for which metrics (by rule_key), and recent
+  /// values keyed `metric|date` (see `metricKey`)
+  metricDefs: Record<string, MetricDef>;
+  metricLinks: Record<string, string[]>;
+  metricValues: Record<string, number>;
+  loadMetrics: () => Promise<void>;
+  /// records (number) or deletes (null) a metric's value for a day
+  setMetricValue: (metric: string, date: string, value: number | null) => Promise<void>;
+  /// a check-off of a task whose rule asks for metric values, held
+  /// until the value prompt answers (`resolveMetricPrompt`)
+  metricPrompt: { task: Task; patch: TaskPatch } | null;
+  /// `values` null = cancel (the task stays as it was); otherwise the
+  /// typed values are recorded (an empty object = done without values)
+  /// and the held status change goes through
+  resolveMetricPrompt: (values: Record<string, number> | null) => Promise<void>;
   refresh: () => Promise<void>;
   /// resolves false when the core refused (the banner says why), so a
   /// quick-add field keeps what was typed
   createTask: (task: NewTask) => Promise<boolean>;
-  updateTask: (id: number, patch: TaskPatch) => Promise<void>;
+  /// a check-off of a metric task opens the value prompt instead,
+  /// unless `opts.metricsAnswered` says the prompt already ran
+  updateTask: (id: number, patch: TaskPatch, opts?: { metricsAnswered?: boolean }) => Promise<void>;
   /// drag-to-reorder inside a list column; dropping onto a task of a
   /// different list moves the task there instead
   reorderTask: (activeId: number, overId: number) => Promise<void>;
@@ -153,6 +172,28 @@ export async function knowLists(
   }
 }
 
+/** The key `metricValues` holds a metric's value for a day under. */
+export function metricKey(metric: string, date: string): string {
+  return `${metric}|${date}`;
+}
+
+/** The day a task's metric values belong to: the day it was due, which
+ *  a carried-over copy keeps in origin_date. */
+export function taskDay(task: Task): string {
+  return task.origin_date ?? task.scheduled_date ?? todayISO();
+}
+
+/** The defined metrics a task asks a value for (its rule's `metrics:`). */
+export function metricsOf(
+  state: Pick<TasksSlice, "metricLinks" | "metricDefs">,
+  task: Task,
+): MetricDef[] {
+  if (task.rule_key === null) return [];
+  return (state.metricLinks[task.rule_key] ?? [])
+    .map((id) => state.metricDefs[id])
+    .filter((d): d is MetricDef => d !== undefined);
+}
+
 export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
   set,
   get,
@@ -173,6 +214,56 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
       // a missing rate only hides a chip; not worth an error banner
       warn("habit rates", e);
     }
+  },
+
+  metricDefs: {},
+  metricLinks: {},
+  metricValues: {},
+  loadMetrics: async () => {
+    try {
+      // cards show a done task's value, editors prefill it; a year back
+      // covers anything still on screen
+      const [overview, values] = await Promise.all([
+        invoke("metrics_overview"),
+        invoke("measurements_since", { from: addDaysISO(todayISO(), -400) }),
+      ]);
+      set({
+        metricDefs: Object.fromEntries(overview.metrics.map((m) => [m.def.id, m.def])),
+        metricLinks: Object.fromEntries(overview.links.map((l) => [l.rule_key, l.metrics])),
+        metricValues: Object.fromEntries(values.map((m) => [metricKey(m.metric, m.date), m.value])),
+      });
+    } catch (e) {
+      // without them a metric task closes like any other; no banner
+      warn("metrics", e);
+    }
+  },
+  setMetricValue: async (metric, date, value) => {
+    try {
+      if (value === null) {
+        await invoke("measurement_delete", { metric, date });
+      } else {
+        await invoke("measurement_set", { metric, date, value });
+      }
+      set((s) => {
+        const next = { ...s.metricValues };
+        if (value === null) delete next[metricKey(metric, date)];
+        else next[metricKey(metric, date)] = value;
+        return { metricValues: next };
+      });
+    } catch (e) {
+      set({ error: errorMessage(e) });
+    }
+  },
+  metricPrompt: null,
+  resolveMetricPrompt: async (values) => {
+    const prompt = get().metricPrompt;
+    set({ metricPrompt: null });
+    if (!prompt || values === null) return;
+    const day = taskDay(prompt.task);
+    for (const [metric, value] of Object.entries(values)) {
+      await get().setMetricValue(metric, day, value);
+    }
+    await get().updateTask(prompt.task.id, prompt.patch, { metricsAnswered: true });
   },
 
   refresh: async () => {
@@ -206,6 +297,7 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
       if (seq !== refreshSeq) return;
       set({ today, lists, groups, tasks, dashboard });
       void get().loadHabitRates();
+      void get().loadMetrics();
     } catch (e) {
       if (seq !== refreshSeq) return;
       set({ error: errorMessage(e) });
@@ -229,8 +321,18 @@ export const createTasksSlice: StateCreator<AppState, [], [], TasksSlice> = (
     }
   },
 
-  updateTask: async (id, patch) => {
+  updateTask: async (id, patch, opts) => {
     const previousTask = get().tasks.find((t) => t.id === id);
+    if (
+      !opts?.metricsAnswered &&
+      previousTask &&
+      patch.status === "done" &&
+      previousTask.status !== "done" &&
+      metricsOf(get(), previousTask).length > 0
+    ) {
+      set({ metricPrompt: { task: previousTask, patch } });
+      return;
+    }
     // two quick patches on one task (a double status click) may answer
     // out of order; only the latest call's row or rollback may land
     const seq = (taskUpdateSeq.get(id) ?? 0) + 1;

@@ -97,6 +97,8 @@ fn edit_and_delete_config_entries_round_trip() {
             description: String::new(),
             items: vec!["x".into()],
             threshold: None,
+            id: None,
+            metrics: vec![],
         },
     )
     .unwrap();
@@ -109,6 +111,8 @@ fn edit_and_delete_config_entries_round_trip() {
             description: String::new(),
             items: vec!["x".into()],
             threshold: None,
+            id: None,
+            metrics: vec![],
         }),
     )
     .is_err());
@@ -121,6 +125,8 @@ fn edit_and_delete_config_entries_round_trip() {
             description: "Mondays".into(),
             items: vec!["y".into()],
             threshold: None,
+            id: None,
+            metrics: vec![],
         }),
     )
     .unwrap();
@@ -145,6 +151,8 @@ fn splice_preserves_comments_and_blank_lines() {
             description: "Monthly".into(),
             items: vec!["bills".into()],
             threshold: None,
+            id: None,
+            metrics: vec![],
         },
     )
     .unwrap();
@@ -162,6 +170,8 @@ fn splice_preserves_comments_and_blank_lines() {
             description: "Tuesdays".into(),
             items: vec!["review".into()],
             threshold: None,
+            id: None,
+            metrics: vec![],
         }),
     )
     .unwrap();
@@ -261,6 +271,8 @@ fn adding_to_an_unreadable_file_refuses_and_leaves_it_alone() {
         description: String::new(),
         items: vec!["new".into()],
         threshold: None,
+        id: None,
+        metrics: vec![],
     };
     let err = append_recurring(&dir, rule).unwrap_err();
     assert!(err.to_string().contains("recurring.yml"), "{err}");

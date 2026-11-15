@@ -4,7 +4,7 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 // In-app replacements for window.confirm/prompt: native dialogs clash
 // with the app styling and window.prompt is unreliable in WebView2.
 
-function Backdrop({
+export function Backdrop({
   label,
   onCancel,
   children,
@@ -39,7 +39,7 @@ function Backdrop({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="flex w-[400px] flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl"
+        className="flex w-[400px] max-w-full flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-xl"
       >
         {children}
       </div>

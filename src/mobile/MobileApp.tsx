@@ -1,3 +1,4 @@
+import MetricPrompt from "../components/MetricPrompt";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { invoke } from "../lib/ipc";
@@ -294,6 +295,7 @@ export default function MobileApp() {
           )}
         </div>
         <DueToasts position="bottom-24 right-3" onOpen={setEditing} />
+        <MetricPrompt />
         {searchOpen && <MobileSearch onClose={() => setSearchOpen(false)} />}
         {editingTask && (
           <MobileTaskEditor

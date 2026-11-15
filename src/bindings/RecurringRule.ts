@@ -6,4 +6,17 @@ export type RecurringRule = { schedule: string, description: string, items: Arra
  * absent = `config.habit_rate_threshold`. Not part of the rule key,
  * so setting it never regenerates or orphans the rule's history.
  */
-threshold?: number, };
+threshold?: number, 
+/**
+ * Stable identity of the rule's history (habit_trends): with an id,
+ * changing the schedule or an item's text continues the same series
+ * on the Tracker instead of starting a new one. A multi-item rule
+ * keys its items `id/1`, `id/2`... by position. Not part of the rule
+ * key, so adding one regenerates nothing.
+ */
+id?: string, 
+/**
+ * Tracker metrics (metrics.yml ids) a task of this rule asks a value
+ * for when it is checked off. Not part of the rule key either.
+ */
+metrics?: Array<string>, };

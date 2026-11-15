@@ -1,3 +1,4 @@
+import { useMetricText } from "../hooks/useMetricText";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { DONE_SUB_PLATE } from "../lib/tasks";
 import { errorMessage, invoke } from "../lib/ipc";
@@ -163,6 +164,7 @@ export default function TaskRow({
   const rateAlertColor =
     themeColors(config)?.habit_rate_alert_color || "#c95e05";
   const rateAlertOnly = (config?.habit_rate_display ?? "alert") === "alert";
+  const metricText = useMetricText(task);
   // a closed row fades everything but its status box
   const dim = closed ? (config?.closed_row_opacity ?? 50) / 100 : 1;
 
@@ -394,6 +396,11 @@ export default function TaskRow({
                 style={habitRate.alert ? tintStyle(rateAlertColor) : undefined}
               >
                 rate {habitRate.rate}%
+              </span>
+            )}
+            {metricText && (
+              <span title="Tracker value" className={`${BADGE} bg-line/40 text-content-muted`}>
+                {metricText}
               </span>
             )}
           </span>

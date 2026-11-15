@@ -10,6 +10,8 @@ export function ruleOf(view: RecurringRuleView): RecurringRule {
     items: view.items,
     // the view spells "no threshold" as null, the rule as an absent key
     ...(view.threshold != null ? { threshold: view.threshold } : {}),
+    ...(view.id != null ? { id: view.id } : {}),
+    ...(view.metrics.length > 0 ? { metrics: view.metrics } : {}),
   };
 }
 
