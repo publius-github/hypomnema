@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.132.0 - 2026-11-15
+
+- Tracker: follow numbers over time - your weight, a follower count, anything you write down regularly. Add a metric from the Tracker (or in metrics.yml under Notes > Config), then enter a value for any day; entering the same day again replaces it. Each metric gets a chart by day, with a 7-day average line that smooths out daily ups and downs, or by week or month, where a week becomes its average, sum or last value as you chose. An optional goal shows as a dashed line, and the change since your previous value is colored by whether lower or higher is better. Values sync between your devices like your tasks do. Update the app on every device before you start entering values.
+
 ## 0.131.0 - 2026-11-15
 
 - New Tracker section: how reliably you keep your recurring tasks, week by week or month by month. One chart for all of them together and a row per task, weakest first, each against your rate alert threshold. A week where nothing was due shows as empty rather than as a zero, and a missed week stands out on its own. Hidden by default on a new vault; turn it on under Settings > General > Left bar. On the phone it sits under More.
