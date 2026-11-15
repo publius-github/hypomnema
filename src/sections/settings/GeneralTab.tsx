@@ -1,24 +1,12 @@
 import { useState } from "react";
 import { Field, NumberInput, TextInput, Toggle } from "../../components/form";
 import SettingsGroup from "../../components/SettingsGroup";
+import { sectionLabel } from "../../components/TabBar";
 import { ConfirmModal } from "../../components/dialogs";
 import { invoke } from "../../lib/ipc";
 import { RESET_ALL_KEEPS } from "../../lib/settingsCatalog";
-import type { AppConfig, Theme } from "../../types";
+import type { AppConfig, Section, Theme } from "../../types";
 import { useAppStore } from "../../store";
-
-const SECTION_LABELS: Record<string, string> = {
-  dashboard: "Dashboard",
-  lists: "Lists",
-  days: "Days",
-  upcoming: "Upcoming",
-  reminders: "Reminders",
-  calendar: "Calendar",
-  history: "History",
-  review: "Review",
-  journal: "Journal",
-  kb: "Notes",
-};
 
 /**
  * What makes the app look and feel like yours before any task is in
@@ -108,7 +96,7 @@ export default function GeneralTab() {
                 <span
                   className={`min-w-0 flex-1 ${hidden ? "text-content-muted line-through" : ""}`}
                 >
-                  {SECTION_LABELS[id] ?? id}
+                  {sectionLabel(id as Section)}
                 </span>
                 <button
                   className="btn-ghost px-2 py-0.5 text-xs"
