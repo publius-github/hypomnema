@@ -698,28 +698,39 @@ pub struct HabitTrends {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrendUnit {
+    Day,
     Week,
     Month,
 }
 
 impl TrendUnit {
+    /// The first day of each of the last `count` periods up to and
+    /// including today's, oldest first.
+    pub(crate) fn starts(self, today: NaiveDate, count: u32) -> Vec<NaiveDate> {
+        let current = self.start_of(today);
+        (0..count).rev().map(|n| self.back(current, n)).collect()
+    }
+
     pub fn parse(unit: &str) -> Option<Self> {
         match unit {
+            "day" => Some(Self::Day),
             "week" => Some(Self::Week),
             "month" => Some(Self::Month),
             _ => None,
         }
     }
 
-    fn start_of(self, day: NaiveDate) -> NaiveDate {
+    pub(crate) fn start_of(self, day: NaiveDate) -> NaiveDate {
         match self {
+            Self::Day => day,
             Self::Week => day - Duration::days(i64::from(day.weekday().num_days_from_monday())),
             Self::Month => day.with_day(1).expect("day 1 exists"),
         }
     }
 
-    fn back(self, start: NaiveDate, n: u32) -> NaiveDate {
+    pub(crate) fn back(self, start: NaiveDate, n: u32) -> NaiveDate {
         match self {
+            Self::Day => start - Duration::days(i64::from(n)),
             Self::Week => start - Duration::weeks(i64::from(n)),
             Self::Month => start - Months::new(n),
         }
@@ -738,9 +749,7 @@ pub fn habit_trends(
     unit: TrendUnit,
     count: u32,
 ) -> Result<HabitTrends> {
-    let count = count.clamp(1, 260);
-    let current = unit.start_of(today);
-    let starts: Vec<NaiveDate> = (0..count).rev().map(|n| unit.back(current, n)).collect();
+    let starts = unit.starts(today, count.clamp(1, 260));
     let first = starts[0].format("%Y-%m-%d").to_string();
     let today_str = today.format("%Y-%m-%d").to_string();
     let mut stmt = conn.prepare(

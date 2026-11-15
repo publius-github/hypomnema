@@ -356,6 +356,37 @@ const MIGRATIONS: &[&str] = &[
             updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
         WHERE id = NEW.id;
     END;",
+    // 021: tracker measurements (metrics.rs). One value per metric per
+    // day, keyed by the pair rather than an id, so the same day entered
+    // on two devices is one row the merge arbitrates, never two. A NULL
+    // value is a deletion kept as a tombstone: a row simply gone would
+    // come back from the other device's copy on the next merge, while a
+    // stamped NULL wins it like any other edit. Stamped by triggers like
+    // migrations 016 and 020.
+    "CREATE TABLE measurements (
+        metric TEXT NOT NULL,
+        date TEXT NOT NULL,
+        value REAL,
+        updated_at TEXT,
+        updated_by TEXT,
+        PRIMARY KEY (metric, date)
+    );
+    CREATE TRIGGER measurements_stamp_insert AFTER INSERT ON measurements
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+        UPDATE measurements SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE metric = NEW.metric AND date = NEW.date;
+    END;
+    CREATE TRIGGER measurements_stamp_update AFTER UPDATE ON measurements
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+        UPDATE measurements SET
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
+        WHERE metric = NEW.metric AND date = NEW.date;
+    END;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

@@ -323,7 +323,7 @@ fn to_item_block<T: serde::Serialize>(value: &T, indent: &str) -> Result<String>
 /// replace, or delete (replacement None). Only the touched lines
 /// change; everything else, comments included, stays byte-identical.
 /// The result is re-parsed with `check` before anything is written.
-fn splice_item<T: serde::Serialize>(
+pub(crate) fn splice_item<T: serde::Serialize>(
     config_dir: &Path,
     file: &str,
     key: &str,
@@ -871,6 +871,7 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
         return errors;
     }
     match file {
+        "metrics.yml" => errors.extend(crate::metrics::validate(content)),
         "recurring.yml" => match serde_yaml::from_str::<RecurringFile>(content) {
             Ok(parsed) => {
                 for (index, rule) in parsed.tasks.iter().enumerate() {

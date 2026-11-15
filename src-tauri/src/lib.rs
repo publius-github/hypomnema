@@ -15,6 +15,7 @@ mod google_link;
 mod ids;
 mod journal;
 mod kb;
+mod metrics;
 mod nav_guard;
 #[cfg(desktop)]
 mod oauth;
@@ -42,6 +43,7 @@ mod views;
 
 mod cmd_journal;
 mod cmd_kb;
+mod cmd_metrics;
 mod cmd_rules;
 mod cmd_sync;
 mod cmd_tasks;
@@ -264,6 +266,13 @@ pub fn run() {
             cmd_views::daily_streaks,
             cmd_views::habit_rates,
             cmd_views::habit_trends,
+            cmd_metrics::metrics_overview,
+            cmd_metrics::metric_series,
+            cmd_metrics::measurements_recent,
+            cmd_metrics::measurements_since,
+            cmd_metrics::measurement_set,
+            cmd_metrics::measurement_delete,
+            cmd_metrics::metric_add,
             cmd_tasks::task_get,
             cmd_kb::open_external,
             state::platform_is_mobile,

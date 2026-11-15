@@ -39,6 +39,10 @@ pub(crate) const CONFIG_STARTERS: &[(&str, &str)] = &[
         "day-schedule.yml",
         "# Day schedule blocks; the dashboard shows the current and the next one.\nblocks:\n  - from: \"09:00\"\n    to: \"12:30\"\n    label: \"Deep work\"\n  - from: \"14:00\"\n    to: \"16:00\"\n    label: \"Meetings and mail\"\n",
     ),
+    (
+        "metrics.yml",
+        "# Numbers the Tracker follows over time, one value per day each.\n# metrics:\n#   - id: weight          # the key values are stored under; keep it\n#     name: Weight\n#     unit: kg\n#     decimals: 1\n#     goal: 75            # optional target line\n#     better: down        # down | up | none\n#     rollup: avg         # a week or month as: avg | sum | last\n",
+    ),
 ];
 
 /// The commented samples an existing vault gets for a config file it
@@ -64,6 +68,10 @@ pub(crate) const CONFIG_SAMPLES: &[(&str, &str)] = &[
     (
         "day-reminders.yml",
         "# Reminders by day type: workday | weekend | mon..sun.\n# reminders:\n#   - day_type: workday\n#     text: \"Plan the first hour before opening mail\"\n",
+    ),
+    (
+        "metrics.yml",
+        "# Numbers the Tracker follows over time, one value per day each.\n# metrics:\n#   - id: weight          # the key values are stored under; keep it\n#     name: Weight\n#     unit: kg\n#     decimals: 1\n#     goal: 75            # optional target line\n#     better: down        # down | up | none\n#     rollup: avg         # a week or month as: avg | sum | last\n",
     ),
     (
         "day-schedule.yml",

@@ -168,6 +168,7 @@ pub(crate) const EDITABLE_CONFIG_FILES: &[&str] = &[
     "weekly-focus.yml",
     "day-reminders.yml",
     "day-schedule.yml",
+    "metrics.yml",
     "colors.yml",
     "shared.yml",
     "cards.yml",

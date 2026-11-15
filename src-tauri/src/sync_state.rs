@@ -18,6 +18,9 @@
 //!   period independently must collapse to one row, never two.
 //! - `rule_seen.jsonl` keeps the *earliest* first-seen date, because that
 //!   date is what stops catch-up re-running a rule's whole history.
+//! - `measurements.jsonl` is stamped like tasks but keyed by
+//!   `(metric, date)`; a deletion is a stamped `value: null`, so it wins
+//!   or loses by its stamp like any edit instead of being resurrected.
 //! - `weekly_focus.jsonl` is a plain value with no stamp of its own; a
 //!   genuine collision keeps this device's pin and logs the other.
 //!
@@ -56,6 +59,9 @@ pub enum StateFile {
     RuleSeen,
     /// `(iso_year, iso_week)` -> phrase index, no stamp to arbitrate with.
     WeeklyFocus,
+    /// Stamped rows keyed by `(metric, date)`: the same three-way merge
+    /// as `Stamped`, a deletion being a stamped `value: null`.
+    Measurements,
 }
 
 impl StateFile {
@@ -68,6 +74,7 @@ impl StateFile {
             "rule_runs.jsonl" => Some(Self::RuleRuns),
             "rule_seen.jsonl" => Some(Self::RuleSeen),
             "weekly_focus.jsonl" => Some(Self::WeeklyFocus),
+            "measurements.jsonl" => Some(Self::Measurements),
             _ => None,
         }
     }
@@ -78,6 +85,7 @@ impl StateFile {
             Self::RuleRuns => &["rule_key", "period_key"],
             Self::RuleSeen => &["rule_key"],
             Self::WeeklyFocus => &["iso_year", "iso_week"],
+            Self::Measurements => &["metric", "date"],
         }
     }
 }
@@ -187,7 +195,7 @@ pub fn merge_state_file(
     remote: &str,
 ) -> Result<StateMerge> {
     match kind {
-        StateFile::Stamped => merge_stamped(base, local, remote),
+        StateFile::Stamped | StateFile::Measurements => merge_stamped(kind, base, local, remote),
         StateFile::RuleRuns => Ok(merge_union(
             parse_rows(local, kind)?,
             parse_rows(remote, kind)?,
@@ -197,8 +205,12 @@ pub fn merge_state_file(
     }
 }
 
-fn merge_stamped(base: Option<&str>, local: &str, remote: &str) -> Result<StateMerge> {
-    let kind = StateFile::Stamped;
+fn merge_stamped(
+    kind: StateFile,
+    base: Option<&str>,
+    local: &str,
+    remote: &str,
+) -> Result<StateMerge> {
     let base_rows = match base {
         Some(text) => parse_rows(text, kind)?,
         None => BTreeMap::new(),
@@ -386,6 +398,41 @@ mod tests {
         // statement about this device, not a shared record.
         assert!(state_file_of(".hypomnema/state/mirror-base/Inbox.md").is_none());
         assert!(state_file_of("journal/2026-09-08.md").is_none());
+    }
+
+    #[test]
+    fn measurements_merge_by_metric_and_day_and_a_deletion_wins_by_its_stamp() {
+        assert_eq!(
+            state_file_of(".hypomnema/state/measurements.jsonl"),
+            Some(StateFile::Measurements)
+        );
+        let m = |date: &str, value: &str, stamp: &str, by: &str| {
+            format!(
+                "{{\"metric\":\"weight\",\"date\":\"{date}\",\"value\":{value},\
+                 \"updated_at\":\"{stamp}\",\"updated_by\":\"{by}\"}}"
+            )
+        };
+        let base = m("2026-11-01", "82.4", "2026-11-01T08:00:00.000Z", "phone");
+        // the desktop deleted the day later than the phone corrected it
+        let local = m("2026-11-01", "null", "2026-11-01T10:00:00.000Z", "desktop");
+        let remote = format!(
+            "{}\n{}",
+            m("2026-11-01", "82.1", "2026-11-01T09:00:00.000Z", "phone"),
+            m("2026-11-02", "82.0", "2026-11-02T08:00:00.000Z", "phone")
+        );
+
+        let merged =
+            merge_state_file(StateFile::Measurements, Some(&base), &local, &remote).unwrap();
+
+        let rows: Vec<Value> = merged
+            .text
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert_eq!(rows.len(), 2, "one row per metric and day");
+        assert_eq!(rows[0]["value"], Value::Null, "the newer deletion stands");
+        assert_eq!(rows[1]["value"], 82.0);
+        assert_eq!(merged.conflicts.len(), 1, "the overwritten 82.1 is logged");
     }
 
     #[test]
