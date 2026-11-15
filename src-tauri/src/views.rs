@@ -676,9 +676,11 @@ pub struct TrendBucket {
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../src/bindings/")]
 pub struct RuleTrend {
+    /// the series: the rule's `id:` (or `id/N`) when it has one, else
+    /// the rule key
     pub rule_key: String,
     /// title of the newest instance, so a renamed item shows its
-    /// current name (a changed cron or text is a new rule key)
+    /// current name
     pub title: String,
     pub cadence: Option<String>,
     /// one bucket per period, same order as `HabitTrends::periods`
@@ -744,56 +746,125 @@ impl TrendUnit {
 /// Completion trend of the recurring rules over the last `count`
 /// periods up to and including today's, counted the way `habit_rates`
 /// counts (`settled_done`), each instance in the period of its own day
-/// (origin_date, so a carried-over copy stays where it was due). Reads
-/// the tasks table, so it reaches back only as far as retention keeps
-/// done tasks and a deleted instance leaves no trace.
+/// (origin_date, so a carried-over copy stays where it was due).
+///
+/// Rows are grouped by series: the rule's `id:` where it has one
+/// (`tasks.series`, engine::label_series), else the rule key - so with an
+/// id the history runs on through a changed schedule or item text. Live
+/// tasks are joined by `habit_log`, the outcomes of settled instances
+/// whose task was deleted (db.rs migration 022); an instance present in
+/// both (deleted, then put back by Undo) counts once, from its task. A
+/// soft-deleted (archived) task counts while it waits for the purge if
+/// it was settled, as its log row will after it.
 pub fn habit_trends(
     conn: &Connection,
     today: NaiveDate,
     unit: TrendUnit,
     count: u32,
 ) -> Result<HabitTrends> {
+    struct Row {
+        group: String,
+        title: String,
+        cadence: Option<String>,
+        day: String,
+        /// Some = settled with this outcome, None = still open
+        done: Option<bool>,
+    }
     let starts = unit.starts(today, count.clamp(1, 260));
     let first = starts[0].format("%Y-%m-%d").to_string();
     let today_str = today.format("%Y-%m-%d").to_string();
+
+    let mut rows: Vec<Row> = Vec::new();
+    let mut live: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     let mut stmt = conn.prepare(
-        "SELECT rule_key, title, status, cadence,
-                COALESCE(origin_date, scheduled_date) AS day
+        "SELECT rule_key, COALESCE(series, rule_key) AS grp, title, status, cadence,
+                COALESCE(origin_date, scheduled_date) AS day,
+                COALESCE(period_key, origin_date, scheduled_date) AS period,
+                archived_at IS NOT NULL AS archived
          FROM tasks
-         WHERE origin = 'recurring' AND rule_key IS NOT NULL
-           AND archived_at IS NULL AND parent_task_id IS NULL
+         WHERE origin = 'recurring' AND rule_key IS NOT NULL AND parent_task_id IS NULL
            AND COALESCE(origin_date, scheduled_date) >= ?1
-           AND COALESCE(origin_date, scheduled_date) <= ?2
-         ORDER BY rule_key, day DESC, created_at DESC, id DESC",
+           AND COALESCE(origin_date, scheduled_date) <= ?2",
     )?;
-    let rows = stmt.query_map([&first, &today_str], |row| {
+    let task_rows = stmt.query_map([&first, &today_str], |row| {
         Ok((
             row.get::<_, String>("rule_key")?,
+            row.get::<_, String>("grp")?,
             row.get::<_, String>("title")?,
             row.get::<_, String>("status")?,
             row.get::<_, Option<String>>("cadence")?,
             row.get::<_, String>("day")?,
+            row.get::<_, String>("period")?,
+            row.get::<_, bool>("archived")?,
         ))
     })?;
+    for row in task_rows {
+        let (rule_key, group, title, status, cadence, day, period, archived) = row?;
+        live.insert((rule_key, period));
+        // an archived open instance was deleted, not missed
+        if archived && !matches!(status.as_str(), "done" | "waiting" | "dropped") {
+            continue;
+        }
+        let done = settled_done(&status, cadence.as_deref(), Some(&day), &today_str);
+        rows.push(Row {
+            group,
+            title,
+            cadence,
+            day,
+            done,
+        });
+    }
+    let mut stmt = conn.prepare(
+        "SELECT rule_key, period_key, COALESCE(series, rule_key), title, cadence, day, done
+         FROM habit_log WHERE day >= ?1 AND day <= ?2",
+    )?;
+    let log_rows = stmt.query_map([&first, &today_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, Option<String>>(4)?,
+            row.get::<_, String>(5)?,
+            row.get::<_, bool>(6)?,
+        ))
+    })?;
+    for row in log_rows {
+        let (rule_key, period, group, title, cadence, day, done) = row?;
+        if live.contains(&(rule_key, period)) {
+            continue;
+        }
+        rows.push(Row {
+            group,
+            title,
+            cadence,
+            day,
+            done: Some(done),
+        });
+    }
+    // per group, newest first: the first row carries the current title
+    rows.sort_by(|a, b| a.group.cmp(&b.group).then_with(|| b.day.cmp(&a.day)));
+
     let mut overall = vec![TrendBucket::default(); starts.len()];
     let mut rules: Vec<RuleTrend> = Vec::new();
     for row in rows {
-        let (rule_key, title, status, cadence, day) = row?;
-        if rules.last().map(|r| r.rule_key != rule_key).unwrap_or(true) {
-            // rows come newest first per rule: the first one, settled or
-            // not, carries the current title
+        if rules
+            .last()
+            .map(|r| r.rule_key != row.group)
+            .unwrap_or(true)
+        {
             rules.push(RuleTrend {
-                rule_key,
-                title,
-                cadence: cadence.clone(),
+                rule_key: row.group.clone(),
+                title: row.title.clone(),
+                cadence: row.cadence.clone(),
                 buckets: vec![TrendBucket::default(); starts.len()],
                 sum: TrendBucket::default(),
             });
         }
-        let Some(done) = settled_done(&status, cadence.as_deref(), Some(&day), &today_str) else {
+        let Some(done) = row.done else {
             continue;
         };
-        let Ok(date) = NaiveDate::parse_from_str(&day, "%Y-%m-%d") else {
+        let Ok(date) = NaiveDate::parse_from_str(&row.day, "%Y-%m-%d") else {
             continue;
         };
         let slot = starts.partition_point(|start| *start <= date);

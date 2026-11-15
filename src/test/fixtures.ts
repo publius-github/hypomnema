@@ -249,7 +249,7 @@ export function baseHandlers(overrides: CommandHandlers = {}): CommandHandlers {
     dashboard_context: () => emptyDashboard,
     calendar_outlook: () => [],
     habit_rates: () => [],
-    metrics_overview: () => ({ metrics: [], errors: [] }),
+    metrics_overview: () => ({ metrics: [], links: [], errors: [] }),
     measurements_since: () => [],
     // the phone's automatic pass runs on mount; with no handler its
     // rejection is swallowed by design and the test would only log it

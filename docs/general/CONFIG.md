@@ -36,6 +36,7 @@ tasks:
     items:
       - "{05 Finance} pay bills for apartment"   # {List} task text
   - schedule: "0 8 * * *"
+    id: weigh-in                 # optional: keeps the Tracker history through schedule/text changes
     metrics: [weight]            # optional: checking the task off asks for these Tracker values
     items:
       - "{Health} Weigh in"
@@ -74,4 +75,4 @@ birthdays:
 - Your edits and statuses are never overwritten: regeneration only creates what is missing. Deleting an instance a later firing has already replaced removes it for good; deleting the rule's current one (today's, or the latest still-due weekly or monthly firing) brings it back on the next run. To stop a rule, edit or remove it in its file.
 - Overdue open tasks move to today marked overdue (at most one open copy per rule); daily tasks never count as overdue.
 - Missed occurrences within the catch-up window collapse into one (a week away gives one task, not seven).
-- Removing a rule removes all of its tasks, completed ones from past days included, so History, streaks and completion rates start over for it; only a task already done today stays. A rule is identified by its schedule, description and item text, so changing any of them counts as removing the old rule and adding a new one (the rule editor says so); the alert threshold can change freely. Completed tasks are otherwise cleaned up by the retention setting.
+- Removing a rule removes all of its tasks, completed ones from past days included, so History, streaks and completion rates start over for it; only a task already done today stays. A rule is identified by its schedule, description and item text, so changing any of them counts as removing the old rule and adding a new one (the rule editor says so); the alert threshold can change freely. The Tracker keeps the outcome of every done or dropped day even after its task is gone, and a rule with an `id:` keeps its Tracker history on one row through such changes (give it the id before the change, not in the same edit; a rule with several items keeps them apart as `id/1`, `id/2`...). Completed tasks are otherwise cleaned up by the retention setting.

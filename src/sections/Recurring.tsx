@@ -152,6 +152,14 @@ export default function Recurring() {
                       alert &lt; {rule.threshold}%
                     </span>
                   )}
+                  {rule.id != null && (
+                    <span
+                      className="shrink-0 font-mono text-xs text-content-muted"
+                      title="History id: the Tracker keeps this rule's record together through edits"
+                    >
+                      id {rule.id}
+                    </span>
+                  )}
                   {rule.metrics.length > 0 && (
                     <span
                       className="shrink-0 text-xs text-content-muted"
@@ -444,6 +452,28 @@ function MetricsPicker({
   );
 }
 
+/** The rule's series id: what keeps its Tracker history together when
+ *  the schedule or an item's text changes (both re-key the rule). */
+function SeriesIdInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label
+      className="flex items-center gap-2 text-xs text-content-muted"
+      title="Keeps this rule's Tracker history on one row when you later change its schedule or an item's text. Lowercase letters, digits, - and _. Add it before such a change, not with it."
+    >
+      History id
+      <input
+        className="input w-32"
+        placeholder="optional"
+        value={value}
+        aria-invalid={value !== "" && !SERIES_ID.test(value)}
+        onChange={(e) => onChange(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+      />
+    </label>
+  );
+}
+
+const SERIES_ID = /^[a-z0-9_-]{1,64}$/;
+
 function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
   const setError = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
   const [schedule, setSchedule] = useState<BuilderState>(() =>
@@ -453,6 +483,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
   const [items, setItems] = useState("");
   const [threshold, setThreshold] = useState("");
   const [metrics, setMetrics] = useState<string[]>([]);
+  const [seriesId, setSeriesId] = useState("");
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -462,6 +493,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
       .map((line) => line.trim())
       .filter(Boolean);
     if (!cron || parsedItems.length === 0) return;
+    if (seriesId !== "" && !SERIES_ID.test(seriesId)) return;
     try {
       await invoke("recurring_add", {
         rule: {
@@ -470,6 +502,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
           items: parsedItems,
           threshold: parseThreshold(threshold),
           ...(metrics.length > 0 ? { metrics } : {}),
+          ...(seriesId !== "" ? { id: seriesId } : {}),
         },
       });
       setSchedule(parseSchedule(""));
@@ -477,6 +510,7 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
       setItems("");
       setThreshold("");
       setMetrics([]);
+      setSeriesId("");
       await onWrite();
     } catch (err) {
       setError(err);
@@ -504,11 +538,13 @@ function AddRuleForm({ onWrite }: { onWrite: () => Promise<void> }) {
       <p className="text-xs text-content-muted">
         Changing the schedule, the description or an item text starts that
         item over: its completed tasks from past days are removed. The alert
-        threshold can change freely.
+        threshold can change freely. With a history id the Tracker keeps the
+        item's record on one row through such changes.
       </p>
       <MetricsPicker value={metrics} onChange={setMetrics} />
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <ThresholdInput value={threshold} onChange={setThreshold} />
+        <SeriesIdInput value={seriesId} onChange={setSeriesId} />
         <button className="btn-primary">Add rule</button>
       </div>
     </form>
@@ -533,6 +569,7 @@ function RuleEditForm({
     rule.threshold == null ? "" : String(rule.threshold),
   );
   const [metrics, setMetrics] = useState<string[]>(rule.metrics ?? []);
+  const [seriesId, setSeriesId] = useState(rule.id ?? "");
 
   return (
     <form
@@ -545,9 +582,9 @@ function RuleEditForm({
           .map((line) => line.trim())
           .filter(Boolean);
         if (!cron || parsedItems.length === 0) return;
+        if (seriesId !== "" && !SERIES_ID.test(seriesId)) return;
         onSave({
-          // the series id has no control here and rides along
-          ...(rule.id !== undefined ? { id: rule.id } : {}),
+          ...(seriesId !== "" ? { id: seriesId } : {}),
           schedule: cron,
           description: description.trim(),
           items: parsedItems,
@@ -569,8 +606,9 @@ function RuleEditForm({
         onChange={(e) => setItems(e.target.value)}
       />
       <MetricsPicker value={metrics} onChange={setMetrics} />
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <ThresholdInput value={threshold} onChange={setThreshold} />
+        <SeriesIdInput value={seriesId} onChange={setSeriesId} />
         <EditFormButtons onCancel={onCancel} />
       </div>
     </form>

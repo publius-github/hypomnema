@@ -375,6 +375,7 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
         previous: { metric: "weight", date: isoDate(-1), value: 81.6 },
       },
     ],
+    links: [],
     errors: [],
   }),
   metric_series: (args) => {

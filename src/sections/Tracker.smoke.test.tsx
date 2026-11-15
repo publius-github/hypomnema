@@ -104,6 +104,7 @@ describe("Tracker smoke", () => {
               previous: { metric: "weight", date: "2026-08-30", value: 81.6 },
             },
           ],
+          links: [],
           errors: [],
         }),
         metric_series: () => ({

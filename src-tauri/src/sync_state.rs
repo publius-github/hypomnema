@@ -59,6 +59,9 @@ pub enum StateFile {
     RuleSeen,
     /// `(iso_year, iso_week)` -> phrase index, no stamp to arbitrate with.
     WeeklyFocus,
+    /// `(rule_key, period_key)` outcomes of deleted recurring tasks: a
+    /// set union, both devices logging one instance being one row.
+    HabitLog,
     /// Stamped rows keyed by `(metric, date)`: the same three-way merge
     /// as `Stamped`, a deletion being a stamped `value: null`.
     Measurements,
@@ -75,6 +78,7 @@ impl StateFile {
             "rule_seen.jsonl" => Some(Self::RuleSeen),
             "weekly_focus.jsonl" => Some(Self::WeeklyFocus),
             "measurements.jsonl" => Some(Self::Measurements),
+            "habit_log.jsonl" => Some(Self::HabitLog),
             _ => None,
         }
     }
@@ -82,7 +86,7 @@ impl StateFile {
     fn key_fields(self) -> &'static [&'static str] {
         match self {
             Self::Stamped => &["id"],
-            Self::RuleRuns => &["rule_key", "period_key"],
+            Self::RuleRuns | Self::HabitLog => &["rule_key", "period_key"],
             Self::RuleSeen => &["rule_key"],
             Self::WeeklyFocus => &["iso_year", "iso_week"],
             Self::Measurements => &["metric", "date"],
@@ -196,7 +200,7 @@ pub fn merge_state_file(
 ) -> Result<StateMerge> {
     match kind {
         StateFile::Stamped | StateFile::Measurements => merge_stamped(kind, base, local, remote),
-        StateFile::RuleRuns => Ok(merge_union(
+        StateFile::RuleRuns | StateFile::HabitLog => Ok(merge_union(
             parse_rows(local, kind)?,
             parse_rows(remote, kind)?,
         )),

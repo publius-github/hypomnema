@@ -64,8 +64,20 @@ fn check_threshold(rule: &RecurringRule) -> Result<()> {
         Some(t) if t > 100 => Err(crate::error::Error::State(format!(
             "rate threshold {t}% is out of range, expected 0-100"
         ))),
-        _ => Ok(()),
+        _ => rule_id_problem(rule).map_or(Ok(()), |p| Err(crate::error::Error::State(p))),
     }
+}
+
+/// A series id is a key like a metric id: lowercase letters, digits,
+/// '-' and '_' (the '/' of `id/2` is the engine's, not the user's).
+fn rule_id_problem(rule: &RecurringRule) -> Option<String> {
+    let id = rule.id.as_deref()?;
+    let ok = !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+    (!ok).then(|| format!("id '{id}' must be lowercase letters, digits, '-' or '_'"))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -887,7 +899,23 @@ pub fn validate_config_content(file: &str, content: &str) -> Vec<ConfigError> {
         "metrics.yml" => errors.extend(crate::metrics::validate(content)),
         "recurring.yml" => match serde_yaml::from_str::<RecurringFile>(content) {
             Ok(parsed) => {
+                let mut ids: Vec<&str> = Vec::new();
                 for (index, rule) in parsed.tasks.iter().enumerate() {
+                    let id_problem = rule_id_problem(rule).or_else(|| {
+                        let id = rule.id.as_deref()?;
+                        let taken = ids.contains(&id);
+                        ids.push(id);
+                        taken.then(|| {
+                            format!("id '{id}' is already used by an earlier rule; their histories would mix")
+                        })
+                    });
+                    if let Some(problem) = id_problem {
+                        errors.push(ConfigError {
+                            file: file.into(),
+                            line: None,
+                            message: format!("rule {}: {problem}", index + 1),
+                        });
+                    }
                     if let Err(e) = Cron::new(&rule.schedule).parse() {
                         errors.push(ConfigError {
                             file: file.into(),

@@ -1285,6 +1285,22 @@ pub fn task_restore(conn: &Connection, deleted: &DeletedTasks) -> Result<Vec<Tas
                 &task.dow_label,
             ],
         )?;
+        // the series is not part of Task; a settled generated instance
+        // left it in the habit log on its way out (db.rs migration 022),
+        // anything else gets it back from the next engine pass
+        if task.rule_key.is_some() {
+            tx.execute(
+                "UPDATE tasks SET series =
+                     (SELECT series FROM habit_log
+                      WHERE habit_log.rule_key = tasks.rule_key
+                        AND habit_log.period_key = tasks.period_key)
+                 WHERE id = ?1
+                   AND EXISTS (SELECT 1 FROM habit_log
+                               WHERE habit_log.rule_key = tasks.rule_key
+                                 AND habit_log.period_key = tasks.period_key)",
+                [id],
+            )?;
+        }
         id_map.insert(task.id, id);
         restored.push(task_get(&tx, id)?);
     }

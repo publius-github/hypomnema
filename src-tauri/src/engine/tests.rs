@@ -1985,3 +1985,127 @@ fn an_ordinary_day_starts_at_midnight() {
     let start = day_start(&MidnightDst, day).unwrap();
     assert_eq!(start.naive_local().to_string(), "2026-09-07 00:00:00");
 }
+
+#[test]
+fn a_rule_id_keeps_the_habit_history_through_a_rename_and_deletes() {
+    use crate::views::{habit_trends, TrendUnit};
+    let (conn, dir) = setup("series-rename");
+    let write = |item: &str| {
+        fs::write(
+            dir.join("recurring.yml"),
+            format!("tasks:\n  - schedule: \"0 6 * * *\"\n    id: walk\n    items:\n      - \"{item}\"\n"),
+        )
+        .unwrap();
+    };
+    write("walk");
+    let cfg = config(3, 1, 0);
+    // a Friday: the week runs from Monday 08-24
+    let now = at("2026-08-28", "12:00:00");
+    run(&conn, &dir, &cfg, now).unwrap();
+    // a new rule starts today; its past days are put in by hand under
+    // the same key, as earlier passes would have made them
+    let key: String = conn
+        .query_row("SELECT rule_key FROM tasks", [], |r| r.get(0))
+        .unwrap();
+    for (day, status) in [
+        ("2026-08-25", "done"),
+        ("2026-08-26", "dropped"),
+        ("2026-08-27", "done"),
+    ] {
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, cadence, rule_key, period_key,
+                                scheduled_date, origin_date, status)
+             VALUES ('walk', 'x', 'recurring', 'daily', ?1, ?2 || 'T06:00', ?2, ?2, ?3)",
+            (&key, day, status),
+        )
+        .unwrap();
+    }
+    run(&conn, &dir, &cfg, now).unwrap();
+    let labelled: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM tasks WHERE series = 'walk'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        labelled,
+        count_tasks(&conn),
+        "every instance carries the series"
+    );
+
+    // renaming the item re-keys it: reconcile deletes the old key's past
+    // tasks, the log keeps their outcomes on the series
+    write("walk outside");
+    run(&conn, &dir, &cfg, now).unwrap();
+    let logged: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM habit_log WHERE series = 'walk'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(logged, 3);
+
+    let today = now.date_naive();
+    let trends = habit_trends(&conn, today, TrendUnit::Week, 1).unwrap();
+    assert_eq!(
+        trends.rules.len(),
+        1,
+        "one series, not an old and a new row"
+    );
+    let walk = &trends.rules[0];
+    assert_eq!(walk.rule_key, "walk");
+    assert_eq!(walk.title, "walk outside");
+    assert_eq!((walk.sum.done, walk.sum.total), (2, 3));
+
+    // a delete put back by Undo counts once, from its task
+    let id: i64 = conn
+        .query_row(
+            "SELECT id FROM tasks WHERE origin_date = '2026-08-28'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    conn.execute("UPDATE tasks SET status = 'done' WHERE id = ?1", [id])
+        .unwrap();
+    let deleted = crate::tasks::task_delete(&conn, id).unwrap();
+    let after_delete = habit_trends(&conn, today, TrendUnit::Week, 1).unwrap();
+    assert_eq!(
+        after_delete.rules[0].sum.total, 4,
+        "the deleted done day is still counted"
+    );
+    crate::tasks::task_restore(&conn, &deleted).unwrap();
+    let after_undo = habit_trends(&conn, today, TrendUnit::Week, 1).unwrap();
+    assert_eq!(
+        (after_undo.rules[0].sum.done, after_undo.rules[0].sum.total),
+        (3, 4)
+    );
+
+    // a malformed id is refused by the editor's validation
+    let errors = crate::config_files::validate_config_content(
+        "recurring.yml",
+        "tasks:\n  - schedule: \"0 6 * * *\"\n    id: Walk Daily\n    items: [a]\n  - schedule: \"0 7 * * *\"\n    id: x\n    items: [b]\n  - schedule: \"0 8 * * *\"\n    id: x\n    items: [c]\n",
+    );
+    assert_eq!(errors.len(), 2, "{errors:?}");
+}
+
+#[test]
+fn a_multi_item_rule_keeps_its_items_apart() {
+    let rule = RecurringRule {
+        schedule: "0 6 * * *".into(),
+        description: String::new(),
+        items: vec!["a".into(), "b".into()],
+        threshold: None,
+        id: Some("morning".into()),
+        metrics: vec![],
+    };
+    assert_eq!(series_of(&rule, 0).as_deref(), Some("morning/1"));
+    assert_eq!(series_of(&rule, 1).as_deref(), Some("morning/2"));
+    let single = RecurringRule {
+        items: vec!["a".into()],
+        ..rule.clone()
+    };
+    assert_eq!(series_of(&single, 0).as_deref(), Some("morning"));
+    assert_eq!(series_of(&RecurringRule { id: None, ..rule }, 0), None);
+}

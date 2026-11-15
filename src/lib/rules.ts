@@ -19,4 +19,4 @@ export function ruleOf(view: RecurringRuleView): RecurringRule {
  *  item, which re-keys it - does to its tasks (engine
  *  `reconcile_recurring`). */
 export const RULE_HISTORY_NOTE =
-  "All of its tasks go with it, completed ones from past days included - History, streaks and completion rates start over. A task already done today stays.";
+  "All of its tasks go with it, completed ones from past days included - History, streaks and completion rates start over. A task already done today stays. The Tracker keeps the outcomes of its completed and dropped days.";

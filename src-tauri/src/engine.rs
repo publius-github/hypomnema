@@ -566,12 +566,54 @@ fn run_recurring(
         return Ok(());
     };
     generate_recurring(conn, &sources, config, horizon, now, outcome)?;
+    // before reconcile: an edit that re-keyed an item deletes the old
+    // key's tasks there, and they must leave labelled so the habit log
+    // keeps them on the series
+    label_series(conn, &sources)?;
     if root_transient {
         // reconciling against a momentarily empty/missing root file
         // would wipe its rules' future tasks and rule_seen entries
         return Ok(());
     }
     reconcile_recurring(conn, &sources, now.date_naive(), outcome)
+}
+
+/// The series a rule item's history is kept under: the rule's `id:`,
+/// with the item's 1-based position appended when the rule has several
+/// (`id/2`), so items of one rule stay apart. None without an id.
+pub(crate) fn series_of(rule: &RecurringRule, index: usize) -> Option<String> {
+    let id = rule.id.as_deref()?.trim();
+    if id.is_empty() {
+        return None;
+    }
+    Some(if rule.items.len() <= 1 {
+        id.to_string()
+    } else {
+        format!("{id}/{}", index + 1)
+    })
+}
+
+/// Puts each current rule item's series (`series_of`) on its tasks and
+/// habit log rows - every row of the item's current key, older ones
+/// included, so giving a rule an id gathers the history it already has.
+/// Only rows whose label differs are written: an unchanged pass touches
+/// nothing (a stamp change would be a sync change).
+fn label_series(conn: &Connection, sources: &[(String, RecurringFile)]) -> Result<()> {
+    for rule in sources.iter().flat_map(|(_, file)| &file.tasks) {
+        for (index, item) in rule.items.iter().enumerate() {
+            let key = recurring_rule_key(rule, item);
+            let series = series_of(rule, index);
+            conn.execute(
+                "UPDATE tasks SET series = ?1 WHERE rule_key = ?2 AND series IS NOT ?1",
+                rusqlite::params![series, key],
+            )?;
+            conn.execute(
+                "UPDATE habit_log SET series = ?1 WHERE rule_key = ?2 AND series IS NOT ?1",
+                rusqlite::params![series, key],
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn run_scheduled(

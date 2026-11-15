@@ -387,6 +387,43 @@ const MIGRATIONS: &[&str] = &[
             updated_by = (SELECT device_id FROM sync_device WHERE id = 1)
         WHERE metric = NEW.metric AND date = NEW.date;
     END;",
+    // 022: habit history that outlives its tasks (views::habit_trends).
+    // `tasks.series` is the rule's own `id:` (engine::label_series), so
+    // an instance's history follows the rule through a changed schedule
+    // or item text, which re-key it. `habit_log` keeps the outcome of
+    // every settled recurring instance that leaves the table - a user
+    // delete, retention, a rule edit's reconcile, the purge of soft-
+    // deleted rows - written by a trigger so no delete path can forget
+    // it. A restore inserts and never deletes, and REPLACE does not fire
+    // delete triggers (recursive_triggers is off), so a rebuild logs
+    // nothing twice. Open instances are not logged: a missed daily that
+    // was deleted is not a recorded outcome.
+    "ALTER TABLE tasks ADD COLUMN series TEXT;
+    CREATE TABLE habit_log (
+        rule_key TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        series TEXT,
+        day TEXT NOT NULL,
+        title TEXT NOT NULL,
+        cadence TEXT,
+        done INTEGER NOT NULL,
+        PRIMARY KEY (rule_key, period_key)
+    );
+    CREATE TRIGGER tasks_habit_log BEFORE DELETE ON tasks
+    WHEN OLD.origin = 'recurring' AND OLD.rule_key IS NOT NULL
+         AND OLD.parent_task_id IS NULL
+         AND OLD.status IN ('done', 'waiting', 'dropped')
+         AND COALESCE(OLD.origin_date, OLD.scheduled_date) IS NOT NULL
+    BEGIN
+        INSERT OR REPLACE INTO habit_log
+            (rule_key, period_key, series, day, title, cadence, done)
+        VALUES (OLD.rule_key,
+                COALESCE(OLD.period_key, OLD.origin_date, OLD.scheduled_date),
+                OLD.series,
+                COALESCE(OLD.origin_date, OLD.scheduled_date),
+                OLD.title, OLD.cadence,
+                OLD.status != 'dropped');
+    END;",
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

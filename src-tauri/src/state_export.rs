@@ -24,6 +24,8 @@
 //!   for old rules from scratch.
 //! - weekly_focus.jsonl - the ISO-week -> phrase pin of the focus
 //!   rotation.
+//! - habit_log.jsonl - outcomes of settled recurring instances whose
+//!   task is gone, so the Tracker's history outlives deletes.
 //! - measurements.jsonl - the Tracker's metric values, one per metric
 //!   per day, deletions kept as `value: null` tombstones.
 
@@ -37,7 +39,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, IoContext, Result};
 
 /// The snapshot files, in the order `export` writes them.
-pub const FILES: [&str; 7] = [
+pub const FILES: [&str; 8] = [
     "tasks.jsonl",
     "lists.jsonl",
     "list_groups.jsonl",
@@ -45,6 +47,7 @@ pub const FILES: [&str; 7] = [
     "rule_seen.jsonl",
     "weekly_focus.jsonl",
     "measurements.jsonl",
+    "habit_log.jsonl",
 ];
 
 /// The values the schema's CHECK constraints accept (db.rs migrations
@@ -92,6 +95,9 @@ struct TaskRow {
     updated_at: Option<String>,
     #[serde(default)]
     updated_by: Option<String>,
+    /// the rule's series id (db.rs migration 022)
+    #[serde(default)]
+    series: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -166,6 +172,18 @@ struct MeasurementRow {
     updated_at: Option<String>,
     #[serde(default)]
     updated_by: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HabitLogRow {
+    rule_key: String,
+    period_key: String,
+    series: Option<String>,
+    day: String,
+    title: String,
+    cadence: Option<String>,
+    done: i64,
 }
 
 fn write_if_changed(path: &Path, content: &str) -> Result<()> {
@@ -287,6 +305,7 @@ fn known_fields(file_name: &str) -> Option<&'static [&'static str]> {
             "dow_label",
             "updated_at",
             "updated_by",
+            "series",
         ],
         "lists.jsonl" => &[
             "id",
@@ -314,6 +333,15 @@ fn known_fields(file_name: &str) -> Option<&'static [&'static str]> {
         "rule_seen.jsonl" => &["rule_key", "first_seen"],
         "weekly_focus.jsonl" => &["iso_year", "iso_week", "phrase_index"],
         "measurements.jsonl" => &["metric", "date", "value", "updated_at", "updated_by"],
+        "habit_log.jsonl" => &[
+            "rule_key",
+            "period_key",
+            "series",
+            "day",
+            "title",
+            "cadence",
+            "done",
+        ],
         _ => return None,
     })
 }
@@ -376,7 +404,7 @@ pub fn write(state_dir: &Path, files: &[(&str, String)]) -> Result<()> {
 }
 
 /// The snapshot as `(file name, content)` in `FILES` order, without
-/// touching the disk. All seven tables are read in one transaction: the
+/// touching the disk. All eight tables are read in one transaction: the
 /// export worker reads on its own connection while commands write on
 /// theirs, and a list created between two of the reads would otherwise
 /// leave a task pointing at a list the snapshot does not have.
@@ -411,6 +439,7 @@ pub fn snapshot(conn: &Connection) -> Result<Vec<(&'static str, String)>> {
                 dow_label: r.get("dow_label")?,
                 updated_at: r.get("updated_at")?,
                 updated_by: r.get("updated_by")?,
+                series: r.get("series")?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -496,6 +525,24 @@ pub fn snapshot(conn: &Connection) -> Result<Vec<(&'static str, String)>> {
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
+
+    let habit_log: Vec<HabitLogRow> = conn
+        .prepare(
+            "SELECT rule_key, period_key, series, day, title, cadence, done FROM habit_log
+             ORDER BY rule_key, period_key",
+        )?
+        .query_map([], |r| {
+            Ok(HabitLogRow {
+                rule_key: r.get(0)?,
+                period_key: r.get(1)?,
+                series: r.get(2)?,
+                day: r.get(3)?,
+                title: r.get(4)?,
+                cadence: r.get(5)?,
+                done: r.get(6)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
     drop(tx);
 
     Ok(vec![
@@ -506,6 +553,7 @@ pub fn snapshot(conn: &Connection) -> Result<Vec<(&'static str, String)>> {
         (FILES[4], to_jsonl(&seen)?),
         (FILES[5], to_jsonl(&focus)?),
         (FILES[6], to_jsonl(&measurements)?),
+        (FILES[7], to_jsonl(&habit_log)?),
     ])
 }
 
@@ -521,6 +569,7 @@ pub fn db_is_empty(conn: &Connection) -> Result<bool> {
         "rule_seen",
         "weekly_focus_state",
         "measurements",
+        "habit_log",
     ] {
         let any: bool =
             conn.query_row(&format!("SELECT EXISTS (SELECT 1 FROM {table})"), [], |r| {
@@ -553,6 +602,7 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
     let focus: Vec<FocusRow> = from_jsonl_optional(&state_dir.join("weekly_focus.jsonl"))?;
     let measurements: Vec<MeasurementRow> =
         from_jsonl_optional(&state_dir.join("measurements.jsonl"))?;
+    let habit_log: Vec<HabitLogRow> = from_jsonl_optional(&state_dir.join("habit_log.jsonl"))?;
     check_tasks(&tasks)?;
     check_lists(&lists)?;
 
@@ -666,9 +716,9 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
                  (id, title, description_md, list_id, scheduled_date, time, status,
                   color, sort_order, parent_task_id, created_at, completed_at,
                   overdue, origin, rule_key, period_key, archived_at, cadence,
-                  origin_date, priority, dow_label, updated_at, updated_by)
+                  origin_date, priority, dow_label, updated_at, updated_by, series)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                     ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
+                     ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
             rusqlite::params![
                 t.id,
                 t.title,
@@ -692,7 +742,8 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
                 t.priority,
                 t.dow_label,
                 t.updated_at,
-                t.updated_by
+                t.updated_by,
+                t.series
             ],
         )?;
     }
@@ -721,6 +772,22 @@ pub fn restore(conn: &Connection, state_dir: &Path) -> Result<bool> {
             "INSERT OR REPLACE INTO measurements (metric, date, value, updated_at, updated_by)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![m.metric, m.date, m.value, m.updated_at, m.updated_by],
+        )?;
+    }
+    for h in &habit_log {
+        tx.execute(
+            "INSERT OR REPLACE INTO habit_log
+                 (rule_key, period_key, series, day, title, cadence, done)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                h.rule_key,
+                h.period_key,
+                h.series,
+                h.day,
+                h.title,
+                h.cadence,
+                h.done
+            ],
         )?;
     }
     tx.commit()?;
@@ -937,7 +1004,9 @@ mod tests {
             "INSERT INTO rule_runs VALUES ('r', '2026-W40', '2026-10-01');
              INSERT INTO rule_seen VALUES ('r', '2026-10-01');
              INSERT INTO weekly_focus_state VALUES (2026, 40, 1);
-             INSERT INTO measurements (metric, date, value) VALUES ('weight', '2026-10-01', 82.4);",
+             INSERT INTO measurements (metric, date, value) VALUES ('weight', '2026-10-01', 82.4);
+             INSERT INTO habit_log VALUES ('r', '2026-10-01T08:00', 'walk', '2026-10-01', 'walk', 'daily', 1);
+             UPDATE tasks SET series = 'walk';",
         )
         .unwrap();
 

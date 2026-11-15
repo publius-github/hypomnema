@@ -4,10 +4,15 @@ import type { TrendBucket } from "./TrendBucket";
 /**
  * One recurring rule item's trend over `HabitTrends::periods`.
  */
-export type RuleTrend = { rule_key: string, 
+export type RuleTrend = { 
+/**
+ * the series: the rule's `id:` (or `id/N`) when it has one, else
+ * the rule key
+ */
+rule_key: string, 
 /**
  * title of the newest instance, so a renamed item shows its
- * current name (a changed cron or text is a new rule key)
+ * current name
  */
 title: string, cadence: string | null, 
 /**

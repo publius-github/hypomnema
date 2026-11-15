@@ -307,9 +307,10 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
             Share of instances done, each counted in the {unit} it was due.
             Done-waiting counts as done; dropped and missed dailies count as
             not done; an open weekly or monthly waits until it is closed.
-            The dashed line is the rate alert threshold ({threshold}%). A
-            renamed task or a changed schedule starts a new row, and deleted
-            tasks leave no trace.
+            The dashed line is the rate alert threshold ({threshold}%). Done
+            and dropped days stay counted after their task is deleted. A
+            renamed task or a changed schedule starts a new row unless its
+            rule has an id, which keeps the history on one row.
           </p>
         </>
       )}
