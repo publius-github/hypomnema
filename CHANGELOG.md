@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.130.5 - 2026-11-15
+
+- Checklists: a ticked item or subtask no longer goes under a Done plate - it sinks to the end of the list and stays there with its tick, until you uncheck it.
+
 ## 0.130.4 - 2026-11-14
 
 - Lists dialog and mobile: tasks with subtasks get the same aligned counter and the "uncheck subtasks" reset (always available, not only after a check), as the task cards.
