@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.130.7 - 2026-11-15
+
+- Settings > General > Left bar: Checklists is now named "Checklists", not "checklists".
+
 ## 0.130.6 - 2026-11-15
 
 - Checklists: the task editor (phone and dialog) also lists ticked subtasks last, as the cards and rows do.
