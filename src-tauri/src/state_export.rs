@@ -95,8 +95,11 @@ struct TaskRow {
     updated_at: Option<String>,
     #[serde(default)]
     updated_by: Option<String>,
-    /// the rule's series id (db.rs migration 022)
-    #[serde(default)]
+    /// the rule's series id (db.rs migration 022). Left out when absent,
+    /// so a vault that uses no rule ids stays readable by builds from
+    /// before the field: only a row that carries one is "from a newer
+    /// version" to them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     series: Option<String>,
 }
 
@@ -1066,5 +1069,26 @@ mod tests {
         fs::write(dir.join("tasks.jsonl"), "{not json}\n").unwrap();
         assert!(restore(&conn, &dir).is_err());
         assert_eq!(count(&conn, "tasks"), 0);
+    }
+
+    #[test]
+    fn a_task_without_a_series_exports_no_series_field() {
+        let (conn, dir) = setup("no-series");
+        tasks::task_create(
+            &conn,
+            &NewTask {
+                title: "t".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        export(&conn, &dir).unwrap();
+        let text = fs::read_to_string(dir.join("tasks.jsonl")).unwrap();
+        assert!(!text.contains("series"), "{text}");
+        conn.execute("UPDATE tasks SET series = 'walk'", [])
+            .unwrap();
+        export(&conn, &dir).unwrap();
+        let text = fs::read_to_string(dir.join("tasks.jsonl")).unwrap();
+        assert!(text.contains("\"series\":\"walk\""), "{text}");
     }
 }
