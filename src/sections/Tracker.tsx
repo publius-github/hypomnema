@@ -3,6 +3,7 @@ import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { splitCategory } from "../lib/tasks";
 import type { HabitTrends, TrendBucket } from "../types";
+import Metrics from "./tracker/Metrics";
 
 type Unit = "week" | "month";
 
@@ -196,8 +197,10 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
           : "mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-y-auto p-6"
       }
     >
+      <Metrics compact={compact} />
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-md border border-line" role="group" aria-label="Period">
+        <h2 className="text-sm font-semibold">Habits</h2>
+        <div className="flex rounded-md border border-line" role="group" aria-label="Habit period">
           {(["week", "month"] as Unit[]).map((u) => (
             <button
               key={u}
@@ -212,7 +215,7 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
           ))}
         </div>
         <select
-          aria-label="Range"
+          aria-label="Habit range"
           className="input w-36 text-xs"
           value={count}
           onChange={(e) => setCount(Number(e.target.value))}

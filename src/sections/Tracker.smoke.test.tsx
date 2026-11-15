@@ -89,4 +89,48 @@ describe("Tracker smoke", () => {
     render(<Tracker />);
     expect(await screen.findByText(/No recurring task has come due/)).toBeTruthy();
   });
+
+  it("draws a metric and records a typed value with a comma decimal", async () => {
+    const sets: unknown[] = [];
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        habit_trends: () => ({ periods: ["2026-08-24"], overall: [b(0, 0)], rules: [] }),
+        metrics_overview: () => ({
+          metrics: [
+            {
+              def: { id: "weight", name: "Weight", unit: "kg", decimals: 1, better: "down" },
+              latest: { metric: "weight", date: "2026-08-31", value: 81.2 },
+              previous: { metric: "weight", date: "2026-08-30", value: 81.6 },
+            },
+          ],
+          errors: [],
+        }),
+        metric_series: () => ({
+          metric: "weight",
+          start: "2026-08-01",
+          end: "2026-08-31",
+          points: [
+            { date: "2026-08-30", value: 81.6, avg: 81.6 },
+            { date: "2026-08-31", value: 81.2, avg: 81.4 },
+          ],
+        }),
+        measurements_recent: () => [{ metric: "weight", date: "2026-08-31", value: 81.2 }],
+        measurement_set: (args: unknown) => {
+          sets.push(args);
+        },
+      }),
+    );
+    useAppStore.setState({ config: defaultConfig, vaultVersion: 0 });
+    render(<Tracker />);
+    expect(await screen.findByText("81.2 kg")).toBeTruthy();
+    // lower is better here, so the fall reads as progress
+    expect(screen.getByText(/▼ 0.4 kg/).className).toContain("text-accent");
+    expect(await screen.findByRole("img", { name: /Weight: 2 values/ })).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Weight value"), { target: { value: "80,9" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add|Replace/ }));
+    await waitFor(() => expect(sets).toHaveLength(1));
+    expect(sets[0]).toMatchObject({ metric: "weight", value: 80.9 });
+  });
 });

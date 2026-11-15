@@ -367,6 +367,40 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
   }),
   calendar_outlook: () => [],
   habit_rates: () => [],
+  metrics_overview: () => ({
+    metrics: [
+      {
+        def: { id: "weight", name: "Weight", unit: "kg", decimals: 1, goal: 78, better: "down", rollup: "avg" },
+        latest: { metric: "weight", date: isoDate(0), value: 81.2 },
+        previous: { metric: "weight", date: isoDate(-1), value: 81.6 },
+      },
+    ],
+    errors: [],
+  }),
+  metric_series: (args) => {
+    const { unit, count } = args as { unit: "day" | "week" | "month"; count: number };
+    // a slow fall with a fixed wobble, so screenshots stay put
+    const wobble = [0.4, -0.3, 0.1, 0.6, -0.5, 0.2, -0.1];
+    const at = (daysBack: number) => 84 - (90 - daysBack) * 0.03 + wobble[daysBack % 7];
+    if (unit === "day") {
+      const points = Array.from({ length: count }, (_, i) => count - 1 - i)
+        .filter((back) => back % 5 !== 3)
+        .map((back) => ({ date: isoDate(-back), value: at(back), avg: at(back) - wobble[back % 7] }));
+      return { metric: "weight", start: isoDate(-(count - 1)), end: isoDate(0), points };
+    }
+    const step = unit === "week" ? 7 : 30;
+    const points = Array.from({ length: count }, (_, i) => {
+      const back = (count - 1 - i) * step;
+      return { date: isoDate(-back), value: i % 6 === 2 ? null : 84 - (count - i) * 0.2, avg: null };
+    });
+    return { metric: "weight", start: points[0].date, end: points[points.length - 1].date, points };
+  },
+  measurements_recent: () =>
+    [0, -1, -2, -4].map((d, i) => ({ metric: "weight", date: isoDate(d), value: 81.2 + i * 0.3 })),
+  measurements_since: () => [],
+  measurement_set: () => undefined,
+  measurement_delete: () => undefined,
+  metric_add: () => undefined,
   habit_trends: (args) => {
     const { unit, count } = args as { unit: "week" | "month"; count: number };
     const now = new Date();

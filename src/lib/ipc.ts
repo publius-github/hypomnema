@@ -26,6 +26,10 @@ import type {
   EngineOutcome,
   HabitRate,
   HabitTrends,
+  Measurement,
+  MetricDef,
+  MetricSeries,
+  MetricsOverview,
   JournalEntry,
   JournalSearchHit,
   KbNode,
@@ -99,6 +103,16 @@ export interface Commands {
     result: void;
   };
   habit_rates: { args: void; result: HabitRate[] };
+  measurement_delete: { args: { metric: string; date: string }; result: void };
+  measurement_set: { args: { metric: string; date: string; value: number }; result: void };
+  measurements_recent: { args: { metric: string; limit: number }; result: Measurement[] };
+  measurements_since: { args: { from: string }; result: Measurement[] };
+  metric_add: { args: { def: MetricDef }; result: void };
+  metric_series: {
+    args: { metric: string; unit: "day" | "week" | "month"; count: number };
+    result: MetricSeries;
+  };
+  metrics_overview: { args: void; result: MetricsOverview };
   habit_trends: {
     args: { unit: "week" | "month"; count: number };
     result: HabitTrends;
