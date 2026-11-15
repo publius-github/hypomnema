@@ -93,9 +93,11 @@ test.describe("phone", () => {
     const page = await app("mobile");
     await page.getByRole("button", { name: /Subtasks/ }).first().click();
     await page.getByRole("button", { name: /Draft the agenda/ }).first().click();
+    await expect(page.getByRole("button", { name: "Delete checked" })).toBeVisible();
     await page.getByRole("button", { name: "Uncheck all" }).click();
     await expect(page.getByText('Unchecked 1 subtask of "Plan the week"')).toBeVisible();
-    await expect(page.getByRole("button", { name: "Uncheck all" })).toHaveCount(0);
+    // the reset stays (one layout for every row with subtasks); nothing is checked any more
+    await expect(page.getByRole("button", { name: "Delete checked" })).toHaveCount(0);
   });
 
   test("an empty group is deleted from its own screen", async ({ app }) => {
@@ -193,17 +195,20 @@ test("a group's dialog offers only its page's kind of list", async ({ app }) => 
 test("one task's subtasks start over on their own, with Undo", async ({ app }) => {
   const page = await app();
   const plan = page.locator(".group", { has: page.getByText("Plan the week", { exact: true }) }).first();
-  // nothing checked yet: no reset to offer
-  await expect(plan.getByRole("button", { name: "Uncheck the subtasks of Plan the week" })).toHaveCount(0);
-  await plan.getByRole("button", { name: /^▸/ }).click();
-  await plan.getByText("Draft the agenda", { exact: true }).locator("xpath=..").getByRole("checkbox").click();
+  // the reset is always there with subtasks, so rows keep one layout
   const reset = plan.getByRole("button", { name: "Uncheck the subtasks of Plan the week" });
   await expect(reset).toBeVisible();
+  const toggle = plan.getByRole("button", { name: /^▸/ });
+  await expect(toggle).toContainText("0/1");
+  await toggle.click();
+  const counter = plan.getByRole("button", { name: /^▾/ });
+  await plan.getByText("Draft the agenda", { exact: true }).locator("xpath=..").getByRole("checkbox").click();
+  await expect(counter).toContainText("1/1");
   await reset.click();
   await expect(page.getByText('Unchecked 1 subtask of "Plan the week"')).toBeVisible();
-  await expect(reset).toHaveCount(0);
+  await expect(counter).toContainText("0/1");
   await page.getByRole("button", { name: "Undo" }).click();
-  await expect(reset).toBeVisible();
+  await expect(counter).toContainText("1/1");
 });
 
 test("a task's checked subtasks are deleted from its dialog, with Undo", async ({ app }) => {
