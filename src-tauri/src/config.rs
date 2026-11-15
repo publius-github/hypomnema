@@ -778,6 +778,7 @@ pub const SECTIONS: &[&str] = &[
     "kb",
     "journal",
     "history",
+    "tracker",
 ];
 
 pub const CADENCE_GROUPS: &[&str] = &["exact", "general", "daily", "weekly", "monthly", "yearly"];
@@ -796,7 +797,12 @@ impl Default for AppConfig {
             cron_ignore_time: true,
             kb_path: String::new(),
             section_order: SECTIONS.iter().map(|s| s.to_string()).collect(),
-            section_hidden: vec!["calendar".into(), "history".into(), "review".into()],
+            section_hidden: vec![
+                "calendar".into(),
+                "history".into(),
+                "review".into(),
+                "tracker".into(),
+            ],
             dashboard_today_only: true,
             list_columns: 4,
             kb_line_numbers: true,

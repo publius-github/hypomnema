@@ -156,6 +156,13 @@ const PATHS: Record<string, ReactNode> = {
       <path d="m9 14 2 2 4-4" />
     </>
   ),
+  trend: (
+    <>
+      <path d="M3 3v18h18" />
+      <path d="M7 15l4-4 3 3 6-6" />
+      <path d="M16 8h4v4" />
+    </>
+  ),
   chart: (
     <>
       <path d="M3 3v18h18" />

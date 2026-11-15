@@ -25,6 +25,7 @@ import type {
   GoogleStatus,
   EngineOutcome,
   HabitRate,
+  HabitTrends,
   JournalEntry,
   JournalSearchHit,
   KbNode,
@@ -98,6 +99,10 @@ export interface Commands {
     result: void;
   };
   habit_rates: { args: void; result: HabitRate[] };
+  habit_trends: {
+    args: { unit: "week" | "month"; count: number };
+    result: HabitTrends;
+  };
   inbox_list: { args: void; result: List };
   journal_list: { args: void; result: string[] };
   journal_open: { args: { date: string }; result: JournalEntry };

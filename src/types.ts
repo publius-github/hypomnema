@@ -13,6 +13,9 @@ export type { BirthdaysResult } from "./bindings/BirthdaysResult";
 export type { ConfigError } from "./bindings/ConfigError";
 export type { DailyStreak } from "./bindings/DailyStreak";
 export type { HabitRate } from "./bindings/HabitRate";
+export type { HabitTrends } from "./bindings/HabitTrends";
+export type { RuleTrend } from "./bindings/RuleTrend";
+export type { TrendBucket } from "./bindings/TrendBucket";
 export type { DeletedTasks } from "./bindings/DeletedTasks";
 export type { TaskStatusState } from "./bindings/TaskStatusState";
 export type { DashboardContext } from "./bindings/DashboardContext";
@@ -71,6 +74,7 @@ export type Section =
   | "reminders"
   | "calendar"
   | "history"
+  | "tracker"
   | "review"
   | "journal"
   | "kb"

@@ -4,9 +4,10 @@ import MobileUpcoming from "./MobileUpcoming";
 import MobileReminders from "./MobileReminders";
 import MobileCalendar from "./MobileCalendar";
 import MobileReview from "./MobileReview";
+import { TrackerView } from "../sections/Tracker";
 import MobileSettings from "./MobileSettings";
 
-type Screen = "upcoming" | "reminders" | "calendar" | "review" | "settings";
+type Screen = "upcoming" | "reminders" | "calendar" | "review" | "tracker" | "settings";
 
 const SCREENS: { id: Screen; label: string; hint: string }[] = [
   {
@@ -21,6 +22,7 @@ const SCREENS: { id: Screen; label: string; hint: string }[] = [
   },
   { id: "calendar", label: "Calendar", hint: "The month, to look at" },
   { id: "review", label: "Review", hint: "How the week went" },
+  { id: "tracker", label: "Tracker", hint: "Completion trends by week or month" },
   { id: "settings", label: "Settings", hint: "Sync, tasks, notifications, data" },
 ];
 
@@ -61,6 +63,7 @@ export default function MobileMore() {
           {screen === "reminders" && <MobileReminders />}
           {screen === "calendar" && <MobileCalendar />}
           {screen === "review" && <MobileReview />}
+          {screen === "tracker" && <TrackerView compact />}
         </div>
       </div>
     );

@@ -356,3 +356,49 @@ fn recurring_list_keeps_broken_rules_and_names_their_error() {
     assert!(result.errors[0].message.contains("rule 2 ('broken')"));
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn habit_trends_bucket_settled_instances_by_their_own_period() {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::db::migrate(&conn).unwrap();
+    let insert = |rule: &str, title: &str, cadence: &str, day: &str, status: &str| {
+        conn.execute(
+            "INSERT INTO tasks (title, created_at, origin, cadence, rule_key,
+                                period_key, scheduled_date, origin_date, status)
+             VALUES (?1, 'x', 'recurring', ?2, ?3, ?4, '2026-08-31', ?4, ?5)",
+            (title, cadence, rule, day, status),
+        )
+        .unwrap();
+    };
+    // today is Monday 2026-08-31; the three weeks start 08-17, 08-24, 08-31
+    insert("d", "old name", "daily", "2026-08-10", "done"); // before range
+    insert("d", "old name", "daily", "2026-08-17", "done");
+    insert("d", "old name", "daily", "2026-08-18", "dropped");
+    insert("d", "old name", "daily", "2026-08-23", "todo"); // missed daily
+    insert("d", "old name", "daily", "2026-08-24", "waiting");
+    insert("d", "new name", "daily", "2026-08-31", "todo"); // today: waits
+                                                            // a weekly carried over from 08-24, still open: live work, not counted
+    insert("w", "weekly", "weekly", "2026-08-24", "todo");
+    insert("w", "weekly", "weekly", "2026-08-17", "done");
+
+    let today = NaiveDate::from_ymd_opt(2026, 8, 31).unwrap();
+    let trends = habit_trends(&conn, today, TrendUnit::Week, 3).unwrap();
+    assert_eq!(
+        trends.periods,
+        vec!["2026-08-17", "2026-08-24", "2026-08-31"]
+    );
+    let b = |done, total| TrendBucket { done, total };
+    assert_eq!(trends.overall, vec![b(2, 4), b(1, 1), b(0, 0)]);
+    assert_eq!(trends.rules.len(), 2);
+    // worst rate first: the daily (2 of 4) before the weekly (1 of 1)
+    let daily = &trends.rules[0];
+    assert_eq!(daily.rule_key, "d");
+    assert_eq!(daily.title, "new name");
+    assert_eq!(daily.buckets, vec![b(1, 3), b(1, 1), b(0, 0)]);
+    assert_eq!(daily.sum, b(2, 4));
+    assert_eq!(trends.rules[1].sum, b(1, 1));
+
+    let months = habit_trends(&conn, today, TrendUnit::Month, 2).unwrap();
+    assert_eq!(months.periods, vec!["2026-07-01", "2026-08-01"]);
+    assert_eq!(months.overall, vec![b(0, 0), b(4, 6)]);
+}

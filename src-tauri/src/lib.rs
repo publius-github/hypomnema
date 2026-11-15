@@ -263,6 +263,7 @@ pub fn run() {
             cmd_tasks::tasks_search,
             cmd_views::daily_streaks,
             cmd_views::habit_rates,
+            cmd_views::habit_trends,
             cmd_tasks::task_get,
             cmd_kb::open_external,
             state::platform_is_mobile,

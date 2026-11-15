@@ -92,3 +92,16 @@ pub(crate) async fn habit_rates(state: State<'_, AppState>) -> Result<Vec<views:
         chrono::Local::now().date_naive(),
     )
 }
+
+#[tauri::command]
+pub(crate) async fn habit_trends(
+    state: State<'_, AppState>,
+    unit: String,
+    count: u32,
+) -> Result<views::HabitTrends> {
+    let unit = views::TrendUnit::parse(&unit)
+        .ok_or_else(|| Error::State(format!("unknown trend unit: {unit}")))?;
+    let guard = state.vault.lock_or_recover();
+    let vault = guard.as_ref().ok_or_else(|| Error::NoVault)?;
+    views::habit_trends(&vault.conn, chrono::Local::now().date_naive(), unit, count)
+}

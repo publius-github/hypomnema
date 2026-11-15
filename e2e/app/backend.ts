@@ -367,6 +367,34 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
   }),
   calendar_outlook: () => [],
   habit_rates: () => [],
+  habit_trends: (args) => {
+    const { unit, count } = args as { unit: "week" | "month"; count: number };
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const periods = Array.from({ length: count }, (_, i) => {
+      const back = count - 1 - i;
+      if (unit === "month") return iso(new Date(now.getFullYear(), now.getMonth() - back, 1));
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - ((now.getDay() + 6) % 7) - back * 7);
+      return iso(monday);
+    });
+    // fixed shapes, so a screenshot does not move between runs
+    const series = (per: number, pattern: number[]) =>
+      periods.map((_, i) => ({ done: Math.min(per, pattern[i % pattern.length]), total: per }));
+    const rules = [
+      { rule_key: "walk", title: "{Health} Evening walk", cadence: "daily", buckets: series(7, [3, 4, 2, 5, 3, 4]) },
+      { rule_key: "inbox", title: "Empty the inbox", cadence: "weekly", buckets: series(1, [1, 0, 1, 1]) },
+      { rule_key: "bills", title: "{Finance} Pay the bills", cadence: "monthly", buckets: series(1, [1]).map((b, i) => (i % 4 === 0 ? b : { done: 0, total: 0 })) },
+    ].map((r) => ({
+      ...r,
+      sum: r.buckets.reduce((a, b) => ({ done: a.done + b.done, total: a.total + b.total }), { done: 0, total: 0 }),
+    }));
+    const overall = periods.map((_, i) =>
+      rules.reduce((a, r) => ({ done: a.done + r.buckets[i].done, total: a.total + r.buckets[i].total }), { done: 0, total: 0 }),
+    );
+    return { periods, overall, rules };
+  },
   daily_streaks: () => [],
   upcoming_events: () => ({
     events: [{ date: isoDate(20), title: "Conference talk", time: "14:00", source: "scheduled.yml" }],

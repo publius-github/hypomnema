@@ -16,6 +16,7 @@ const SECTIONS = [
   "Reminders",
   "Calendar",
   "History",
+  "Tracker",
   "Review",
   "Journal",
   "Notes",

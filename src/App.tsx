@@ -18,6 +18,7 @@ import Upcoming from "./sections/Upcoming";
 import Reminders from "./sections/Reminders";
 import Calendar from "./sections/Calendar";
 import History from "./sections/History";
+import Tracker from "./sections/Tracker";
 import Review from "./sections/Review";
 import Journal from "./sections/Journal";
 import KnowledgeBase from "./sections/KnowledgeBase";
@@ -159,6 +160,7 @@ export default function App() {
             "reminders",
             "calendar",
             "history",
+            "tracker",
             "review",
             "journal",
             "kb",
@@ -288,6 +290,7 @@ export default function App() {
         {section === "reminders" && <Reminders />}
         {section === "calendar" && <Calendar />}
         {section === "history" && <History />}
+        {section === "tracker" && <Tracker />}
         {section === "review" && <Review />}
         {section === "journal" && <Journal />}
         {section === "kb" && <KnowledgeBase />}

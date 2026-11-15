@@ -545,6 +545,25 @@ pub struct HabitRate {
     pub alert: bool,
 }
 
+/// How a recurring instance counts toward a completion rate: Some(true)
+/// done (waiting is done on the user's side), Some(false) not done
+/// (dropped, or a daily still open after its day - dailies never carry
+/// over), None still live work that waits until it is closed. Shared by
+/// `habit_rates` and `habit_trends` so the chip and the Tracker agree.
+fn settled_done(
+    status: &str,
+    cadence: Option<&str>,
+    day: Option<&str>,
+    today: &str,
+) -> Option<bool> {
+    match status {
+        "done" | "waiting" => Some(true),
+        "dropped" => Some(false),
+        _ if cadence == Some("daily") && day.is_some_and(|d| d < today) => Some(false),
+        _ => None,
+    }
+}
+
 /// Completion rate per recurring rule item (one `rule_key` each), over
 /// its newest `habit_rate_window` settled instances. Settled means:
 /// done or waiting (done on the user's side) counts as done; dropped
@@ -598,15 +617,9 @@ pub fn habit_rates(
     let mut counts: Vec<(String, u32, u32)> = Vec::new();
     for row in rows {
         let (rule_key, status, cadence, day) = row?;
-        let done = match status.as_str() {
-            "done" | "waiting" => true,
-            "dropped" => false,
-            _ if cadence.as_deref() == Some("daily")
-                && day.as_deref().is_some_and(|d| d < today_str.as_str()) =>
-            {
-                false
-            }
-            _ => continue,
+        let Some(done) = settled_done(&status, cadence.as_deref(), day.as_deref(), &today_str)
+        else {
+            continue;
         };
         if counts
             .last()
@@ -642,6 +655,166 @@ pub fn habit_rates(
             }
         })
         .collect())
+}
+
+/// One period of a completion trend: settled instances whose day falls
+/// in it, and how many of them were done. `total` 0 = nothing settled.
+#[derive(Debug, Clone, Copy, Default, Serialize, TS, PartialEq, Eq)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct TrendBucket {
+    #[ts(type = "number")]
+    pub done: u32,
+    #[ts(type = "number")]
+    pub total: u32,
+}
+
+/// One recurring rule item's trend over `HabitTrends::periods`.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct RuleTrend {
+    pub rule_key: String,
+    /// title of the newest instance, so a renamed item shows its
+    /// current name (a changed cron or text is a new rule key)
+    pub title: String,
+    pub cadence: Option<String>,
+    /// one bucket per period, same order as `HabitTrends::periods`
+    pub buckets: Vec<TrendBucket>,
+    /// the whole range summed
+    pub sum: TrendBucket,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../src/bindings/")]
+pub struct HabitTrends {
+    /// first day of each period (Monday of an ISO week, or the 1st of a
+    /// month), oldest first; the last one holds today
+    pub periods: Vec<String>,
+    /// every rule's settled instances together, per period
+    pub overall: Vec<TrendBucket>,
+    /// rules with at least one settled instance in range, worst rate
+    /// over the range first
+    pub rules: Vec<RuleTrend>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrendUnit {
+    Week,
+    Month,
+}
+
+impl TrendUnit {
+    pub fn parse(unit: &str) -> Option<Self> {
+        match unit {
+            "week" => Some(Self::Week),
+            "month" => Some(Self::Month),
+            _ => None,
+        }
+    }
+
+    fn start_of(self, day: NaiveDate) -> NaiveDate {
+        match self {
+            Self::Week => day - Duration::days(i64::from(day.weekday().num_days_from_monday())),
+            Self::Month => day.with_day(1).expect("day 1 exists"),
+        }
+    }
+
+    fn back(self, start: NaiveDate, n: u32) -> NaiveDate {
+        match self {
+            Self::Week => start - Duration::weeks(i64::from(n)),
+            Self::Month => start - Months::new(n),
+        }
+    }
+}
+
+/// Completion trend of the recurring rules over the last `count`
+/// periods up to and including today's, counted the way `habit_rates`
+/// counts (`settled_done`), each instance in the period of its own day
+/// (origin_date, so a carried-over copy stays where it was due). Reads
+/// the tasks table, so it reaches back only as far as retention keeps
+/// done tasks and a deleted instance leaves no trace.
+pub fn habit_trends(
+    conn: &Connection,
+    today: NaiveDate,
+    unit: TrendUnit,
+    count: u32,
+) -> Result<HabitTrends> {
+    let count = count.clamp(1, 260);
+    let current = unit.start_of(today);
+    let starts: Vec<NaiveDate> = (0..count).rev().map(|n| unit.back(current, n)).collect();
+    let first = starts[0].format("%Y-%m-%d").to_string();
+    let today_str = today.format("%Y-%m-%d").to_string();
+    let mut stmt = conn.prepare(
+        "SELECT rule_key, title, status, cadence,
+                COALESCE(origin_date, scheduled_date) AS day
+         FROM tasks
+         WHERE origin = 'recurring' AND rule_key IS NOT NULL
+           AND archived_at IS NULL AND parent_task_id IS NULL
+           AND COALESCE(origin_date, scheduled_date) >= ?1
+           AND COALESCE(origin_date, scheduled_date) <= ?2
+         ORDER BY rule_key, day DESC, created_at DESC, id DESC",
+    )?;
+    let rows = stmt.query_map([&first, &today_str], |row| {
+        Ok((
+            row.get::<_, String>("rule_key")?,
+            row.get::<_, String>("title")?,
+            row.get::<_, String>("status")?,
+            row.get::<_, Option<String>>("cadence")?,
+            row.get::<_, String>("day")?,
+        ))
+    })?;
+    let mut overall = vec![TrendBucket::default(); starts.len()];
+    let mut rules: Vec<RuleTrend> = Vec::new();
+    for row in rows {
+        let (rule_key, title, status, cadence, day) = row?;
+        if rules.last().map(|r| r.rule_key != rule_key).unwrap_or(true) {
+            // rows come newest first per rule: the first one, settled or
+            // not, carries the current title
+            rules.push(RuleTrend {
+                rule_key,
+                title,
+                cadence: cadence.clone(),
+                buckets: vec![TrendBucket::default(); starts.len()],
+                sum: TrendBucket::default(),
+            });
+        }
+        let Some(done) = settled_done(&status, cadence.as_deref(), Some(&day), &today_str) else {
+            continue;
+        };
+        let Ok(date) = NaiveDate::parse_from_str(&day, "%Y-%m-%d") else {
+            continue;
+        };
+        let slot = starts.partition_point(|start| *start <= date);
+        if slot == 0 {
+            continue;
+        }
+        let rule = rules.last_mut().expect("just pushed");
+        for bucket in [
+            &mut rule.buckets[slot - 1],
+            &mut rule.sum,
+            &mut overall[slot - 1],
+        ] {
+            bucket.total += 1;
+            if done {
+                bucket.done += 1;
+            }
+        }
+    }
+    rules.retain(|rule| rule.sum.total > 0);
+    // worst first: a rate is done/total, compared crosswise to stay in
+    // integers; ties by title
+    rules.sort_by(|a, b| {
+        (u64::from(a.sum.done) * u64::from(b.sum.total))
+            .cmp(&(u64::from(b.sum.done) * u64::from(a.sum.total)))
+            .then_with(|| a.title.cmp(&b.title))
+    });
+    Ok(HabitTrends {
+        periods: starts
+            .iter()
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .collect(),
+        overall,
+        rules,
+    })
 }
 
 /// All recurring rules with cron validation errors surfaced, so the

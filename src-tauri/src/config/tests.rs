@@ -354,6 +354,7 @@ fn sanitize_clamps_dangerous_values() {
             "kb",
             "journal",
             "history",
+            "tracker",
             "dashboard",
             "days",
             "lists",
@@ -402,7 +403,8 @@ fn a_new_section_lands_beside_its_neighbour_in_a_saved_order() {
             "calendar",
             "review",
             "journal",
-            "history"
+            "history",
+            "tracker"
         ]
     );
 }

@@ -84,6 +84,7 @@ export const defaultConfig: AppConfig = {
     "reminders",
     "calendar",
     "history",
+    "tracker",
     "review",
     "journal",
     "kb",
