@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.134.1 - 2026-11-15
+
+- Sync: a device still on a version before 0.134 keeps syncing with this one as long as no recurring rule has a history id. Once you give a rule an id, update the app on every device.
+
 ## 0.134.0 - 2026-11-15
 
 - Tracker: completion history now survives deleting tasks. Done and dropped days stay counted after the task is deleted, whether you delete it yourself, clear done tasks, retention removes it, or a rule edit replaces it.
