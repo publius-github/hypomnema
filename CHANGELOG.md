@@ -2,6 +2,13 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.136.0 - 2026-11-19
+
+- A metric drawn as a 7-day mean now reads the same way in its header: it shows the mean instead of the last weigh-in, and instead of the change since yesterday's value it shows the pace per week, taken from the first to the last point of the line on the chart, so one swollen morning no longer turns the arrow. The pace appears once the line's ends are three days apart.
+- With a goal set, the header also shows the day the metric reaches it at that pace, when it is heading there and gets there within two years.
+- Metrics for numbers like counts still show their last value and the change since the one before.
+- The day view offers the last 7 and 14 days too, and opens on the last 30 days.
+
 ## 0.135.0 - 2026-11-18
 
 - A metric on the Tracker now has a ⋯ menu that opens its settings: name, unit, decimals, goal, which direction is better, how a week adds up, and whether the day view draws the values themselves or their 7-day mean. Remove metric takes it off the page and keeps its values.
