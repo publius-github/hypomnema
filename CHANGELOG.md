@@ -2,6 +2,12 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.135.0 - 2026-11-18
+
+- A metric on the Tracker now has a ⋯ menu that opens its settings: name, unit, decimals, goal, which direction is better, how a week adds up, and whether the day view draws the values themselves or their 7-day mean. Remove metric takes it off the page and keeps its values.
+- The day view draws the measured values by default. The 7-day mean is a per-metric choice for numbers that wobble day to day, like a body weight.
+- The row of recent values under a chart is gone. Click a day on the chart to load it into the entry row, where it can be replaced or deleted.
+
 ## 0.134.1 - 2026-11-15
 
 - Sync: a device still on a version before 0.134 keeps syncing with this one as long as no recurring rule has a history id. Once you give a rule an id, update the app on every device.
