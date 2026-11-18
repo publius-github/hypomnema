@@ -7,4 +7,9 @@ export type MetricView = { def: MetricDef,
  * the newest value, and the one before it (for the change shown
  * next to it)
  */
-latest: Measurement | null, previous: Measurement | null, };
+latest: Measurement | null, previous: Measurement | null, 
+/**
+ * the mean of the values over the seven days ending at the latest
+ * one: what a `line: mean` metric shows as where it stands
+ */
+mean: number | null, };

@@ -12,10 +12,11 @@ import type {
 export type MetricUnit = "day" | "week" | "month";
 
 const RANGES: Record<MetricUnit, number[]> = {
-  day: [30, 90, 365],
+  day: [7, 14, 30, 90, 365],
   week: [12, 26, 52],
   month: [12, 24, 60],
 };
+const DEFAULT_RANGE: Record<MetricUnit, number> = { day: 30, week: 26, month: 24 };
 
 const UNIT_LABEL: Record<MetricUnit, string> = { day: "Days", week: "Weeks", month: "Months" };
 const UNIT_WORD: Record<MetricUnit, string> = { day: "days", week: "weeks", month: "months" };
@@ -53,6 +54,51 @@ export function parseNumber(text: string): number | null {
 }
 
 const dayNumber = (date: string) => Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10)) / 86_400_000;
+const dayISO = (n: number) => new Date(n * 86_400_000).toISOString().slice(0, 10);
+
+/** A pace needs its ends this many days apart: shorter, a day's wobble is all it shows. */
+export const MIN_PACE_DAYS = 3;
+/** A goal date further out than this is noise, not a forecast. */
+export const MAX_GOAL_DAYS = 730;
+
+export interface Pace {
+  /** change per week */
+  rate: number;
+  from: { date: string; value: number };
+  to: { date: string; value: number };
+}
+
+/**
+ * The pace of the line the chart draws, per week: from its first point
+ * to its last, so the number agrees with the ends on screen (a fitted
+ * slope follows the whole shape and can point down while the line ends
+ * higher than it started). `smooth` reads the seven-day mean. Null with
+ * fewer than two points or ends under MIN_PACE_DAYS apart.
+ */
+export function pace(series: MetricSeries, smooth: boolean): Pace | null {
+  const line = series.points.flatMap((p) => {
+    const v = smooth ? p.avg : p.value;
+    return v === null ? [] : [{ date: p.date, value: v }];
+  });
+  if (line.length < 2) return null;
+  const from = line[0];
+  const to = line[line.length - 1];
+  const span = dayNumber(to.date) - dayNumber(from.date);
+  if (span < MIN_PACE_DAYS) return null;
+  return { rate: ((to.value - from.value) / span) * 7, from, to };
+}
+
+/**
+ * The day `value` on `date` reaches `goal` at `rate` per week; null when
+ * moving away from it, standing still, or past MAX_GOAL_DAYS.
+ */
+export function goalDate(date: string, value: number, goal: number, rate: number): string | null {
+  const remaining = goal - value;
+  if (remaining === 0) return date;
+  if (rate === 0 || remaining * rate < 0) return null;
+  const days = Math.round(remaining / (rate / 7));
+  return days > MAX_GOAL_DAYS ? null : dayISO(dayNumber(date) + days);
+}
 
 function useWidth<T extends HTMLElement>(fallback: number) {
   const ref = useRef<T>(null);
@@ -302,6 +348,23 @@ function Change({ view }: { view: MetricView }) {
   );
 }
 
+/** "▼ 0.6 kg/wk", toned by the metric's direction. */
+function PaceBadge({ pace: p, def }: { pace: Pace; def: MetricDef }) {
+  const shown = formatValue(Math.abs(p.rate), def);
+  const title = `from ${withUnit(p.from.value, def)} on ${dateLabel(p.from.date, "day")} to ${withUnit(p.to.value, def)} on ${dateLabel(p.to.date, "day")}`;
+  if (Number(shown) === 0) return <span className="text-xs text-content-muted" title={title}>flat</span>;
+  const better = def.better ?? "none";
+  const good = better === "none" ? null : (better === "up") === p.rate > 0;
+  return (
+    <span
+      className={`text-xs ${good === null ? "text-content-muted" : good ? "text-accent" : "text-danger"}`}
+      title={title}
+    >
+      {p.rate > 0 ? "▲" : "▼"} {def.unit ? `${shown} ${def.unit}` : shown}/wk
+    </span>
+  );
+}
+
 function MetricCard({
   view,
   unit,
@@ -368,6 +431,16 @@ function MetricCard({
       .catch((e) => useAppStore.getState().setError(errorMessage(e)));
   };
 
+  // a mean metric stands at its seven-day mean and moves at the pace of
+  // the line drawn; a raw one at its last value, against the one before
+  const smooth = def.line === "mean";
+  const headline = smooth && view.mean !== null ? view.mean : (view.latest?.value ?? null);
+  const trend = smooth && series ? pace(series, unit === "day") : null;
+  const reach =
+    trend && def.goal !== undefined && view.latest && headline !== null
+      ? goalDate(view.latest.date, headline, def.goal, trend.rate)
+      : null;
+
   if (editing) {
     return (
       <MetricForm
@@ -387,16 +460,28 @@ function MetricCard({
           {metricName(def)}
         </span>
         <span className="flex items-baseline gap-2">
-          {view.latest ? (
+          {view.latest && headline !== null ? (
             <>
-              <span className="text-sm font-semibold">{withUnit(view.latest.value, def)}</span>
-              <Change view={view} />
+              <span
+                className="text-sm font-semibold"
+                title={
+                  smooth
+                    ? `mean of the 7 days to ${dateLabel(view.latest.date, "day")}; last value ${withUnit(view.latest.value, def)}`
+                    : undefined
+                }
+              >
+                {withUnit(headline, def)}
+              </span>
+              {smooth ? trend && <PaceBadge pace={trend} def={def} /> : <Change view={view} />}
             </>
           ) : (
             <span className="text-xs text-content-muted">no values yet</span>
           )}
           {def.goal !== undefined && (
-            <span className="text-xs text-content-muted">goal {withUnit(def.goal, def)}</span>
+            <span className="text-xs text-content-muted" title={reach ? "at this pace" : undefined}>
+              goal {withUnit(def.goal, def)}
+              {reach && ` · ~${dateLabel(reach, "day")}`}
+            </span>
           )}
           <button
             type="button"
@@ -610,7 +695,7 @@ export default function Metrics({ compact }: { compact: boolean }) {
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [unit, setUnit] = useState<MetricUnit>("day");
-  const [count, setCount] = useState(RANGES.day[1]);
+  const [count, setCount] = useState(DEFAULT_RANGE.day);
   const [adding, setAdding] = useState(false);
   const [reload, setReload] = useState(0);
 
@@ -643,7 +728,7 @@ export default function Metrics({ compact }: { compact: boolean }) {
                   className={`px-3 py-1 text-xs ${unit === u ? "bg-accent-fill text-white" : "text-content-muted"}`}
                   onClick={() => {
                     setUnit(u);
-                    setCount(RANGES[u][1]);
+                    setCount(DEFAULT_RANGE[u]);
                   }}
                 >
                   {UNIT_LABEL[u]}

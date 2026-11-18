@@ -433,6 +433,10 @@ pub struct MetricView {
     /// next to it)
     pub latest: Option<Measurement>,
     pub previous: Option<Measurement>,
+    /// the mean of the values over the seven days ending at the latest
+    /// one: what a `line: mean` metric shows as where it stands
+    #[ts(type = "number | null")]
+    pub mean: Option<f64>,
 }
 
 /// The metrics a recurring rule item's tasks ask a value for.
@@ -510,9 +514,15 @@ pub fn overview(conn: &Connection, config_dir: &Path) -> Result<MetricsOverview>
     let mut metrics = Vec::with_capacity(defs.len());
     for def in defs {
         let mut newest = recent(conn, &def.id, 2)?.into_iter();
+        let latest = newest.next();
+        let mean = match &latest {
+            Some(m) => week_mean(conn, &def.id, parse_date(&m.date)?)?,
+            None => None,
+        };
         metrics.push(MetricView {
-            latest: newest.next(),
+            latest,
             previous: newest.next(),
+            mean,
             def,
         });
     }
@@ -521,6 +531,18 @@ pub fn overview(conn: &Connection, config_dir: &Path) -> Result<MetricsOverview>
         links,
         errors,
     })
+}
+
+/// The mean of the metric's values over the seven days ending at `end`.
+fn week_mean(conn: &Connection, metric: &str, end: NaiveDate) -> Result<Option<f64>> {
+    let values = rows(
+        conn,
+        "SELECT metric, date, value FROM measurements
+         WHERE metric = ?1 AND value IS NOT NULL AND date > ?2 AND date <= ?3",
+        rusqlite::params![metric, day(end - Duration::days(7)), day(end)],
+    )?;
+    Ok((!values.is_empty())
+        .then(|| values.iter().map(|m| m.value).sum::<f64>() / values.len() as f64))
 }
 
 /// The stored value of one metric on one day, if any.

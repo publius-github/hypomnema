@@ -373,6 +373,7 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
         def: { id: "weight", name: "Weight", unit: "kg", decimals: 1, goal: 78, better: "down", rollup: "avg", line: "mean" },
         latest: { metric: "weight", date: isoDate(0), value: 81.2 },
         previous: { metric: "weight", date: isoDate(-1), value: 81.6 },
+        mean: 81.4,
       },
     ],
     links: [],

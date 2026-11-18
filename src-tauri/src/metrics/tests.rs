@@ -193,7 +193,7 @@ fn definitions_are_checked_one_by_one() {
 }
 
 #[test]
-fn the_overview_shows_the_two_newest_values() {
+fn the_overview_shows_the_two_newest_values_and_their_week_mean() {
     let dir = std::env::temp_dir().join("hypomnema-metrics-overview");
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
@@ -210,7 +210,10 @@ fn the_overview_shows_the_two_newest_values() {
     assert_eq!(o.metrics.len(), 2);
     assert_eq!(o.metrics[0].latest.as_ref().unwrap().value, 81.5);
     assert_eq!(o.metrics[0].previous.as_ref().unwrap().date, "2026-10-30");
+    // the mean takes the week up to the latest value, not 1 Oct
+    assert_eq!(o.metrics[0].mean, Some(81.75));
     assert!(o.metrics[1].latest.is_none());
+    assert!(o.metrics[1].mean.is_none());
     let _ = fs::remove_dir_all(&dir);
 }
 
