@@ -116,7 +116,7 @@ describe("Tracker smoke", () => {
             { date: "2026-08-31", value: 81.2, avg: 81.4 },
           ],
         }),
-        measurements_recent: () => [{ metric: "weight", date: "2026-08-31", value: 81.2 }],
+        measurement_on: () => null,
         measurement_set: (args: unknown) => {
           sets.push(args);
         },
@@ -133,5 +133,55 @@ describe("Tracker smoke", () => {
     fireEvent.click(screen.getByRole("button", { name: /Add|Replace/ }));
     await waitFor(() => expect(sets).toHaveLength(1));
     expect(sets[0]).toMatchObject({ metric: "weight", value: 80.9 });
+  });
+
+  it("edits a metric behind its menu and deletes a day's value from the form", async () => {
+    const updates: unknown[] = [];
+    const deletes: unknown[] = [];
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        habit_trends: () => ({ periods: ["2026-08-24"], overall: [b(0, 0)], rules: [] }),
+        metrics_overview: () => ({
+          metrics: [
+            {
+              def: { id: "weight", name: "Weight", unit: "kg", rollup: "avg" },
+              latest: { metric: "weight", date: "2026-08-31", value: 81.2 },
+              previous: null,
+            },
+          ],
+          links: [],
+          errors: [],
+        }),
+        metric_series: () => ({
+          metric: "weight",
+          start: "2026-08-01",
+          end: "2026-08-31",
+          points: [{ date: "2026-08-31", value: 81.2, avg: 81.2 }],
+        }),
+        measurement_on: () => 81.2,
+        measurement_delete: (args: unknown) => {
+          deletes.push(args);
+        },
+        metric_update: (args: unknown) => {
+          updates.push(args);
+        },
+      }),
+    );
+    useAppStore.setState({ config: defaultConfig, vaultVersion: 0 });
+    render(<Tracker />);
+    fireEvent.click(await screen.findByRole("button", { name: /^Delete the Weight value/ }));
+    await waitFor(() => expect(deletes).toHaveLength(1));
+    expect(deletes[0]).toMatchObject({ metric: "weight" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Weight" }));
+    fireEvent.change(screen.getByLabelText("Goal"), { target: { value: "90" } });
+    fireEvent.change(screen.getByLabelText("Days as"), { target: { value: "mean" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updates).toHaveLength(1));
+    expect(updates[0]).toEqual({
+      id: "weight",
+      def: { id: "weight", name: "Weight", unit: "kg", goal: 90, rollup: "avg", line: "mean" },
+    });
   });
 });

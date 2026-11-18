@@ -370,7 +370,7 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
   metrics_overview: () => ({
     metrics: [
       {
-        def: { id: "weight", name: "Weight", unit: "kg", decimals: 1, goal: 78, better: "down", rollup: "avg" },
+        def: { id: "weight", name: "Weight", unit: "kg", decimals: 1, goal: 78, better: "down", rollup: "avg", line: "mean" },
         latest: { metric: "weight", date: isoDate(0), value: 81.2 },
         previous: { metric: "weight", date: isoDate(-1), value: 81.6 },
       },
@@ -396,12 +396,15 @@ const handlers: { [K in keyof Commands]?: (args: Args) => Commands[K]["result"] 
     });
     return { metric: "weight", start: points[0].date, end: points[points.length - 1].date, points };
   },
-  measurements_recent: () =>
-    [0, -1, -2, -4].map((d, i) => ({ metric: "weight", date: isoDate(d), value: 81.2 + i * 0.3 })),
+  measurement_on: (args) => {
+    const back = [0, -1, -2, -4].map((d) => isoDate(d)).indexOf((args as { date: string }).date);
+    return back < 0 ? null : 81.2 + back * 0.3;
+  },
   measurements_since: () => [],
   measurement_set: () => undefined,
   measurement_delete: () => undefined,
   metric_add: () => undefined,
+  metric_update: () => undefined,
   habit_trends: (args) => {
     const { unit, count } = args as { unit: "week" | "month"; count: number };
     const now = new Date();

@@ -105,9 +105,10 @@ export interface Commands {
   habit_rates: { args: void; result: HabitRate[] };
   measurement_delete: { args: { metric: string; date: string }; result: void };
   measurement_set: { args: { metric: string; date: string; value: number }; result: void };
-  measurements_recent: { args: { metric: string; limit: number }; result: Measurement[] };
+  measurement_on: { args: { metric: string; date: string }; result: number | null };
   measurements_since: { args: { from: string }; result: Measurement[] };
   metric_add: { args: { def: MetricDef }; result: void };
+  metric_update: { args: { id: string; def: MetricDef | null }; result: void };
   metric_series: {
     args: { metric: string; unit: "day" | "week" | "month"; count: number };
     result: MetricSeries;

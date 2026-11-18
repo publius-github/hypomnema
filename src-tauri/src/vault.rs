@@ -41,7 +41,7 @@ pub(crate) const CONFIG_STARTERS: &[(&str, &str)] = &[
     ),
     (
         "metrics.yml",
-        "# Numbers the Tracker follows over time, one value per day each.\n# metrics:\n#   - id: weight          # the key values are stored under; keep it\n#     name: Weight\n#     unit: kg\n#     decimals: 1\n#     goal: 75            # optional target line\n#     better: down        # down | up | none\n#     rollup: avg         # a week or month as: avg | sum | last\n",
+        "# Numbers the Tracker follows over time, one value per day each.\n# metrics:\n#   - id: weight          # the key values are stored under; keep it\n#     name: Weight\n#     unit: kg\n#     decimals: 1\n#     goal: 75            # optional target line\n#     better: down        # down | up | none\n#     rollup: avg         # a week or month as: avg | sum | last\n#     line: mean          # the day view: raw values | mean of 7 days\n",
     ),
 ];
 
@@ -71,7 +71,7 @@ pub(crate) const CONFIG_SAMPLES: &[(&str, &str)] = &[
     ),
     (
         "metrics.yml",
-        "# Numbers the Tracker follows over time, one value per day each.\n# metrics:\n#   - id: weight          # the key values are stored under; keep it\n#     name: Weight\n#     unit: kg\n#     decimals: 1\n#     goal: 75            # optional target line\n#     better: down        # down | up | none\n#     rollup: avg         # a week or month as: avg | sum | last\n",
+        "# Numbers the Tracker follows over time, one value per day each.\n# metrics:\n#   - id: weight          # the key values are stored under; keep it\n#     name: Weight\n#     unit: kg\n#     decimals: 1\n#     goal: 75            # optional target line\n#     better: down        # down | up | none\n#     rollup: avg         # a week or month as: avg | sum | last\n#     line: mean          # the day view: raw values | mean of 7 days\n",
     ),
     (
         "day-schedule.yml",

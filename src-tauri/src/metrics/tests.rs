@@ -17,6 +17,7 @@ fn def(id: &str, rollup: &str) -> MetricDef {
         goal: None,
         better: None,
         rollup: Some(rollup.into()),
+        line: None,
     }
 }
 
@@ -242,5 +243,52 @@ fn rule_items_with_metrics_are_linked_by_rule_key_and_a_typo_reported() {
     );
     assert_eq!(o.errors.len(), 1);
     assert!(o.errors[0].message.contains("'wieght'"), "{:?}", o.errors);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_metric_is_rewritten_in_place_and_removed_by_its_id() {
+    let dir = std::env::temp_dir().join("hypomnema-metrics-update");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join(FILE),
+        "# my metrics\nmetrics:\n  - id: weight\n    unit: kg\n  - id: steps\n    rollup: sum\n",
+    )
+    .unwrap();
+    update(
+        &dir,
+        "weight",
+        Some(MetricDef {
+            goal: Some(90.0),
+            line: Some("mean".into()),
+            unit: Some(" kg ".into()),
+            ..def("weight", "avg")
+        }),
+    )
+    .unwrap();
+    let (defs, errors) = load(&dir);
+    assert!(errors.is_empty(), "{errors:?}");
+    assert_eq!(defs[0].goal, Some(90.0));
+    assert_eq!(defs[0].line.as_deref(), Some("mean"));
+    assert_eq!(defs[0].unit.as_deref(), Some("kg"));
+    assert_eq!(defs[1].id, "steps");
+    assert!(fs::read_to_string(dir.join(FILE))
+        .unwrap()
+        .starts_with("# my metrics\n"));
+
+    // the id cannot change, a bad line is refused, an unknown id too
+    assert!(update(&dir, "weight", Some(def("mass", "avg"))).is_err());
+    let wavy = MetricDef {
+        line: Some("wavy".into()),
+        ..def("weight", "avg")
+    };
+    assert!(update(&dir, "weight", Some(wavy)).is_err());
+    assert!(update(&dir, "nope", None).is_err());
+
+    update(&dir, "weight", None).unwrap();
+    let (defs, _) = load(&dir);
+    let ids: Vec<&str> = defs.iter().map(|d| d.id.as_str()).collect();
+    assert_eq!(ids, vec!["steps"]);
     let _ = fs::remove_dir_all(&dir);
 }

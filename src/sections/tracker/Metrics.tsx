@@ -3,7 +3,6 @@ import { errorMessage, invoke } from "../../lib/ipc";
 import { useAppStore } from "../../store";
 import { todayISO } from "../../lib/tasks";
 import type {
-  Measurement,
   MetricDef,
   MetricSeries,
   MetricView,
@@ -72,30 +71,36 @@ function useWidth<T extends HTMLElement>(fallback: number) {
 
 /**
  * One metric over time on a time axis. The day view draws the measured
- * days as dots under a 2px line of their seven-day mean (a daily weight
- * moves a kilo either way; the mean is the trend). The week and month
- * views draw one point per period, the period folded by the metric's
- * rollup, with a gap where nothing was measured. The dashed line is the
- * goal. Hover or tap picks the nearest point.
+ * days as a line, or, for a metric with `line: mean`, as faint dots
+ * under a 2px line of their seven-day mean (a daily weight moves a kilo
+ * either way; the mean is the trend). The week and month views draw one
+ * point per period, the period folded by the metric's rollup, with a gap
+ * where nothing was measured. The dashed line is the goal. Hover or tap
+ * picks the nearest point; on the day view a click also hands its day
+ * to `onPick`.
  */
 export function MetricChart({
   series,
   def,
   unit,
   height,
+  onPick,
 }: {
   series: MetricSeries;
   def: MetricDef;
   unit: MetricUnit;
   height: number;
+  onPick?: (date: string, value: number) => void;
 }) {
   const [ref, width] = useWidth<HTMLDivElement>(600);
   const [active, setActive] = useState<number | null>(null);
   const points = series.points;
   const measured = points.filter((p) => p.value !== null);
+  const isDay = unit === "day";
+  const smooth = isDay && def.line === "mean";
   const values = [
     ...measured.map((p) => p.value as number),
-    ...points.flatMap((p) => (p.avg === null ? [] : [p.avg])),
+    ...(smooth ? points.flatMap((p) => (p.avg === null ? [] : [p.avg])) : []),
     ...(def.goal !== undefined ? [def.goal] : []),
   ];
   let lo = Math.min(...values);
@@ -139,9 +144,8 @@ export function MetricChart({
     });
     return d;
   };
-  const isDay = unit === "day";
-  const valueLine = isDay ? "" : path((i) => points[i].value);
-  const avgLine = isDay ? path((i) => points[i].avg) : "";
+  const valueLine = smooth ? "" : path((i) => points[i].value);
+  const avgLine = smooth ? path((i) => points[i].avg) : "";
   const ticks = [hi - pad, (hi + lo) / 2, lo + pad];
 
   const shown = active ?? (measured.length > 0 ? points.lastIndexOf(measured[measured.length - 1]) : null);
@@ -150,7 +154,7 @@ export function MetricChart({
     const when = dateLabel(p.date, unit);
     const prefix = unit === "week" ? `Week of ${when}` : when;
     if (p.value === null) return `${prefix}: nothing measured`;
-    const avg = isDay && p.avg !== null ? ` · 7-day mean ${withUnit(p.avg, def)}` : "";
+    const avg = smooth && p.avg !== null ? ` · 7-day mean ${withUnit(p.avg, def)}` : "";
     return `${prefix}: ${withUnit(p.value, def)}${avg}`;
   };
   const pick = (clientX: number, el: SVGSVGElement) => {
@@ -166,6 +170,7 @@ export function MetricChart({
       }
     });
     setActive(best);
+    return best as number | null;
   };
   const summary =
     measured.length === 0
@@ -184,7 +189,10 @@ export function MetricChart({
         height={height}
         className="block touch-none select-none"
         onMouseMove={(e) => pick(e.clientX, e.currentTarget)}
-        onClick={(e) => pick(e.clientX, e.currentTarget)}
+        onClick={(e) => {
+          const i = pick(e.clientX, e.currentTarget);
+          if (isDay && i !== null && onPick) onPick(points[i].date, points[i].value as number);
+        }}
         onMouseLeave={() => setActive(null)}
       >
         {ticks.map((t) => (
@@ -219,7 +227,7 @@ export function MetricChart({
             strokeDasharray="4 3"
           />
         )}
-        {isDay &&
+        {smooth &&
           measured.map((p) => (
             <circle
               key={p.date}
@@ -236,7 +244,7 @@ export function MetricChart({
         {valueLine && (
           <path d={valueLine} fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinejoin="round" />
         )}
-        {!isDay &&
+        {!smooth &&
           measured.map((p) => (
             <circle
               key={p.date}
@@ -310,22 +318,18 @@ function MetricCard({
   const def = view.def;
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const [series, setSeries] = useState<MetricSeries | null>(null);
-  const [recent, setRecent] = useState<Measurement[]>([]);
   const [date, setDate] = useState(todayISO);
+  const [existing, setExisting] = useState<number | null>(null);
   const [text, setText] = useState("");
+  const [editing, setEditing] = useState(false);
   const [reload, setReload] = useState(0);
   const value = parseNumber(text);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      invoke("metric_series", { metric: def.id, unit, count }),
-      invoke("measurements_recent", { metric: def.id, limit: 7 }),
-    ])
-      .then(([s, r]) => {
-        if (cancelled) return;
-        setSeries(s);
-        setRecent(r);
+    invoke("metric_series", { metric: def.id, unit, count })
+      .then((s) => {
+        if (!cancelled) setSeries(s);
       })
       .catch((e) => useAppStore.getState().setError(errorMessage(e)));
     return () => {
@@ -333,26 +337,48 @@ function MetricCard({
     };
   }, [def.id, unit, count, vaultVersion, reload]);
 
+  // what the picked day holds: Add or Replace, and whether Delete shows
+  useEffect(() => {
+    let cancelled = false;
+    invoke("measurement_on", { metric: def.id, date })
+      .then((v) => {
+        if (!cancelled) setExisting(v);
+      })
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, [def.id, date, vaultVersion, reload]);
+
   const changed = () => {
+    setText("");
+    setDate(todayISO());
     setReload((n) => n + 1);
     onChanged();
   };
   const save = () => {
     if (value === null) return;
     void invoke("measurement_set", { metric: def.id, date, value })
-      .then(() => {
-        setText("");
-        setDate(todayISO());
-        changed();
-      })
-      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
-  };
-  const remove = (m: Measurement) => {
-    void invoke("measurement_delete", { metric: def.id, date: m.date })
       .then(changed)
       .catch((e) => useAppStore.getState().setError(errorMessage(e)));
   };
-  const existing = recent.find((m) => m.date === date);
+  const remove = () => {
+    void invoke("measurement_delete", { metric: def.id, date })
+      .then(changed)
+      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
+  };
+
+  if (editing) {
+    return (
+      <MetricForm
+        def={def}
+        onDone={(saved) => {
+          setEditing(false);
+          if (saved) onChanged();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-alt/50 p-4">
@@ -372,9 +398,29 @@ function MetricCard({
           {def.goal !== undefined && (
             <span className="text-xs text-content-muted">goal {withUnit(def.goal, def)}</span>
           )}
+          <button
+            type="button"
+            className="btn-ghost min-h-6 min-w-6 px-1 text-sm leading-none text-content-muted"
+            aria-label={`Edit ${metricName(def)}`}
+            title="Edit this metric"
+            onClick={() => setEditing(true)}
+          >
+            ⋯
+          </button>
         </span>
       </div>
-      {series && <MetricChart series={series} def={def} unit={unit} height={compact ? 120 : 160} />}
+      {series && (
+        <MetricChart
+          series={series}
+          def={def}
+          unit={unit}
+          height={compact ? 120 : 160}
+          onPick={(d, v) => {
+            setDate(d);
+            setText(formatValue(v, def));
+          }}
+        />
+      )}
       <form
         className="flex flex-wrap items-center gap-2"
         onSubmit={(e) => {
@@ -394,81 +440,79 @@ function MetricCard({
           type="text"
           inputMode="decimal"
           aria-label={`${metricName(def)} value`}
-          placeholder={existing ? formatValue(existing.value, def) : def.unit || "value"}
+          placeholder={existing !== null ? formatValue(existing, def) : def.unit || "value"}
           className="input w-28 text-xs"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
         <button type="submit" className="btn-ghost px-2 py-1 text-xs" disabled={value === null}>
-          {existing ? "Replace" : "Add"}
+          {existing !== null ? "Replace" : "Add"}
         </button>
+        {existing !== null && (
+          <button
+            type="button"
+            className="btn-ghost px-2 py-1 text-xs hover:text-danger"
+            aria-label={`Delete the ${metricName(def)} value of ${date}`}
+            onClick={remove}
+          >
+            Delete
+          </button>
+        )}
       </form>
-      {recent.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5" aria-label={`${metricName(def)} recent values`}>
-          {recent.map((m) => (
-            <li
-              key={m.date}
-              className="flex items-center gap-1 rounded-sm bg-line/40 py-0.5 pl-1.5 pr-0.5 text-[0.6875rem]"
-            >
-              <button
-                type="button"
-                className="min-h-6 text-content-muted hover:text-content"
-                title="Edit this day"
-                onClick={() => {
-                  setDate(m.date);
-                  setText(formatValue(m.value, def));
-                }}
-              >
-                {dateLabel(m.date, "day", false)}: {withUnit(m.value, def)}
-              </button>
-              <button
-                type="button"
-                className="flex min-h-6 min-w-6 items-center justify-center text-content-muted hover:text-danger"
-                aria-label={`Delete ${m.date}`}
-                onClick={() => remove(m)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
 
-function NewMetricForm({ onDone }: { onDone: () => void }) {
-  const [id, setId] = useState("");
-  const [name, setName] = useState("");
-  const [unitText, setUnitText] = useState("");
-  const [rollup, setRollup] = useState<"avg" | "sum" | "last">("avg");
-  const [better, setBetter] = useState<"down" | "up" | "none">("none");
-  const [goal, setGoal] = useState("");
+/**
+ * A metric's definition: a new one, or `def` to edit (its id stays, the
+ * values are stored under it) or remove. `onDone(true)` when the file
+ * changed.
+ */
+function MetricForm({ def, onDone }: { def?: MetricDef; onDone: (saved: boolean) => void }) {
+  const [id, setId] = useState(def?.id ?? "");
+  const [name, setName] = useState(def?.name ?? "");
+  const [unitText, setUnitText] = useState(def?.unit ?? "");
+  const [decimals, setDecimals] = useState(def?.decimals !== undefined ? String(def.decimals) : "");
+  const [rollup, setRollup] = useState<"avg" | "sum" | "last">(def?.rollup ?? "avg");
+  const [better, setBetter] = useState<"down" | "up" | "none">(def?.better ?? "none");
+  const [line, setLine] = useState<"raw" | "mean">(def?.line ?? "raw");
+  const [goal, setGoal] = useState(def?.goal !== undefined ? String(def.goal) : "");
   const goalValue = parseNumber(goal);
+  const decimalsOk = decimals === "" || /^[0-6]$/.test(decimals);
   const idOk = /^[a-z0-9_-]{1,64}$/.test(id);
+  const ok = idOk && decimalsOk && (goal.trim() === "" || goalValue !== null);
+  const fail = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
   const submit = () => {
-    const def: MetricDef = {
+    const next: MetricDef = {
       id,
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(unitText.trim() ? { unit: unitText.trim() } : {}),
+      ...(decimals !== "" ? { decimals: Number(decimals) } : {}),
       ...(goalValue !== null ? { goal: goalValue } : {}),
       ...(better !== "none" ? { better } : {}),
       rollup,
+      ...(line !== "raw" ? { line } : {}),
     };
-    void invoke("metric_add", { def })
-      .then(onDone)
-      .catch((e) => useAppStore.getState().setError(errorMessage(e)));
+    const call = def ? invoke("metric_update", { id: def.id, def: next }) : invoke("metric_add", { def: next });
+    void call.then(() => onDone(true)).catch(fail);
+  };
+  const removeMetric = () => {
+    if (!def) return;
+    void invoke("metric_update", { id: def.id, def: null })
+      .then(() => onDone(true))
+      .catch(fail);
   };
   return (
     <form
       className="flex flex-col gap-2 rounded-lg border border-line bg-surface-alt/50 p-4 text-xs"
+      aria-label={def ? `Edit ${metricName(def)}` : "New metric"}
       onSubmit={(e) => {
         e.preventDefault();
-        if (idOk && (goal === "" || goalValue !== null)) submit();
+        if (ok) submit();
       }}
     >
       <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
-        New metric
+        {def ? metricName(def) : "New metric"}
       </span>
       <div className="flex flex-wrap gap-2">
         <label className="flex flex-col gap-0.5">
@@ -477,6 +521,7 @@ function NewMetricForm({ onDone }: { onDone: () => void }) {
             className="input w-32"
             value={id}
             placeholder="weight"
+            disabled={def !== undefined}
             onChange={(e) => setId(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
           />
         </label>
@@ -487,6 +532,16 @@ function NewMetricForm({ onDone }: { onDone: () => void }) {
         <label className="flex flex-col gap-0.5">
           Unit
           <input className="input w-20" value={unitText} placeholder="kg" onChange={(e) => setUnitText(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-0.5">
+          Decimals
+          <input
+            className="input w-16"
+            inputMode="numeric"
+            value={decimals}
+            placeholder="as typed"
+            onChange={(e) => setDecimals(e.target.value.trim())}
+          />
         </label>
         <label className="flex flex-col gap-0.5">
           Goal
@@ -506,6 +561,13 @@ function NewMetricForm({ onDone }: { onDone: () => void }) {
           </select>
         </label>
         <label className="flex flex-col gap-0.5">
+          Days as
+          <select className="input w-32" value={line} onChange={(e) => setLine(e.target.value as typeof line)}>
+            <option value="raw">values</option>
+            <option value="mean">7-day mean</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-0.5">
           A week as
           <select className="input w-28" value={rollup} onChange={(e) => setRollup(e.target.value as typeof rollup)}>
             <option value="avg">average</option>
@@ -515,15 +577,26 @@ function NewMetricForm({ onDone }: { onDone: () => void }) {
         </label>
       </div>
       <span className="text-[0.6875rem] text-content-muted">
-        The id is what values are stored under: the name can change later, the id should not.
+        {def
+          ? "The id is what the values are stored under, so it stays. Removing the metric keeps its values: a metric added back under this id finds them."
+          : "The id is what values are stored under: the name can change later, the id should not."}{" "}
+        A 7-day mean suits a number that wobbles day to day, like a body weight.
       </span>
       <div className="flex gap-2">
-        <button type="submit" className="btn-ghost px-2 py-1" disabled={!idOk}>
-          Add metric
+        <button type="submit" className="btn-ghost px-2 py-1" disabled={!ok}>
+          {def ? "Save" : "Add metric"}
         </button>
-        <button type="button" className="btn-ghost px-2 py-1" onClick={onDone}>
+        <button type="button" className="btn-ghost px-2 py-1" onClick={() => onDone(false)}>
           Cancel
         </button>
+        {def && (
+          <>
+            <div className="flex-1" />
+            <button type="button" className="btn-ghost px-2 py-1 hover:text-danger" onClick={removeMetric}>
+              Remove metric
+            </button>
+          </>
+        )}
       </div>
     </form>
   );
@@ -617,10 +690,10 @@ export default function Metrics({ compact }: { compact: boolean }) {
         </div>
       )}
       {adding && (
-        <NewMetricForm
-          onDone={() => {
+        <MetricForm
+          onDone={(saved) => {
             setAdding(false);
-            refresh();
+            if (saved) refresh();
           }}
         />
       )}

@@ -504,7 +504,7 @@ pub fn append_birthday(config_dir: &Path, entry: BirthdayEntry) -> Result<()> {
 
 /// Loads a file an edit is about to splice into; a file that does not
 /// parse is refused rather than spliced blind.
-fn load_for_edit<T: serde::de::DeserializeOwned + Default>(
+pub(crate) fn load_for_edit<T: serde::de::DeserializeOwned + Default>(
     config_dir: &Path,
     file: &str,
 ) -> Result<T> {

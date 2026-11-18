@@ -25,4 +25,8 @@ better?: "down" | "up" | "none",
 /**
  * One of `ROLLUPS`; absent = "avg".
  */
-rollup?: "avg" | "sum" | "last", };
+rollup?: "avg" | "sum" | "last", 
+/**
+ * One of `LINES`; absent = "raw".
+ */
+line?: "raw" | "mean", };

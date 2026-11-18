@@ -43,13 +43,14 @@ pub(crate) async fn metric_series(
     })
 }
 
+/// The metric's value on the day, if one is stored.
 #[tauri::command]
-pub(crate) async fn measurements_recent(
+pub(crate) async fn measurement_on(
     state: State<'_, AppState>,
     metric: String,
-    limit: u32,
-) -> Result<Vec<metrics::Measurement>> {
-    with_conn(&state, |conn| metrics::recent(conn, &metric, limit))
+    date: String,
+) -> Result<Option<f64>> {
+    with_conn(&state, |conn| Ok(metrics::value_on(conn, &metric, &date)))
 }
 
 #[tauri::command]
@@ -87,4 +88,17 @@ pub(crate) async fn measurement_delete(
 pub(crate) async fn metric_add(state: State<'_, AppState>, def: metrics::MetricDef) -> Result<()> {
     backup_config(&state, metrics::FILE);
     with_vault(&state, |vault| metrics::add(&vault.config_dir(), def))
+}
+
+/// Rewrites a metric's definition, or removes it with no `def`.
+#[tauri::command]
+pub(crate) async fn metric_update(
+    state: State<'_, AppState>,
+    id: String,
+    def: Option<metrics::MetricDef>,
+) -> Result<()> {
+    backup_config(&state, metrics::FILE);
+    with_vault(&state, |vault| {
+        metrics::update(&vault.config_dir(), &id, def)
+    })
 }

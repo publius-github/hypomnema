@@ -17,7 +17,7 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::config_files::{load_yaml, splice_item, ConfigError};
+use crate::config_files::{load_for_edit, load_yaml, splice_item, ConfigError};
 use crate::error::{Error, Result};
 use crate::views::TrendUnit;
 
@@ -29,6 +29,10 @@ pub const FILE: &str = "metrics.yml";
 pub const ROLLUPS: &[&str] = &["avg", "sum", "last"];
 /// Which way is progress; "none" for a metric with no good direction.
 pub const DIRECTIONS: &[&str] = &["down", "up", "none"];
+/// What the day view draws: the values themselves, or the mean of the
+/// seven days ending at each (for a number that wobbles day to day, such
+/// as a body weight, the mean is the trend).
+pub const LINES: &[&str] = &["raw", "mean"];
 
 #[derive(Debug, Default, Deserialize)]
 struct MetricsFile {
@@ -65,6 +69,10 @@ pub struct MetricDef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "\"avg\" | \"sum\" | \"last\"")]
     pub rollup: Option<String>,
+    /// One of `LINES`; absent = "raw".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "\"raw\" | \"mean\"")]
+    pub line: Option<String>,
 }
 
 impl MetricDef {
@@ -100,6 +108,9 @@ fn problem(def: &MetricDef) -> Option<String> {
             "rollup '{r}' must be one of: {}",
             ROLLUPS.join(", ")
         ));
+    }
+    if let Some(l) = def.line.as_deref().filter(|l| !LINES.contains(l)) {
+        return Some(format!("line '{l}' must be one of: {}", LINES.join(", ")));
     }
     if def.decimals.is_some_and(|d| d > 6) {
         return Some("decimals must be 0-6".into());
@@ -166,15 +177,20 @@ fn check_file(content: &str) -> Option<String> {
         .map(|e| e.to_string())
 }
 
-/// Appends a metric to metrics.yml (spliced in: comments survive).
-pub fn add(config_dir: &Path, mut def: MetricDef) -> Result<()> {
+fn tidy(mut def: MetricDef) -> Result<MetricDef> {
     let tidy = |text: Option<String>| text.map(|t| t.trim().to_string()).filter(|t| !t.is_empty());
     def.id = def.id.trim().to_string();
     def.name = tidy(def.name);
     def.unit = tidy(def.unit);
-    if let Some(message) = problem(&def) {
-        return Err(Error::State(message));
+    match problem(&def) {
+        Some(message) => Err(Error::State(message)),
+        None => Ok(def),
     }
+}
+
+/// Appends a metric to metrics.yml (spliced in: comments survive).
+pub fn add(config_dir: &Path, def: MetricDef) -> Result<()> {
+    let def = tidy(def)?;
     let (existing, _) = load(config_dir);
     if existing.iter().any(|d| d.id == def.id) {
         return Err(Error::State(format!(
@@ -183,6 +199,30 @@ pub fn add(config_dir: &Path, mut def: MetricDef) -> Result<()> {
         )));
     }
     splice_item(config_dir, FILE, "metrics", None, Some(&def), check_file)
+}
+
+/// Rewrites the metric `id` in metrics.yml with `replacement`, or takes
+/// it out with `None`. The id stays: the values are stored under it, and
+/// a removed metric's values stay stored until one with its id is back.
+pub fn update(config_dir: &Path, id: &str, replacement: Option<MetricDef>) -> Result<()> {
+    let file = load_for_edit::<MetricsFile>(config_dir, FILE)?;
+    let index = file
+        .metrics
+        .iter()
+        .position(|d| d.id == id)
+        .ok_or_else(|| Error::State(format!("no metric '{id}' in {FILE}")))?;
+    let replacement = replacement.map(tidy).transpose()?;
+    if replacement.as_ref().is_some_and(|d| d.id != id) {
+        return Err(Error::State("a metric's id cannot change".into()));
+    }
+    splice_item(
+        config_dir,
+        FILE,
+        "metrics",
+        Some(index),
+        replacement.as_ref(),
+        check_file,
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
@@ -484,8 +524,7 @@ pub fn overview(conn: &Connection, config_dir: &Path) -> Result<MetricsOverview>
 }
 
 /// The stored value of one metric on one day, if any.
-#[cfg(test)]
-fn value_on(conn: &Connection, metric: &str, date: &str) -> Option<f64> {
+pub fn value_on(conn: &Connection, metric: &str, date: &str) -> Option<f64> {
     use rusqlite::OptionalExtension;
     conn.query_row(
         "SELECT value FROM measurements WHERE metric = ?1 AND date = ?2",
