@@ -2,6 +2,11 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.137.1 - 2026-11-19
+
+- A metric's entry row fits on one line on a phone: the date field is a fixed width, the value field takes the rest, and Delete is a small trash button. The row no longer shifts when a day with a value is picked.
+- The Tracker's metric buttons come in two set widths, one for short labels and one for longer ones, instead of each button following its label.
+
 ## 0.137.0 - 2026-11-19
 
 - The metric form is laid out one field per row, with room for every value and a short hint under the fields that need one; on a phone each label sits above its field.
