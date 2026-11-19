@@ -50,6 +50,10 @@ pub struct MetricDef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub name: Option<String>,
+    /// Free text for the person: what is measured and how.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub unit: Option<String>,
@@ -181,6 +185,7 @@ fn tidy(mut def: MetricDef) -> Result<MetricDef> {
     let tidy = |text: Option<String>| text.map(|t| t.trim().to_string()).filter(|t| !t.is_empty());
     def.id = def.id.trim().to_string();
     def.name = tidy(def.name);
+    def.description = tidy(def.description);
     def.unit = tidy(def.unit);
     match problem(&def) {
         Some(message) => Err(Error::State(message)),

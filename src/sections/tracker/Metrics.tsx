@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { errorMessage, invoke } from "../../lib/ipc";
 import { useAppStore } from "../../store";
 import { todayISO } from "../../lib/tasks";
@@ -494,6 +494,9 @@ function MetricCard({
           </button>
         </span>
       </div>
+      {def.description && (
+        <p className="whitespace-pre-line text-xs text-content-muted">{def.description}</p>
+      )}
       {series && (
         <MetricChart
           series={series}
@@ -548,29 +551,90 @@ function MetricCard({
   );
 }
 
+const CYRILLIC: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y",
+  к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f",
+  х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+  і: "i", ї: "yi", є: "ye", ґ: "g",
+};
+
 /**
- * A metric's definition: a new one, or `def` to edit (its id stays, the
- * values are stored under it) or remove. `onDone(true)` when the file
- * changed.
+ * A new metric's id from its name, in kebab-case: "Body weight" ->
+ * "body-weight", "Вес утром" -> "ves-utrom"; a taken id gets "-2", "-3".
  */
-function MetricForm({ def, onDone }: { def?: MetricDef; onDone: (saved: boolean) => void }) {
-  const [id, setId] = useState(def?.id ?? "");
+export function metricId(name: string, taken: readonly string[]): string {
+  const base =
+    name
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[а-яёіїєґ]/g, (c) => CYRILLIC[c] ?? "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60)
+      .replace(/-+$/, "") || "metric";
+  if (!taken.includes(base)) return base;
+  let n = 2;
+  while (taken.includes(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
+/** One labelled row of the metric form: the label beside, or above on a phone. */
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: (id: string) => ReactNode;
+}) {
+  const id = useId();
+  return (
+    <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-start">
+      <label htmlFor={id} className="text-sm text-content-muted sm:pt-1.5">
+        {label}
+      </label>
+      <div className="flex min-w-0 flex-col gap-1">
+        {children(id)}
+        {hint && <span className="text-xs text-content-muted">{hint}</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A metric's definition: a new one (its id made from the name, clear of
+ * `taken`), or `def` to edit (its id stays, the values are stored under
+ * it) or remove. `onDone(true)` when the file changed.
+ */
+function MetricForm({
+  def,
+  taken = [],
+  onDone,
+}: {
+  def?: MetricDef;
+  taken?: readonly string[];
+  onDone: (saved: boolean) => void;
+}) {
   const [name, setName] = useState(def?.name ?? "");
+  const [description, setDescription] = useState(def?.description ?? "");
   const [unitText, setUnitText] = useState(def?.unit ?? "");
   const [decimals, setDecimals] = useState(def?.decimals !== undefined ? String(def.decimals) : "");
   const [rollup, setRollup] = useState<"avg" | "sum" | "last">(def?.rollup ?? "avg");
   const [better, setBetter] = useState<"down" | "up" | "none">(def?.better ?? "none");
   const [line, setLine] = useState<"raw" | "mean">(def?.line ?? "raw");
   const [goal, setGoal] = useState(def?.goal !== undefined ? String(def.goal) : "");
+  const id = def ? def.id : metricId(name, taken);
   const goalValue = parseNumber(goal);
   const decimalsOk = decimals === "" || /^[0-6]$/.test(decimals);
-  const idOk = /^[a-z0-9_-]{1,64}$/.test(id);
-  const ok = idOk && decimalsOk && (goal.trim() === "" || goalValue !== null);
+  const ok = (def !== undefined || name.trim() !== "") && decimalsOk && (goal.trim() === "" || goalValue !== null);
   const fail = (e: unknown) => useAppStore.getState().setError(errorMessage(e));
   const submit = () => {
     const next: MetricDef = {
       id,
       ...(name.trim() ? { name: name.trim() } : {}),
+      ...(description.trim() ? { description: description.trim() } : {}),
       ...(unitText.trim() ? { unit: unitText.trim() } : {}),
       ...(decimals !== "" ? { decimals: Number(decimals) } : {}),
       ...(goalValue !== null ? { goal: goalValue } : {}),
@@ -589,7 +653,7 @@ function MetricForm({ def, onDone }: { def?: MetricDef; onDone: (saved: boolean)
   };
   return (
     <form
-      className="flex flex-col gap-2 rounded-lg border border-line bg-surface-alt/50 p-4 text-xs"
+      className="flex flex-col gap-3 rounded-lg border border-line bg-surface-alt/50 p-4"
       aria-label={def ? `Edit ${metricName(def)}` : "New metric"}
       onSubmit={(e) => {
         e.preventDefault();
@@ -599,85 +663,132 @@ function MetricForm({ def, onDone }: { def?: MetricDef; onDone: (saved: boolean)
       <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
         {def ? metricName(def) : "New metric"}
       </span>
-      <div className="flex flex-wrap gap-2">
-        <label className="flex flex-col gap-0.5">
-          Id
+      <Field
+        label="Name"
+        hint={
+          def
+            ? `Values are stored under the id "${id}": the name can change, the id stays.`
+            : name.trim()
+              ? `Values will be stored under the id "${id}".`
+              : undefined
+        }
+      >
+        {(fid) => (
           <input
-            className="input w-32"
-            value={id}
-            placeholder="weight"
-            disabled={def !== undefined}
-            onChange={(e) => setId(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+            id={fid}
+            className="input w-full"
+            value={name}
+            placeholder="Weight"
+            autoFocus={!def}
+            onChange={(e) => setName(e.target.value)}
           />
-        </label>
-        <label className="flex flex-col gap-0.5">
-          Name
-          <input className="input w-40" value={name} placeholder="Weight" onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-0.5">
-          Unit
-          <input className="input w-20" value={unitText} placeholder="kg" onChange={(e) => setUnitText(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-0.5">
-          Decimals
+        )}
+      </Field>
+      <Field label="Description">
+        {(fid) => (
+          <textarea
+            id={fid}
+            className="input min-h-16 w-full resize-y"
+            rows={2}
+            value={description}
+            placeholder="Optional: what is measured and how, e.g. in the morning, before breakfast"
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        )}
+      </Field>
+      <Field label="Unit">
+        {(fid) => (
           <input
-            className="input w-16"
+            id={fid}
+            className="input w-full"
+            value={unitText}
+            placeholder="kg"
+            onChange={(e) => setUnitText(e.target.value)}
+          />
+        )}
+      </Field>
+      <Field label="Decimals" hint={decimalsOk ? "0-6; empty shows values as typed." : "A digit from 0 to 6."}>
+        {(fid) => (
+          <input
+            id={fid}
+            className="input w-full"
             inputMode="numeric"
             value={decimals}
             placeholder="as typed"
+            aria-invalid={!decimalsOk}
             onChange={(e) => setDecimals(e.target.value.trim())}
           />
-        </label>
-        <label className="flex flex-col gap-0.5">
-          Goal
+        )}
+      </Field>
+      <Field label="Goal" hint="Optional: drawn as a dashed line on the chart.">
+        {(fid) => (
           <input
-            className="input w-20"
+            id={fid}
+            className="input w-full"
             inputMode="decimal"
             value={goal}
+            aria-invalid={goal.trim() !== "" && goalValue === null}
             onChange={(e) => setGoal(e.target.value)}
           />
-        </label>
-        <label className="flex flex-col gap-0.5">
-          Better
-          <select className="input w-24" value={better} onChange={(e) => setBetter(e.target.value as typeof better)}>
+        )}
+      </Field>
+      <Field label="Better">
+        {(fid) => (
+          <select
+            id={fid}
+            className="input w-full"
+            value={better}
+            onChange={(e) => setBetter(e.target.value as typeof better)}
+          >
             <option value="none">either way</option>
-            <option value="down">lower</option>
-            <option value="up">higher</option>
+            <option value="down">lower is better</option>
+            <option value="up">higher is better</option>
           </select>
-        </label>
-        <label className="flex flex-col gap-0.5">
-          Days as
-          <select className="input w-32" value={line} onChange={(e) => setLine(e.target.value as typeof line)}>
-            <option value="raw">values</option>
+        )}
+      </Field>
+      <Field label="Days as" hint="A 7-day mean suits a number that wobbles day to day, like a body weight.">
+        {(fid) => (
+          <select
+            id={fid}
+            className="input w-full"
+            value={line}
+            onChange={(e) => setLine(e.target.value as typeof line)}
+          >
+            <option value="raw">values as entered</option>
             <option value="mean">7-day mean</option>
           </select>
-        </label>
-        <label className="flex flex-col gap-0.5">
-          A week as
-          <select className="input w-28" value={rollup} onChange={(e) => setRollup(e.target.value as typeof rollup)}>
+        )}
+      </Field>
+      <Field label="A week as" hint="How the week and month views fold a period's values into one.">
+        {(fid) => (
+          <select
+            id={fid}
+            className="input w-full"
+            value={rollup}
+            onChange={(e) => setRollup(e.target.value as typeof rollup)}
+          >
             <option value="avg">average</option>
             <option value="sum">sum</option>
             <option value="last">last value</option>
           </select>
-        </label>
-      </div>
-      <span className="text-[0.6875rem] text-content-muted">
-        {def
-          ? "The id is what the values are stored under, so it stays. Removing the metric keeps its values: a metric added back under this id finds them."
-          : "The id is what values are stored under: the name can change later, the id should not."}{" "}
-        A 7-day mean suits a number that wobbles day to day, like a body weight.
-      </span>
-      <div className="flex gap-2">
-        <button type="submit" className="btn-ghost px-2 py-1" disabled={!ok}>
+        )}
+      </Field>
+      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        <button type="submit" className="btn-primary px-3 disabled:opacity-50" disabled={!ok}>
           {def ? "Save" : "Add metric"}
         </button>
-        <button type="button" className="btn-ghost px-2 py-1" onClick={() => onDone(false)}>
+        <button type="button" className="btn-ghost" onClick={() => onDone(false)}>
           Cancel
         </button>
         {def && (
           <>
             <div className="flex-1" />
-            <button type="button" className="btn-ghost px-2 py-1 hover:text-danger" onClick={removeMetric}>
+            <button
+              type="button"
+              className="btn-danger"
+              title="The values stay: a metric added back under this id finds them"
+              onClick={removeMetric}
+            >
               Remove metric
             </button>
           </>
@@ -776,6 +887,7 @@ export default function Metrics({ compact }: { compact: boolean }) {
       )}
       {adding && (
         <MetricForm
+          taken={overview.metrics.map((m) => m.def.id)}
           onDone={(saved) => {
             setAdding(false);
             if (saved) refresh();

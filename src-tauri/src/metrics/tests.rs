@@ -12,6 +12,7 @@ fn def(id: &str, rollup: &str) -> MetricDef {
     MetricDef {
         id: id.into(),
         name: None,
+        description: None,
         unit: None,
         decimals: None,
         goal: None,
@@ -175,6 +176,7 @@ fn definitions_are_checked_one_by_one() {
         &dir,
         MetricDef {
             name: Some(" Steps ".into()),
+            description: Some("  ".into()),
             unit: Some("".into()),
             ..def("steps", "sum")
         },

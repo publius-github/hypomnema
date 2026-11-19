@@ -9,7 +9,11 @@ id: string,
 /**
  * Display name; absent = the id.
  */
-name?: string, unit?: string, 
+name?: string, 
+/**
+ * Free text for the person: what is measured and how.
+ */
+description?: string, unit?: string, 
 /**
  * Digits after the decimal point when shown; absent = as entered.
  */

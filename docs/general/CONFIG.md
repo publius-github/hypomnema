@@ -62,7 +62,7 @@ birthdays:
 | `weekly-focus.yml` | The week's focus phrase, rotated by ISO week | yes |
 | `day-reminders.yml` | Reminders by day type: workday, weekend, weekday | yes |
 | `day-schedule.yml` | Blocks of the daily schedule | yes |
-| `metrics.yml` | The numbers the Tracker follows: `id` (the key values are stored under), optional `name`, `unit`, `decimals`, `goal`, `better` (down / up / none) and `rollup` (how a week or month folds: avg / sum / last). The values themselves are app state, not part of this file | yes |
+| `metrics.yml` | The numbers the Tracker follows: `id` (the key values are stored under), optional `name`, `description` (free text), `unit`, `decimals`, `goal`, `better` (down / up / none), `line` (what the day view draws: raw / mean, the 7-day mean) and `rollup` (how a week or month folds: avg / sum / last). New metrics made in the app get an id in kebab-case from the name. The values themselves are app state, not part of this file | yes |
 | `templates/journal.md` | The journal template, supports `{{date}}` | yes |
 | `colors.yml` | The color scheme, edited in Notes > Config; absent means the defaults | yes |
 | `shared.yml` | Retention, catch-up and the other task rules, written by their Settings controls | yes |
