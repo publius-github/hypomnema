@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { errorMessage, invoke } from "../../lib/ipc";
 import { useAppStore } from "../../store";
+import Icon from "../../components/icons";
 import { todayISO } from "../../lib/tasks";
 import type {
   MetricDef,
@@ -8,6 +9,11 @@ import type {
   MetricView,
   MetricsOverview,
 } from "../../types";
+
+/** Button widths here: one for a word, one for two, so a row does not
+    follow its labels' lengths. */
+const BTN_SHORT = "w-20 shrink-0 px-0 text-center";
+const BTN_LONG = "w-28 shrink-0 px-0 text-center";
 
 export type MetricUnit = "day" | "week" | "month";
 
@@ -510,7 +516,7 @@ function MetricCard({
         />
       )}
       <form
-        className="flex flex-wrap items-center gap-2"
+        className="flex items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           save();
@@ -519,7 +525,7 @@ function MetricCard({
         <input
           type="date"
           aria-label={`${metricName(def)} date`}
-          className="input w-36 text-xs"
+          className="input w-32 shrink-0 px-2 text-xs"
           value={date}
           max={todayISO()}
           onChange={(e) => setDate(e.target.value || todayISO())}
@@ -529,23 +535,25 @@ function MetricCard({
           inputMode="decimal"
           aria-label={`${metricName(def)} value`}
           placeholder={existing !== null ? formatValue(existing, def) : def.unit || "value"}
-          className="input w-28 text-xs"
+          className="input min-w-0 flex-1 text-xs sm:max-w-40 sm:flex-none"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        <button type="submit" className="btn-ghost px-2 py-1 text-xs" disabled={value === null}>
+        <button type="submit" className={`btn-ghost py-1 text-xs ${BTN_SHORT}`} disabled={value === null}>
           {existing !== null ? "Replace" : "Add"}
         </button>
-        {existing !== null && (
-          <button
-            type="button"
-            className="btn-ghost px-2 py-1 text-xs hover:text-danger"
-            aria-label={`Delete the ${metricName(def)} value of ${date}`}
-            onClick={remove}
-          >
-            Delete
-          </button>
-        )}
+        {/* the slot stays when the day is empty, so the row does not shift */}
+        <button
+          type="button"
+          className={`btn-ghost flex h-[30px] w-8 shrink-0 items-center justify-center px-0 text-content-muted hover:border-danger hover:text-danger ${existing === null ? "invisible" : ""}`}
+          aria-label={`Delete the ${metricName(def)} value of ${date}`}
+          title="Delete this day's value"
+          disabled={existing === null}
+          aria-hidden={existing === null}
+          onClick={remove}
+        >
+          <Icon name="trash" className="h-4 w-4" />
+        </button>
       </form>
     </div>
   );
@@ -773,11 +781,11 @@ function MetricForm({
           </select>
         )}
       </Field>
-      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-        <button type="submit" className="btn-primary px-3 disabled:opacity-50" disabled={!ok}>
+      <div className="flex items-center gap-2 border-t border-line pt-3">
+        <button type="submit" className={`btn-primary disabled:opacity-50 ${def ? BTN_SHORT : BTN_LONG}`} disabled={!ok}>
           {def ? "Save" : "Add metric"}
         </button>
-        <button type="button" className="btn-ghost" onClick={() => onDone(false)}>
+        <button type="button" className={`btn-ghost ${BTN_SHORT}`} onClick={() => onDone(false)}>
           Cancel
         </button>
         {def && (
@@ -785,7 +793,7 @@ function MetricForm({
             <div className="flex-1" />
             <button
               type="button"
-              className="btn-danger"
+              className={`btn-danger ${BTN_LONG}`}
               title="The values stay: a metric added back under this id finds them"
               onClick={removeMetric}
             >
@@ -862,7 +870,7 @@ export default function Metrics({ compact }: { compact: boolean }) {
         )}
         <div className="flex-1" />
         {!adding && (
-          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => setAdding(true)}>
+          <button className={`btn-ghost py-1 text-xs ${BTN_LONG}`} onClick={() => setAdding(true)}>
             New metric
           </button>
         )}
