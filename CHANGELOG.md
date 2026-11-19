@@ -2,6 +2,13 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.137.0 - 2026-11-19
+
+- The metric form is laid out one field per row, with room for every value and a short hint under the fields that need one; on a phone each label sits above its field.
+- A new metric no longer asks for an id: it is made from the name ("Body weight" becomes body-weight, Cyrillic names are transliterated) and shown under the name field.
+- A metric can have an optional description, any text, shown under its name on the Tracker.
+- Save is the blue primary button and Remove metric is red, as elsewhere in the app.
+
 ## 0.136.0 - 2026-11-19
 
 - A metric drawn as a 7-day mean now reads the same way in its header: it shows the mean instead of the last weigh-in, and instead of the change since yesterday's value it shows the pace per week, taken from the first to the last point of the line on the chart, so one swollen morning no longer turns the arrow. The pace appears once the line's ends are three days apart.
