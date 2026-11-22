@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.139.4 - 2026-11-22
+
+Security update: the `url` library is on 2.5.9, which fixes a stack overflow on a crafted URL nested many times (RUSTSEC-2026-0592). The app never handles such URLs from outside; the update keeps the dependency audit clean. Third-party notices regenerated.
+
 ## 0.139.3 - 2026-11-22
 
 Dependency updates Dependabot proposed (#23, #24, #25, #27, #28): zustand 5.1.0, `@tailwindcss/postcss` 4.3.5, postcss 8.5.32, typescript-eslint 8.72.1 and `taiki-e/install-action` 2.90.3 in CI; third-party notices regenerated. ESLint stays at 9: version 10 (#26) is not supported by `eslint-plugin-jsx-a11y` yet. Nothing changes in how the app looks or behaves.
