@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.139.3 - 2026-11-22
+
+Dependency updates Dependabot proposed (#23, #24, #25, #27, #28): zustand 5.1.0, `@tailwindcss/postcss` 4.3.5, postcss 8.5.32, typescript-eslint 8.72.1 and `taiki-e/install-action` 2.90.3 in CI; third-party notices regenerated. ESLint stays at 9: version 10 (#26) is not supported by `eslint-plugin-jsx-a11y` yet. Nothing changes in how the app looks or behaves.
+
 ## 0.139.2 - 2026-11-22
 
 - Sheets that slide up on the phone (Jump to, a task's actions, settings choices) are square across the full width and no longer show a grab bar, which suggested they could be dragged down. Tap outside the sheet or use back to close it, as before.
