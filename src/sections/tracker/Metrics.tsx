@@ -810,7 +810,20 @@ function MetricForm({
  * The Tracker's numbers: one card per metric in metrics.yml, each with
  * its chart and a row to enter or correct a day's value.
  */
-export default function Metrics({ compact }: { compact: boolean }) {
+/** A metric's anchor on the page, for the Tracker index to scroll to. */
+export const metricAnchor = (id: string) => `tracker-metric-${id}`;
+
+export default function Metrics({
+  compact,
+  highlightId = null,
+  onIndex,
+}: {
+  compact: boolean;
+  /** the anchor just jumped to from the index: it wears a short ring */
+  highlightId?: string | null;
+  /** the metrics as the index lists them, sent on every load */
+  onIndex?: (rows: { anchor: string; name: string }[]) => void;
+}) {
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [unit, setUnit] = useState<MetricUnit>("day");
@@ -829,6 +842,11 @@ export default function Metrics({ compact }: { compact: boolean }) {
       cancelled = true;
     };
   }, [vaultVersion, reload]);
+
+  useEffect(() => {
+    if (overview)
+      onIndex?.(overview.metrics.map((m) => ({ anchor: metricAnchor(m.def.id), name: metricName(m.def) })));
+  }, [overview, onIndex]);
 
   if (!overview) return null;
   const refresh = () => setReload((n) => n + 1);
@@ -909,14 +927,14 @@ export default function Metrics({ compact }: { compact: boolean }) {
         </p>
       )}
       {overview.metrics.map((view) => (
-        <MetricCard
+        // the wrapper is the anchor, so an open edit form is one too
+        <div
           key={view.def.id}
-          view={view}
-          unit={unit}
-          count={count}
-          compact={compact}
-          onChanged={refresh}
-        />
+          id={metricAnchor(view.def.id)}
+          className={`scroll-mt-6 rounded-lg ${highlightId === metricAnchor(view.def.id) ? "ring-2 ring-accent" : ""}`}
+        >
+          <MetricCard view={view} unit={unit} count={count} compact={compact} onChanged={refresh} />
+        </div>
       ))}
     </section>
   );

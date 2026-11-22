@@ -186,4 +186,64 @@ describe("Tracker smoke", () => {
       def: { id: "weight", name: "Weight", unit: "kg", goal: 90, rollup: "avg", line: "mean" },
     });
   });
+  it("lists three metrics and the habits in a side index that scrolls to them", async () => {
+    const metric = (id: string, name: string) => ({
+      def: { id, name },
+      latest: null,
+      previous: null,
+      mean: null,
+    });
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        habit_trends: () => ({
+          periods: ["2026-08-24"],
+          overall: [b(1, 1)],
+          rules: [{ rule_key: "a", title: "review", cadence: "weekly", buckets: [b(1, 1)], sum: b(1, 1) }],
+        }),
+        metrics_overview: () => ({
+          metrics: [metric("weight", "Weight"), metric("sleep", "Sleep"), metric("steps", "Steps")],
+          links: [],
+          errors: [],
+        }),
+        metric_series: () => ({ metric: "weight", start: "2026-08-01", end: "2026-08-31", points: [] }),
+        measurement_on: () => null,
+      }),
+    );
+    useAppStore.setState({ config: defaultConfig, vaultVersion: 0 });
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id);
+    };
+    render(<Tracker />);
+    const index = await screen.findByRole("navigation", { name: "Tracker index" });
+    await waitFor(() => expect(index.textContent).toContain("By task"));
+    expect(index.textContent).toBe("MetricsWeightSleepStepsHabitsAll recurring tasksBy task");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sleep" }));
+    expect(scrolled).toEqual(["tracker-metric-sleep"]);
+    expect(document.getElementById("tracker-metric-sleep")!.className).toContain("ring-accent");
+    fireEvent.click(screen.getByRole("button", { name: "By task" }));
+    expect(scrolled.at(-1)).toBe("tracker-habits-rules");
+  });
+
+  it("leaves the index out under three metrics", async () => {
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        habit_trends: () => ({ periods: ["2026-08-24"], overall: [b(0, 0)], rules: [] }),
+        metrics_overview: () => ({
+          metrics: [{ def: { id: "weight", name: "Weight" }, latest: null, previous: null, mean: null }],
+          links: [],
+          errors: [],
+        }),
+        metric_series: () => ({ metric: "weight", start: "2026-08-01", end: "2026-08-31", points: [] }),
+        measurement_on: () => null,
+      }),
+    );
+    useAppStore.setState({ config: defaultConfig, vaultVersion: 0 });
+    render(<Tracker />);
+    expect(await screen.findByText("Weight")).toBeTruthy();
+    expect(screen.queryByRole("navigation", { name: "Tracker index" })).toBeNull();
+  });
 });

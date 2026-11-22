@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { splitCategory } from "../lib/tasks";
@@ -152,6 +152,59 @@ function TrendBars({
   );
 }
 
+/** The index rail shows from this many metrics on. */
+export const INDEX_MIN_METRICS = 3;
+
+const HABITS_ALL = "tracker-habits-all";
+const HABITS_RULES = "tracker-habits-rules";
+
+type IndexRow = { anchor: string; name: string };
+
+/**
+ * The page's sticky right rail, same look as the Lists index: a click
+ * scrolls the section into view and flashes it; the row of the section
+ * at the top of the page stays lit while the page scrolls.
+ */
+function TrackerIndex({
+  groups,
+  active,
+  onJump,
+}: {
+  groups: { title: string; rows: IndexRow[] }[];
+  active: string | null;
+  onJump: (anchor: string) => void;
+}) {
+  return (
+    <nav
+      aria-label="Tracker index"
+      className="sticky top-6 hidden w-40 shrink-0 flex-col gap-2 rounded-lg border border-line bg-surface-alt/50 p-1.5 xl:flex"
+    >
+      {groups.map((group) => (
+        <div key={group.title} className="flex flex-col gap-0.5">
+          <div className="px-1 pb-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
+            {group.title}
+          </div>
+          {group.rows.map((row) => (
+            <button
+              key={row.anchor}
+              aria-current={active === row.anchor ? "location" : undefined}
+              className={`truncate rounded px-1.5 py-0.5 text-left text-xs ${
+                active === row.anchor
+                  ? "bg-accent/15 text-accent"
+                  : "text-content-muted hover:bg-line/40 hover:text-content"
+              }`}
+              title={`Scroll to "${row.name}"`}
+              onClick={() => onJump(row.anchor)}
+            >
+              {row.name}
+            </button>
+          ))}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
 /**
  * Completion trends of the recurring rules: the share of settled
  * instances done per week or month, all rules together and per rule.
@@ -164,6 +217,11 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
   const [unit, setUnit] = useState<Unit>("week");
   const [count, setCount] = useState(12);
   const [trends, setTrends] = useState<HabitTrends | null>(null);
+  const [metricRows, setMetricRows] = useState<IndexRow[]>([]);
+  const [active, setActive] = useState<string | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightTimer = useRef<number | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,6 +235,68 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
     };
   }, [unit, count, vaultVersion]);
 
+  useEffect(
+    () => () => {
+      if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
+    },
+    [],
+  );
+
+  const showIndex = !compact && metricRows.length >= INDEX_MIN_METRICS;
+  const indexGroups = [
+    { title: "Metrics", rows: metricRows },
+    ...(trends && trends.rules.length > 0
+      ? [
+          {
+            title: "Habits",
+            rows: [
+              { anchor: HABITS_ALL, name: "All recurring tasks" },
+              { anchor: HABITS_RULES, name: "By task" },
+            ],
+          },
+        ]
+      : []),
+  ];
+  const anchorsKey = indexGroups.flatMap((g) => g.rows.map((r) => r.anchor)).join(" ");
+
+  // the lit row: the last section whose top has passed the page's top
+  // edge, or the last one once the page is scrolled to its end
+  useEffect(() => {
+    const el = scroller.current;
+    if (!showIndex || !el) return;
+    const anchors = anchorsKey.split(" ");
+    let frame = 0;
+    const spy = () => {
+      frame = 0;
+      const edge = el.getBoundingClientRect().top + 32;
+      let current = anchors[0];
+      for (const a of anchors) {
+        const node = document.getElementById(a);
+        if (node && node.getBoundingClientRect().top <= edge) current = a;
+      }
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) current = anchors[anchors.length - 1];
+      setActive(current);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(spy);
+    };
+    spy();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [showIndex, anchorsKey]);
+
+  const jumpTo = useCallback((anchor: string) => {
+    document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setHighlightId(anchor);
+    if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = window.setTimeout(() => setHighlightId(null), 2000);
+  }, []);
+
+  const ring = (anchor: string) => (highlightId === anchor ? "ring-2 ring-accent" : "");
+
   const switchUnit = (next: Unit) => {
     setUnit(next);
     setCount(RANGES[next][0]);
@@ -189,15 +309,13 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
   const overallRate = overallSum ? rateOf(overallSum) : null;
   const unitWord = unit === "week" ? "weeks" : "months";
 
-  return (
+  const column = (
     <div
       className={
-        compact
-          ? "flex flex-col gap-4 p-4"
-          : "mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-y-auto p-6"
+        compact ? "flex flex-col gap-4 p-4" : "flex w-full min-w-0 max-w-4xl flex-col gap-4"
       }
     >
-      <Metrics compact={compact} />
+      <Metrics compact={compact} highlightId={highlightId} onIndex={setMetricRows} />
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">Habits</h2>
         <div className="flex rounded-md border border-line" role="group" aria-label="Habit period">
@@ -237,7 +355,10 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
 
       {trends && trends.rules.length > 0 && (
         <>
-          <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-alt/50 p-4">
+          <div
+            id={HABITS_ALL}
+            className={`flex scroll-mt-6 flex-col gap-2 rounded-lg border border-line bg-surface-alt/50 p-4 ${ring(HABITS_ALL)}`}
+          >
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
                 All recurring tasks
@@ -263,7 +384,10 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
             />
           </div>
 
-          <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-alt/50 p-4">
+          <div
+            id={HABITS_RULES}
+            className={`flex scroll-mt-6 flex-col gap-2 rounded-lg border border-line bg-surface-alt/50 p-4 ${ring(HABITS_RULES)}`}
+          >
             <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-content-muted">
               By task, weakest first
             </span>
@@ -314,6 +438,18 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
           </p>
         </>
       )}
+    </div>
+  );
+
+  if (compact) return column;
+  // the page scrolls as a whole so the rail can stick; the column keeps
+  // its width and the pair centres together
+  return (
+    <div ref={scroller} className="h-full w-full overflow-y-auto">
+      <div className="flex w-full items-start justify-center gap-6 p-6">
+        {column}
+        {showIndex && <TrackerIndex groups={indexGroups} active={active} onJump={jumpTo} />}
+      </div>
     </div>
   );
 }
