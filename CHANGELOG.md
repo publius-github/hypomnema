@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.139.0 - 2026-11-22
+
+- On the phone the Tracker's index is a button in the screen's header once there are three or more metrics: it opens a sheet listing every metric and the two habit blocks, with the one you are at lit, and a tap scrolls straight to it.
+
 ## 0.138.0 - 2026-11-22
 
 - The Tracker gets an index on the right once it holds three or more metrics, like the one on Lists: it names every metric and the two habit blocks, a click scrolls to that card and briefly outlines it, and the entry for the part of the page you are reading stays lit as you scroll. On narrower windows and on the phone it stays hidden.
