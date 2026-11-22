@@ -4,7 +4,7 @@ Every version of Hypomnema, newest first. Versions before 1.0 are development bu
 
 ## 0.139.4 - 2026-11-22
 
-Security update: the `url` library is on 2.5.9, which fixes a stack overflow on a crafted URL nested many times (RUSTSEC-2026-0592). The app never handles such URLs from outside; the update keeps the dependency audit clean. Third-party notices regenerated.
+Security update: the `url` library is on 2.5.9, which fixes a stack overflow on a crafted URL nested many times (RUSTSEC-2026-0592). Third-party notices regenerated.
 
 ## 0.139.3 - 2026-11-22
 
