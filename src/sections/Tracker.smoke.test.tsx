@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
@@ -26,7 +26,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   ask: vi.fn(async () => false),
 }));
 
-import Tracker from "./Tracker";
+import Tracker, { TrackerView } from "./Tracker";
 import { useAppStore } from "../store";
 import { baseHandlers, defaultConfig } from "../test/fixtures";
 import { dispatchCommands } from "../test/tauriMocks";
@@ -245,5 +245,38 @@ describe("Tracker smoke", () => {
     render(<Tracker />);
     expect(await screen.findByText("Weight")).toBeTruthy();
     expect(screen.queryByRole("navigation", { name: "Tracker index" })).toBeNull();
+  });
+  it("on the phone opens the index as a sheet from the header and closes it on a jump", async () => {
+    const metric = (id: string, name: string) => ({ def: { id, name }, latest: null, previous: null, mean: null });
+    dispatchCommands(
+      invokeMock,
+      baseHandlers({
+        habit_trends: () => ({ periods: ["2026-08-24"], overall: [b(0, 0)], rules: [] }),
+        metrics_overview: () => ({
+          metrics: [metric("weight", "Weight"), metric("sleep", "Sleep"), metric("steps", "Steps")],
+          links: [],
+          errors: [],
+        }),
+        metric_series: () => ({ metric: "weight", start: "2026-08-01", end: "2026-08-31", points: [] }),
+        measurement_on: () => null,
+      }),
+    );
+    useAppStore.setState({ config: defaultConfig, vaultVersion: 0 });
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id);
+    };
+    const slot = document.createElement("div");
+    document.body.appendChild(slot);
+    render(<TrackerView compact headerSlot={slot} />);
+    expect(screen.queryByRole("navigation", { name: "Tracker index" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Jump to a section" }));
+    const sheet = screen.getByRole("dialog", { name: "Jump to" });
+    expect(sheet.textContent).toBe("Jump toMetricsWeightSleepSteps");
+
+    fireEvent.click(within(sheet).getByRole("button", { name: "Steps" }));
+    expect(scrolled).toEqual(["tracker-metric-steps"]);
+    expect(screen.queryByRole("dialog", { name: "Jump to" })).toBeNull();
+    slot.remove();
   });
 });

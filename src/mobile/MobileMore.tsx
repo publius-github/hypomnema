@@ -37,6 +37,8 @@ const SCREENS: { id: Screen; label: string; hint: string }[] = [
  */
 export default function MobileMore() {
   const [screen, setScreen] = useState<Screen | null>(null);
+  // the header's right end, where a screen may put its own action
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   useBackStep(screen !== null, () => setScreen(null));
 
   // Settings draws its own header, so a panel inside it shows one back
@@ -57,13 +59,14 @@ export default function MobileMore() {
             ‹ More
           </button>
           <span className="font-semibold">{entry?.label}</span>
+          <div ref={setHeaderSlot} className="ml-auto flex items-center" />
         </header>
         <div className="min-h-0 flex-1 overflow-auto">
           {screen === "upcoming" && <MobileUpcoming />}
           {screen === "reminders" && <MobileReminders />}
           {screen === "calendar" && <MobileCalendar />}
           {screen === "review" && <MobileReview />}
-          {screen === "tracker" && <TrackerView compact />}
+          {screen === "tracker" && <TrackerView compact headerSlot={headerSlot} />}
         </div>
       </div>
     );

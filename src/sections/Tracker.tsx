@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import Icon from "../components/icons";
+import { Sheet } from "../mobile/settings/rows";
 import { errorMessage, invoke } from "../lib/ipc";
 import { useAppStore } from "../store";
 import { splitCategory } from "../lib/tasks";
@@ -159,6 +162,66 @@ const HABITS_ALL = "tracker-habits-all";
 const HABITS_RULES = "tracker-habits-rules";
 
 type IndexRow = { anchor: string; name: string };
+type IndexGroup = { title: string; rows: IndexRow[] };
+
+/**
+ * The phone's index: a button in the screen's header opens a sheet of
+ * the same rows; a tap closes it and scrolls there. The lit row is
+ * where the page stands.
+ */
+function TrackerIndexSheet({
+  slot,
+  groups,
+  active,
+  onJump,
+}: {
+  slot: HTMLElement;
+  groups: IndexGroup[];
+  active: string | null;
+  onJump: (anchor: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {createPortal(
+        <button
+          className="flex min-h-10 min-w-10 items-center justify-center text-content-muted"
+          aria-label="Jump to a section"
+          onClick={() => setOpen(true)}
+        >
+          <Icon name="list" className="h-5 w-5" />
+        </button>,
+        slot,
+      )}
+      {open && (
+        <Sheet title="Jump to" onClose={() => setOpen(false)}>
+          {groups.map((group) => (
+            <div key={group.title} className="pb-2">
+              <div className="px-4 pb-1 pt-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
+                {group.title}
+              </div>
+              {group.rows.map((row) => (
+                <button
+                  key={row.anchor}
+                  aria-current={active === row.anchor ? "location" : undefined}
+                  className={`flex min-h-12 w-full items-center px-4 text-left active:bg-line/40 ${
+                    active === row.anchor ? "bg-accent/15 text-accent" : ""
+                  }`}
+                  onClick={() => {
+                    setOpen(false);
+                    onJump(row.anchor);
+                  }}
+                >
+                  <span className="truncate">{row.name}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </Sheet>
+      )}
+    </>
+  );
+}
 
 /**
  * The page's sticky right rail, same look as the Lists index: a click
@@ -170,7 +233,7 @@ function TrackerIndex({
   active,
   onJump,
 }: {
-  groups: { title: string; rows: IndexRow[] }[];
+  groups: IndexGroup[];
   active: string | null;
   onJump: (anchor: string) => void;
 }) {
@@ -209,9 +272,17 @@ function TrackerIndex({
  * Completion trends of the recurring rules: the share of settled
  * instances done per week or month, all rules together and per rule.
  * Counted the way the card's rate chip counts (views::habit_trends).
- * `compact` drops the page padding for the phone's More screen.
+ * `compact` drops the page padding for the phone's More screen, where
+ * the index is a sheet behind a button the screen's header holds in
+ * `headerSlot`.
  */
-export function TrackerView({ compact = false }: { compact?: boolean }) {
+export function TrackerView({
+  compact = false,
+  headerSlot = null,
+}: {
+  compact?: boolean;
+  headerSlot?: HTMLElement | null;
+}) {
   const vaultVersion = useAppStore((s) => s.vaultVersion);
   const threshold = useAppStore((s) => s.config?.habit_rate_threshold ?? 80);
   const [unit, setUnit] = useState<Unit>("week");
@@ -222,6 +293,7 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const highlightTimer = useRef<number | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -242,8 +314,8 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
     [],
   );
 
-  const showIndex = !compact && metricRows.length >= INDEX_MIN_METRICS;
-  const indexGroups = [
+  const showIndex = metricRows.length >= INDEX_MIN_METRICS;
+  const indexGroups: IndexGroup[] = [
     { title: "Metrics", rows: metricRows },
     ...(trends && trends.rules.length > 0
       ? [
@@ -260,9 +332,10 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
   const anchorsKey = indexGroups.flatMap((g) => g.rows.map((r) => r.anchor)).join(" ");
 
   // the lit row: the last section whose top has passed the page's top
-  // edge, or the last one once the page is scrolled to its end
+  // edge, or the last one once the page is scrolled to its end. On the
+  // phone the page is the More screen's scroller, the column's parent.
   useEffect(() => {
-    const el = scroller.current;
+    const el = compact ? columnRef.current?.parentElement : scroller.current;
     if (!showIndex || !el) return;
     const anchors = anchorsKey.split(" ");
     let frame = 0;
@@ -286,7 +359,7 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
       el.removeEventListener("scroll", onScroll);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [showIndex, anchorsKey]);
+  }, [showIndex, anchorsKey, compact]);
 
   const jumpTo = useCallback((anchor: string) => {
     document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -311,6 +384,7 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
 
   const column = (
     <div
+      ref={columnRef}
       className={
         compact ? "flex flex-col gap-4 p-4" : "flex w-full min-w-0 max-w-4xl flex-col gap-4"
       }
@@ -441,7 +515,15 @@ export function TrackerView({ compact = false }: { compact?: boolean }) {
     </div>
   );
 
-  if (compact) return column;
+  if (compact)
+    return (
+      <>
+        {column}
+        {showIndex && headerSlot && (
+          <TrackerIndexSheet slot={headerSlot} groups={indexGroups} active={active} onJump={jumpTo} />
+        )}
+      </>
+    );
   // the page scrolls as a whole so the rail can stick; the column keeps
   // its width and the pair centres together
   return (
