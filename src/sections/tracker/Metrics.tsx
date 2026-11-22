@@ -239,7 +239,9 @@ export function MetricChart({
         aria-label={`${metricName(def)}: ${summary}`}
         width={width}
         height={height}
-        className="block touch-none select-none"
+        // a finger dragged up or down scrolls the page through the
+        // chart; a tap still picks the point
+        className="block touch-pan-y select-none"
         onMouseMove={(e) => pick(e.clientX, e.currentTarget)}
         onClick={(e) => {
           const i = pick(e.clientX, e.currentTarget);

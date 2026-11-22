@@ -195,16 +195,17 @@ function TrackerIndexSheet({
       )}
       {open && (
         <Sheet title="Jump to" onClose={() => setOpen(false)}>
+          {/* the group heads are no smaller than their rows and sit at
+              the edge, the rows indented under them; a rule parts each
+              group from the sheet's title and from the one above */}
           {groups.map((group) => (
-            <div key={group.title} className="pb-2">
-              <div className="px-4 pb-1 pt-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-content-muted">
-                {group.title}
-              </div>
+            <div key={group.title} className="border-t border-line pb-2 pt-1">
+              <div className="px-4 pb-1 pt-2 font-semibold">{group.title}</div>
               {group.rows.map((row) => (
                 <button
                   key={row.anchor}
                   aria-current={active === row.anchor ? "location" : undefined}
-                  className={`flex min-h-12 w-full items-center px-4 text-left active:bg-line/40 ${
+                  className={`flex min-h-12 w-full items-center pl-8 pr-4 text-left active:bg-line/40 ${
                     active === row.anchor ? "bg-accent/15 text-accent" : ""
                   }`}
                   onClick={() => {
