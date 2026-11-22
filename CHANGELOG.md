@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.138.0 - 2026-11-22
+
+- The Tracker gets an index on the right once it holds three or more metrics, like the one on Lists: it names every metric and the two habit blocks, a click scrolls to that card and briefly outlines it, and the entry for the part of the page you are reading stays lit as you scroll. On narrower windows and on the phone it stays hidden.
+
 ## 0.137.1 - 2026-11-19
 
 - A metric's entry row fits on one line on a phone: the date field is a fixed width, the value field takes the rest, and Delete is a small trash button. The row no longer shifts when a day with a value is picked.
