@@ -2,6 +2,10 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.139.2 - 2026-11-22
+
+- Sheets that slide up on the phone (Jump to, a task's actions, settings choices) are square across the full width and no longer show a grab bar, which suggested they could be dragged down. Tap outside the sheet or use back to close it, as before.
+
 ## 0.139.1 - 2026-11-22
 
 - On the phone the Tracker scrolls when you drag across a metric's chart; before, only the narrow margin beside the cards scrolled. Tapping a point still picks it.
