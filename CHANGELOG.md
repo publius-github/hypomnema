@@ -2,6 +2,11 @@
 
 Every version of Hypomnema, newest first. Versions before 1.0 are development builds; history before 0.56.0 lives in the git log.
 
+## 0.139.1 - 2026-11-22
+
+- On the phone the Tracker scrolls when you drag across a metric's chart; before, only the narrow margin beside the cards scrolled. Tapping a point still picks it.
+- In the Tracker's Jump to sheet, Metrics and Habits read as the headings they are: as large as the entries, with the entries indented under them and a line between the groups.
+
 ## 0.139.0 - 2026-11-22
 
 - On the phone the Tracker's index is a button in the screen's header once there are three or more metrics: it opens a sheet listing every metric and the two habit blocks, with the one you are at lit, and a tap scrolls straight to it.
