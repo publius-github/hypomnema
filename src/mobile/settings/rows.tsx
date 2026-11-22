@@ -155,17 +155,16 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-[80%] overflow-auto rounded-t-2xl border-t border-line bg-surface pt-2"
+        // square, edge to edge: a rounded top read as cut off at the
+        // screen's sides, and there is no grab handle - the sheet does
+        // not drag, the backdrop and back close it
+        className="max-h-[80%] overflow-auto border-t border-line bg-surface pt-3"
         // only the bottom edge meets a system bar (the .safe-area floor)
         style={{
           paddingBottom:
             "max(env(safe-area-inset-bottom, 0px), var(--safe-bottom, 0px))",
         }}
       >
-        <div
-          aria-hidden
-          className="mx-auto mb-2 h-1 w-10 rounded-full bg-line"
-        />
         <h3 className="px-4 pb-2 font-semibold">{title}</h3>
         {children}
       </div>
